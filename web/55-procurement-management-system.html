@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Management System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --bg-2:#ffffff;
+    --panel:#ffffff;
+    --panel-2:#f1f3f6;
+    --line:#e2e6ec;
+    --line-soft:#edf0f4;
+    --text:#1f2937;
+    --muted:#5b6678;
+    --muted-2:#8a93a3;
+    --brand:#7c3aed;
+    --brand-2:#9560f0;
+    --accent:#0ea371;
+    --amber:#c8810a;
+    --rose:#e0414b;
+    --violet:#7c3aed;
+    --cyan:#0e8bb0;
+    --shadow:0 8px 24px -12px rgba(31,41,55,.18);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:rgba(124,58,237,.20)}
+  /* Layout */
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  /* Sidebar */
+  .side{
+    border-right:1px solid var(--line);
+    background:var(--bg-2);
+    display:flex;flex-direction:column;padding:18px 14px;gap:6px;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 16px}
+  .logo{
+    width:38px;height:38px;border-radius:11px;flex:none;
+    background:linear-gradient(135deg,#7c3aed,#9560f0);
+    display:grid;place-items:center;box-shadow:0 8px 20px -6px rgba(124,58,237,.45);
+  }
+  .logo svg{width:21px;height:21px}
+  .brand b{font-size:14.5px;letter-spacing:.2px;display:block}
+  .brand span{font-size:11px;color:var(--muted-2);letter-spacing:.4px}
+  .nav-group{font-size:10.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted-2);padding:14px 10px 6px}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;
+    color:var(--muted);cursor:pointer;font-size:13px;font-weight:500;transition:.15s;position:relative;
+  }
+  .nav-item svg{width:17px;height:17px;flex:none;opacity:.85}
+  .nav-item:hover{background:var(--panel-2);color:var(--text)}
+  .nav-item.active{background:linear-gradient(90deg,rgba(124,58,237,.12),rgba(124,58,237,.02));color:var(--brand)}
+  .nav-item.active::before{content:"";position:absolute;left:-14px;top:7px;bottom:7px;width:3px;border-radius:3px;background:var(--brand)}
+  .nav-badge{margin-left:auto;font-size:10.5px;font-weight:700;background:var(--brand);color:#fff;border-radius:20px;padding:2px 7px}
+  .nav-badge.soft{background:var(--panel-2);color:var(--muted)}
+  .side-foot{margin-top:auto;border-top:1px solid var(--line-soft);padding-top:12px}
+  .user{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px;cursor:pointer}
+  .user:hover{background:var(--panel)}
+  .avatar{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff}
+  .user b{font-size:12.5px;display:block}
+  .user span{font-size:11px;color:var(--muted-2)}
+
+  /* Main */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    display:flex;align-items:center;gap:16px;padding:16px 26px;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.8);backdrop-filter:blur(8px);position:sticky;top:0;z-index:20;
+  }
+  .page-title h1{margin:0;font-size:19px;letter-spacing:.2px}
+  .page-title p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);
+    border-radius:11px;padding:9px 13px;width:280px;color:var(--muted);
+  }
+  .search svg{width:15px;height:15px;flex:none}
+  .search input{background:none;border:none;outline:none;color:var(--text);font-size:13px;width:100%}
+  .search input::placeholder{color:var(--muted-2)}
+  .icon-btn{
+    width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);
+    display:grid;place-items:center;cursor:pointer;color:var(--muted);position:relative;transition:.15s;
+  }
+  .icon-btn:hover{color:var(--text);border-color:var(--brand)}
+  .icon-btn svg{width:18px;height:18px}
+  .dot{position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--rose);border:2px solid var(--bg)}
+  .btn{
+    border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;transition:.15s;white-space:nowrap;
+  }
+  .btn svg{width:16px;height:16px}
+  .btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;box-shadow:0 8px 18px -8px rgba(124,58,237,.5)}
+  .btn-primary:hover{filter:brightness(1.05)}
+  .btn-ghost{background:var(--panel);color:var(--text);border:1px solid var(--line)}
+  .btn-ghost:hover{border-color:var(--brand);color:var(--brand)}
+
+  .content{padding:22px 26px 40px;display:flex;flex-direction:column;gap:20px}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .kpi{
+    background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);
+    border-radius:var(--radius);padding:16px 17px;position:relative;overflow:hidden;
+  }
+  .kpi::after{content:"";position:absolute;right:-20px;top:-20px;width:90px;height:90px;border-radius:50%;opacity:.1;background:var(--brand)}
+  .kpi.g2::after{background:var(--accent)}
+  .kpi.g3::after{background:var(--amber)}
+  .kpi.g4::after{background:var(--violet)}
+  .kpi .lbl{font-size:11.5px;color:var(--muted);letter-spacing:.3px;display:flex;align-items:center;gap:7px}
+  .kpi .lbl svg{width:15px;height:15px}
+  .kpi .val{font-size:26px;font-weight:750;margin:9px 0 4px;letter-spacing:.3px}
+  .kpi .sub{font-size:11.5px;color:var(--muted-2);display:flex;align-items:center;gap:6px}
+  .trend{font-weight:700;display:inline-flex;align-items:center;gap:3px}
+  .trend.up{color:var(--accent)}
+  .trend.down{color:var(--rose)}
+  .spark{position:absolute;right:14px;bottom:12px;opacity:.9}
+
+  /* Workspace grid */
+  .workspace{display:grid;grid-template-columns:1.55fr 1fr;gap:20px;align-items:start}
+  .panel{
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
+  }
+  .panel-head{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+  .panel-head h2{margin:0;font-size:14.5px;letter-spacing:.2px}
+  .panel-head .cnt{font-size:11px;color:var(--muted-2);background:var(--panel-2);border-radius:20px;padding:2px 9px;font-weight:600}
+  .panel-head .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  /* Tabs / filters */
+  .tabs{display:flex;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .tab{padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s;white-space:nowrap}
+  .tab:hover{color:var(--text)}
+  .tab.active{background:var(--brand);color:#fff;box-shadow:0 4px 10px -4px rgba(124,58,237,.5)}
+
+  /* Requisition queue (signature: triage inbox) */
+  .queue{max-height:560px;overflow:auto}
+  .req{
+    display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:center;padding:14px 18px;
+    border-bottom:1px solid var(--line-soft);cursor:pointer;transition:.15s;position:relative;
+  }
+  .req:hover{background:var(--panel-2)}
+  .req.sel{background:linear-gradient(90deg,rgba(124,58,237,.08),transparent)}
+  .req.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .req-prio{width:9px;height:9px;border-radius:50%;flex:none}
+  .p-high{background:var(--rose);box-shadow:0 0 0 4px rgba(224,65,75,.14)}
+  .p-med{background:var(--amber);box-shadow:0 0 0 4px rgba(200,129,10,.14)}
+  .p-low{background:var(--muted-2)}
+  .req-main{min-width:0}
+  .req-top{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .req-id{font-size:11px;color:var(--muted-2);font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .req-title{font-weight:650;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .req-meta{display:flex;align-items:center;gap:13px;font-size:11.5px;color:var(--muted)}
+  .req-meta .m{display:flex;align-items:center;gap:5px}
+  .req-meta svg{width:13px;height:13px;opacity:.8}
+  .req-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .req-amt{font-weight:750;font-size:14px;letter-spacing:.2px}
+  .ai-flag{
+    display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;
+    background:rgba(124,58,237,.10);color:var(--violet);border:1px solid rgba(124,58,237,.22);
+  }
+  .ai-flag svg{width:12px;height:12px}
+  .ai-flag.ok{background:rgba(14,163,113,.12);color:var(--accent);border-color:rgba(14,163,113,.26)}
+  .ai-flag.warn{background:rgba(200,129,10,.12);color:var(--amber);border-color:rgba(200,129,10,.26)}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.2px}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .s-review{background:rgba(200,129,10,.12);color:var(--amber)}
+  .s-approved{background:rgba(14,163,113,.12);color:var(--accent)}
+  .s-ordered{background:rgba(14,139,176,.12);color:var(--cyan)}
+  .s-rejected{background:rgba(224,65,75,.12);color:var(--rose)}
+  .s-draft{background:rgba(138,147,163,.16);color:var(--muted)}
+  .s-progress{background:rgba(124,58,237,.12);color:var(--violet)}
+
+  /* AI review panel (right) */
+  .ai-panel .panel-head{background:linear-gradient(90deg,rgba(124,58,237,.06),transparent)}
+  .ai-doc{padding:0 0 6px}
+  .doc-head{padding:16px 18px 12px;display:flex;align-items:flex-start;gap:13px;border-bottom:1px solid var(--line-soft)}
+  .doc-thumb{
+    width:46px;height:58px;border-radius:8px;flex:none;background:linear-gradient(160deg,#f1f3f6,#e6eaf0);
+    border:1px solid var(--line);display:flex;flex-direction:column;gap:3px;padding:7px 6px;position:relative;
+  }
+  .doc-thumb i{height:2.5px;border-radius:2px;background:var(--muted-2);opacity:.55;display:block}
+  .doc-thumb i:nth-child(1){width:70%}
+  .doc-thumb i:nth-child(2){width:100%}
+  .doc-thumb i:nth-child(3){width:85%}
+  .doc-thumb i:nth-child(4){width:60%}
+  .doc-thumb::after{content:"PDF";position:absolute;bottom:5px;right:5px;font-size:7px;font-weight:800;color:var(--rose);letter-spacing:.5px}
+  .doc-info h3{margin:0 0 3px;font-size:14px}
+  .doc-info p{margin:0;font-size:11.5px;color:var(--muted)}
+  .ai-banner{
+    margin:13px 18px;padding:11px 13px;border-radius:11px;display:flex;align-items:center;gap:11px;
+    background:linear-gradient(100deg,rgba(124,58,237,.09),rgba(124,58,237,.03));border:1px solid rgba(124,58,237,.20);
+  }
+  .ai-banner .ic{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;background:linear-gradient(135deg,#7c3aed,#9560f0)}
+  .ai-banner .ic svg{width:17px;height:17px;color:#fff}
+  .ai-banner b{font-size:12.5px;display:block}
+  .ai-banner span{font-size:11px;color:var(--muted)}
+  .ai-banner .score{margin-left:auto;text-align:center}
+  .ai-banner .score b{font-size:18px;color:var(--accent);line-height:1}
+  .ai-banner .score span{font-size:9.5px;letter-spacing:.5px}
+
+  .fields{padding:4px 18px 8px}
+  .field{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+  .field:last-child{border-bottom:none}
+  .field .fl{font-size:11.5px;color:var(--muted);width:120px;flex:none}
+  .field .fv{font-size:13px;font-weight:600;flex:1;min-width:0}
+  .conf{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;flex:none}
+  .conf.hi{background:rgba(14,163,113,.12);color:var(--accent)}
+  .conf.mid{background:rgba(200,129,10,.12);color:var(--amber)}
+  .conf.lo{background:rgba(224,65,75,.12);color:var(--rose)}
+  .field.flagged{background:rgba(200,129,10,.06);margin:0 -18px;padding-left:18px;padding-right:18px}
+
+  .ai-actions{display:flex;gap:9px;padding:14px 18px;border-top:1px solid var(--line-soft)}
+  .ai-actions .btn{flex:1;justify-content:center}
+  .btn-approve{background:linear-gradient(135deg,#0ea371,#0c8a60);color:#fff;box-shadow:0 8px 16px -8px rgba(14,163,113,.5)}
+  .btn-reject{background:var(--panel);color:var(--rose);border:1px solid rgba(224,65,75,.30)}
+  .btn-reject:hover{background:rgba(224,65,75,.08)}
+
+  /* Lower grid: spend chart + suppliers */
+  .lower{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;align-items:start}
+  .chart-wrap{padding:16px 18px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:6px}
+  .legend .l{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted)}
+  .legend .sw{width:11px;height:11px;border-radius:3px}
+  .bars{display:flex;align-items:flex-end;gap:14px;height:170px;padding:8px 4px 0;position:relative}
+  .grid-line{position:absolute;left:0;right:0;height:1px;background:var(--line-soft)}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;position:relative;z-index:2}
+  .bar-stack{width:60%;max-width:34px;display:flex;flex-direction:column-reverse;border-radius:6px 6px 0 0;overflow:hidden;transition:.4s}
+  .bar-seg{transition:.3s}
+  .bar-col:hover .bar-stack{filter:brightness(1.15)}
+  .bar-x{font-size:11px;color:var(--muted-2);font-weight:600}
+  .bar-tip{
+    position:absolute;bottom:100%;margin-bottom:8px;background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;padding:7px 10px;font-size:11px;white-space:nowrap;opacity:0;transform:translateY(4px);
+    transition:.15s;pointer-events:none;box-shadow:var(--shadow);z-index:5;
+  }
+  .bar-col:hover .bar-tip{opacity:1;transform:translateY(0)}
+  .bar-tip b{color:var(--text)}
+
+  /* Supplier list */
+  .supplier{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line-soft)}
+  .supplier:last-child{border-bottom:none}
+  .sup-logo{width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff}
+  .sup-info{flex:1;min-width:0}
+  .sup-info b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sup-info span{font-size:11px;color:var(--muted)}
+  .rating{display:flex;align-items:center;gap:6px}
+  .gauge{width:46px;height:46px;flex:none}
+  .sup-amt{text-align:right;font-size:12.5px;font-weight:700;flex:none}
+  .sup-amt span{display:block;font-size:10.5px;color:var(--muted-2);font-weight:500}
+
+  /* Drawer */
+  .overlay{position:fixed;inset:0;background:rgba(31,41,55,.32);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:.25s;z-index:50}
+  .overlay.open{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:540px;max-width:94vw;background:var(--bg-2);
+    border-left:1px solid var(--line);box-shadow:-30px 0 70px -30px rgba(31,41,55,.35);
+    transform:translateX(100%);transition:.32s cubic-bezier(.4,0,.2,1);z-index:51;display:flex;flex-direction:column;
+  }
+  .drawer.open{transform:translateX(0)}
+  .dr-head{padding:20px 24px;border-bottom:1px solid var(--line-soft);display:flex;align-items:flex-start;gap:14px}
+  .dr-head .x{margin-left:auto;cursor:pointer;color:var(--muted);width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none}
+  .dr-head .x:hover{background:var(--panel);color:var(--text)}
+  .dr-body{padding:20px 24px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:18px}
+  .dr-sec h4{margin:0 0 11px;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted-2)}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .info-cell .k{font-size:11px;color:var(--muted);margin-bottom:3px}
+  .info-cell .v{font-size:13.5px;font-weight:600}
+  .line-items{border:1px solid var(--line-soft);border-radius:11px;overflow:hidden}
+  .li-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+  .li-row:last-child{border-bottom:none}
+  .li-row.head{background:var(--panel-2);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted-2);font-weight:700}
+  .li-row.total{background:var(--panel-2);font-weight:750}
+  .timeline{position:relative;padding-left:24px}
+  .timeline::before{content:"";position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--line)}
+  .tl-item{position:relative;padding-bottom:16px}
+  .tl-item:last-child{padding-bottom:0}
+  .tl-dot{position:absolute;left:-22px;top:2px;width:14px;height:14px;border-radius:50%;border:2.5px solid var(--bg-2);background:var(--brand)}
+  .tl-dot.done{background:var(--accent)}
+  .tl-dot.ai{background:var(--violet)}
+  .tl-item b{font-size:12.5px;display:block}
+  .tl-item span{font-size:11px;color:var(--muted)}
+  .tl-item .ai-tag{font-size:9.5px;font-weight:700;color:var(--violet);background:rgba(124,58,237,.12);padding:1px 6px;border-radius:5px;margin-left:6px}
+  .dr-foot{padding:16px 24px;border-top:1px solid var(--line-soft);display:flex;gap:10px}
+  .dr-foot .btn{flex:1;justify-content:center}
+
+  .empty{padding:50px 20px;text-align:center;color:var(--muted-2)}
+  .empty svg{width:42px;height:42px;opacity:.4;margin-bottom:10px}
+
+  .feed{padding:6px 0}
+  .feed-item{display:flex;gap:11px;padding:11px 18px;align-items:flex-start}
+  .feed-ic{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center}
+  .feed-ic svg{width:15px;height:15px}
+  .feed-item p{margin:0;font-size:12px;line-height:1.5}
+  .feed-item p b{font-weight:650}
+  .feed-item .t{font-size:10.5px;color:var(--muted-2);margin-top:2px}
+
+  @media (max-width:1180px){
+    .workspace,.lower{grid-template-columns:1fr}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:780px){
+    .app{grid-template-columns:1fr}
+    .side{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3h2l.4 2M7 13h10l3-8H6.4M7 13L5.4 5M7 13l-2 4h12"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/>
+        </svg>
+      </div>
+      <div>
+        <b>ProcureFlow</b>
+        <span>采购管理系统</span>
+      </div>
+    </div>
+
+    <div class="nav-group">Overview</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Approvals<span class="nav-badge">7</span></div>
+
+    <div class="nav-group">Procurement</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>Requisitions<span class="nav-badge soft">24</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Purchase Orders</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>Suppliers</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg>Inventory</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Invoices<span class="nav-badge soft">3</span></div>
+
+    <div class="nav-group">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>Spend Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Contracts</div>
+
+    <div class="side-foot">
+      <div class="user">
+        <div class="avatar" style="background:linear-gradient(135deg,#7c3aed,#9560f0)">DM</div>
+        <div>
+          <b>Dana Morrison</b>
+          <span>Procurement Lead</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div class="page-title">
+        <h1>Procurement Dashboard</h1>
+        <p>FY2026 · Q2 cycle · 7 requisitions awaiting your review</p>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" placeholder="Search requisitions, POs, suppliers…">
+      </div>
+      <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot"></span></div>
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Requisition</button>
+    </header>
+
+    <div class="content">
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Total Spend (QTD)</div>
+          <div class="val">$1.84M</div>
+          <div class="sub"><span class="trend up">▲ 8.2%</span> vs last quarter</div>
+          <svg class="spark" width="74" height="30" viewBox="0 0 74 30"><polyline fill="none" stroke="var(--brand)" stroke-width="2" points="0,24 12,20 24,22 36,14 48,16 60,8 74,4"/></svg>
+        </div>
+        <div class="kpi g2">
+          <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m22 4-10 10.01-3-3"/></svg>Auto-Approved by AI</div>
+          <div class="val">68%</div>
+          <div class="sub"><span class="trend up">▲ 12%</span> of low-risk reqs</div>
+          <svg class="spark" width="74" height="30" viewBox="0 0 74 30"><polyline fill="none" stroke="var(--accent)" stroke-width="2" points="0,26 12,22 24,18 36,16 48,10 60,9 74,5"/></svg>
+        </div>
+        <div class="kpi g3">
+          <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Avg Cycle Time</div>
+          <div class="val">2.4 <span style="font-size:14px;color:var(--muted)">days</span></div>
+          <div class="sub"><span class="trend up">▼ 1.1d</span> faster vs target</div>
+          <svg class="spark" width="74" height="30" viewBox="0 0 74 30"><polyline fill="none" stroke="var(--amber)" stroke-width="2" points="0,8 12,12 24,10 36,16 48,18 60,22 74,24"/></svg>
+        </div>
+        <div class="kpi g4">
+          <div class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="var(--violet)" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Savings Identified</div>
+          <div class="val">$214K</div>
+          <div class="sub"><span class="trend up">▲ 5 deals</span> renegotiated</div>
+          <svg class="spark" width="74" height="30" viewBox="0 0 74 30"><polyline fill="none" stroke="var(--violet)" stroke-width="2" points="0,22 12,18 24,19 36,12 48,11 60,7 74,6"/></svg>
+        </div>
+      </div>
+
+      <!-- Workspace: triage queue + AI review -->
+      <div class="workspace">
+        <!-- Queue -->
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Requisition Triage</h2>
+            <span class="cnt" id="queueCount">12 open</span>
+            <div class="right">
+              <div class="tabs" id="filterTabs">
+                <div class="tab active" data-f="all">All</div>
+                <div class="tab" data-f="review">Needs Review</div>
+                <div class="tab" data-f="approved">Approved</div>
+                <div class="tab" data-f="ordered">Ordered</div>
+              </div>
+            </div>
+          </div>
+          <div class="queue" id="queue"></div>
+        </div>
+
+        <!-- AI review of selected req -->
+        <div class="panel ai-panel">
+          <div class="panel-head">
+            <h2>AI Document Review</h2>
+            <div class="right"><span class="ai-flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>Auto-extracted</span></div>
+          </div>
+          <div class="ai-doc" id="aiReview"></div>
+        </div>
+      </div>
+
+      <!-- Lower: spend chart + suppliers + feed -->
+      <div class="lower">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Spend by Category</h2>
+            <div class="right">
+              <div class="tabs">
+                <div class="tab">Quarter</div>
+                <div class="tab active">6 Months</div>
+              </div>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <div class="legend">
+              <div class="l"><span class="sw" style="background:#7c3aed"></span>IT &amp; Hardware</div>
+              <div class="l"><span class="sw" style="background:#0ea371"></span>Facilities</div>
+              <div class="l"><span class="sw" style="background:#0e8bb0"></span>Logistics</div>
+              <div class="l"><span class="sw" style="background:#c8810a"></span>Services</div>
+            </div>
+            <div class="bars" id="bars"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Top Suppliers</h2>
+            <span class="cnt">AI scored</span>
+          </div>
+          <div id="suppliers"></div>
+        </div>
+      </div>
+
+      <!-- Activity feed -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>AI Activity Feed</h2>
+          <span class="cnt">live</span>
+          <div class="right"><span class="ai-flag ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>System healthy</span></div>
+        </div>
+        <div class="feed" id="feed"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head" id="drHead"></div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot">
+    <button class="btn btn-reject" onclick="closeDrawer()">Close</button>
+    <button class="btn btn-approve" onclick="approveFromDrawer()">Approve &amp; Generate PO</button>
+  </div>
+</aside>
+
+<script>
+/* ---------- Seed data ---------- */
+const REQS = [
+  { id:"REQ-2026-0418", title:"Dell Latitude 7450 laptops (×24)", dept:"Engineering", requester:"Marcus Webb",
+    date:"Jun 22", amount:46320, prio:"high", status:"review", category:"IT & Hardware",
+    supplier:"Apex Tech Distribution", ai:{score:94, flag:"ok", label:"Low risk"},
+    fields:[
+      {l:"Supplier",v:"Apex Tech Distribution",c:"hi"},
+      {l:"PO Reference",v:"QT-AX-88102",c:"hi"},
+      {l:"Line Total",v:"$46,320.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Jul 12, 2026",c:"mid"},
+      {l:"Tax (8.25%)",v:"$3,521.40",c:"hi"}
+    ],
+    reason:"Pricing within 2% of catalog rate. Supplier in good standing, contract active through 2027. No budget overage detected.",
+    items:[
+      {n:"Dell Latitude 7450 — i7/32GB/1TB",q:"24",a:"$43,200.00"},
+      {n:"3-Year ProSupport Plus",q:"24",a:"$3,120.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Marcus Webb · Jun 22, 09:14",d:"done"},
+      {t:"Quote PDF parsed",s:"6 fields extracted · 94% confidence",d:"ai",ai:1},
+      {t:"Budget check passed",s:"Engineering Q2 · $128K remaining",d:"ai",ai:1},
+      {t:"Awaiting approval",s:"Routed to Dana Morrison",d:""}
+    ]},
+  { id:"REQ-2026-0417", title:"Office HVAC quarterly maintenance", dept:"Facilities", requester:"Priya Nair",
+    date:"Jun 22", amount:8750, prio:"med", status:"review", category:"Facilities",
+    supplier:"Meridian Building Services", ai:{score:71, flag:"warn", label:"Review terms"},
+    fields:[
+      {l:"Supplier",v:"Meridian Building Services",c:"hi"},
+      {l:"PO Reference",v:"MBS-2026-Q2",c:"mid"},
+      {l:"Line Total",v:"$8,750.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 15",c:"lo"},
+      {l:"Delivery Date",v:"Jun 30, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$721.88",c:"mid"}
+    ],
+    reason:"Payment terms (Net 15) shorter than the contracted Net 30 — flagged for negotiation. Amount 14% above last quarter's invoice.",
+    items:[
+      {n:"HVAC inspection — 4 units",q:"4",a:"$5,200.00"},
+      {n:"Filter replacement kit",q:"12",a:"$2,340.00"},
+      {n:"Labor (on-site)",q:"8h",a:"$1,210.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Priya Nair · Jun 22, 08:02",d:"done"},
+      {t:"Quote PDF parsed",s:"6 fields extracted · 71% confidence",d:"ai",ai:1},
+      {t:"Terms mismatch flagged",s:"Net 15 vs contracted Net 30",d:"ai",ai:1},
+      {t:"Awaiting approval",s:"Routed to Dana Morrison",d:""}
+    ]},
+  { id:"REQ-2026-0415", title:"Freight — APAC distribution lane", dept:"Logistics", requester:"Tomás Reyes",
+    date:"Jun 21", amount:31200, prio:"high", status:"review", category:"Logistics",
+    supplier:"BlueWave Freight Co.", ai:{score:88, flag:"ok", label:"Low risk"},
+    fields:[
+      {l:"Supplier",v:"BlueWave Freight Co.",c:"hi"},
+      {l:"PO Reference",v:"BW-FR-55021",c:"hi"},
+      {l:"Line Total",v:"$31,200.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Aug 04, 2026",c:"hi"},
+      {l:"Tax (exempt)",v:"$0.00",c:"hi"}
+    ],
+    reason:"Rate locked under master freight agreement. Volume discount applied automatically. On-time delivery score 96%.",
+    items:[
+      {n:"FCL 40ft container — Shanghai→LA",q:"6",a:"$25,800.00"},
+      {n:"Customs handling & docs",q:"6",a:"$5,400.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Tomás Reyes · Jun 21, 16:40",d:"done"},
+      {t:"Quote parsed & rate matched",s:"Master agreement BW-2025-11",d:"ai",ai:1},
+      {t:"Volume discount applied",s:"−$2,150 auto-calculated",d:"ai",ai:1},
+      {t:"Awaiting approval",s:"Routed to Dana Morrison",d:""}
+    ]},
+  { id:"REQ-2026-0414", title:"Annual SaaS — Figma Enterprise (120 seats)", dept:"Design", requester:"Lena Kovač",
+    date:"Jun 21", amount:54000, prio:"med", status:"review", category:"Services",
+    supplier:"Figma Inc.", ai:{score:62, flag:"warn", label:"Budget overage"},
+    fields:[
+      {l:"Supplier",v:"Figma Inc.",c:"hi"},
+      {l:"PO Reference",v:"FIG-ENT-2026",c:"hi"},
+      {l:"Line Total",v:"$54,000.00",c:"hi"},
+      {l:"Payment Terms",v:"Annual upfront",c:"mid"},
+      {l:"Delivery Date",v:"Jul 01, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$4,455.00",c:"hi"}
+    ],
+    reason:"Exceeds Design dept software budget by $9,000 (20% over). Seat count grew from 90 → 120. Recommend approval routing to Finance.",
+    items:[
+      {n:"Figma Enterprise — annual seat",q:"120",a:"$54,000.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Lena Kovač · Jun 21, 11:25",d:"done"},
+      {t:"Renewal terms parsed",s:"6 fields extracted · 62% confidence",d:"ai",ai:1},
+      {t:"Budget overage flagged",s:"$9,000 over Design Q2 cap",d:"ai",ai:1},
+      {t:"Escalation suggested",s:"Route to Finance approval",d:""}
+    ]},
+  { id:"REQ-2026-0412", title:"Standing desks & ergonomic chairs (×30)", dept:"Facilities", requester:"Priya Nair",
+    date:"Jun 20", amount:18900, prio:"low", status:"approved", category:"Facilities",
+    supplier:"Nordic Office Supply", ai:{score:91, flag:"ok", label:"Auto-approved"},
+    fields:[
+      {l:"Supplier",v:"Nordic Office Supply",c:"hi"},
+      {l:"PO Reference",v:"NOS-44120",c:"hi"},
+      {l:"Line Total",v:"$18,900.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Jul 15, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$1,559.25",c:"hi"}
+    ],
+    reason:"Auto-approved under $20K threshold. All fields high confidence, supplier verified, within budget.",
+    items:[
+      {n:"Adjustable standing desk",q:"30",a:"$12,600.00"},
+      {n:"Ergonomic mesh chair",q:"30",a:"$6,300.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Priya Nair · Jun 20, 14:10",d:"done"},
+      {t:"Auto-approved by AI",s:"Under threshold · 91% confidence",d:"ai",ai:1},
+      {t:"Approved",s:"Dana Morrison (auto)",d:"done"}
+    ]},
+  { id:"REQ-2026-0410", title:"Cisco network switches (×8)", dept:"IT Ops", requester:"Sam Okoro",
+    date:"Jun 19", amount:27450, prio:"med", status:"ordered", category:"IT & Hardware",
+    supplier:"Apex Tech Distribution", ai:{score:89, flag:"ok", label:"Ordered"},
+    fields:[
+      {l:"Supplier",v:"Apex Tech Distribution",c:"hi"},
+      {l:"PO Reference",v:"PO-2026-0388",c:"hi"},
+      {l:"Line Total",v:"$27,450.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Jun 28, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$2,264.63",c:"hi"}
+    ],
+    reason:"PO issued Jun 19. Shipment confirmed, tracking active. Expected delivery Jun 28.",
+    items:[
+      {n:"Cisco Catalyst 9300-24P",q:"8",a:"$27,450.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Sam Okoro · Jun 18, 10:00",d:"done"},
+      {t:"Approved",s:"Dana Morrison · Jun 19",d:"done"},
+      {t:"PO auto-generated",s:"PO-2026-0388 sent to supplier",d:"ai",ai:1},
+      {t:"Shipment confirmed",s:"Tracking #1Z88AX · in transit",d:"done"}
+    ]},
+  { id:"REQ-2026-0409", title:"Marketing print collateral — Q3 launch", dept:"Marketing", requester:"Aria Benton",
+    date:"Jun 18", amount:6420, prio:"low", status:"ordered", category:"Services",
+    supplier:"Print Foundry", ai:{score:85, flag:"ok", label:"Ordered"},
+    fields:[
+      {l:"Supplier",v:"Print Foundry",c:"hi"},
+      {l:"PO Reference",v:"PO-2026-0385",c:"hi"},
+      {l:"Line Total",v:"$6,420.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 15",c:"hi"},
+      {l:"Delivery Date",v:"Jun 27, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$529.65",c:"hi"}
+    ],
+    reason:"Auto-approved under threshold. PO issued, in production.",
+    items:[
+      {n:"Brochure print — 5,000 units",q:"5000",a:"$4,200.00"},
+      {n:"Banner stands",q:"6",a:"$2,220.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Aria Benton · Jun 17",d:"done"},
+      {t:"Auto-approved by AI",s:"82% confidence",d:"ai",ai:1},
+      {t:"PO generated",s:"PO-2026-0385",d:"ai",ai:1}
+    ]},
+  { id:"REQ-2026-0406", title:"Forklift lease renewal — Warehouse B", dept:"Logistics", requester:"Tomás Reyes",
+    date:"Jun 16", amount:14200, prio:"med", status:"approved", category:"Logistics",
+    supplier:"BlueWave Freight Co.", ai:{score:80, flag:"ok", label:"Approved"},
+    fields:[
+      {l:"Supplier",v:"BlueWave Freight Co.",c:"hi"},
+      {l:"PO Reference",v:"BW-LS-2026",c:"hi"},
+      {l:"Line Total",v:"$14,200.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Jul 01, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$1,171.50",c:"mid"}
+    ],
+    reason:"Renewal at same rate as prior term. Approved, PO pending issuance.",
+    items:[
+      {n:"Forklift lease — 12 months",q:"2",a:"$14,200.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Tomás Reyes · Jun 15",d:"done"},
+      {t:"Renewal rate matched",s:"Same as prior term",d:"ai",ai:1},
+      {t:"Approved",s:"Dana Morrison · Jun 16",d:"done"}
+    ]},
+  { id:"REQ-2026-0404", title:"Cleaning supplies — bulk restock", dept:"Facilities", requester:"Jordan Lee",
+    date:"Jun 15", amount:3180, prio:"low", status:"approved", category:"Facilities",
+    supplier:"Nordic Office Supply", ai:{score:96, flag:"ok", label:"Auto-approved"},
+    fields:[
+      {l:"Supplier",v:"Nordic Office Supply",c:"hi"},
+      {l:"PO Reference",v:"NOS-43901",c:"hi"},
+      {l:"Line Total",v:"$3,180.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Jun 22, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$262.35",c:"hi"}
+    ],
+    reason:"Recurring order matched to past purchases. Auto-approved, 96% confidence.",
+    items:[
+      {n:"Bulk cleaning kit",q:"40",a:"$3,180.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Jordan Lee · Jun 15",d:"done"},
+      {t:"Matched to recurring order",s:"Pattern recognized",d:"ai",ai:1},
+      {t:"Auto-approved",s:"96% confidence",d:"done"}
+    ]},
+  { id:"REQ-2026-0402", title:"Specialized lab reagents (cold chain)", dept:"R&D", requester:"Dr. Hana Yu",
+    date:"Jun 14", amount:38600, prio:"high", status:"rejected", category:"Services",
+    supplier:"BioSource Labs", ai:{score:48, flag:"warn", label:"High risk"},
+    fields:[
+      {l:"Supplier",v:"BioSource Labs",c:"mid"},
+      {l:"PO Reference",v:"—",c:"lo"},
+      {l:"Line Total",v:"$38,600.00",c:"hi"},
+      {l:"Payment Terms",v:"50% deposit",c:"lo"},
+      {l:"Delivery Date",v:"unclear",c:"lo"},
+      {l:"Tax",v:"not stated",c:"lo"}
+    ],
+    reason:"Multiple low-confidence fields. Supplier not in approved vendor list. Deposit terms unusual. Recommended rejection pending vendor onboarding.",
+    items:[
+      {n:"Reagent set (cold-chain)",q:"1",a:"$38,600.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Dr. Hana Yu · Jun 14",d:"done"},
+      {t:"Low-confidence extraction",s:"4 of 6 fields uncertain",d:"ai",ai:1},
+      {t:"Unverified supplier flagged",s:"Not in approved list",d:"ai",ai:1},
+      {t:"Rejected",s:"Dana Morrison · pending onboarding",d:"done"}
+    ]},
+  { id:"REQ-2026-0400", title:"Conference sponsorship — TechSummit", dept:"Marketing", requester:"Aria Benton",
+    date:"Jun 13", amount:25000, prio:"med", status:"ordered", category:"Services",
+    supplier:"TechSummit Events", ai:{score:78, flag:"ok", label:"Ordered"},
+    fields:[
+      {l:"Supplier",v:"TechSummit Events",c:"hi"},
+      {l:"PO Reference",v:"PO-2026-0379",c:"hi"},
+      {l:"Line Total",v:"$25,000.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Sep 10, 2026",c:"hi"},
+      {l:"Tax (exempt)",v:"$0.00",c:"hi"}
+    ],
+    reason:"Gold tier sponsorship. Within marketing events budget. PO issued.",
+    items:[
+      {n:"Gold sponsorship package",q:"1",a:"$25,000.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Aria Benton · Jun 12",d:"done"},
+      {t:"Approved",s:"Dana Morrison · Jun 13",d:"done"},
+      {t:"PO generated",s:"PO-2026-0379",d:"ai",ai:1}
+    ]},
+  { id:"REQ-2026-0398", title:"Server rack power supplies (×16)", dept:"IT Ops", requester:"Sam Okoro",
+    date:"Jun 11", amount:9840, prio:"low", status:"approved", category:"IT & Hardware",
+    supplier:"Apex Tech Distribution", ai:{score:90, flag:"ok", label:"Approved"},
+    fields:[
+      {l:"Supplier",v:"Apex Tech Distribution",c:"hi"},
+      {l:"PO Reference",v:"AX-88044",c:"hi"},
+      {l:"Line Total",v:"$9,840.00",c:"hi"},
+      {l:"Payment Terms",v:"Net 30",c:"hi"},
+      {l:"Delivery Date",v:"Jun 25, 2026",c:"hi"},
+      {l:"Tax (8.25%)",v:"$811.80",c:"hi"}
+    ],
+    reason:"Standard catalog item, repeat purchase. Auto-approved at 90% confidence.",
+    items:[
+      {n:"Redundant PSU 800W",q:"16",a:"$9,840.00"}
+    ],
+    timeline:[
+      {t:"Requisition submitted",s:"Sam Okoro · Jun 11",d:"done"},
+      {t:"Catalog match found",s:"Repeat purchase pattern",d:"ai",ai:1},
+      {t:"Approved",s:"Dana Morrison · Jun 11",d:"done"}
+    ]}
+];
+
+const SUPPLIERS = [
+  { name:"Apex Tech Distribution", cat:"IT & Hardware", score:96, spend:"$418K", orders:"34 orders", color:"#7c3aed", init:"AT" },
+  { name:"BlueWave Freight Co.", cat:"Logistics", score:91, spend:"$302K", orders:"21 orders", color:"#0e8bb0", init:"BW" },
+  { name:"Nordic Office Supply", cat:"Facilities", score:88, spend:"$176K", orders:"48 orders", color:"#0ea371", init:"NO" },
+  { name:"Meridian Building Svc.", cat:"Facilities", score:74, spend:"$94K", orders:"12 orders", color:"#c8810a", init:"MB" },
+  { name:"BioSource Labs", cat:"Services", score:52, spend:"$22K", orders:"3 orders", color:"#e0414b", init:"BL" }
+];
+
+const FEED = [
+  { ic:"extract", color:"violet", html:"AI extracted <b>6 fields</b> from <b>QT-AX-88102.pdf</b> for REQ-2026-0418 at 94% confidence", t:"2 min ago" },
+  { ic:"flag", color:"amber", html:"Flagged <b>payment terms mismatch</b> on REQ-2026-0417 — Net 15 vs contracted Net 30", t:"14 min ago" },
+  { ic:"approve", color:"accent", html:"Auto-approved <b>REQ-2026-0412</b> (Standing desks) — under $20K threshold", t:"38 min ago" },
+  { ic:"po", color:"cyan", html:"Generated <b>PO-2026-0388</b> and dispatched to Apex Tech Distribution", t:"1 hr ago" },
+  { ic:"savings", color:"violet", html:"Identified <b>$2,150 volume discount</b> on REQ-2026-0415 freight order", t:"2 hr ago" },
+  { ic:"reject", color:"rose", html:"Recommended rejection of <b>REQ-2026-0402</b> — unverified supplier BioSource Labs", t:"3 hr ago" }
+];
+
+/* spend chart: [IT, Facilities, Logistics, Services] in $K */
+const SPEND = [
+  { m:"Jan", v:[88,42,61,33] },
+  { m:"Feb", v:[102,38,55,41] },
+  { m:"Mar", v:[76,51,72,38] },
+  { m:"Apr", v:[120,46,58,52] },
+  { m:"May", v:[95,60,80,44] },
+  { m:"Jun", v:[134,55,90,61] }
+];
+const CAT_COLORS = ["#7c3aed","#0ea371","#0e8bb0","#c8810a"];
+
+/* ---------- State ---------- */
+let activeFilter = "all";
+let selectedId = REQS[0].id;
+let searchTerm = "";
+
+const STATUS_MAP = {
+  review:{cls:"s-review",label:"Needs Review"},
+  approved:{cls:"s-approved",label:"Approved"},
+  ordered:{cls:"s-ordered",label:"Ordered"},
+  rejected:{cls:"s-rejected",label:"Rejected"},
+  draft:{cls:"s-draft",label:"Draft"}
+};
+
+const fmt = n => "$"+n.toLocaleString("en-US");
+
+/* ---------- Render queue ---------- */
+function filteredReqs(){
+  return REQS.filter(r=>{
+    const fOk = activeFilter==="all" ? true : r.status===activeFilter;
+    const s = searchTerm.toLowerCase();
+    const sOk = !s || r.title.toLowerCase().includes(s) || r.id.toLowerCase().includes(s)
+                || r.supplier.toLowerCase().includes(s) || r.dept.toLowerCase().includes(s)
+                || r.requester.toLowerCase().includes(s);
+    return fOk && sOk;
+  });
+}
+
+function aiFlagBadge(ai){
+  const cls = ai.flag==="ok" ? "ok" : (ai.flag==="warn" ? "warn" : "");
+  const icon = ai.flag==="ok"
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  return `<span class="ai-flag ${cls}">${icon}${ai.score} · ${ai.label}</span>`;
+}
+
+function renderQueue(){
+  const list = filteredReqs();
+  const el = document.getElementById("queue");
+  document.getElementById("queueCount").textContent = `${list.length} ${list.length===1?'req':'reqs'}`;
+  if(!list.length){
+    el.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <div>No requisitions match your filters.</div></div>`;
+    return;
+  }
+  el.innerHTML = list.map(r=>{
+    const prioCls = r.prio==="high"?"p-high":r.prio==="med"?"p-med":"p-low";
+    const sel = r.id===selectedId ? "sel":"";
+    return `<div class="req ${sel}" data-id="${r.id}" onclick="selectReq('${r.id}')">
+      <div class="req-prio ${prioCls}" title="${r.prio} priority"></div>
+      <div class="req-main">
+        <div class="req-top">
+          <span class="req-id">${r.id}</span>
+          <span class="pill ${STATUS_MAP[r.status].cls}">${STATUS_MAP[r.status].label}</span>
+        </div>
+        <div class="req-title">${r.title}</div>
+        <div class="req-meta">
+          <span class="m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>${r.dept}</span>
+          <span class="m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${r.requester}</span>
+          <span class="m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${r.date}</span>
+        </div>
+      </div>
+      <div class="req-right">
+        <div class="req-amt">${fmt(r.amount)}</div>
+        ${aiFlagBadge(r.ai)}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------- Render AI review pane ---------- */
+function renderAIReview(){
+  const r = REQS.find(x=>x.id===selectedId) || filteredReqs()[0];
+  const el = document.getElementById("aiReview");
+  if(!r){ el.innerHTML = `<div class="empty">Select a requisition to review.</div>`; return; }
+  selectedId = r.id;
+
+  const scoreColor = r.ai.score>=80 ? "var(--accent)" : r.ai.score>=60 ? "var(--amber)" : "var(--rose)";
+  const docName = (r.fields.find(f=>f.l==="PO Reference")?.v || "quote") ;
+
+  el.innerHTML = `
+    <div class="doc-head">
+      <div class="doc-thumb"><i></i><i></i><i></i><i></i></div>
+      <div class="doc-info">
+        <h3>${r.title}</h3>
+        <p>${r.id} · ${docName}.pdf · parsed ${r.date}</p>
+      </div>
+    </div>
+    <div class="ai-banner">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg></div>
+      <div>
+        <b>${r.ai.label} · ${r.supplier}</b>
+        <span>${r.reason}</span>
+      </div>
+      <div class="score"><b style="color:${scoreColor}">${r.ai.score}</b><br><span style="color:var(--muted-2)">CONF.</span></div>
+    </div>
+    <div class="fields">
+      ${r.fields.map(f=>{
+        const flagged = f.c==="lo" ? "flagged":"";
+        const cl = f.c==="hi"?"hi":f.c==="mid"?"mid":"lo";
+        const ct = f.c==="hi"?"High":f.c==="mid"?"Med":"Low";
+        return `<div class="field ${flagged}">
+          <div class="fl">${f.l}</div>
+          <div class="fv">${f.v}</div>
+          <span class="conf ${cl}">${ct}</span>
+        </div>`;
+      }).join("")}
+    </div>
+    <div class="ai-actions">
+      <button class="btn btn-reject" onclick="quickAction('${r.id}','reject')">Reject</button>
+      <button class="btn btn-ghost" style="flex:.9" onclick="openDrawer('${r.id}')">Details</button>
+      <button class="btn btn-approve" onclick="quickAction('${r.id}','approve')">Approve</button>
+    </div>`;
+}
+
+/* ---------- Suppliers ---------- */
+function gauge(score,color){
+  const r=18, c=2*Math.PI*r, off=c*(1-score/100);
+  return `<svg class="gauge" viewBox="0 0 46 46">
+    <circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--line)" stroke-width="4"/>
+    <circle cx="23" cy="23" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 23 23)"/>
+    <text x="23" y="27" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">${score}</text>
+  </svg>`;
+}
+function renderSuppliers(){
+  document.getElementById("suppliers").innerHTML = SUPPLIERS.map(s=>{
+    const gc = s.score>=80?"#0ea371":s.score>=65?"#c8810a":"#e0414b";
+    return `<div class="supplier">
+      <div class="sup-logo" style="background:${s.color}">${s.init}</div>
+      <div class="sup-info"><b>${s.name}</b><span>${s.cat} · ${s.orders}</span></div>
+      ${gauge(s.score,gc)}
+      <div class="sup-amt">${s.spend}<span>YTD spend</span></div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------- Spend chart ---------- */
+function renderBars(){
+  const totals = SPEND.map(d=>d.v.reduce((a,b)=>a+b,0));
+  const max = Math.max(...totals);
+  const grid = [0,.25,.5,.75,1].map(p=>`<div class="grid-line" style="bottom:${p*100}%"></div>`).join("");
+  const cols = SPEND.map(d=>{
+    const total = d.v.reduce((a,b)=>a+b,0);
+    const hPct = (total/max)*100;
+    const segs = d.v.map((v,i)=>{
+      const segH = (v/total)*100;
+      return `<div class="bar-seg" style="height:${segH}%;background:${CAT_COLORS[i]}"></div>`;
+    }).join("");
+    const tip = `<b>${d.m}</b> · ${fmt(total)}K<br>IT ${d.v[0]} · Fac ${d.v[1]} · Log ${d.v[2]} · Svc ${d.v[3]}`;
+    return `<div class="bar-col">
+      <div class="bar-tip">${tip}</div>
+      <div class="bar-stack" style="height:${hPct}%">${segs}</div>
+      <div class="bar-x">${d.m}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("bars").innerHTML = grid + cols;
+}
+
+/* ---------- Feed ---------- */
+function feedIcon(type){
+  const I = {
+    extract:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/>',
+    flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+    approve:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m22 4-10 10.01-3-3"/>',
+    po:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    savings:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    reject:'<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>'
+  };
+  return I[type]||I.extract;
+}
+function renderFeed(){
+  const cmap={violet:"124,58,237",amber:"200,129,10",accent:"14,163,113",cyan:"14,139,176",rose:"224,65,75"};
+  const tmap={violet:"var(--violet)",amber:"var(--amber)",accent:"var(--accent)",cyan:"var(--cyan)",rose:"var(--rose)"};
+  document.getElementById("feed").innerHTML = FEED.map(f=>`
+    <div class="feed-item">
+      <div class="feed-ic" style="background:rgba(${cmap[f.color]},.14)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="${tmap[f.color]}" stroke-width="2">${feedIcon(f.ic)}</svg>
+      </div>
+      <div><p>${f.html}</p><div class="t">${f.t}</div></div>
+    </div>`).join("");
+}
+
+/* ---------- Interactions ---------- */
+function selectReq(id){
+  selectedId = id;
+  renderQueue();
+  renderAIReview();
+}
+
+function quickAction(id, action){
+  const r = REQS.find(x=>x.id===id);
+  if(!r) return;
+  r.status = action==="approve" ? "approved" : "rejected";
+  r.ai.flag = action==="approve" ? "ok":"warn";
+  r.ai.label = action==="approve" ? "Approved":"Rejected";
+  // add to feed top
+  if(action==="approve"){
+    FEED.unshift({ic:"po",color:"cyan",html:`Generated PO and approved <b>${r.id}</b> — ${r.title}`,t:"just now"});
+  } else {
+    FEED.unshift({ic:"reject",color:"rose",html:`Rejected <b>${r.id}</b> — ${r.title}`,t:"just now"});
+  }
+  renderQueue(); renderAIReview(); renderFeed();
+}
+
+/* ---------- Drawer ---------- */
+function openDrawer(id){
+  const r = REQS.find(x=>x.id===id);
+  if(!r) return;
+  document.getElementById("drHead").innerHTML = `
+    <div>
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+        <span class="req-id">${r.id}</span>
+        <span class="pill ${STATUS_MAP[r.status].cls}">${STATUS_MAP[r.status].label}</span>
+      </div>
+      <h1 style="margin:0;font-size:18px">${r.title}</h1>
+      <p style="margin:5px 0 0;font-size:12px;color:var(--muted)">${r.dept} · requested by ${r.requester} · ${r.date}</p>
+    </div>
+    <div class="x" onclick="closeDrawer()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>`;
+
+  const scoreColor = r.ai.score>=80 ? "var(--accent)" : r.ai.score>=60 ? "var(--amber)" : "var(--rose)";
+  const subtotal = r.amount;
+
+  document.getElementById("drBody").innerHTML = `
+    <div class="dr-sec">
+      <div class="ai-banner" style="margin:0">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <div><b>AI assessment · ${r.ai.label}</b><span>${r.reason}</span></div>
+        <div class="score"><b style="color:${scoreColor}">${r.ai.score}</b><br><span style="color:var(--muted-2)">CONF.</span></div>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <h4>Requisition Details</h4>
+      <div class="info-grid">
+        <div class="info-cell"><div class="k">Supplier</div><div class="v">${r.supplier}</div></div>
+        <div class="info-cell"><div class="k">Category</div><div class="v">${r.category}</div></div>
+        <div class="info-cell"><div class="k">Priority</div><div class="v" style="text-transform:capitalize">${r.prio}</div></div>
+        <div class="info-cell"><div class="k">Department</div><div class="v">${r.dept}</div></div>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <h4>Line Items</h4>
+      <div class="line-items">
+        <div class="li-row head"><span>Item</span><span>Qty</span><span>Amount</span></div>
+        ${r.items.map(it=>`<div class="li-row"><span>${it.n}</span><span>${it.q}</span><span>${it.a}</span></div>`).join("")}
+        <div class="li-row total"><span>Total</span><span></span><span>${fmt(subtotal)}</span></div>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <h4>Activity &amp; AI Timeline</h4>
+      <div class="timeline">
+        ${r.timeline.map(t=>`
+          <div class="tl-item">
+            <div class="tl-dot ${t.d}"></div>
+            <b>${t.t}${t.ai?'<span class="ai-tag">AI</span>':''}</b>
+            <span>${t.s}</span>
+          </div>`).join("")}
+      </div>
+    </div>`;
+
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("overlay").classList.add("open");
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("overlay").classList.remove("open");
+}
+function approveFromDrawer(){
+  quickAction(selectedId,"approve");
+  closeDrawer();
+}
+
+/* ---------- Wire up ---------- */
+document.getElementById("filterTabs").addEventListener("click", e=>{
+  const tab = e.target.closest(".tab");
+  if(!tab) return;
+  document.querySelectorAll("#filterTabs .tab").forEach(t=>t.classList.remove("active"));
+  tab.classList.add("active");
+  activeFilter = tab.dataset.f;
+  // keep selection if still visible, else pick first
+  const vis = filteredReqs();
+  if(vis.length && !vis.find(r=>r.id===selectedId)) selectedId = vis[0].id;
+  renderQueue(); renderAIReview();
+});
+document.getElementById("searchInput").addEventListener("input", e=>{
+  searchTerm = e.target.value;
+  const vis = filteredReqs();
+  if(vis.length && !vis.find(r=>r.id===selectedId)) selectedId = vis[0].id;
+  renderQueue(); renderAIReview();
+});
+document.getElementById("overlay").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+/* Local-spend tab toggle (visual only on second tabs group) */
+document.querySelectorAll(".chart-wrap").length;
+document.querySelectorAll(".panel-head .tabs").forEach(group=>{
+  if(group.id==="filterTabs") return;
+  group.addEventListener("click", e=>{
+    const t = e.target.closest(".tab"); if(!t) return;
+    group.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+  });
+});
+
+/* Init */
+renderQueue();
+renderAIReview();
+renderSuppliers();
+renderBars();
+renderFeed();
+</script>
+</body>
+</html>

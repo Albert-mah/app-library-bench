@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Lead Management System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --panel-2:#f6f7f9;
+    --panel-3:#eef0f3;
+    --line:#dfe3e8;
+    --line-soft:#e9ebef;
+    --txt:#1f2937;
+    --txt-dim:#5b6472;
+    --txt-faint:#8a93a3;
+    --accent:#16a34a;
+    --accent-2:#15803d;
+    --grad:linear-gradient(135deg,#16a34a 0%,#15803d 100%);
+    --hot:#e1493b;
+    --warm:#d98410;
+    --cold:#2486c9;
+    --good:#16a34a;
+    --shadow:0 18px 50px rgba(15,23,42,.16);
+    --r:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#cdd3db;border-radius:8px;border:2px solid var(--bg);}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  /* ---------- Layout shell ---------- */
+  .app{display:grid;grid-template-columns:236px 1fr;min-height:100vh;}
+  .sidebar{
+    background:#ffffff;
+    border-right:1px solid var(--line);
+    padding:22px 16px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 6px 20px;}
+  .brand .logo{
+    width:38px;height:38px;border-radius:11px;background:var(--grad);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    box-shadow:0 6px 16px rgba(22,163,74,.30);
+  }
+  .brand .logo svg{width:21px;height:21px;}
+  .brand b{font-size:15px;letter-spacing:.2px;display:block;line-height:1.15;}
+  .brand span{font-size:10.5px;color:var(--txt-faint);letter-spacing:.4px;text-transform:uppercase;}
+  .nav-label{font-size:10px;color:var(--txt-faint);text-transform:uppercase;letter-spacing:1px;margin:16px 8px 6px;}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;
+    color:var(--txt-dim);font-size:13.5px;cursor:pointer;transition:.16s;font-weight:500;
+  }
+  .nav-item svg{width:17px;height:17px;opacity:.85;}
+  .nav-item:hover{background:var(--panel-3);color:var(--txt);}
+  .nav-item.active{background:rgba(22,163,74,.10);color:var(--accent-2);box-shadow:inset 0 0 0 1px rgba(22,163,74,.28);}
+  .nav-item .badge{margin-left:auto;background:var(--hot);color:#fff;font-size:10.5px;font-weight:700;border-radius:9px;padding:1px 7px;}
+  .nav-item .badge.dim{background:var(--panel-3);color:var(--txt-dim);}
+  .sb-foot{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--line);}
+  .sb-user{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:10px;cursor:pointer;}
+  .sb-user:hover{background:var(--panel-3);}
+  .avatar{width:33px;height:33px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;color:#fff;flex-shrink:0;}
+  .sb-user .nm{font-size:13px;font-weight:600;}
+  .sb-user .rl{font-size:10.5px;color:var(--txt-faint);}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0;}
+  .topbar{
+    display:flex;align-items:center;gap:18px;padding:18px 30px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;
+    background:rgba(255,255,255,.86);backdrop-filter:blur(14px);
+  }
+  .topbar h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px;}
+  .topbar h1 small{display:block;font-size:11.5px;color:var(--txt-faint);font-weight:500;margin-top:2px;letter-spacing:.3px;}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--panel);
+    border:1px solid var(--line);border-radius:11px;padding:9px 13px;width:300px;transition:.16s;
+  }
+  .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(22,163,74,.16);}
+  .search svg{width:16px;height:16px;color:var(--txt-faint);flex-shrink:0;}
+  .search input{background:none;border:none;outline:none;color:var(--txt);font-size:13px;width:100%;}
+  .search input::placeholder{color:var(--txt-faint);}
+  .icon-btn{
+    width:38px;height:38px;border-radius:11px;background:var(--panel);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt-dim);transition:.16s;position:relative;
+  }
+  .icon-btn:hover{color:var(--txt);border-color:var(--accent);}
+  .icon-btn svg{width:18px;height:18px;}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--hot);border:2px solid var(--panel);}
+  .btn-primary{
+    background:var(--grad);color:#fff;border:none;border-radius:11px;padding:0 16px;height:38px;
+    font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:.16s;
+    box-shadow:0 6px 16px rgba(22,163,74,.28);
+  }
+  .btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .btn-primary svg{width:16px;height:16px;}
+
+  .content{padding:24px 30px 50px;}
+
+  /* ---------- KPI cards ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px;}
+  .kpi{
+    background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--r);padding:17px 18px;position:relative;overflow:hidden;
+    box-shadow:0 1px 3px rgba(15,23,42,.05);
+  }
+  .kpi::after{content:"";position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(22,163,74,.08),transparent 70%);}
+  .kpi .lbl{font-size:11.5px;color:var(--txt-dim);display:flex;align-items:center;gap:7px;font-weight:500;}
+  .kpi .lbl .ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+  .kpi .ic svg{width:15px;height:15px;}
+  .kpi .val{font-size:27px;font-weight:750;margin:9px 0 4px;letter-spacing:-.5px;}
+  .kpi .sub{font-size:11.5px;color:var(--txt-faint);display:flex;align-items:center;gap:5px;}
+  .trend{display:inline-flex;align-items:center;gap:3px;font-weight:700;}
+  .trend.up{color:var(--good);}
+  .trend.down{color:var(--hot);}
+  .trend svg{width:12px;height:12px;}
+
+  /* ---------- AI insight banner ---------- */
+  .ai-banner{
+    background:linear-gradient(120deg,rgba(22,163,74,.10),rgba(22,163,74,.04) 55%,#ffffff);
+    border:1px solid rgba(22,163,74,.28);border-radius:var(--r);padding:16px 18px;margin-bottom:22px;
+    display:flex;align-items:center;gap:16px;position:relative;overflow:hidden;
+  }
+  .ai-banner .spark{
+    width:42px;height:42px;border-radius:12px;background:var(--grad);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(22,163,74,.30);
+  }
+  .ai-banner .spark svg{width:22px;height:22px;}
+  .ai-banner .txt b{font-size:13.5px;color:var(--txt);}
+  .ai-banner .txt b .tag{font-size:9.5px;background:rgba(22,163,74,.14);color:var(--accent-2);padding:2px 7px;border-radius:6px;margin-left:8px;letter-spacing:.6px;vertical-align:middle;}
+  .ai-banner .txt p{margin:4px 0 0;font-size:12.5px;color:var(--txt-dim);line-height:1.5;max-width:760px;}
+  .ai-banner .txt p em{color:var(--accent-2);font-style:normal;font-weight:600;}
+  .ai-banner .act{margin-left:auto;display:flex;gap:9px;flex-shrink:0;}
+  .pill-btn{background:#ffffff;border:1px solid var(--line);color:var(--txt-dim);border-radius:9px;padding:8px 13px;font-size:12px;font-weight:600;cursor:pointer;transition:.16s;white-space:nowrap;}
+  .pill-btn:hover{background:var(--panel-3);color:var(--txt);border-color:var(--accent);}
+  .pill-btn.solid{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .pill-btn.solid:hover{background:var(--accent-2);color:#fff;}
+
+  /* ---------- Workspace grid ---------- */
+  .workspace{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start;}
+  @media(max-width:1180px){.workspace{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.05);}
+  .card-h{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft);}
+  .card-h h3{margin:0;font-size:14.5px;font-weight:650;display:flex;align-items:center;gap:8px;}
+  .card-h .count{font-size:11px;color:var(--txt-faint);background:var(--panel-3);border-radius:7px;padding:2px 8px;font-weight:600;}
+  .card-h .right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+
+  /* ---------- Tabs / filters ---------- */
+  .seg{display:flex;background:var(--panel-3);border-radius:10px;padding:3px;gap:2px;}
+  .seg button{background:none;border:none;color:var(--txt-dim);font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;transition:.15s;white-space:nowrap;}
+  .seg button.active{background:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(22,163,74,.32);}
+  .seg button:not(.active):hover{color:var(--txt);}
+
+  .chips{display:flex;gap:8px;padding:13px 18px;flex-wrap:wrap;border-bottom:1px solid var(--line-soft);background:var(--panel-2);}
+  .chip{
+    background:var(--panel);border:1px solid var(--line);color:var(--txt-dim);font-size:12px;font-weight:600;
+    padding:6px 12px;border-radius:20px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:6px;
+  }
+  .chip:hover{border-color:var(--accent);color:var(--txt);}
+  .chip.active{background:rgba(22,163,74,.12);border-color:var(--accent);color:var(--accent-2);}
+  .chip .dotc{width:8px;height:8px;border-radius:50%;}
+
+  /* ---------- Lead list ---------- */
+  .lead-list{max-height:640px;overflow:auto;}
+  .lead{
+    display:grid;grid-template-columns:46px 1fr auto;gap:13px;align-items:center;
+    padding:14px 18px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:.13s;position:relative;
+  }
+  .lead:hover{background:var(--panel-2);}
+  .lead.sel{background:linear-gradient(90deg,rgba(22,163,74,.10),transparent);}
+  .lead.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad);}
+  .lead .ava{
+    width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    font-size:14px;font-weight:700;color:#fff;flex-shrink:0;
+  }
+  .lead .who b{font-size:13.5px;display:block;}
+  .lead .who .co{font-size:11.5px;color:var(--txt-dim);display:flex;align-items:center;gap:6px;margin-top:2px;}
+  .lead .who .meta{font-size:10.5px;color:var(--txt-faint);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;}
+  .lead .who .meta span{display:flex;align-items:center;gap:4px;}
+  .lead .who .meta svg{width:11px;height:11px;}
+  .lead .right-col{display:flex;flex-direction:column;align-items:flex-end;gap:7px;}
+  .score-ring{position:relative;width:48px;height:48px;}
+  .score-ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .score-ring .num b{font-size:14px;line-height:1;}
+  .score-ring .num small{font-size:7px;color:var(--txt-faint);letter-spacing:.5px;}
+  .tier{font-size:9.5px;font-weight:800;letter-spacing:.7px;padding:3px 8px;border-radius:6px;text-transform:uppercase;}
+  .tier.hot{background:rgba(225,73,59,.12);color:#c5392c;}
+  .tier.warm{background:rgba(217,132,16,.14);color:#a9670a;}
+  .tier.cold{background:rgba(36,134,201,.12);color:#1d6fa8;}
+
+  .ai-tagrow{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
+  .ai-tag{font-size:10px;background:var(--panel-3);color:var(--txt-dim);padding:3px 8px;border-radius:6px;display:flex;align-items:center;gap:4px;border:1px solid var(--line);}
+  .ai-tag.glow{background:rgba(22,163,74,.10);color:var(--accent-2);border-color:rgba(22,163,74,.28);}
+  .ai-tag svg{width:10px;height:10px;}
+
+  /* ---------- Right rail ---------- */
+  .rail{display:flex;flex-direction:column;gap:20px;}
+  .mini-h{font-size:13px;font-weight:650;display:flex;align-items:center;gap:8px;margin:0;}
+  .mini-h .sm{margin-left:auto;font-size:11px;color:var(--accent);cursor:pointer;font-weight:600;}
+
+  /* Funnel chart */
+  .funnel{padding:16px 18px 18px;}
+  .fstage{display:flex;align-items:center;gap:11px;margin-bottom:11px;}
+  .fstage .fbar{height:30px;border-radius:8px;display:flex;align-items:center;padding:0 10px;font-size:11.5px;font-weight:700;color:#fff;min-width:54px;transition:width .8s cubic-bezier(.2,.8,.2,1);}
+  .fstage .flab{font-size:11.5px;color:var(--txt-dim);width:88px;flex-shrink:0;font-weight:500;}
+  .fstage .fval{font-size:11px;color:var(--txt-faint);margin-left:auto;}
+
+  /* Source breakdown donut */
+  .donut-wrap{display:flex;align-items:center;gap:18px;padding:8px 18px 18px;}
+  .legend{display:flex;flex-direction:column;gap:9px;flex:1;}
+  .legend .lg{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--txt-dim);}
+  .legend .lg .sq{width:10px;height:10px;border-radius:3px;}
+  .legend .lg b{margin-left:auto;color:var(--txt);font-weight:650;}
+
+  /* Activity feed */
+  .feed{padding:6px 18px 14px;max-height:320px;overflow:auto;}
+  .fitem{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--line-soft);}
+  .fitem:last-child{border-bottom:none;}
+  .fitem .fic{width:30px;height:30px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .fitem .fic svg{width:15px;height:15px;}
+  .fitem .ftxt{font-size:12px;color:var(--txt-dim);line-height:1.5;}
+  .fitem .ftxt b{color:var(--txt);font-weight:600;}
+  .fitem .ftxt .t{font-size:10.5px;color:var(--txt-faint);margin-top:3px;display:block;}
+  .ai-chip{display:inline-block;font-size:9px;background:rgba(22,163,74,.12);color:var(--accent-2);padding:1px 6px;border-radius:5px;font-weight:700;letter-spacing:.3px;margin-right:5px;vertical-align:middle;}
+
+  /* ---------- Drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.34);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:.25s;z-index:40;}
+  .scrim.open{opacity:1;pointer-events:auto;}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:520px;max-width:94vw;background:var(--panel);
+    border-left:1px solid var(--line);box-shadow:var(--shadow);transform:translateX(100%);transition:transform .32s cubic-bezier(.3,.9,.25,1);
+    z-index:50;display:flex;flex-direction:column;
+  }
+  .drawer.open{transform:none;}
+  .dr-top{padding:22px 24px 18px;border-bottom:1px solid var(--line-soft);position:relative;background:linear-gradient(160deg,rgba(22,163,74,.06),var(--panel));}
+  .dr-close{position:absolute;top:18px;right:18px;width:32px;height:32px;border-radius:9px;background:var(--panel-3);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt-dim);}
+  .dr-close:hover{color:var(--txt);}
+  .dr-id{display:flex;align-items:center;gap:14px;}
+  .dr-id .ava{width:54px;height:54px;border-radius:14px;font-size:18px;}
+  .dr-id h2{margin:0;font-size:19px;}
+  .dr-id .sub{font-size:12.5px;color:var(--txt-dim);margin-top:3px;}
+  .dr-body{overflow-y:auto;flex:1;padding:0 0 30px;}
+  .dr-sec{padding:20px 24px;border-bottom:1px solid var(--line-soft);}
+  .dr-sec h4{margin:0 0 14px;font-size:12px;color:var(--txt-faint);text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px;}
+  .dr-sec h4 .badge-ai{background:var(--grad);color:#fff;font-size:8.5px;padding:2px 7px;border-radius:5px;letter-spacing:.5px;}
+
+  .scorebig{display:flex;align-items:center;gap:20px;}
+  .scorebig .ringbig{position:relative;width:96px;height:96px;flex-shrink:0;}
+  .scorebig .ringbig .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .scorebig .ringbig .ctr b{font-size:28px;line-height:1;}
+  .scorebig .ringbig .ctr small{font-size:9px;color:var(--txt-faint);letter-spacing:1px;margin-top:2px;}
+  .reason{font-size:12.5px;color:var(--txt-dim);line-height:1.6;}
+  .reason em{color:var(--accent-2);font-style:normal;font-weight:600;}
+
+  .factors{margin-top:14px;display:flex;flex-direction:column;gap:9px;}
+  .factor{display:flex;align-items:center;gap:10px;}
+  .factor .fn{font-size:11.5px;color:var(--txt-dim);width:128px;flex-shrink:0;}
+  .factor .ftrack{flex:1;height:7px;background:var(--panel-3);border-radius:5px;overflow:hidden;}
+  .factor .ffill{height:100%;border-radius:5px;}
+  .factor .fp{font-size:11px;font-weight:700;width:34px;text-align:right;}
+
+  /* extracted fields */
+  .xfield{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line-soft);}
+  .xfield:last-child{border-bottom:none;}
+  .xfield .xk{font-size:11px;color:var(--txt-faint);width:118px;flex-shrink:0;padding-top:2px;}
+  .xfield .xv{font-size:13px;font-weight:550;flex:1;}
+  .conf{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px;}
+  .conf.hi{background:rgba(22,163,74,.12);color:#117a39;}
+  .conf.md{background:rgba(217,132,16,.14);color:#a9670a;}
+  .conf.lo{background:rgba(225,73,59,.12);color:#c5392c;}
+
+  /* draft */
+  .draft{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:11px;padding:15px 16px;font-size:12.5px;line-height:1.65;color:var(--txt-dim);position:relative;}
+  .draft .dh{font-size:11px;color:var(--txt-faint);margin-bottom:10px;border-bottom:1px solid var(--line-soft);padding-bottom:9px;}
+  .draft .dh b{color:var(--txt);}
+  .draft p{margin:0 0 9px;}
+  .draft strong{color:var(--txt);}
+  .draft-act{display:flex;gap:9px;margin-top:13px;}
+  .mini-btn{background:var(--panel-3);border:1px solid var(--line);color:var(--txt-dim);border-radius:8px;padding:7px 12px;font-size:11.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.15s;}
+  .mini-btn:hover{color:var(--txt);border-color:var(--accent);}
+  .mini-btn svg{width:13px;height:13px;}
+  .mini-btn.go{background:var(--grad);border:none;color:#fff;}
+
+  /* timeline */
+  .tl{position:relative;padding-left:6px;}
+  .tlitem{display:flex;gap:13px;padding-bottom:16px;position:relative;}
+  .tlitem:last-child{padding-bottom:0;}
+  .tlitem .tdot{width:11px;height:11px;border-radius:50%;flex-shrink:0;margin-top:3px;z-index:1;border:2px solid var(--panel);}
+  .tlitem .tline{position:absolute;left:5px;top:14px;bottom:-4px;width:2px;background:var(--line);}
+  .tlitem:last-child .tline{display:none;}
+  .tlitem .tc b{font-size:12.5px;}
+  .tlitem .tc .tt{font-size:10.5px;color:var(--txt-faint);margin-top:2px;}
+  .tlitem .tc p{font-size:11.5px;color:var(--txt-dim);margin:5px 0 0;line-height:1.5;}
+
+  .nextbest{background:linear-gradient(120deg,rgba(22,163,74,.10),rgba(22,163,74,.03));border:1px solid rgba(22,163,74,.28);border-radius:11px;padding:14px 15px;}
+  .nextbest .nbh{font-size:11px;color:#117a39;font-weight:700;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-bottom:8px;}
+  .nextbest p{margin:0;font-size:12.5px;color:var(--txt-dim);line-height:1.55;}
+  .nextbest p strong{color:var(--txt);}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--txt-faint);}
+  .empty svg{width:46px;height:46px;opacity:.4;margin-bottom:12px;}
+  .empty b{display:block;font-size:13.5px;color:var(--txt-dim);margin-bottom:5px;}
+
+  .fade{animation:fade .3s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @media(max-width:920px){.app{grid-template-columns:1fr;}.sidebar{display:none;}.kpis{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+      </div>
+      <div>
+        <b>LeadSense AI</b>
+        <span>Revenue Ops</span>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Lead Console <span class="badge">9</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>AI Scoring</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>Outreach <span class="badge dim">12</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Pipeline</div>
+
+    <div class="nav-label">Intelligence</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4-2.5 5.3C15 16 14 17 14 19h-4c0-2-1-3-2.5-4.7C6.2 13 5 11.4 5 9a7 7 0 0 1 7-7Z"/><path d="M9 22h6"/></svg>AI Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Enrichment</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>Reports</div>
+
+    <div class="sb-foot">
+      <div class="nav-item" style="margin-bottom:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>Settings</div>
+      <div class="sb-user">
+        <div class="avatar">DM</div>
+        <div>
+          <div class="nm">Dana Mercer</div>
+          <div class="rl">Sales Ops Lead</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+    <header class="topbar">
+      <h1>Lead Console<small>AI-prioritized inbound &amp; outbound pipeline</small></h1>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchBox" placeholder="Search leads, companies, owners…">
+      </div>
+      <div class="icon-btn" title="Notifications"><span class="dot"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+      <button class="btn-primary" onclick="openImport()"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New Lead</button>
+    </header>
+
+    <div class="content">
+      <!-- KPIs -->
+      <div class="kpis" id="kpis"></div>
+
+      <!-- AI banner -->
+      <div class="ai-banner">
+        <div class="spark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <div class="txt">
+          <b>Daily AI briefing<span class="tag">RE-SCORED 14m AGO</span></b>
+          <p>The model re-ranked <em>247 open leads</em> overnight. <em>6 leads</em> jumped into the Hot tier on new buying signals (pricing-page visits, headcount growth). <em>Nova Robotics</em> is your highest-conviction opportunity today — strong fit, fresh intent, no contact in 5 days.</p>
+        </div>
+        <div class="act">
+          <button class="pill-btn" onclick="filterTier('hot')">Review Hot leads</button>
+          <button class="pill-btn solid" onclick="openLead('l1')">Open top pick</button>
+        </div>
+      </div>
+
+      <!-- Workspace -->
+      <div class="workspace">
+        <!-- Lead list card -->
+        <div class="card">
+          <div class="card-h">
+            <h3>Prioritized leads <span class="count" id="listCount">9</span></h3>
+            <div class="right">
+              <div class="seg" id="sortSeg">
+                <button class="active" data-sort="score">AI Score</button>
+                <button data-sort="recent">Recent</button>
+                <button data-sort="value">Deal Size</button>
+              </div>
+            </div>
+          </div>
+          <div class="chips" id="chipBar">
+            <div class="chip active" data-tier="all">All <span style="color:var(--txt-faint)">·</span> <span id="cAll">9</span></div>
+            <div class="chip" data-tier="hot"><span class="dotc" style="background:var(--hot)"></span>Hot <span id="cHot">3</span></div>
+            <div class="chip" data-tier="warm"><span class="dotc" style="background:var(--warm)"></span>Warm <span id="cWarm">3</span></div>
+            <div class="chip" data-tier="cold"><span class="dotc" style="background:var(--cold)"></span>Cold <span id="cCold">3</span></div>
+          </div>
+          <div class="lead-list" id="leadList"></div>
+        </div>
+
+        <!-- Right rail -->
+        <div class="rail">
+          <!-- Funnel -->
+          <div class="card">
+            <div class="card-h"><h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3Z"/></svg>Conversion funnel</h3></div>
+            <div class="funnel" id="funnel"></div>
+          </div>
+
+          <!-- Source donut -->
+          <div class="card">
+            <div class="card-h"><h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f766e" stroke-width="2"><path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10Z"/></svg>Lead sources</h3></div>
+            <div class="donut-wrap">
+              <svg width="120" height="120" viewBox="0 0 42 42" id="donut"></svg>
+              <div class="legend" id="donutLegend"></div>
+            </div>
+          </div>
+
+          <!-- Activity feed -->
+          <div class="card">
+            <div class="card-h"><h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--good)" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>AI activity</h3><span class="count">live</span></div>
+            <div class="feed" id="feed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Scrim + Drawer ===== -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div id="drawerInner"></div>
+</aside>
+
+<script>
+/* ============ Seed data ============ */
+const COLORS = ['#16a34a','#0f766e','#2486c9','#d98410','#e1493b','#7c3aed','#c2410c','#0e7490'];
+function initials(n){return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
+
+const LEADS = [
+  {id:'l1',name:'Nova Robotics',contact:'Priya Raman',title:'VP Operations',tier:'hot',score:94,value:'$148K',source:'Webinar',owner:'Dana Mercer',industry:'Industrial Automation',size:'520 emp',region:'Austin, TX',
+   email:'priya.raman@novarobotics.io',phone:'+1 (512) 880-1142',updated:'12 min ago',recency:1,
+   tags:['Pricing page x3','Demo requested','Headcount +18%'],
+   reasoning:'Three pricing-page visits in 48h plus a demo request signal active evaluation. Firmographic fit is excellent — mid-market manufacturer with a documented automation initiative and budget authority on the call.',
+   factors:[['Buying intent',96,'#e1493b'],['Firmographic fit',92,'#2486c9'],['Engagement',88,'#7c3aed'],['Recency',95,'#16a34a']],
+   fields:[['Company size','520 employees','hi'],['Annual revenue','$74M (est.)','md'],['Use case','Warehouse automation rollout','hi'],['Timeline','Q3 purchase window','md'],['Budget signal','RFP mentioned in form','hi']],
+   draft:{subj:'Re: Automating your Austin fulfillment line',body:['Hi <strong>Priya</strong>, thanks for joining our automation webinar and exploring pricing this week.','Given Nova\'s <strong>+18% headcount growth</strong> and the Q3 timeline you flagged, I\'d love to walk your ops team through how peers cut pick-to-ship time by 30%.','Are you open to a 25-min working session Thursday or Friday?']},
+   timeline:[['Demo request submitted','12 min ago','#16a34a','Filled the "Request a demo" form, cited an active RFP.'],['Visited pricing page (3rd time)','2 hours ago','#e1493b','Spent 4m 12s comparing Growth vs Scale tiers.'],['Opened nurture email','Yesterday','#2486c9','Clicked the ROI calculator link.'],['Attended live webinar','3 days ago','#7c3aed','"Automating high-mix fulfillment" — stayed full session.']],
+   next:'Call within the hour while intent is hot. Lead with the Q3 RFP and offer the ROI calculator session — fit + timing both peak.'},
+
+  {id:'l2',name:'Helios Energy',contact:'Marcus Webb',title:'Director of IT',tier:'hot',score:89,value:'$96K',source:'Inbound',owner:'Theo Park',industry:'Clean Energy',size:'1,200 emp',region:'Denver, CO',
+   email:'m.webb@helios-energy.com',phone:'+1 (303) 555-7781',updated:'48 min ago',recency:2,
+   tags:['Multi-stakeholder','Security review','Reply received'],
+   reasoning:'Multiple contacts from the same domain engaged this week, a classic committee-buying pattern. The security questionnaire request indicates late-stage evaluation rather than early curiosity.',
+   factors:[['Buying intent',90,'#e1493b'],['Firmographic fit',94,'#2486c9'],['Engagement',85,'#7c3aed'],['Recency',82,'#16a34a']],
+   fields:[['Company size','1,200 employees','hi'],['Annual revenue','$310M (est.)','md'],['Use case','Asset monitoring platform','hi'],['Timeline','Evaluating now','md'],['Budget signal','Security review started','hi']],
+   draft:{subj:'Security questionnaire + next steps for Helios',body:['Hi <strong>Marcus</strong>, great to see the team moving into security review.','I\'ve attached our completed <strong>SOC 2 questionnaire</strong> and a one-pager on SSO/SCIM so IT can clear procurement quickly.','Shall I set up a 30-min technical deep-dive with your platform group next week?']},
+   timeline:[['Requested security docs','48 min ago','#16a34a','Asked for SOC 2 + DPA via reply.'],['3 contacts engaged','Today','#e1493b','IT, Procurement, and Ops all opened the proposal.'],['Replied to outreach','Yesterday','#2486c9','"This looks promising, send specs."'],['Inbound contact form','4 days ago','#7c3aed','Self-identified as actively evaluating vendors.']],
+   next:'Send completed security pack now and propose a technical deep-dive — procurement is the gate, not interest.'},
+
+  {id:'l3',name:'BrightPath Retail',contact:'Sofia Alvarez',title:'Head of Growth',tier:'hot',score:86,value:'$72K',source:'Referral',owner:'Dana Mercer',industry:'E-commerce',size:'310 emp',region:'Miami, FL',
+   email:'sofia@brightpath.shop',phone:'+1 (786) 414-2290',updated:'3 hours ago',recency:4,
+   tags:['Warm referral','Budget confirmed','Champion identified'],
+   reasoning:'A referral from an existing customer carries a high conversion prior, and the prospect explicitly confirmed budget. The named champion shortens the path to a decision considerably.',
+   factors:[['Buying intent',84,'#e1493b'],['Firmographic fit',80,'#2486c9'],['Engagement',90,'#7c3aed'],['Recency',78,'#16a34a']],
+   fields:[['Company size','310 employees','hi'],['Annual revenue','$48M (est.)','md'],['Use case','Customer data unification','md'],['Timeline','Next 60 days','hi'],['Budget signal','Confirmed via referrer','hi']],
+   draft:{subj:'Intro from Lena at Kettle & Co.',body:['Hi <strong>Sofia</strong>, Lena suggested we connect — she mentioned BrightPath is unifying customer data ahead of Q4.','Since budget\'s already cleared, I can fast-track a tailored walkthrough using your category mix.','Would early next week suit a 30-min session?']},
+   timeline:[['Referred by customer','3 hours ago','#16a34a','Lena (Kettle & Co.) made a warm intro.'],['Budget confirmed','Today','#e1493b','Referrer noted a Q4 budget line is allocated.'],['LinkedIn profile viewed','Yesterday','#2486c9','Champion researched our company page.']],
+   next:'Leverage the referral immediately — open with Lena\'s name, propose a tailored walkthrough this week.'},
+
+  {id:'l4',name:'Quill Financial',contact:'Daniel Osei',title:'CFO',tier:'warm',score:71,value:'$210K',source:'Event',owner:'Theo Park',industry:'FinTech',size:'860 emp',region:'New York, NY',
+   email:'d.osei@quillfin.com',phone:'+1 (212) 778-9043',updated:'1 day ago',recency:6,
+   tags:['Enterprise deal','Slow cadence','Exec sponsor'],
+   reasoning:'Large potential contract value with an executive sponsor, but engagement has cooled since the conference. Fit is strong; the gap is momentum, not qualification.',
+   factors:[['Buying intent',64,'#e1493b'],['Firmographic fit',88,'#2486c9'],['Engagement',58,'#7c3aed'],['Recency',55,'#16a34a']],
+   fields:[['Company size','860 employees','hi'],['Annual revenue','$190M (est.)','md'],['Use case','Compliance reporting','md'],['Timeline','Exploratory','lo'],['Budget signal','Not yet confirmed','lo']],
+   draft:{subj:'Picking up where we left off at FinForward',body:['Hi <strong>Daniel</strong>, it was great chatting at FinForward about automating compliance reporting.','I put together a short note on how similar firms cut their close cycle by 6 days.','Worth a quick call to see if the fit holds for Quill?']},
+   timeline:[['No activity','1 day ago','#8a93a3','Cadence has slowed since the event.'],['Met at conference','2 weeks ago','#7c3aed','Strong exploratory conversation at FinForward.']],
+   next:'Re-engage with a value-led nudge tied to the conference chat. High potential value justifies a personal touch from the rep.'},
+
+  {id:'l5',name:'Atlas Logistics',contact:'Grace Lin',title:'COO',tier:'warm',score:68,value:'$130K',source:'Paid Ads',owner:'Dana Mercer',industry:'Supply Chain',size:'2,400 emp',region:'Seattle, WA',
+   email:'grace.lin@atlaslog.com',phone:'+1 (206) 332-5519',updated:'1 day ago',recency:7,
+   tags:['Large account','Content engaged','Multi-touch'],
+   reasoning:'Consistent content engagement across the nurture track signals genuine interest, though no explicit buying action yet. The account size keeps it a priority despite the early stage.',
+   factors:[['Buying intent',60,'#e1493b'],['Firmographic fit',86,'#2486c9'],['Engagement',74,'#7c3aed'],['Recency',58,'#16a34a']],
+   fields:[['Company size','2,400 employees','hi'],['Annual revenue','$520M (est.)','md'],['Use case','Route optimization','md'],['Timeline','Researching','lo'],['Budget signal','Unknown','lo']],
+   draft:{subj:'A route-optimization benchmark for Atlas',body:['Hi <strong>Grace</strong>, noticed you\'ve been reading our supply-chain pieces — thank you.','I\'ve got a benchmark report on route optimization for fleets your size; happy to share.','Would a 20-min overview be useful this month?']},
+   timeline:[['Downloaded whitepaper','1 day ago','#2486c9','"State of Route Optimization 2026".'],['Clicked 3 nurture emails','This week','#7c3aed','Steady engagement across the track.'],['From paid campaign','2 weeks ago','#d98410','Landed via LinkedIn ad.']],
+   next:'Offer a tailored benchmark to convert content interest into a conversation. Keep cadence light until intent strengthens.'},
+
+  {id:'l6',name:'Verdant Health',contact:'Omar Haddad',title:'IT Manager',tier:'warm',score:64,value:'$58K',source:'Webinar',owner:'Theo Park',industry:'Healthcare',size:'640 emp',region:'Boston, MA',
+   email:'o.haddad@verdanthealth.org',phone:'+1 (617) 220-7734',updated:'2 days ago',recency:9,
+   tags:['Mid-funnel','Compliance focus','Single contact'],
+   reasoning:'Solid topical engagement from a relevant role, but only one stakeholder is involved and procurement in healthcare tends to be slow. Nurture to broaden the footprint.',
+   factors:[['Buying intent',58,'#e1493b'],['Firmographic fit',72,'#2486c9'],['Engagement',66,'#7c3aed'],['Recency',50,'#16a34a']],
+   fields:[['Company size','640 employees','hi'],['Annual revenue','$88M (est.)','md'],['Use case','HIPAA-compliant analytics','md'],['Timeline','Next quarter','md'],['Budget signal','Unknown','lo']],
+   draft:{subj:'HIPAA-ready analytics for Verdant',body:['Hi <strong>Omar</strong>, glad the compliance webinar was useful.','Here\'s a short brief on our HIPAA controls and BAA process so you can socialize internally.','Who else on your side should I loop in for a fuller picture?']},
+   timeline:[['Watched webinar replay','2 days ago','#7c3aed','"Analytics under HIPAA" on-demand.'],['Opened 2 emails','This week','#2486c9','Engaged with compliance content.']],
+   next:'Nurture and expand the buying group — ask for an introduction to a second stakeholder before pushing for a meeting.'},
+
+  {id:'l7',name:'Pinecrest Media',contact:'Hannah Cole',title:'Marketing Lead',tier:'cold',score:42,value:'$24K',source:'Cold Outbound',owner:'Dana Mercer',industry:'Media',size:'120 emp',region:'Portland, OR',
+   email:'hannah@pinecrestmedia.co',phone:'+1 (503) 901-6628',updated:'4 days ago',recency:12,
+   tags:['Low engagement','Small account','Re-nurture'],
+   reasoning:'Minimal engagement and a small account size keep this low priority. No buying signals detected; best handled by an automated nurture sequence rather than rep time.',
+   factors:[['Buying intent',30,'#e1493b'],['Firmographic fit',48,'#2486c9'],['Engagement',38,'#7c3aed'],['Recency',40,'#16a34a']],
+   fields:[['Company size','120 employees','hi'],['Annual revenue','$14M (est.)','lo'],['Use case','Campaign analytics','lo'],['Timeline','None stated','lo'],['Budget signal','Unknown','lo']],
+   draft:{subj:'A lighter way to track campaign ROI',body:['Hi <strong>Hannah</strong>, sharing a quick read on simplifying campaign reporting for lean teams.','No ask — just thought it might be handy as you plan next quarter.','Happy to answer anything if useful.']},
+   timeline:[['Opened 1 email','4 days ago','#8a93a3','Single open, no click.'],['Cold outbound sent','1 week ago','#0e7490','Added from a prospecting list.']],
+   next:'Route to automated nurture. Revisit only if engagement crosses the activation threshold — not worth rep time today.'},
+
+  {id:'l8',name:'Stonebridge Group',contact:'Victor Nash',title:'Procurement',tier:'cold',score:38,value:'$45K',source:'List Import',owner:'Theo Park',industry:'Construction',size:'780 emp',region:'Chicago, IL',
+   email:'v.nash@stonebridge.build',phone:'+1 (312) 447-0091',updated:'5 days ago',recency:13,
+   tags:['Unverified','No engagement','Enrich needed'],
+   reasoning:'Imported record with unverified contact details and zero engagement to date. Recommend enrichment to validate the email and role before any outreach is attempted.',
+   factors:[['Buying intent',24,'#e1493b'],['Firmographic fit',54,'#2486c9'],['Engagement',18,'#7c3aed'],['Recency',30,'#16a34a']],
+   fields:[['Company size','780 employees','md'],['Annual revenue','Unknown','lo'],['Use case','Not identified','lo'],['Timeline','None stated','lo'],['Budget signal','Unknown','lo']],
+   draft:{subj:'Quick question for the Stonebridge team',body:['Hi <strong>Victor</strong>, reaching out in case streamlining project reporting is on your radar this year.','If there\'s a better contact for this, I\'d appreciate a quick pointer.','Thanks either way.']},
+   timeline:[['No engagement','5 days ago','#8a93a3','Record imported, not yet contacted.'],['List import','5 days ago','#0e7490','Bulk upload — details unverified.']],
+   next:'Enrich and verify the contact before outreach. Do not spend rep cycles until firmographics are confirmed.'},
+
+  {id:'l9',name:'Maple Tech',contact:'Aiko Tanaka',title:'Founder',tier:'cold',score:35,value:'$19K',source:'Cold Outbound',owner:'Dana Mercer',industry:'SaaS',size:'45 emp',region:'San Jose, CA',
+   email:'aiko@mapletech.dev',phone:'+1 (408) 612-8830',updated:'6 days ago',recency:14,
+   tags:['Early stage','Budget unclear','Watch'],
+   reasoning:'Early-stage company with limited budget signals and low fit for the current ICP. Worth a light-touch watch in case the company scales, but not a near-term priority.',
+   factors:[['Buying intent',28,'#e1493b'],['Firmographic fit',38,'#2486c9'],['Engagement',32,'#7c3aed'],['Recency',26,'#16a34a']],
+   fields:[['Company size','45 employees','hi'],['Annual revenue','$5M (est.)','lo'],['Use case','Product analytics','lo'],['Timeline','None stated','lo'],['Budget signal','Likely limited','lo']],
+   draft:{subj:'Scaling analytics when you\'re ready',body:['Hi <strong>Aiko</strong>, congrats on the growth at Maple Tech.','When analytics becomes a priority, here\'s a startup-friendly path we\'ve set up for teams your size.','No rush — happy to help whenever it\'s useful.']},
+   timeline:[['No engagement','6 days ago','#8a93a3','Cold sequence, no replies.'],['Cold outbound','1 week ago','#0e7490','Founder-led startup, added to watch list.']],
+   next:'Keep on a low-frequency watch sequence. Re-score automatically if headcount or funding signals appear.'}
+];
+
+/* funnel + sources + feed data */
+const FUNNEL = [
+  ['New leads',247,'#16a34a'],
+  ['Qualified',138,'#0f766e'],
+  ['Engaged',86,'#2486c9'],
+  ['Opportunity',41,'#d98410'],
+  ['Won',17,'#e1493b']
+];
+const SOURCES = [
+  ['Inbound form',34,'#16a34a'],
+  ['Webinar',22,'#0f766e'],
+  ['Referral',16,'#2486c9'],
+  ['Paid ads',14,'#d98410'],
+  ['Outbound',14,'#e1493b']
+];
+const FEED = [
+  ['score','#16a34a','<span class="ai-chip">AI</span>Scored <b>Nova Robotics</b> 94 — moved to <b>Hot</b>','12 min ago'],
+  ['enrich','#0f766e','<span class="ai-chip">AI</span>Enriched <b>Helios Energy</b> — added revenue &amp; tech stack','35 min ago'],
+  ['route','#2486c9','<span class="ai-chip">AI</span>Routed <b>BrightPath Retail</b> to <b>Dana Mercer</b>','1 hour ago'],
+  ['draft','#d98410','<span class="ai-chip">AI</span>Drafted follow-up for <b>Quill Financial</b>','2 hours ago'],
+  ['intent','#e1493b','<span class="ai-chip">AI</span>Detected pricing-page intent on <b>Atlas Logistics</b>','3 hours ago'],
+  ['dedupe','#0e7490','<span class="ai-chip">AI</span>Merged 2 duplicate records for <b>Verdant Health</b>','5 hours ago'],
+  ['decay','#8a93a3','<span class="ai-chip">AI</span>Down-ranked <b>Pinecrest Media</b> on engagement decay','Yesterday']
+];
+
+/* ============ State ============ */
+let state = {tier:'all', sort:'score', q:''};
+
+/* ============ Render helpers ============ */
+function ringSVG(score, size, stroke, color){
+  const r = (size/2) - stroke;
+  const c = 2*Math.PI*r;
+  const off = c*(1 - score/100);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e9ebef" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}"
+      stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"
+      transform="rotate(-90 ${size/2} ${size/2})" style="transition:stroke-dashoffset 1s ease"/>
+  </svg>`;
+}
+function tierColor(t){return t==='hot'?'#e1493b':t==='warm'?'#d98410':'#2486c9';}
+
+function renderKPIs(){
+  const k = [
+    {l:'Open leads',v:'247',ic:'#16a34a',svg:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',tr:'up',td:'+12%',sub:'vs last week'},
+    {l:'Hot leads',v:'34',ic:'#e1493b',svg:'<path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-3 .5 2 2 2 2 2s-1-3 1-7Z"/>',tr:'up',td:'+6',sub:'flagged by AI today'},
+    {l:'Avg. AI score',v:'62.4',ic:'#7c3aed',svg:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',tr:'up',td:'+3.1',sub:'pipeline health'},
+    {l:'Pipeline value',v:'$2.4M',ic:'#0f766e',svg:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',tr:'up',td:'+18%',sub:'weighted forecast'}
+  ];
+  document.getElementById('kpis').innerHTML = k.map(x=>`
+    <div class="kpi">
+      <div class="lbl"><span class="ic" style="background:${x.ic}22;color:${x.ic}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${x.svg}</svg></span>${x.l}</div>
+      <div class="val">${x.v}</div>
+      <div class="sub"><span class="trend ${x.tr}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="${x.tr==='up'?'m6 15 6-6 6 6':'m6 9 6 6 6-6'}"/></svg>${x.td}</span>${x.sub}</div>
+    </div>`).join('');
+}
+
+function renderFunnel(){
+  const max = FUNNEL[0][1];
+  document.getElementById('funnel').innerHTML = FUNNEL.map((s,i)=>{
+    const w = Math.max(14, (s[1]/max)*100);
+    return `<div class="fstage">
+      <div class="flab">${s[0]}</div>
+      <div class="fbar" style="width:0;background:linear-gradient(90deg,${s[2]},${s[2]}cc)" data-w="${w}">${s[1]}</div>
+      <div class="fval">${i>0?Math.round(s[1]/FUNNEL[i-1][1]*100)+'%':'—'}</div>
+    </div>`;
+  }).join('');
+  setTimeout(()=>document.querySelectorAll('#funnel .fbar').forEach(b=>b.style.width=b.dataset.w+'%'),60);
+}
+
+function renderDonut(){
+  const total = SOURCES.reduce((a,s)=>a+s[1],0);
+  let acc = 0;
+  const svg = SOURCES.map(s=>{
+    const frac = s[1]/total*100;
+    const seg = `<circle cx="21" cy="21" r="15.9" fill="none" stroke="${s[2]}" stroke-width="6"
+      stroke-dasharray="${frac} ${100-frac}" stroke-dashoffset="${25-acc}"></circle>`;
+    acc += frac;
+    return seg;
+  }).join('');
+  document.getElementById('donut').innerHTML =
+    `<circle cx="21" cy="21" r="15.9" fill="none" stroke="#e9ebef" stroke-width="6"/>${svg}
+     <text x="21" y="20" text-anchor="middle" fill="#1f2937" font-size="6" font-weight="700">247</text>
+     <text x="21" y="25.5" text-anchor="middle" fill="#8a93a3" font-size="2.6">leads</text>`;
+  document.getElementById('donutLegend').innerHTML = SOURCES.map(s=>
+    `<div class="lg"><span class="sq" style="background:${s[2]}"></span>${s[0]}<b>${s[1]}%</b></div>`).join('');
+}
+
+function renderFeed(){
+  const ic = {
+    score:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+    enrich:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    route:'<path d="M5 12h14M12 5l7 7-7 7"/>',
+    draft:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
+    intent:'<path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-3 .5 2 2 2 2 2s-1-3 1-7Z"/>',
+    dedupe:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    decay:'<path d="m6 9 6 6 6-6"/>'
+  };
+  document.getElementById('feed').innerHTML = FEED.map(f=>`
+    <div class="fitem">
+      <div class="fic" style="background:${f[1]}22;color:${f[1]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ic[f[0]]||ic.score}</svg></div>
+      <div class="ftxt">${f[2]}<span class="t">${f[3]}</span></div>
+    </div>`).join('');
+}
+
+function getVisible(){
+  let arr = LEADS.slice();
+  if(state.tier!=='all') arr = arr.filter(l=>l.tier===state.tier);
+  if(state.q){
+    const q = state.q.toLowerCase();
+    arr = arr.filter(l=> (l.name+l.contact+l.owner+l.industry+l.source+l.title).toLowerCase().includes(q));
+  }
+  if(state.sort==='score') arr.sort((a,b)=>b.score-a.score);
+  else if(state.sort==='recent') arr.sort((a,b)=>a.recency-b.recency);
+  else if(state.sort==='value') arr.sort((a,b)=>parseFloat(b.value.replace(/[^0-9.]/g,''))-parseFloat(a.value.replace(/[^0-9.]/g,'')));
+  return arr;
+}
+
+function renderList(){
+  const arr = getVisible();
+  const el = document.getElementById('leadList');
+  document.getElementById('listCount').textContent = arr.length;
+  if(!arr.length){
+    el.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <b>No leads match your filters</b>
+      <span>Try clearing the search or switching tiers.</span></div>`;
+    return;
+  }
+  el.innerHTML = arr.map((l,idx)=>{
+    const col = COLORS[idx%COLORS.length];
+    return `<div class="lead fade" onclick="openLead('${l.id}')">
+      <div class="ava" style="background:linear-gradient(135deg,${col},${col}99)">${initials(l.name)}</div>
+      <div class="who">
+        <b>${l.name}</b>
+        <div class="co">${l.contact} · ${l.title}</div>
+        <div class="meta">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>${l.industry}</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8Z"/></svg>${l.region}</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>${l.updated}</span>
+        </div>
+        <div class="ai-tagrow">
+          <span class="ai-tag glow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.1 5.5L20 9l-4.5 3.5L17 19l-5-3.5L7 19l1.5-6.5L4 9l5.9-.5Z"/></svg>${l.value}</span>
+          ${l.tags.slice(0,2).map(t=>`<span class="ai-tag">${t}</span>`).join('')}
+        </div>
+      </div>
+      <div class="right-col">
+        <div class="score-ring">
+          ${ringSVG(l.score,48,4,tierColor(l.tier))}
+          <div class="num"><b>${l.score}</b><small>SCORE</small></div>
+        </div>
+        <span class="tier ${l.tier}">${l.tier}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ Drawer ============ */
+function openLead(id){
+  const l = LEADS.find(x=>x.id===id);
+  if(!l) return;
+  const tc = tierColor(l.tier);
+  const col = COLORS[LEADS.indexOf(l)%COLORS.length];
+  document.getElementById('drawerInner').innerHTML = `
+    <div class="dr-top">
+      <div class="dr-close" onclick="closeDrawer()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+      <div class="dr-id">
+        <div class="ava" style="background:linear-gradient(135deg,${col},${col}99)">${initials(l.name)}</div>
+        <div>
+          <h2>${l.name}</h2>
+          <div class="sub">${l.contact} · ${l.title} &nbsp;·&nbsp; ${l.region}</div>
+          <div style="margin-top:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="tier ${l.tier}">${l.tier} lead</span>
+            <span class="ai-tag glow" style="font-size:10.5px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>${l.value} est. deal</span>
+            <span class="ai-tag">${l.source}</span>
+            <span class="ai-tag">Owner · ${l.owner}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dr-body">
+
+      <!-- AI score -->
+      <div class="dr-sec">
+        <h4>AI Lead Score <span class="badge-ai">MODEL v4.2</span></h4>
+        <div class="scorebig">
+          <div class="ringbig">
+            ${ringSVG(l.score,96,7,tc)}
+            <div class="ctr"><b style="color:${tc}">${l.score}</b><small>/ 100</small></div>
+          </div>
+          <div class="reason">${l.reasoning}</div>
+        </div>
+        <div class="factors">
+          ${l.factors.map(f=>`<div class="factor">
+            <span class="fn">${f[0]}</span>
+            <span class="ftrack"><span class="ffill" style="width:0;background:${f[2]}" data-w="${f[1]}"></span></span>
+            <span class="fp" style="color:${f[2]}">${f[1]}</span>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Next best action -->
+      <div class="dr-sec">
+        <div class="nextbest">
+          <div class="nbh"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>Recommended next action</div>
+          <p>${l.next}</p>
+        </div>
+      </div>
+
+      <!-- Extracted fields -->
+      <div class="dr-sec">
+        <h4>Extracted &amp; enriched fields <span class="badge-ai">AUTO-FILLED</span></h4>
+        ${l.fields.map(f=>`<div class="xfield">
+          <span class="xk">${f[0]}</span>
+          <span class="xv">${f[1]}</span>
+          <span class="conf ${f[2]}">${f[2]==='hi'?'High':f[2]==='md'?'Med':'Low'}</span>
+        </div>`).join('')}
+        <div style="margin-top:12px;font-size:11px;color:var(--txt-faint);display:flex;gap:6px;align-items:center">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+          Confidence reflects source reliability — review Low badges before relying on the value.
+        </div>
+      </div>
+
+      <!-- AI draft -->
+      <div class="dr-sec">
+        <h4>AI-drafted outreach <span class="badge-ai">GENERATED</span></h4>
+        <div class="draft">
+          <div class="dh">To: <b>${l.contact}</b> &lt;${l.email}&gt; &nbsp;·&nbsp; Subject: <b>${l.draft.subj}</b></div>
+          ${l.draft.body.map(p=>`<p>${p}</p>`).join('')}
+          <div class="draft-act">
+            <button class="mini-btn go" onclick="toast('Outreach sent to ${l.contact}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>Send</button>
+            <button class="mini-btn" onclick="toast('Draft regenerated')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Regenerate</button>
+            <button class="mini-btn" onclick="toast('Saved to drafts')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Edit</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="dr-sec">
+        <h4>Engagement timeline</h4>
+        <div class="tl">
+          ${l.timeline.map(t=>`<div class="tlitem">
+            <span class="tline"></span>
+            <span class="tdot" style="background:${t[2]}"></span>
+            <div class="tc"><b>${t[0]}</b><div class="tt">${t[1]}</div><p>${t[3]}</p></div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Contact -->
+      <div class="dr-sec" style="border-bottom:none">
+        <h4>Contact</h4>
+        <div class="xfield"><span class="xk">Email</span><span class="xv">${l.email}</span></div>
+        <div class="xfield"><span class="xk">Phone</span><span class="xv">${l.phone}</span></div>
+        <div class="xfield"><span class="xk">Company</span><span class="xv">${l.name} · ${l.size}</span></div>
+        <div style="display:flex;gap:9px;margin-top:16px">
+          <button class="btn-primary" style="flex:1;justify-content:center" onclick="toast('Logging a call with ${l.contact}')"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/></svg>Call</button>
+          <button class="mini-btn" style="padding:0 16px" onclick="toast('Meeting booked')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Book</button>
+          <button class="mini-btn" style="padding:0 16px" onclick="toast('Marked as qualified')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Qualify</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('scrim').classList.add('open');
+  document.querySelectorAll('.lead').forEach(x=>x.classList.remove('sel'));
+  setTimeout(()=>document.querySelectorAll('#drawerInner .ffill').forEach(f=>f.style.width=f.dataset.w+'%'),100);
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('scrim').classList.remove('open');
+}
+
+/* ============ Interactions ============ */
+function filterTier(t){
+  state.tier=t;
+  document.querySelectorAll('#chipBar .chip').forEach(c=>c.classList.toggle('active',c.dataset.tier===t));
+  renderList();
+}
+function openImport(){ toast('Import & auto-enrich panel — AI will extract fields and score on upload'); }
+
+let toastT;
+function toast(msg){
+  let t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div'); t.id='toast';
+    t.style.cssText='position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 12px 32px rgba(22,163,74,.4);z-index:80;opacity:0;transition:.25s;display:flex;align-items:center;gap:9px;';
+    document.body.appendChild(t);
+  }
+  t.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>'+msg;
+  requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';});
+  clearTimeout(toastT);
+  toastT=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2400);
+}
+
+/* sort segmented control */
+document.getElementById('sortSeg').addEventListener('click',e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#sortSeg button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  state.sort=b.dataset.sort;
+  renderList();
+});
+/* chip filter */
+document.getElementById('chipBar').addEventListener('click',e=>{
+  const c = e.target.closest('.chip'); if(!c) return;
+  filterTier(c.dataset.tier);
+});
+/* search */
+document.getElementById('searchBox').addEventListener('input',e=>{
+  state.q=e.target.value.trim();
+  renderList();
+});
+/* esc closes drawer */
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
+
+/* tier counts */
+(function counts(){
+  const c = t=>LEADS.filter(l=>l.tier===t).length;
+  document.getElementById('cAll').textContent=LEADS.length;
+  document.getElementById('cHot').textContent=c('hot');
+  document.getElementById('cWarm').textContent=c('warm');
+  document.getElementById('cCold').textContent=c('cold');
+})();
+
+/* ============ Init ============ */
+renderKPIs();
+renderFunnel();
+renderDonut();
+renderFeed();
+renderList();
+</script>
+</body>
+</html>

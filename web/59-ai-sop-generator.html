@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI SOP Generator</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-panel: #ffffff;
+    --bg-panel-2: #f6f7f9;
+    --bg-elev: #eef0f3;
+    --border: #e1e4e9;
+    --border-soft: #ebedf1;
+    --text: #1f2937;
+    --text-dim: #5b6472;
+    --text-faint: #97a0ae;
+    --accent: #0891b2;
+    --accent-2: #0e7490;
+    --accent-soft: rgba(8, 145, 178, 0.10);
+    --amber: #c2820a;
+    --rose: #dc4d63;
+    --blue: #2563eb;
+    --green: #0f9d6e;
+    --shadow: 0 10px 30px -14px rgba(15, 23, 42, 0.18);
+    --radius: 14px;
+    font-synthesis: none;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #d3d8df; border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #bcc3cd; }
+
+  /* ===== Layout shell ===== */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--border);
+    padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 6px 8px 18px; }
+  .brand-logo {
+    width: 36px; height: 36px; border-radius: 10px; flex: none;
+    background: linear-gradient(135deg, var(--accent) 0%, #0e7490 100%);
+    display: grid; place-items: center;
+    box-shadow: 0 4px 12px -4px rgba(8,145,178,0.45);
+  }
+  .brand-logo svg { width: 20px; height: 20px; }
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: -0.2px; }
+  .brand-sub { font-size: 11px; color: var(--text-faint); letter-spacing: 0.3px; }
+  .nav-group { margin-top: 8px; }
+  .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--text-faint); padding: 10px 10px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px;
+    color: var(--text-dim); cursor: pointer; font-weight: 500; font-size: 13px;
+    transition: background .15s, color .15s; user-select: none;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  .nav-item:hover { background: var(--bg-panel-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-item.active svg { opacity: 1; }
+  .nav-item .badge { margin-left: auto; background: var(--bg-elev); color: var(--text-dim); font-size: 11px; padding: 1px 7px; border-radius: 20px; font-weight: 600; }
+  .nav-item.active .badge { background: var(--accent); color: #fff; }
+  .sidebar-foot { margin-top: auto; }
+  .credit-card {
+    background: var(--bg-panel-2); border: 1px solid var(--border-soft); border-radius: 12px;
+    padding: 12px 13px; font-size: 12px;
+  }
+  .credit-top { display: flex; justify-content: space-between; color: var(--text-dim); margin-bottom: 8px; }
+  .credit-top b { color: var(--text); }
+  .credit-bar { height: 6px; border-radius: 6px; background: var(--bg-elev); overflow: hidden; }
+  .credit-fill { height: 100%; width: 64%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), #22b8d4); }
+  .credit-note { color: var(--text-faint); font-size: 11px; margin-top: 8px; }
+
+  /* ===== Main ===== */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px; padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.82); backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .page-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .page-title .crumb { color: var(--text-faint); font-weight: 500; }
+  .search {
+    margin-left: 14px; flex: 1; max-width: 380px; position: relative;
+  }
+  .search input {
+    width: 100%; background: var(--bg-panel); border: 1px solid var(--border);
+    color: var(--text); padding: 9px 12px 9px 36px; border-radius: 10px; font-size: 13px; outline: none;
+    transition: border .15s, box-shadow .15s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-faint); }
+  .topbar-spacer { flex: 1; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-panel); color: var(--text);
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .btn svg { width: 15px; height: 15px; }
+  .btn:hover { border-color: #cdd3db; background: var(--bg-panel-2); }
+  .btn-primary {
+    background: var(--accent); border-color: transparent; color: #fff;
+    box-shadow: 0 6px 16px -8px rgba(8,145,178,0.6);
+  }
+  .btn-primary:hover { background: #0a7c98; filter: none; border-color: transparent; }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, #22b8d4, var(--accent)); display: grid; place-items: center;
+    font-weight: 700; font-size: 13px; color: #fff;
+  }
+
+  .content { padding: 24px 28px 40px; }
+
+  /* ===== Stat row ===== */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+  .stat {
+    background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 16px 18px; position: relative; overflow: hidden;
+  }
+  .stat::after { content: ""; position: absolute; right: -20px; top: -20px; width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, var(--accent-soft), transparent 70%); }
+  .stat-label { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 7px; }
+  .stat-label .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .stat-val { font-size: 27px; font-weight: 750; letter-spacing: -0.6px; margin-top: 6px; }
+  .stat-delta { font-size: 12px; margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+  .up { color: var(--green); } .down { color: var(--rose); } .flat { color: var(--text-faint); }
+  .spark { position: absolute; right: 14px; bottom: 12px; width: 64px; height: 28px; opacity: .9; }
+
+  /* ===== Generator composer ===== */
+  .composer {
+    background: #ffffff;
+    border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; margin-bottom: 24px;
+    position: relative; overflow: hidden;
+  }
+  .composer::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(600px 200px at 85% 0%, rgba(8,145,178,0.05), transparent 60%);
+  }
+  .composer-head { display: flex; align-items: flex-start; gap: 14px; position: relative; }
+  .ai-orb {
+    width: 44px; height: 44px; border-radius: 13px; flex: none;
+    background: conic-gradient(from 140deg, var(--accent), #22b8d4, #0e7490, var(--accent));
+    display: grid; place-items: center; box-shadow: 0 0 0 1px rgba(255,255,255,0.5) inset, 0 8px 18px -10px rgba(8,145,178,0.6);
+    animation: pulse 3.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.5) inset, 0 8px 18px -10px rgba(8,145,178,0.6);} 50% { box-shadow: 0 0 0 1px rgba(255,255,255,0.5) inset, 0 8px 22px -8px rgba(14,116,144,0.5);} }
+  .ai-orb svg { width: 22px; height: 22px; }
+  .composer-head h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+  .composer-head p { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+  .composer-body { margin-top: 16px; position: relative; }
+  .composer-input {
+    width: 100%; min-height: 78px; resize: vertical; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; padding: 13px 15px; color: var(--text); font-family: inherit; font-size: 13.5px; line-height: 1.6; outline: none;
+    transition: border .15s, box-shadow .15s;
+  }
+  .composer-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .composer-tools { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px; padding: 6px 11px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--bg-panel); color: var(--text-dim); cursor: pointer; transition: all .15s; user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .composer-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .upload-pill {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-dim);
+    border: 1px dashed var(--border); padding: 7px 12px; border-radius: 10px; cursor: pointer; transition: all .15s;
+  }
+  .upload-pill:hover { border-color: var(--accent-2); color: var(--text); }
+  .upload-pill svg { width: 14px; height: 14px; }
+
+  /* progress / generating */
+  .gen-progress { display: none; margin-top: 16px; }
+  .gen-progress.show { display: block; }
+  .gen-steps { display: flex; flex-direction: column; gap: 9px; }
+  .gen-step { display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--text-faint); transition: color .3s; }
+  .gen-step.active { color: var(--text); }
+  .gen-step.done { color: var(--text-dim); }
+  .gen-tick {
+    width: 19px; height: 19px; border-radius: 50%; border: 2px solid var(--border); flex: none;
+    display: grid; place-items: center; transition: all .3s;
+  }
+  .gen-step.active .gen-tick { border-color: var(--accent); animation: spin 0.9s linear infinite; border-top-color: transparent; }
+  .gen-step.done .gen-tick { border-color: var(--green); background: var(--green); }
+  .gen-step.done .gen-tick svg { width: 11px; height: 11px; color: #ffffff; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Section heads ===== */
+  .section-head { display: flex; align-items: center; gap: 14px; margin: 4px 0 14px; }
+  .section-head h3 { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
+  .section-head .count { color: var(--text-faint); font-weight: 600; font-size: 13px; }
+  .tabs { display: flex; gap: 4px; background: var(--bg-panel); padding: 4px; border-radius: 11px; border: 1px solid var(--border-soft); }
+  .tab { padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-dim); cursor: pointer; transition: all .15s; user-select: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: #ffffff; color: var(--accent); box-shadow: 0 1px 2px rgba(15,23,42,0.08); border: 1px solid var(--border); }
+  .head-spacer { flex: 1; }
+  .seg { display: flex; gap: 4px; }
+
+  /* ===== SOP gallery grid ===== */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 17px 17px 15px; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s;
+    position: relative; display: flex; flex-direction: column; min-height: 196px;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--shadow); }
+  .card-top { display: flex; align-items: flex-start; gap: 11px; }
+  .doc-icon {
+    width: 38px; height: 38px; border-radius: 10px; flex: none; display: grid; place-items: center;
+    font-size: 17px; background: var(--bg-elev); border: 1px solid var(--border);
+  }
+  .card-title { font-weight: 650; font-size: 14px; letter-spacing: -0.1px; line-height: 1.35; }
+  .card-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 3px; }
+  .card-desc { font-size: 12.5px; color: var(--text-dim); margin-top: 12px; line-height: 1.5; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-foot { display: flex; align-items: center; gap: 8px; margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--border-soft); }
+  .pill {
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .pill.published { background: rgba(43,212,125,0.12); color: var(--green); }
+  .pill.published .dot { background: var(--green); }
+  .pill.review { background: rgba(245,166,35,0.13); color: var(--amber); }
+  .pill.review .dot { background: var(--amber); }
+  .pill.draft { background: rgba(154,161,178,0.12); color: var(--text-dim); }
+  .pill.draft .dot { background: var(--text-dim); }
+  .pill.archived { background: rgba(255,93,115,0.10); color: var(--rose); }
+  .pill.archived .dot { background: var(--rose); }
+  .conf {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-dim); font-weight: 600;
+  }
+  .conf-ring { width: 26px; height: 26px; }
+  .ai-tag {
+    position: absolute; top: 13px; right: 13px; font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+    color: var(--accent); background: rgba(8,145,178,0.08); border: 1px solid rgba(8,145,178,0.22);
+    padding: 2px 7px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .ai-tag svg { width: 10px; height: 10px; }
+  .steps-mini { display: flex; gap: 3px; margin-top: 11px; }
+  .steps-mini i { height: 4px; flex: 1; border-radius: 3px; background: var(--bg-elev); }
+  .steps-mini i.f { background: linear-gradient(90deg, var(--accent), #22b8d4); }
+
+  .empty {
+    grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-faint);
+    border: 1px dashed var(--border); border-radius: var(--radius); display: none;
+  }
+  .empty.show { display: block; }
+  .empty svg { width: 42px; height: 42px; opacity: .5; margin-bottom: 12px; }
+
+  /* ===== Right info column on review ===== */
+  .lower { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; margin-top: 26px; align-items: start; }
+  .panel { background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 18px 20px; }
+  .panel h4 { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .panel h4 .sub { font-weight: 500; color: var(--text-faint); font-size: 12px; margin-left: auto; }
+
+  /* coverage bars */
+  .bars { margin-top: 14px; display: flex; flex-direction: column; gap: 13px; }
+  .bar-row { display: grid; grid-template-columns: 130px 1fr 44px; align-items: center; gap: 12px; }
+  .bar-row .lbl { font-size: 12.5px; color: var(--text-dim); }
+  .bar-track { height: 8px; border-radius: 6px; background: var(--bg-elev); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 6px; transition: width .8s cubic-bezier(.2,.8,.2,1); }
+  .bar-row .pct { font-size: 12px; font-weight: 700; text-align: right; color: var(--text); }
+
+  /* activity feed */
+  .feed { margin-top: 14px; display: flex; flex-direction: column; }
+  .feed-item { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border-soft); position: relative; }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-ic { width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center; background: var(--bg-elev); border: 1px solid var(--border); }
+  .feed-ic svg { width: 15px; height: 15px; }
+  .feed-txt { font-size: 12.5px; line-height: 1.5; }
+  .feed-txt b { font-weight: 650; }
+  .feed-txt .who { color: var(--accent-2); font-weight: 650; }
+  .feed-time { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+  /* ===== Drawer ===== */
+  .scrim { position: fixed; inset: 0; background: rgba(8,9,13,0.62); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 80; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 620px; max-width: 94vw;
+    background: var(--bg-panel); border-left: 1px solid var(--border); z-index: 90;
+    transform: translateX(100%); transition: transform .32s cubic-bezier(.3,.9,.3,1);
+    display: flex; flex-direction: column; box-shadow: -30px 0 70px -30px rgba(0,0,0,0.7);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--border-soft); }
+  .drawer-head .row1 { display: flex; align-items: flex-start; gap: 13px; }
+  .drawer-close { margin-left: auto; width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-panel-2); color: var(--text-dim); cursor: pointer; display: grid; place-items: center; flex: none; transition: all .15s; }
+  .drawer-close:hover { color: var(--text); border-color: #cdd3db; }
+  .drawer-close svg { width: 16px; height: 16px; }
+  .drawer-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3; }
+  .drawer-meta { font-size: 12px; color: var(--text-faint); margin-top: 5px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .drawer-meta span { display: inline-flex; align-items: center; gap: 5px; }
+  .drawer-tags { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .drawer-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+
+  .ai-summary {
+    background: linear-gradient(135deg, rgba(8,145,178,0.08), rgba(34,184,212,0.05));
+    border: 1px solid rgba(8,145,178,0.22); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;
+  }
+  .ai-summary .sh { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 7px; letter-spacing: 0.2px; }
+  .ai-summary .sh svg { width: 14px; height: 14px; }
+  .ai-summary p { font-size: 13px; color: var(--text); line-height: 1.6; }
+
+  .extract-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-bottom: 22px; }
+  .ext {
+    background: var(--bg-panel-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 11px 13px;
+  }
+  .ext .k { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; justify-content: space-between; }
+  .ext .v { font-size: 13.5px; font-weight: 600; margin-top: 5px; }
+  .cbadge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; }
+  .cbadge.high { background: rgba(43,212,125,0.14); color: var(--green); }
+  .cbadge.med { background: rgba(245,166,35,0.15); color: var(--amber); }
+  .cbadge.low { background: rgba(255,93,115,0.13); color: var(--rose); }
+
+  .body-section-title { font-size: 13px; font-weight: 700; margin: 22px 0 12px; display: flex; align-items: center; gap: 8px; }
+  .body-section-title .line { flex: 1; height: 1px; background: var(--border-soft); }
+
+  .sop-step {
+    display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border-soft);
+  }
+  .sop-step:last-child { border-bottom: none; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 8px; flex: none; display: grid; place-items: center;
+    font-size: 12.5px; font-weight: 700; background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(8,145,178,0.3);
+  }
+  .step-body { flex: 1; }
+  .step-title { font-size: 13.5px; font-weight: 650; }
+  .step-desc { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.55; }
+  .step-tags { display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap; }
+  .mini-tag { font-size: 11px; color: var(--text-dim); background: var(--bg-elev); border: 1px solid var(--border-soft); padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; }
+  .mini-tag svg { width: 11px; height: 11px; }
+
+  .review-banner {
+    display: flex; align-items: center; gap: 12px; background: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.25);
+    border-radius: 11px; padding: 12px 14px; margin: 20px 0 4px;
+  }
+  .review-banner svg { width: 18px; height: 18px; color: var(--amber); flex: none; }
+  .review-banner .t { font-size: 12.5px; line-height: 1.5; }
+  .review-banner .t b { color: var(--amber); }
+
+  .drawer-foot { padding: 16px 24px; border-top: 1px solid var(--border-soft); display: flex; gap: 10px; background: var(--bg-panel); }
+  .drawer-foot .btn { flex: 1; justify-content: center; }
+
+  .tag {
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 7px; background: var(--bg-elev);
+    color: var(--text-dim); border: 1px solid var(--border-soft);
+  }
+
+  /* donut */
+  .donut-wrap { display: flex; align-items: center; gap: 22px; margin-top: 12px; }
+  .legend { display: flex; flex-direction: column; gap: 9px; }
+  .legend-item { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-dim); }
+  .legend-item .sw { width: 10px; height: 10px; border-radius: 3px; }
+  .legend-item b { color: var(--text); font-weight: 650; margin-left: auto; padding-left: 14px; }
+
+  @media (max-width: 1080px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .lower { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.2 5.3L20 8l-4 4 1 6-5-2.7L7 18l1-6-4-4 5.8-.7L12 2z" fill="#fff"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">SOPforge</div>
+        <div class="brand-sub">AI SOP Generator</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Workspace</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Library <span class="badge">24</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v4H4z"/><path d="M4 11h10M4 16h7"/></svg>
+        Generate
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Review queue <span class="badge">5</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9"/></svg>
+        Templates
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Insights</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-8M20 16v-3"/></svg>
+        Coverage
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Activity
+      </div>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="credit-card">
+        <div class="credit-top"><span>AI credits</span><span><b>3,180</b> / 5,000</span></div>
+        <div class="credit-bar"><div class="credit-fill"></div></div>
+        <div class="credit-note">Resets in 12 days · Pro plan</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <header class="topbar">
+      <div class="page-title"><span class="crumb">Workspace /</span> SOP Library</div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input id="searchInput" type="text" placeholder="Search SOPs, owners, departments…" />
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="btn" onclick="document.getElementById('promptInput').focus()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        New from scratch
+      </button>
+      <button class="btn btn-primary" onclick="document.getElementById('promptInput').focus()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.4L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.6L12 3z"/></svg>
+        Generate SOP
+      </button>
+      <div class="avatar" title="Dana Whitfield">DW</div>
+    </header>
+
+    <div class="content">
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label"><span class="dot" style="background:var(--accent)"></span>Total SOPs</div>
+          <div class="stat-val">24</div>
+          <div class="stat-delta up">▲ 6 this month</div>
+          <svg class="spark" viewBox="0 0 64 28" fill="none"><polyline points="0,22 10,18 20,20 30,12 40,14 52,6 64,3" stroke="#0891b2" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="stat">
+          <div class="stat-label"><span class="dot" style="background:var(--amber)"></span>Awaiting review</div>
+          <div class="stat-val">5</div>
+          <div class="stat-delta flat">2 high priority</div>
+          <svg class="spark" viewBox="0 0 64 28" fill="none"><polyline points="0,10 10,14 20,8 30,16 40,12 52,18 64,14" stroke="#c2820a" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="stat">
+          <div class="stat-label"><span class="dot" style="background:var(--green)"></span>Avg. AI confidence</div>
+          <div class="stat-val">91<span style="font-size:16px;color:var(--text-dim)">%</span></div>
+          <div class="stat-delta up">▲ 4% vs last batch</div>
+          <svg class="spark" viewBox="0 0 64 28" fill="none"><polyline points="0,20 10,18 20,15 30,13 40,9 52,8 64,5" stroke="#0f9d6e" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="stat">
+          <div class="stat-label"><span class="dot" style="background:var(--blue)"></span>Hours saved</div>
+          <div class="stat-val">148<span style="font-size:16px;color:var(--text-dim)">h</span></div>
+          <div class="stat-delta up">▲ 22h this week</div>
+          <svg class="spark" viewBox="0 0 64 28" fill="none"><polyline points="0,24 10,21 20,17 30,18 40,11 52,9 64,4" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+
+      <!-- Composer -->
+      <div class="composer">
+        <div class="composer-head">
+          <div class="ai-orb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2" fill="#fff" stroke="none"/></svg>
+          </div>
+          <div style="flex:1">
+            <h2>Generate a new SOP</h2>
+            <p>Describe a process, paste rough notes, or upload a recording transcript — the assistant drafts a structured, step-by-step procedure for review.</p>
+          </div>
+        </div>
+        <div class="composer-body">
+          <textarea id="promptInput" class="composer-input" placeholder="e.g. Onboard a new warehouse associate: badge access, safety briefing, equipment checkout, and first-week shadowing schedule…"></textarea>
+          <div class="composer-tools">
+            <div class="chip-row">
+              <div class="chip on" data-chip>Detailed steps</div>
+              <div class="chip" data-chip>Add safety notes</div>
+              <div class="chip" data-chip>Include checklist</div>
+              <div class="chip" data-chip>Assign roles</div>
+              <div class="chip" data-chip>ISO 9001 tone</div>
+            </div>
+            <div class="composer-actions">
+              <label class="upload-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg>
+                Attach notes
+              </label>
+              <button class="btn btn-primary" id="genBtn" onclick="runGenerate()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+                Generate
+              </button>
+            </div>
+          </div>
+          <div class="gen-progress" id="genProgress">
+            <div class="gen-steps">
+              <div class="gen-step" data-step="0"><span class="gen-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span> Parsing input &amp; detecting process type</div>
+              <div class="gen-step" data-step="1"><span class="gen-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span> Extracting roles, tools &amp; sequence</div>
+              <div class="gen-step" data-step="2"><span class="gen-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span> Drafting structured steps &amp; safety notes</div>
+              <div class="gen-step" data-step="3"><span class="gen-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg></span> Scoring confidence &amp; flagging gaps</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Library section -->
+      <div class="section-head">
+        <h3>SOP Library</h3>
+        <span class="count" id="resultCount">24 documents</span>
+        <div class="head-spacer"></div>
+        <div class="tabs" id="statusTabs">
+          <div class="tab active" data-status="all">All</div>
+          <div class="tab" data-status="published">Published</div>
+          <div class="tab" data-status="review">In review</div>
+          <div class="tab" data-status="draft">Draft</div>
+          <div class="tab" data-status="archived">Archived</div>
+        </div>
+      </div>
+
+      <div class="grid" id="cardGrid"></div>
+      <div class="empty" id="emptyState">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <div style="font-size:14px;color:var(--text-dim);font-weight:600">No SOPs match your filters</div>
+        <div style="margin-top:6px">Try a different search term or status.</div>
+      </div>
+
+      <!-- Lower analytics -->
+      <div class="lower">
+        <div class="panel">
+          <h4>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-8"/></svg>
+            Process coverage by department
+            <span class="sub">Documented vs. identified</span>
+          </h4>
+          <div class="bars" id="coverageBars">
+            <div class="bar-row"><div class="lbl">Operations</div><div class="bar-track"><div class="bar-fill" style="width:94%;background:linear-gradient(90deg,#0891b2,#22b8d4)"></div></div><div class="pct">94%</div></div>
+            <div class="bar-row"><div class="lbl">Customer Support</div><div class="bar-track"><div class="bar-fill" style="width:88%;background:linear-gradient(90deg,#0891b2,#22b8d4)"></div></div><div class="pct">88%</div></div>
+            <div class="bar-row"><div class="lbl">Quality &amp; Safety</div><div class="bar-track"><div class="bar-fill" style="width:72%;background:linear-gradient(90deg,#c2820a,#e0a72a)"></div></div><div class="pct">72%</div></div>
+            <div class="bar-row"><div class="lbl">Finance</div><div class="bar-track"><div class="bar-fill" style="width:61%;background:linear-gradient(90deg,#c2820a,#e0a72a)"></div></div><div class="pct">61%</div></div>
+            <div class="bar-row"><div class="lbl">HR &amp; Onboarding</div><div class="bar-track"><div class="bar-fill" style="width:45%;background:linear-gradient(90deg,#dc4d63,#e8746a)"></div></div><div class="pct">45%</div></div>
+            <div class="bar-row"><div class="lbl">IT &amp; Security</div><div class="bar-track"><div class="bar-fill" style="width:38%;background:linear-gradient(90deg,#dc4d63,#e8746a)"></div></div><div class="pct">38%</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h4>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--accent-2)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12l4-2"/></svg>
+            Library status
+          </h4>
+          <div class="donut-wrap">
+            <svg width="120" height="120" viewBox="0 0 42 42">
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#eef0f3" stroke-width="6"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#0891b2" stroke-width="6" stroke-dasharray="50 50" stroke-dashoffset="25" stroke-linecap="round"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#c2820a" stroke-width="6" stroke-dasharray="21 79" stroke-dashoffset="-25" stroke-linecap="round"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#97a0ae" stroke-width="6" stroke-dasharray="17 83" stroke-dashoffset="-46" stroke-linecap="round"/>
+              <text x="21" y="20" text-anchor="middle" fill="#1f2937" font-size="7" font-weight="700">24</text>
+              <text x="21" y="26.5" text-anchor="middle" fill="#97a0ae" font-size="3.4">SOPs</text>
+            </svg>
+            <div class="legend">
+              <div class="legend-item"><span class="sw" style="background:#0891b2"></span>Published <b>12</b></div>
+              <div class="legend-item"><span class="sw" style="background:#c2820a"></span>In review <b>5</b></div>
+              <div class="legend-item"><span class="sw" style="background:#97a0ae"></span>Draft <b>4</b></div>
+              <div class="legend-item"><span class="sw" style="background:#dc4d63"></span>Archived <b>3</b></div>
+            </div>
+          </div>
+
+          <h4 style="margin-top:22px">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            Recent AI activity
+          </h4>
+          <div class="feed">
+            <div class="feed-item">
+              <div class="feed-ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2"><path d="M12 3l1.8 4.4L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.6L12 3z"/></svg></div>
+              <div><div class="feed-txt"><span class="who">Assistant</span> generated <b>“Cold Chain Receiving Check”</b> · 8 steps, 93% confidence</div><div class="feed-time">12 minutes ago</div></div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2 18a2 2 0 001.7 3h16.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg></div>
+              <div><div class="feed-txt"><span class="who">Assistant</span> flagged a missing approval step in <b>“Vendor Payment Run”</b></div><div class="feed-time">1 hour ago</div></div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg></div>
+              <div><div class="feed-txt"><b>Marcus Lin</b> approved <b>“Returns &amp; Refund Handling”</b> after AI review</div><div class="feed-time">3 hours ago</div></div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M4 4h16v4H4zM4 11h10M4 16h7"/></svg></div>
+              <div><div class="feed-txt"><span class="who">Assistant</span> rewrote 3 steps in <b>“Server Patch Rollout”</b> for clarity</div><div class="feed-time">Yesterday</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ===== Drawer ===== -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="row1">
+      <div class="doc-icon" id="dwIcon" style="width:44px;height:44px;font-size:20px">📦</div>
+      <div style="flex:1">
+        <div class="drawer-title" id="dwTitle">—</div>
+        <div class="drawer-meta" id="dwMeta"></div>
+      </div>
+      <button class="drawer-close" onclick="closeDrawer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="drawer-tags" id="dwTags"></div>
+  </div>
+  <div class="drawer-body" id="dwBody"></div>
+  <div class="drawer-foot">
+    <button class="btn" onclick="closeDrawer()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v4H4zM4 11h10M4 16h7"/></svg>
+      Edit draft
+    </button>
+    <button class="btn btn-primary" onclick="approveCurrent()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>
+      Approve &amp; publish
+    </button>
+  </div>
+</aside>
+
+<script>
+/* ============ Seed data ============ */
+const SOPS = [
+  {
+    id: 1, icon: "📦", title: "Warehouse Associate Onboarding", dept: "HR & Onboarding",
+    owner: "Priya Natarajan", updated: "Jun 21, 2026", steps: 11, status: "published",
+    confidence: 96, tags: ["Onboarding", "Safety", "Logistics"],
+    desc: "End-to-end first-week onboarding covering badge access, safety briefing, equipment checkout and shadowing.",
+    summary: "Generated from a 14-minute orientation recording and the facility safety manual. The assistant identified 11 sequential steps, mapped 3 responsible roles, and flagged one gap where forklift certification timing was ambiguous.",
+    extract: [
+      {k:"Process type", v:"Onboarding workflow", c:"high"},
+      {k:"Owner role", v:"Shift Supervisor", c:"high"},
+      {k:"Est. duration", v:"5 business days", c:"med"},
+      {k:"Compliance ref", v:"OSHA 1910.178", c:"high"},
+    ],
+    body: [
+      {t:"Issue facility badge & system access", d:"Front-desk creates the access badge and provisions WMS login before the associate arrives.", tags:["Role: IT Admin","~15 min"]},
+      {t:"Conduct site safety briefing", d:"Review emergency exits, PPE zones, and hazardous-material areas. Collect signed acknowledgement.", tags:["Safety","Role: Safety Officer"]},
+      {t:"Equipment checkout", d:"Assign scanner, gloves, and high-vis vest. Log serial numbers in the asset register.", tags:["Checklist","~20 min"]},
+      {t:"Forklift certification scheduling", d:"Book the associate into the next certification slot if operating powered equipment.", tags:["⚠ Needs review"]},
+      {t:"Shadow a senior associate", d:"Pair with a mentor for picking, packing, and put-away across the first three shifts.", tags:["Days 1–3"]},
+    ],
+    flag: "The assistant could not confirm whether forklift certification is required before or after the first shift. Please verify against the local site policy."
+  },
+  {
+    id: 2, icon: "❄️", title: "Cold Chain Receiving Check", dept: "Operations", owner: "Diego Alvarez",
+    updated: "Jun 23, 2026", steps: 8, status: "review", confidence: 93,
+    tags: ["Receiving", "Cold Chain", "Quality"],
+    desc: "Temperature-controlled inbound inspection for perishable goods, including probe logging and rejection criteria.",
+    summary: "Drafted from pasted SOP notes plus two prior receiving logs. The assistant structured 8 verification steps and inferred temperature thresholds, marking two values as low-confidence pending a quality-team check.",
+    extract: [
+      {k:"Process type", v:"Inbound inspection", c:"high"},
+      {k:"Owner role", v:"Receiving Lead", c:"high"},
+      {k:"Temp threshold", v:"2°C – 8°C", c:"med"},
+      {k:"Reject window", v:"> 10°C for 30 min", c:"low"},
+    ],
+    body: [
+      {t:"Verify delivery appointment & seal", d:"Confirm the booking matches the manifest and the trailer seal number is intact.", tags:["~5 min"]},
+      {t:"Probe pulp temperature", d:"Take three readings across the load and record in the cold-chain log.", tags:["Quality","Checklist"]},
+      {t:"Inspect for damage & pests", d:"Visual check of pallets, packaging integrity, and any contamination.", tags:["Safety"]},
+      {t:"Apply rejection criteria", d:"Reject any pallet exceeding the temperature window or showing breach indicators.", tags:["⚠ Needs review"]},
+      {t:"Document & route to storage", d:"Log accepted pallets and assign to the correct refrigerated zone.", tags:["Role: Receiving Lead"]},
+    ],
+    flag: "Temperature reject thresholds were inferred from historical logs. Quality team should confirm the official deviation window before publishing."
+  },
+  {
+    id: 3, icon: "💳", title: "Vendor Payment Run", dept: "Finance", owner: "Sofia Renner",
+    updated: "Jun 22, 2026", steps: 9, status: "review", confidence: 79,
+    tags: ["Finance", "Approval", "Controls"],
+    desc: "Bi-weekly accounts-payable batch process from invoice matching through payment release and reconciliation.",
+    summary: "Generated from a finance handbook excerpt. The assistant produced 9 steps but detected a missing dual-approval control between batch creation and payment release — a likely compliance gap.",
+    extract: [
+      {k:"Process type", v:"AP batch run", c:"high"},
+      {k:"Owner role", v:"AP Specialist", c:"high"},
+      {k:"Frequency", v:"Bi-weekly (Tue)", c:"high"},
+      {k:"Control gap", v:"Dual approval missing", c:"low"},
+    ],
+    body: [
+      {t:"Pull approved invoices", d:"Export all invoices matched to a PO and goods receipt for the period.", tags:["~10 min"]},
+      {t:"Three-way match validation", d:"Confirm invoice, PO, and receipt amounts agree within tolerance.", tags:["Controls"]},
+      {t:"Create payment batch", d:"Group validated invoices by vendor and payment method.", tags:["Role: AP Specialist"]},
+      {t:"Dual approval", d:"Second approver above the threshold signs off before release.", tags:["⚠ Inserted by AI"]},
+      {t:"Release & reconcile", d:"Submit the batch to the bank and reconcile against the ledger.", tags:["Finance"]},
+    ],
+    flag: "Original notes had no second-approver step for payments above $25,000. The assistant inserted a dual-approval step — confirm the correct threshold and approver role."
+  },
+  {
+    id: 4, icon: "↩️", title: "Returns & Refund Handling", dept: "Customer Support", owner: "Marcus Lin",
+    updated: "Jun 20, 2026", steps: 7, status: "published", confidence: 95,
+    tags: ["Support", "Refunds", "Policy"],
+    desc: "Customer-facing return intake, eligibility check, restocking decision and refund issuance within SLA.",
+    summary: "Generated from the support policy wiki and 6 resolved tickets. The assistant aligned 7 steps to the 48-hour SLA and surfaced clear eligibility rules with high confidence.",
+    extract: [
+      {k:"Process type", v:"Reverse logistics", c:"high"},
+      {k:"Owner role", v:"Support Agent", c:"high"},
+      {k:"SLA target", v:"48 hours", c:"high"},
+      {k:"Refund method", v:"Original tender", c:"high"},
+    ],
+    body: [
+      {t:"Verify order & eligibility", d:"Look up the order and confirm it falls within the 30-day return window.", tags:["~3 min"]},
+      {t:"Issue return label", d:"Generate a prepaid label and email it to the customer.", tags:["Role: Support Agent"]},
+      {t:"Inspect returned item", d:"On arrival, grade condition and decide restock vs. dispose.", tags:["Checklist"]},
+      {t:"Issue refund", d:"Refund to the original payment method and notify the customer.", tags:["SLA: 48h"]},
+    ],
+    flag: null
+  },
+  {
+    id: 5, icon: "🛠️", title: "Server Patch Rollout", dept: "IT & Security", owner: "Aiko Tanaka",
+    updated: "Jun 19, 2026", steps: 10, status: "published", confidence: 90,
+    tags: ["IT", "Change Mgmt", "Security"],
+    desc: "Staged production patching with maintenance window, rollback plan, and post-deploy verification.",
+    summary: "Drafted from a change-management template and last quarter's rollout notes. The assistant rewrote 3 ambiguous steps for clarity and emphasized the rollback checkpoint.",
+    extract: [
+      {k:"Process type", v:"Change rollout", c:"high"},
+      {k:"Owner role", v:"SRE On-call", c:"high"},
+      {k:"Window", v:"Sun 02:00–04:00", c:"med"},
+      {k:"Rollback", v:"Snapshot restore", c:"high"},
+    ],
+    body: [
+      {t:"Raise change request", d:"File the CR with scope, window, and approver list at least 48h ahead.", tags:["Change Mgmt"]},
+      {t:"Snapshot baseline", d:"Take a full snapshot of each target host before any change.", tags:["Rollback"]},
+      {t:"Apply patches to canary", d:"Patch one canary node and run the smoke-test suite.", tags:["~25 min"]},
+      {t:"Staged rollout", d:"Roll out in waves of 25% with health checks between waves.", tags:["Role: SRE On-call"]},
+      {t:"Verify & close CR", d:"Confirm metrics are nominal, then close the change record.", tags:["Security"]},
+    ],
+    flag: null
+  },
+  {
+    id: 6, icon: "📞", title: "Inbound Lead Qualification", dept: "Customer Support", owner: "Hannah Brooks",
+    updated: "Jun 18, 2026", steps: 6, status: "draft", confidence: 84,
+    tags: ["Sales", "Triage", "CRM"],
+    desc: "Routing and scoring of inbound enquiries, qualification questions, and CRM handoff to the right team.",
+    summary: "Generated from a sales playbook draft. The assistant produced a 6-step qualification flow and suggested a scoring rubric, flagged as a draft for sales-ops review.",
+    extract: [
+      {k:"Process type", v:"Lead triage", c:"high"},
+      {k:"Owner role", v:"SDR", c:"med"},
+      {k:"Handoff SLA", v:"15 minutes", c:"med"},
+      {k:"Routing rule", v:"By territory", c:"med"},
+    ],
+    body: [
+      {t:"Capture enquiry details", d:"Log company, contact, and stated need into the CRM.", tags:["CRM"]},
+      {t:"Qualify with BANT", d:"Ask budget, authority, need, and timeline questions.", tags:["Checklist"]},
+      {t:"Score & route", d:"Apply the scoring rubric and assign to the right territory rep.", tags:["⚠ Draft rubric"]},
+    ],
+    flag: "The scoring rubric is AI-suggested and not yet validated. Sales operations should confirm point weights before this becomes the source of truth."
+  },
+  {
+    id: 7, icon: "🧪", title: "Lab Sample Intake & Labeling", dept: "Quality & Safety", owner: "Dr. Owen Fields",
+    updated: "Jun 17, 2026", steps: 9, status: "published", confidence: 92,
+    tags: ["Quality", "Lab", "Chain of Custody"],
+    desc: "Receiving, logging, and barcoding of incoming samples with chain-of-custody and storage requirements.",
+    summary: "Generated from the lab quality manual. The assistant produced a 9-step intake procedure with strong chain-of-custody coverage and barcode labeling rules.",
+    extract: [
+      {k:"Process type", v:"Sample intake", c:"high"},
+      {k:"Owner role", v:"Lab Technician", c:"high"},
+      {k:"Custody form", v:"COC-204", c:"high"},
+      {k:"Storage", v:"-20°C freezer", c:"med"},
+    ],
+    body: [
+      {t:"Receive & verify COC", d:"Confirm the chain-of-custody form matches the physical samples.", tags:["Custody"]},
+      {t:"Log into LIMS", d:"Register each sample with a unique accession number.", tags:["~6 min"]},
+      {t:"Barcode & label", d:"Print and apply barcode labels following the naming standard.", tags:["Checklist"]},
+      {t:"Store per requirement", d:"Place samples in the correct temperature-controlled storage.", tags:["Role: Lab Technician"]},
+    ],
+    flag: null
+  },
+  {
+    id: 8, icon: "🚚", title: "Last-Mile Delivery Exception", dept: "Operations", owner: "Diego Alvarez",
+    updated: "Jun 16, 2026", steps: 8, status: "review", confidence: 87,
+    tags: ["Logistics", "Exceptions", "Support"],
+    desc: "Handling failed deliveries, re-attempt scheduling, customer notification, and return-to-depot rules.",
+    summary: "Drafted from dispatcher notes. The assistant built an 8-step exception flow and inferred the re-attempt cadence, flagging the depot return window for confirmation.",
+    extract: [
+      {k:"Process type", v:"Delivery exception", c:"high"},
+      {k:"Owner role", v:"Dispatcher", c:"high"},
+      {k:"Re-attempts", v:"Up to 3", c:"med"},
+      {k:"RTO window", v:"After 5 days", c:"low"},
+    ],
+    body: [
+      {t:"Log failed delivery reason", d:"Driver records the exception code at the doorstep.", tags:["~2 min"]},
+      {t:"Notify customer", d:"Send an automated SMS with re-schedule options.", tags:["Support"]},
+      {t:"Schedule re-attempt", d:"Book the next available route slot, up to three attempts.", tags:["Role: Dispatcher"]},
+      {t:"Return to depot", d:"After the final attempt, route the parcel back to the depot.", tags:["⚠ Needs review"]},
+    ],
+    flag: "The return-to-origin window of 5 days was inferred from a small sample of dispatcher notes. Confirm against the carrier contract."
+  },
+  {
+    id: 9, icon: "🔐", title: "Access Request Approval", dept: "IT & Security", owner: "Aiko Tanaka",
+    updated: "Jun 14, 2026", steps: 7, status: "draft", confidence: 81,
+    tags: ["Security", "Access", "Approval"],
+    desc: "Granting and revoking system access with manager approval, least-privilege checks and audit logging.",
+    summary: "Generated from a security policy excerpt. The assistant produced a 7-step access flow centred on least-privilege, flagged as draft pending the access-matrix link.",
+    extract: [
+      {k:"Process type", v:"Access governance", c:"high"},
+      {k:"Owner role", v:"Security Analyst", c:"high"},
+      {k:"Approval", v:"Manager + Owner", c:"med"},
+      {k:"Review cycle", v:"Quarterly", c:"med"},
+    ],
+    body: [
+      {t:"Submit access request", d:"Requester specifies the system, role, and business justification.", tags:["~4 min"]},
+      {t:"Manager approval", d:"Direct manager approves or rejects within the ticket.", tags:["Approval"]},
+      {t:"Least-privilege check", d:"Security analyst confirms the role matches the access matrix.", tags:["⚠ Matrix link missing"]},
+      {t:"Provision & log", d:"Grant access and write an entry to the audit log.", tags:["Security"]},
+    ],
+    flag: "The procedure references an access-matrix document that the assistant could not locate. Attach the current matrix before publishing."
+  },
+  {
+    id: 10, icon: "🧾", title: "Month-End Close Checklist", dept: "Finance", owner: "Sofia Renner",
+    updated: "Jun 12, 2026", steps: 13, status: "published", confidence: 94,
+    tags: ["Finance", "Close", "Reconciliation"],
+    desc: "Sequenced month-end accounting close from sub-ledger cutoff through reconciliations and reporting.",
+    summary: "Generated from the finance close calendar and prior checklists. The assistant ordered 13 dependent tasks and grouped them by close day with high confidence.",
+    extract: [
+      {k:"Process type", v:"Period close", c:"high"},
+      {k:"Owner role", v:"Controller", c:"high"},
+      {k:"Cycle", v:"Monthly (BD+5)", c:"high"},
+      {k:"Sign-off", v:"CFO review", c:"high"},
+    ],
+    body: [
+      {t:"Sub-ledger cutoff", d:"Lock AP, AR, and inventory sub-ledgers at end of day BD0.", tags:["Day 1"]},
+      {t:"Accruals & journals", d:"Post recurring accruals and review manual journal entries.", tags:["Checklist"]},
+      {t:"Bank reconciliations", d:"Reconcile all bank accounts and clear outstanding items.", tags:["Reconciliation"]},
+      {t:"Reporting & sign-off", d:"Produce the management pack and route to CFO for sign-off.", tags:["Role: Controller"]},
+    ],
+    flag: null
+  },
+  {
+    id: 11, icon: "🏷️", title: "Product Recall Notification", dept: "Quality & Safety", owner: "Dr. Owen Fields",
+    updated: "Jun 10, 2026", steps: 10, status: "review", confidence: 88,
+    tags: ["Quality", "Recall", "Compliance"],
+    desc: "Coordinated recall: batch tracing, regulator notification, customer outreach, and disposition tracking.",
+    summary: "Drafted from a regulatory template and a past incident report. The assistant built a 10-step recall procedure and flagged the regulator-notification deadline for legal review.",
+    extract: [
+      {k:"Process type", v:"Recall response", c:"high"},
+      {k:"Owner role", v:"QA Manager", c:"high"},
+      {k:"Notify deadline", v:"24 hours", c:"low"},
+      {k:"Regulator", v:"FDA / local", c:"med"},
+    ],
+    body: [
+      {t:"Confirm affected batches", d:"Trace lot numbers through production and distribution records.", tags:["Compliance"]},
+      {t:"Convene recall committee", d:"Assemble QA, legal, comms, and operations leads.", tags:["~30 min"]},
+      {t:"Notify regulator", d:"File the required notice within the mandated window.", tags:["⚠ Verify deadline"]},
+      {t:"Customer outreach & disposition", d:"Contact affected customers and track returned units.", tags:["Role: QA Manager"]},
+    ],
+    flag: "The 24-hour regulator notification deadline depends on jurisdiction and severity. Legal should confirm the applicable window before this is finalized."
+  },
+  {
+    id: 12, icon: "👋", title: "Employee Offboarding", dept: "HR & Onboarding", owner: "Priya Natarajan",
+    updated: "Jun 8, 2026", steps: 9, status: "published", confidence: 91,
+    tags: ["HR", "Offboarding", "Security"],
+    desc: "Final-day workflow for departing staff: access revocation, asset return, knowledge transfer, exit interview.",
+    summary: "Generated from HR and IT policies combined. The assistant merged both sources into a single 9-step offboarding flow and aligned access revocation to the last working day.",
+    extract: [
+      {k:"Process type", v:"Offboarding", c:"high"},
+      {k:"Owner role", v:"HR Partner", c:"high"},
+      {k:"Trigger", v:"Last working day", c:"high"},
+      {k:"Access cutoff", v:"End of day", c:"high"},
+    ],
+    body: [
+      {t:"Initiate offboarding ticket", d:"HR opens the ticket on notice and notifies IT and the manager.", tags:["~5 min"]},
+      {t:"Revoke system access", d:"Disable all accounts at end of the last working day.", tags:["Security"]},
+      {t:"Collect company assets", d:"Recover laptop, badge, and any equipment; log returns.", tags:["Checklist"]},
+      {t:"Exit interview", d:"HR conducts the exit interview and records feedback.", tags:["Role: HR Partner"]},
+    ],
+    flag: null
+  },
+  {
+    id: 13, icon: "📋", title: "Customer Escalation Routing", dept: "Customer Support", owner: "Hannah Brooks",
+    updated: "Jun 5, 2026", steps: 6, status: "archived", confidence: 86,
+    tags: ["Support", "Escalation", "SLA"],
+    desc: "Tiered escalation for high-severity tickets with on-call paging and executive-update cadence.",
+    summary: "Generated from the support runbook. Superseded by the new omni-channel escalation policy and archived for reference.",
+    extract: [
+      {k:"Process type", v:"Escalation", c:"high"},
+      {k:"Owner role", v:"Support Lead", c:"med"},
+      {k:"Sev-1 page", v:"On-call rota", c:"high"},
+      {k:"Status", v:"Superseded", c:"low"},
+    ],
+    body: [
+      {t:"Classify severity", d:"Assign Sev-1 to Sev-3 based on impact and reach.", tags:["SLA"]},
+      {t:"Page on-call", d:"For Sev-1, page the on-call engineer immediately.", tags:["Escalation"]},
+      {t:"Executive updates", d:"Send status updates every 30 minutes until resolved.", tags:["Role: Support Lead"]},
+    ],
+    flag: "This SOP has been archived. It is retained for reference only and should not be used for active escalations."
+  },
+];
+
+const DEPT_COLOR = {
+  "Operations":"#2563eb", "Customer Support":"#0891b2", "Finance":"#0f9d6e",
+  "Quality & Safety":"#c2820a", "HR & Onboarding":"#dc4d63", "IT & Security":"#7c3aed"
+};
+const STATUS_LABEL = { published:"Published", review:"In review", draft:"Draft", archived:"Archived" };
+
+let currentStatus = "all";
+let currentSearch = "";
+
+/* ============ Render cards ============ */
+function confRing(pct) {
+  const r = 9, c = 2 * Math.PI * r, off = c * (1 - pct/100);
+  const color = pct >= 90 ? "#0891b2" : pct >= 82 ? "#c2820a" : "#dc4d63";
+  return `<svg class="conf-ring" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="#e1e4e9" stroke-width="3"/>
+    <circle cx="12" cy="12" r="9" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round"
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 12 12)"/>
+  </svg>`;
+}
+
+function renderCards() {
+  const grid = document.getElementById("cardGrid");
+  const q = currentSearch.toLowerCase();
+  const list = SOPS.filter(s => {
+    const okStatus = currentStatus === "all" || s.status === currentStatus;
+    const hay = (s.title + s.dept + s.owner + s.tags.join(" ")).toLowerCase();
+    const okSearch = !q || hay.includes(q);
+    return okStatus && okSearch;
+  });
+
+  document.getElementById("resultCount").textContent = list.length + (list.length === 1 ? " document" : " documents");
+  document.getElementById("emptyState").classList.toggle("show", list.length === 0);
+
+  grid.innerHTML = list.map(s => {
+    const filled = Math.min(8, s.steps);
+    const stepsMini = Array.from({length:8}, (_,i) => `<i class="${i < filled ? 'f':''}"></i>`).join("");
+    return `<div class="card" onclick="openDrawer(${s.id})">
+      <div class="ai-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3l1.8 4.4L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.6L12 3z"/></svg>AI</div>
+      <div class="card-top">
+        <div class="doc-icon">${s.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div class="card-title">${s.title}</div>
+          <div class="card-meta">${s.dept} · ${s.steps} steps</div>
+        </div>
+      </div>
+      <div class="card-desc">${s.desc}</div>
+      <div class="steps-mini">${stepsMini}</div>
+      <div class="card-foot">
+        <span class="pill ${s.status}"><span class="dot"></span>${STATUS_LABEL[s.status]}</span>
+        <span class="conf">${confRing(s.confidence)} ${s.confidence}%</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ============ Drawer ============ */
+let currentId = null;
+function cls(c){ return c==='high'?'high':c==='med'?'med':'low'; }
+function clabel(c){ return c==='high'?'High':c==='med'?'Med':'Low'; }
+
+function openDrawer(id) {
+  const s = SOPS.find(x => x.id === id);
+  if (!s) return;
+  currentId = id;
+  document.getElementById("dwIcon").textContent = s.icon;
+  document.getElementById("dwTitle").textContent = s.title;
+  document.getElementById("dwMeta").innerHTML = `
+    <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${DEPT_COLOR[s.dept]}" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>${s.dept}</span>
+    <span>👤 ${s.owner}</span>
+    <span>🕑 Updated ${s.updated}</span>
+    <span>📑 ${s.steps} steps</span>`;
+  document.getElementById("dwTags").innerHTML =
+    `<span class="pill ${s.status}"><span class="dot"></span>${STATUS_LABEL[s.status]}</span>` +
+    `<span class="conf" style="border:1px solid var(--border-soft);padding:2px 9px;border-radius:20px">${confRing(s.confidence)} ${s.confidence}% confidence</span>` +
+    s.tags.map(t => `<span class="tag">${t}</span>`).join("");
+
+  let html = `
+    <div class="ai-summary">
+      <div class="sh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.4L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.6L12 3z"/></svg>AI Summary</div>
+      <p>${s.summary}</p>
+    </div>
+    <div class="body-section-title">Extracted attributes <span class="line"></span></div>
+    <div class="extract-grid">
+      ${s.extract.map(e => `<div class="ext"><div class="k">${e.k}<span class="cbadge ${cls(e.c)}">${clabel(e.c)}</span></div><div class="v">${e.v}</div></div>`).join("")}
+    </div>
+    <div class="body-section-title">Generated procedure <span class="line"></span></div>`;
+
+  s.body.forEach((step, i) => {
+    html += `<div class="sop-step">
+      <div class="step-num">${i+1}</div>
+      <div class="step-body">
+        <div class="step-title">${step.t}</div>
+        <div class="step-desc">${step.d}</div>
+        <div class="step-tags">${step.tags.map(t => `<span class="mini-tag">${t}</span>`).join("")}</div>
+      </div>
+    </div>`;
+  });
+  if (s.steps > s.body.length) {
+    html += `<div style="text-align:center;color:var(--text-faint);font-size:12.5px;padding:14px 0;">+ ${s.steps - s.body.length} more steps in the full document</div>`;
+  }
+
+  if (s.flag) {
+    html += `<div class="review-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2 18a2 2 0 001.7 3h16.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+      <div class="t"><b>Needs your review.</b> ${s.flag}</div>
+    </div>`;
+  } else {
+    html += `<div class="review-banner" style="background:rgba(43,212,125,0.07);border-color:rgba(43,212,125,0.25)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>
+      <div class="t" style="color:var(--text-dim)"><b style="color:var(--green)">No open issues.</b> The assistant found no gaps or low-confidence fields in this procedure.</div>
+    </div>`;
+  }
+
+  document.getElementById("dwBody").innerHTML = html;
+  document.getElementById("dwBody").scrollTop = 0;
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("scrim").classList.add("open");
+}
+function closeDrawer() {
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("scrim").classList.remove("open");
+}
+function approveCurrent() {
+  const s = SOPS.find(x => x.id === currentId);
+  if (s && s.status !== "archived") { s.status = "published"; renderCards(); }
+  closeDrawer();
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+/* ============ Filters ============ */
+document.getElementById("statusTabs").addEventListener("click", e => {
+  const tab = e.target.closest(".tab");
+  if (!tab) return;
+  document.querySelectorAll("#statusTabs .tab").forEach(t => t.classList.remove("active"));
+  tab.classList.add("active");
+  currentStatus = tab.dataset.status;
+  renderCards();
+});
+document.getElementById("searchInput").addEventListener("input", e => {
+  currentSearch = e.target.value;
+  renderCards();
+});
+document.querySelectorAll("[data-chip]").forEach(c => c.addEventListener("click", () => c.classList.toggle("on")));
+
+/* ============ Generate simulation ============ */
+let generating = false;
+function runGenerate() {
+  if (generating) return;
+  const prompt = document.getElementById("promptInput").value.trim();
+  const btn = document.getElementById("genBtn");
+  const prog = document.getElementById("genProgress");
+  const steps = [...document.querySelectorAll(".gen-step")];
+
+  if (!prompt) {
+    const ta = document.getElementById("promptInput");
+    ta.value = "Onboard a new warehouse associate: badge access, safety briefing, equipment checkout, and first-week shadowing schedule.";
+  }
+
+  generating = true;
+  btn.style.opacity = "0.6"; btn.style.pointerEvents = "none";
+  btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Generating…';
+  prog.classList.add("show");
+  steps.forEach(s => s.classList.remove("active","done"));
+
+  let i = 0;
+  function advance() {
+    if (i > 0) steps[i-1].classList.remove("active"), steps[i-1].classList.add("done");
+    if (i < steps.length) {
+      steps[i].classList.add("active");
+      i++;
+      setTimeout(advance, 850);
+    } else {
+      finishGenerate();
+    }
+  }
+  advance();
+
+  function finishGenerate() {
+    btn.style.opacity = ""; btn.style.pointerEvents = "";
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M5 3l14 9-14 9V3z"/></svg> Generate';
+    generating = false;
+
+    const conf = 89 + Math.floor(Math.random()*8);
+    const newSop = {
+      id: Date.now(), icon: "✨", title: "Warehouse Associate Onboarding (new draft)",
+      dept: "HR & Onboarding", owner: "Dana Whitfield", updated: "Just now", steps: 11,
+      status: "review", confidence: conf, tags: ["Onboarding","Safety","New"],
+      desc: "Freshly generated draft from your prompt. Covers badge access, safety briefing, equipment checkout and shadowing.",
+      summary: "Generated just now from your prompt. The assistant produced 11 structured steps across 3 roles and flagged one step for your review where certification timing was ambiguous.",
+      extract: [
+        {k:"Process type", v:"Onboarding workflow", c:"high"},
+        {k:"Owner role", v:"Shift Supervisor", c:"high"},
+        {k:"Est. duration", v:"5 business days", c:"med"},
+        {k:"Confidence", v:conf+"%", c: conf>=92?"high":"med"},
+      ],
+      body: SOPS[0].body,
+      flag: "This is a brand-new draft. Review the steps, fill any gaps the assistant marked, then approve to publish."
+    };
+    SOPS.unshift(newSop);
+
+    // switch to review tab to show it
+    document.querySelectorAll("#statusTabs .tab").forEach(t => t.classList.remove("active"));
+    document.querySelector('#statusTabs .tab[data-status="review"]').classList.add("active");
+    currentStatus = "review";
+    renderCards();
+
+    setTimeout(() => { prog.classList.remove("show"); openDrawer(newSop.id); }, 450);
+  }
+}
+
+renderCards();
+</script>
+</body>
+</html>

@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Project Management System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-2: #eef0f3;
+    --panel: #ffffff;
+    --panel-2: #ffffff;
+    --line: #e3e6ea;
+    --line-soft: #eceef1;
+    --txt: #1f2937;
+    --txt-2: #51607a;
+    --txt-3: #8a94a6;
+    --accent: #059669;
+    --accent-2: #10b981;
+    --green: #059669;
+    --amber: #d97706;
+    --red: #dc2626;
+    --cyan: #0891b2;
+    --pink: #db2777;
+    --shadow: 0 12px 32px -16px rgba(15,23,42,.22);
+    --r: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #cdd3dc; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- Layout shell ---------- */
+  .app { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    padding: 22px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 20px; }
+  .brand .logo {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; box-shadow: 0 6px 18px -8px rgba(5,150,105,.6);
+  }
+  .brand .logo svg { width: 20px; height: 20px; }
+  .brand h1 { font-size: 14.5px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .brand p { margin: 0; font-size: 11px; color: var(--txt-3); }
+
+  .nav-label { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; color: var(--txt-3); padding: 16px 8px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 10px; color: var(--txt-2);
+    cursor: pointer; font-weight: 500; font-size: 13px; user-select: none;
+    transition: background .15s, color .15s;
+  }
+  .nav-item svg { width: 17px; height: 17px; opacity: .85; flex-shrink: 0; }
+  .nav-item:hover { background: #f1f3f6; color: var(--txt); }
+  .nav-item.active { background: #e7f6f0; color: #065f46; box-shadow: inset 0 0 0 1px #c5e9da; }
+  .nav-item.active svg { color: var(--accent); opacity: 1; }
+  .nav-item .badge { margin-left: auto; }
+  .nav-pill { margin-left: auto; font-size: 10.5px; background: #e7f6f0; color: #047857; padding: 2px 7px; border-radius: 20px; }
+
+  .side-foot { margin-top: auto; }
+  .user-card {
+    display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px;
+    background: #f6f7f9; border: 1px solid var(--line);
+  }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #ffffff; flex-shrink: 0; }
+  .user-card .meta { overflow: hidden; }
+  .user-card .meta b { font-size: 12.5px; display: block; }
+  .user-card .meta span { font-size: 11px; color: var(--txt-3); }
+
+  /* ---------- Main ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 30px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: rgba(255,255,255,.85); backdrop-filter: blur(14px); z-index: 20;
+  }
+  .topbar .title-block h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .2px; }
+  .topbar .title-block p { margin: 2px 0 0; font-size: 12px; color: var(--txt-3); }
+  .search {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 12px; width: 270px;
+  }
+  .search input { background: none; border: none; outline: none; color: var(--txt); font-size: 13px; width: 100%; }
+  .search input::placeholder { color: var(--txt-3); }
+  .search svg { width: 15px; height: 15px; color: var(--txt-3); }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line);
+    background: #ffffff; color: var(--txt-2); display: grid; place-items: center; cursor: pointer; position: relative;
+  }
+  .icon-btn:hover { color: var(--txt); border-color: #c7cdd6; }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .icon-btn .dot { position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; background: var(--red); border-radius: 50%; border: 2px solid #ffffff; }
+
+  .content { padding: 24px 30px 60px; }
+
+  /* ---------- KPI cards ---------- */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+  .kpi {
+    background: #ffffff;
+    border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px;
+    position: relative; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  }
+  .kpi::after { content:""; position:absolute; right:-30px; top:-30px; width:110px; height:110px; border-radius:50%; opacity:.09; }
+  .kpi.k1::after { background: var(--accent); }
+  .kpi.k2::after { background: var(--green); }
+  .kpi.k3::after { background: var(--amber); }
+  .kpi.k4::after { background: var(--pink); }
+  .kpi .kpi-top { display: flex; align-items: center; gap: 9px; color: var(--txt-2); font-size: 12px; font-weight: 500; }
+  .kpi .kpi-ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; }
+  .kpi .kpi-ic svg { width: 15px; height: 15px; }
+  .kpi .val { font-size: 27px; font-weight: 750; margin: 12px 0 4px; letter-spacing: -.5px; }
+  .kpi .delta { font-size: 11.5px; display: flex; align-items: center; gap: 5px; }
+  .delta.up { color: var(--green); } .delta.down { color: var(--red); }
+  .kpi .spark { position: absolute; right: 16px; bottom: 14px; opacity: .9; }
+
+  /* ---------- Two-column board area ---------- */
+  .board-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--line); background:#ffffff; }
+  .tab { padding: 7px 14px; border-radius: 9px; font-size: 13px; color: var(--txt-2); cursor: pointer; font-weight: 500; white-space: nowrap; }
+  .tab:hover { color: var(--txt); }
+  .tab.active { background: var(--accent); color: #fff; box-shadow: 0 4px 12px -6px rgba(5,150,105,.6); }
+
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; font-size: 12.5px;
+    border-radius: 9px; border: 1px solid var(--line); background: #ffffff; color: var(--txt-2); cursor: pointer;
+  }
+  .filter-chip:hover { color: var(--txt); border-color:#c7cdd6; }
+  .filter-chip svg { width: 14px; height: 14px; }
+  .btn-primary {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+    background: var(--accent); color: #fff;
+    border: none; padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 6px 18px -8px rgba(5,150,105,.55);
+  }
+  .btn-primary svg { width: 15px; height: 15px; }
+  .btn-primary:hover { filter: brightness(1.08); }
+
+  /* ---------- Kanban ---------- */
+  .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
+  .col {
+    background: #f1f3f6; border: 1px solid var(--line); border-radius: var(--r); padding: 12px;
+  }
+  .col-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 12px; }
+  .col-head .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .col-head b { font-size: 13px; font-weight: 650; }
+  .col-head .count { margin-left: auto; font-size: 11px; color: var(--txt-3); background: #e4e7ec; padding: 1px 8px; border-radius: 20px; }
+  .col-body { display: flex; flex-direction: column; gap: 10px; min-height: 30px; }
+
+  .card {
+    background: #ffffff;
+    border: 1px solid var(--line); border-radius: 12px; padding: 13px; cursor: pointer;
+    transition: transform .12s, border-color .12s, box-shadow .12s;
+    box-shadow: 0 1px 2px rgba(15,23,42,.05);
+  }
+  .card:hover { transform: translateY(-2px); border-color: #c7cdd6; box-shadow: var(--shadow); }
+  .card .tag-row { display: flex; gap: 6px; margin-bottom: 9px; flex-wrap: wrap; }
+  .tag { font-size: 10.5px; padding: 2px 8px; border-radius: 6px; font-weight: 600; letter-spacing: .2px; }
+  .card h4 { margin: 0 0 6px; font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+  .card .desc { font-size: 11.5px; color: var(--txt-3); margin: 0 0 11px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .pbar { height: 5px; border-radius: 4px; background: #e9ecf1; overflow: hidden; margin-bottom: 11px; }
+  .card .pbar > i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--cyan)); }
+  .card-foot { display: flex; align-items: center; gap: 8px; }
+  .card-foot .avs { display: flex; }
+  .card-foot .avs .avatar { width: 24px; height: 24px; font-size: 10px; margin-left: -7px; border: 2px solid #ffffff; }
+  .card-foot .avs .avatar:first-child { margin-left: 0; }
+  .meta-mini { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--txt-3); }
+  .meta-mini span { display: inline-flex; align-items: center; gap: 4px; }
+  .meta-mini svg { width: 12px; height: 12px; }
+  .due-soon { color: var(--amber); } .due-over { color: var(--red); }
+
+  /* ---------- Table view ---------- */
+  .table-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--txt-3); padding: 13px 16px; border-bottom: 1px solid var(--line); font-weight: 600; background: #f8f9fb; }
+  td { padding: 13px 16px; border-bottom: 1px solid var(--line-soft); font-size: 13px; vertical-align: middle; }
+  tbody tr { cursor: pointer; transition: background .12s; }
+  tbody tr:hover { background: #f5f7f9; }
+  tbody tr:last-child td { border-bottom: none; }
+  .cell-name b { font-weight: 600; display: block; }
+  .cell-name span { font-size: 11px; color: var(--txt-3); }
+  .mini-bar { width: 90px; height: 6px; border-radius: 4px; background: #e9ecf1; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .mini-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--cyan)); }
+
+  .pill { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; }
+  .pill::before { content:""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .hidden { display: none !important; }
+
+  /* ---------- AI Panel ---------- */
+  .grid-2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; margin-top: 22px; }
+  @media (max-width: 1180px){ .grid-2 { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  }
+  .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .panel-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+  .panel-head .ai-badge {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700;
+    background: #e7f6f0;
+    color: #047857; border: 1px solid #c5e9da; padding: 3px 9px; border-radius: 20px;
+  }
+  .panel-head .ai-badge svg { width: 12px; height: 12px; }
+  .panel-sub { font-size: 12px; color: var(--txt-3); margin: 0 0 16px; }
+
+  .ai-compose {
+    border: 1px dashed #c8d2cd; border-radius: 12px; padding: 14px;
+    background: #f4faf7; margin-bottom: 14px;
+  }
+  .ai-compose textarea {
+    width: 100%; background: #ffffff; border: 1px solid var(--line); border-radius: 9px; resize: none;
+    color: var(--txt); font-family: inherit; font-size: 13px; padding: 11px; outline: none; min-height: 62px;
+  }
+  .ai-compose textarea::placeholder { color: var(--txt-3); }
+  .ai-compose textarea:focus { border-color: var(--accent); }
+  .ai-compose .row { display: flex; align-items: center; gap: 9px; margin-top: 11px; }
+  .chip-suggest { font-size: 11.5px; padding: 5px 10px; border-radius: 8px; background: #ffffff; border: 1px solid var(--line); color: var(--txt-2); cursor: pointer; }
+  .chip-suggest:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ai {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+    background: var(--accent); color: #fff; border: none;
+    padding: 9px 15px; border-radius: 9px; font-size: 12.5px; font-weight: 650; cursor: pointer;
+    box-shadow: 0 6px 18px -8px rgba(5,150,105,.55);
+  }
+  .btn-ai svg { width: 14px; height: 14px; }
+  .btn-ai:hover { filter: brightness(1.08); }
+  .btn-ai:disabled { opacity: .6; cursor: default; }
+
+  .ai-output { display: flex; flex-direction: column; gap: 12px; }
+  .ai-result-card { background: #f8f9fb; border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .ai-result-card .r-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+  .ai-result-card .r-head .seg-ic { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; }
+  .ai-result-card .r-head .seg-ic svg { width: 14px; height: 14px; }
+  .ai-result-card .r-head b { font-size: 13px; }
+  .ai-result-card .r-head .conf { margin-left: auto; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .conf.high { background: rgba(5,150,105,.12); color: var(--green); }
+  .conf.med { background: rgba(217,119,6,.14); color: var(--amber); }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .field-grid .fld { font-size: 12px; }
+  .field-grid .fld label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--txt-3); margin-bottom: 2px; }
+  .field-grid .fld b { font-weight: 600; }
+  .reason { font-size: 12px; color: var(--txt-2); background: #eef1f4; border-left: 3px solid var(--accent); padding: 9px 12px; border-radius: 0 8px 8px 0; margin-top: 4px; }
+  .reason b { color: #065f46; }
+
+  .rank-row { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-row .rk { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 11px; font-weight: 800; background: #e7f6f0; color: #047857; flex-shrink: 0; }
+  .rank-row .rk.top { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #ffffff; }
+  .rank-row .r-body { flex: 1; min-width: 0; }
+  .rank-row .r-body b { font-size: 12.5px; }
+  .rank-row .r-body p { margin: 1px 0 0; font-size: 11px; color: var(--txt-3); }
+  .rank-row .score { font-size: 13px; font-weight: 750; }
+
+  /* Activity feed */
+  .feed { display: flex; flex-direction: column; }
+  .feed-item { display: flex; gap: 12px; padding: 11px 0; position: relative; }
+  .feed-item:not(:last-child)::before { content:""; position: absolute; left: 13px; top: 30px; bottom: -11px; width: 2px; background: var(--line-soft); }
+  .feed-item .fic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; z-index: 1; }
+  .feed-item .fic svg { width: 14px; height: 14px; }
+  .feed-item .fbody { font-size: 12.5px; }
+  .feed-item .fbody .ft { color: var(--txt); }
+  .feed-item .fbody .ft b { font-weight: 650; }
+  .feed-item .fbody .fm { font-size: 11px; color: var(--txt-3); margin-top: 2px; }
+  .ai-tag { display: inline-flex; align-items:center; gap:4px; font-size: 9.5px; font-weight: 700; color: #047857; background: rgba(5,150,105,.12); padding: 1px 6px; border-radius: 5px; margin-left: 6px; }
+
+  /* Workload gauges */
+  .gauges { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 14px; }
+  .gauge { text-align: center; }
+  .gauge .lbl { font-size: 11px; color: var(--txt-2); margin-top: 8px; font-weight: 600; }
+  .gauge .sub { font-size: 10px; color: var(--txt-3); }
+
+  /* ---------- Drawer ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(15,23,42,.35); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 50; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 480px; max-width: 94vw;
+    background: #ffffff; border-left: 1px solid var(--line);
+    transform: translateX(100%); transition: transform .3s cubic-bezier(.4,0,.2,1); z-index: 60;
+    display: flex; flex-direction: column; box-shadow: -30px 0 60px -24px rgba(15,23,42,.28);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { padding: 20px 22px 16px; border-bottom: 1px solid var(--line-soft); }
+  .drawer-head .dh-top { display: flex; align-items: flex-start; gap: 12px; }
+  .drawer-head h3 { margin: 8px 0 4px; font-size: 18px; font-weight: 700; line-height: 1.3; }
+  .drawer-head .close { margin-left: auto; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: #ffffff; color: var(--txt-2); cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
+  .drawer-head .close:hover { color: var(--txt); background: #f1f3f6; }
+  .drawer-body { padding: 18px 22px 40px; overflow-y: auto; flex: 1; }
+  .d-section { margin-bottom: 22px; }
+  .d-section > h5 { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--txt-3); margin: 0 0 11px; }
+  .d-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .d-meta-grid .dm label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--txt-3); display: block; margin-bottom: 4px; }
+  .d-meta-grid .dm .v { font-size: 13.5px; font-weight: 600; }
+  .d-desc { font-size: 13px; color: var(--txt-2); line-height: 1.6; }
+
+  .ai-summary-box {
+    background: #f4faf7;
+    border: 1px solid #c5e9da; border-radius: 12px; padding: 14px;
+  }
+  .ai-summary-box .asb-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+  .ai-summary-box .asb-head b { font-size: 12.5px; color: #047857; }
+  .ai-summary-box p { margin: 0; font-size: 12.5px; color: var(--txt); line-height: 1.6; }
+  .risk-pill { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; margin-left: auto; }
+
+  .subtask { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .subtask:last-child { border-bottom: none; }
+  .check { width: 17px; height: 17px; border-radius: 5px; border: 1.6px solid #c2c9d4; flex-shrink: 0; display: grid; place-items: center; cursor: pointer; }
+  .check.done { background: var(--green); border-color: var(--green); }
+  .check.done svg { width: 11px; height: 11px; color: #ffffff; }
+  .subtask.done span { color: var(--txt-3); text-decoration: line-through; }
+  .subtask .who { margin-left: auto; }
+
+  .timeline-bar { display: flex; gap: 14px; align-items: center; }
+  .empty { text-align: center; color: var(--txt-3); font-size: 12.5px; padding: 26px 10px; }
+  .empty svg { width: 30px; height: 30px; opacity: .4; margin-bottom: 8px; }
+
+  @media (max-width: 1100px){ .kpi-grid { grid-template-columns: repeat(2,1fr); } .kanban { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 720px){ .app { grid-template-columns: 1fr; } .sidebar { display:none; } .kanban { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+      </div>
+      <div>
+        <h1>Helmsman</h1>
+        <p>Project Management</p>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Overview</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Tasks <span class="nav-pill">37</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Milestones</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="9 11 12 14 22 4"/></svg>Timeline</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Team</div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Reports</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>AI Studio <span class="nav-pill">New</span></div>
+
+    <div class="side-foot">
+      <div class="user-card">
+        <div class="avatar" style="background:linear-gradient(135deg,#059669,#0891b2)">EM</div>
+        <div class="meta">
+          <b>Elena Marsh</b>
+          <span>Program Lead</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="topbar">
+      <div class="title-block">
+        <h2>Project Overview</h2>
+        <p>Atlas Platform · Q3 Delivery Program · 6 active streams</p>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="searchInput" type="text" placeholder="Search tasks, owners…" />
+      </div>
+      <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="dot"></span></div>
+      <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
+    </div>
+
+    <div class="content">
+      <!-- KPI cards -->
+      <div class="kpi-grid">
+        <div class="kpi k1">
+          <div class="kpi-top"><div class="kpi-ic" style="background:rgba(5,150,105,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>On-Track Tasks</div>
+          <div class="val">28 <span style="font-size:14px;color:var(--txt-3);font-weight:500">/ 37</span></div>
+          <div class="delta up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>+6 since last week</div>
+          <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,20 12,17 24,18 36,10 48,12 64,4" fill="none" stroke="#059669" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi k2">
+          <div class="kpi-top"><div class="kpi-ic" style="background:rgba(8,145,178,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg></div>Velocity</div>
+          <div class="val">42 <span style="font-size:14px;color:var(--txt-3);font-weight:500">pts/sprint</span></div>
+          <div class="delta up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>+12% trend</div>
+          <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,22 12,16 24,18 36,12 48,9 64,6" fill="none" stroke="#0891b2" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi k3">
+          <div class="kpi-top"><div class="kpi-ic" style="background:rgba(217,119,6,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>At Risk</div>
+          <div class="val">5</div>
+          <div class="delta down"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>2 flagged by AI today</div>
+          <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,8 12,12 24,9 36,14 48,11 64,16" fill="none" stroke="#d97706" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi k4">
+          <div class="kpi-top"><div class="kpi-ic" style="background:rgba(219,39,119,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>Completion</div>
+          <div class="val">68%</div>
+          <div class="delta up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>On schedule for Aug 30</div>
+          <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,21 12,18 24,15 36,13 48,9 64,7" fill="none" stroke="#db2777" stroke-width="2"/></svg>
+        </div>
+      </div>
+
+      <!-- Board controls -->
+      <div class="board-head">
+        <div class="tabs">
+          <div class="tab active" data-view="board">Board</div>
+          <div class="tab" data-view="list">List</div>
+        </div>
+        <div class="filter-chip" data-filter="all" id="chip-all"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>All Streams</div>
+        <select id="ownerFilter" class="filter-chip" style="appearance:none;-webkit-appearance:none;outline:none;"></select>
+        <select id="priorityFilter" class="filter-chip" style="appearance:none;-webkit-appearance:none;outline:none;">
+          <option value="all">All Priorities</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+        <button class="btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Task</button>
+      </div>
+
+      <!-- Kanban view -->
+      <div id="boardView">
+        <div class="kanban" id="kanban"></div>
+      </div>
+
+      <!-- Table view -->
+      <div id="listView" class="hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th><th>Stream</th><th>Owner</th><th>Priority</th><th>Progress</th><th>Due</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ============ AI + INSIGHTS ============ -->
+      <div class="grid-2">
+        <!-- AI Planning Assistant -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>AI Planning Assistant</h3>
+            <span class="ai-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Helmsman AI</span>
+          </div>
+          <p class="panel-sub">Paste a goal, brief, or status update — the assistant breaks it into tasks, estimates effort, and suggests owners.</p>
+
+          <div class="ai-compose">
+            <textarea id="aiInput" placeholder="e.g. We need to ship the multi-region failover for the payments API before the Q3 audit…">Customer reported intermittent 500s on checkout during peak traffic. Need a hardening plan for the payments gateway before the Q3 compliance audit on Aug 22.</textarea>
+            <div class="row">
+              <span class="chip-suggest" data-fill="Plan the v3 onboarding redesign rollout across web and mobile.">Onboarding redesign</span>
+              <span class="chip-suggest" data-fill="Reduce data pipeline latency from 9 minutes to under 2 for the analytics warehouse.">Pipeline latency</span>
+              <button class="btn-ai" id="aiRunBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Generate Plan</button>
+            </div>
+          </div>
+
+          <div class="ai-output" id="aiOutput">
+            <div class="empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <div>Run the assistant to generate a structured task breakdown with effort estimates and owner suggestions.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column: AI risk ranking + activity -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>AI Risk Radar</h3>
+              <span class="ai-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>Auto-ranked</span>
+            </div>
+            <p class="panel-sub">Tasks ranked by predicted slip risk, refreshed hourly.</p>
+            <div id="riskList"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h3>Team Workload</h3></div>
+            <div class="gauges" id="gauges"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h3>Activity</h3></div>
+            <div class="feed">
+              <div class="feed-item">
+                <div class="fic" style="background:rgba(5,150,105,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+                <div class="fbody"><div class="ft">AI re-prioritized <b>3 tasks</b> after detecting a blocked dependency on the auth migration<span class="ai-tag">AI</span></div><div class="fm">9 minutes ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="fic" style="background:rgba(5,150,105,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+                <div class="fbody"><div class="ft"><b>Priya Nair</b> moved <b>"Cache warmup job"</b> to Done</div><div class="fm">41 minutes ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="fic" style="background:rgba(217,119,6,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                <div class="fbody"><div class="ft">AI flagged <b>"Failover runbook"</b> as at-risk — owner over capacity this sprint<span class="ai-tag">AI</span></div><div class="fm">1 hour ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="fic" style="background:rgba(8,145,178,.13)"><svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+                <div class="fbody"><div class="ft"><b>Marcus Vale</b> commented on <b>"Region replication"</b></div><div class="fm">2 hours ago</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ DRAWER ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="dh-top">
+      <span id="dPriorityPill" class="pill"></span>
+      <button class="close" id="drawerClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <h3 id="dTitle"></h3>
+    <div style="display:flex;gap:8px;align-items:center;"><span id="dStatusPill" class="pill"></span><span id="dStream" style="font-size:12px;color:var(--txt-3)"></span></div>
+  </div>
+  <div class="drawer-body">
+    <div class="d-section">
+      <div class="ai-summary-box">
+        <div class="asb-head">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <b>AI Summary</b>
+          <span id="dRiskPill" class="risk-pill"></span>
+        </div>
+        <p id="dAiSummary"></p>
+      </div>
+    </div>
+
+    <div class="d-section">
+      <div class="d-meta-grid">
+        <div class="dm"><label>Owner</label><div class="v" id="dOwner"></div></div>
+        <div class="dm"><label>Due Date</label><div class="v" id="dDue"></div></div>
+        <div class="dm"><label>Effort</label><div class="v" id="dEffort"></div></div>
+        <div class="dm"><label>Progress</label><div class="v" id="dProgress"></div></div>
+      </div>
+    </div>
+
+    <div class="d-section">
+      <h5>Description</h5>
+      <p class="d-desc" id="dDesc"></p>
+    </div>
+
+    <div class="d-section">
+      <h5>Subtasks</h5>
+      <div id="dSubtasks"></div>
+    </div>
+
+    <div class="d-section">
+      <h5>Sprint Burndown</h5>
+      <svg width="100%" height="120" viewBox="0 0 400 120" preserveAspectRatio="none" id="burndown"></svg>
+    </div>
+  </div>
+</aside>
+
+<script>
+// ===================== SEED DATA =====================
+const PEOPLE = {
+  EM: { name: "Elena Marsh",  color: "linear-gradient(135deg,#059669,#0891b2)" },
+  PN: { name: "Priya Nair",   color: "linear-gradient(135deg,#0891b2,#0e7490)" },
+  MV: { name: "Marcus Vale",  color: "linear-gradient(135deg,#d97706,#db2777)" },
+  DK: { name: "Dani Kobayashi",color:"linear-gradient(135deg,#0d9488,#059669)" },
+  SR: { name: "Sofia Reyes",  color: "linear-gradient(135deg,#db2777,#7c3aed)" },
+  TO: { name: "Theo Olsen",   color: "linear-gradient(135deg,#d97706,#059669)" }
+};
+
+const PRIORITY = {
+  Critical: { c: "#dc2626", bg: "rgba(220,38,38,.12)" },
+  High:     { c: "#d97706", bg: "rgba(217,119,6,.13)" },
+  Medium:   { c: "#059669", bg: "rgba(5,150,105,.12)" },
+  Low:      { c: "#64748b", bg: "rgba(100,116,139,.12)" }
+};
+const STATUS = {
+  Backlog:     { c: "#64748b", dot: "#94a3b8" },
+  "In Progress":{ c: "#059669", dot: "#059669" },
+  Review:      { c: "#d97706", dot: "#d97706" },
+  Done:        { c: "#0891b2", dot: "#0891b2" }
+};
+const RISK = { High:"#dc2626", Medium:"#d97706", Low:"#059669" };
+
+const TASKS = [
+  { id:1, title:"Multi-region failover for payments API", stream:"Reliability", owner:["MV","DK"], priority:"Critical", status:"In Progress", progress:55, due:"2026-06-30", effort:"13 pts", risk:"High",
+    desc:"Stand up active-active failover across us-east and eu-west so the payments gateway survives a full-region outage with no checkout downtime.",
+    ai:"This task is on the critical path for the Q3 audit. Marcus is at 118% capacity and the dependency on the auth migration is still open — recommend pulling in Dani earlier and splitting the runbook into a separate ticket.",
+    subs:[["Replication topology design",true,"DK"],["Health-check & DNS cutover",false,"MV"],["Chaos test in staging",false,"MV"],["Failover runbook",false,"DK"]] },
+  { id:2, title:"Checkout 500-error hardening", stream:"Reliability", owner:["DK"], priority:"Critical", status:"Review", progress:80, due:"2026-06-26", effort:"8 pts", risk:"Medium",
+    desc:"Trace intermittent 500s during peak load, add circuit breakers and graceful degradation to the checkout path.",
+    ai:"Most root causes resolved; one flaky integration test is blocking the merge. Low residual risk — likely closes this sprint if review is unblocked by EOD.",
+    subs:[["Add circuit breaker",true,"DK"],["Retry with backoff",true,"DK"],["Load test 3x peak",true,"DK"],["Code review",false,"PN"]] },
+  { id:3, title:"v3 Onboarding redesign — web", stream:"Growth", owner:["SR"], priority:"High", status:"In Progress", progress:40, due:"2026-07-10", effort:"21 pts", risk:"Medium",
+    desc:"Rebuild the first-run experience with a guided 3-step setup and progressive disclosure of advanced settings.",
+    ai:"Design sign-off complete. Pace is healthy but the A/B test infrastructure is a soft dependency — confirm the experiment platform is ready before the build sprint.",
+    subs:[["Final UX spec",true,"SR"],["Component library",false,"SR"],["A/B test wiring",false,"DK"],["Analytics events",false,"TO"]] },
+  { id:4, title:"v3 Onboarding redesign — mobile", stream:"Growth", owner:["TO"], priority:"High", status:"Backlog", progress:5, due:"2026-07-24", effort:"18 pts", risk:"Low",
+    desc:"Port the redesigned onboarding flow to iOS and Android with native step transitions.",
+    ai:"Blocked until the web component library lands. No action needed yet; AI will auto-promote this when its dependency closes.",
+    subs:[["Spec parity review",false,"TO"],["iOS implementation",false,"TO"],["Android implementation",false,"TO"]] },
+  { id:5, title:"Reduce analytics pipeline latency", stream:"Data", owner:["PN"], priority:"High", status:"In Progress", progress:62, due:"2026-07-02", effort:"13 pts", risk:"Medium",
+    desc:"Cut end-to-end warehouse latency from 9 minutes to under 2 by switching to incremental materialized views.",
+    ai:"Strong progress — incremental views cut latency to 3.4 min in benchmarks. Remaining gain depends on the cache warmup job, which just shipped. On track.",
+    subs:[["Profile slow stages",true,"PN"],["Incremental views",true,"PN"],["Cache warmup job",true,"PN"],["Validate freshness SLAs",false,"PN"]] },
+  { id:6, title:"Region replication for warehouse", stream:"Data", owner:["PN","DK"], priority:"Medium", status:"Backlog", progress:0, due:"2026-07-30", effort:"21 pts", risk:"Low",
+    desc:"Replicate the analytics warehouse to a secondary region for disaster recovery and read scaling.",
+    ai:"Well-scoped and not yet on the critical path. Estimated 21 points; AI suggests scheduling after the latency work to reuse the same materialization layer.",
+    subs:[["DR strategy doc",false,"PN"],["Replication slots",false,"DK"]] },
+  { id:7, title:"SSO & SCIM for enterprise tenants", stream:"Platform", owner:["MV"], priority:"High", status:"In Progress", progress:48, due:"2026-07-08", effort:"13 pts", risk:"High",
+    desc:"Add SAML SSO and SCIM user provisioning to unblock three pending enterprise deals.",
+    ai:"Revenue-linked and time-sensitive. The auth migration this depends on is delayed, which cascades into the failover work too. AI recommends escalating the migration to unblock both.",
+    subs:[["SAML handshake",true,"MV"],["SCIM endpoints",false,"MV"],["Tenant config UI",false,"SR"],["Security review",false,"EM"]] },
+  { id:8, title:"Auth service migration to v2", stream:"Platform", owner:["DK"], priority:"Critical", status:"Review", progress:75, due:"2026-06-25", effort:"21 pts", risk:"High",
+    desc:"Migrate the legacy auth service onto the v2 identity platform — a shared dependency for SSO and failover.",
+    ai:"This is the single most-referenced blocker in the program: SSO and failover both wait on it. One backward-compat edge case remains in review. Clearing it unblocks ~34 points of downstream work.",
+    subs:[["Dual-write shim",true,"DK"],["Token format bridge",true,"DK"],["Backward-compat audit",false,"DK"],["Cutover rehearsal",false,"MV"]] },
+  { id:9, title:"Quarterly compliance evidence pack", stream:"Compliance", owner:["EM"], priority:"High", status:"In Progress", progress:35, due:"2026-08-22", effort:"8 pts", risk:"Medium",
+    desc:"Assemble logs, access reviews, and control attestations for the Q3 SOC 2 audit window.",
+    ai:"Comfortable lead time. AI auto-collected 4 of 9 evidence artifacts from connected systems; the access review still needs a human sign-off from each team lead.",
+    subs:[["Access review export",true,"EM"],["Control mapping",false,"EM"],["Lead attestations",false,"EM"]] },
+  { id:10, title:"Cost anomaly alerting", stream:"Reliability", owner:["TO"], priority:"Medium", status:"Done", progress:100, due:"2026-06-18", effort:"5 pts", risk:"Low",
+    desc:"Detect and alert on sudden cloud-spend spikes per service with a daily digest to owners.",
+    ai:"Shipped and stable. Caught a 22% spend spike on its first day live. No follow-up required.",
+    subs:[["Spend ingestion",true,"TO"],["Anomaly model",true,"TO"],["Digest delivery",true,"TO"]] },
+  { id:11, title:"Design system token refresh", stream:"Growth", owner:["SR"], priority:"Low", status:"Backlog", progress:0, due:"2026-08-05", effort:"5 pts", risk:"Low",
+    desc:"Update color and spacing tokens to align with the refreshed brand palette across all surfaces.",
+    ai:"Low priority, low risk, self-contained. Good candidate for filling sprint capacity gaps. No dependencies.",
+    subs:[["Token audit",false,"SR"],["Migration codemod",false,"SR"]] },
+  { id:12, title:"Incident postmortem automation", stream:"Reliability", owner:["DK"], priority:"Medium", status:"Done", progress:100, due:"2026-06-15", effort:"8 pts", risk:"Low",
+    desc:"Auto-generate a postmortem draft from incident timelines and chat threads for editor review.",
+    ai:"Delivered. Drafts now save responders ~40 minutes per incident. Adoption at 90% across on-call teams.",
+    subs:[["Timeline parser",true,"DK"],["Draft generator",true,"DK"],["Editor handoff",true,"DK"]] },
+  { id:13, title:"Webhook delivery reliability", stream:"Platform", owner:["MV"], priority:"Medium", status:"In Progress", progress:30, due:"2026-07-15", effort:"8 pts", risk:"Medium",
+    desc:"Add at-least-once delivery, dead-letter queues, and a replay UI for outbound webhooks.",
+    ai:"Steady progress. The replay UI overlaps with onboarding work for the same engineer — AI suggests sequencing to avoid a context-switch tax.",
+    subs:[["Dead-letter queue",true,"MV"],["Replay endpoint",false,"MV"],["Replay UI",false,"SR"]] },
+  { id:14, title:"Mobile crash-rate reduction", stream:"Growth", owner:["TO"], priority:"High", status:"Review", progress:70, due:"2026-06-28", effort:"8 pts", risk:"Medium",
+    desc:"Drive the mobile crash-free rate above 99.5% by fixing the top three crash signatures.",
+    ai:"Two of three signatures fixed and verified in beta. The third is intermittent and hard to reproduce — flagged Medium risk pending more crash samples.",
+    subs:[["Crash triage",true,"TO"],["Top-2 fixes",true,"TO"],["Signature #3",false,"TO"]] },
+  { id:15, title:"Customer health-score model", stream:"Data", owner:["PN"], priority:"Low", status:"Backlog", progress:0, due:"2026-08-12", effort:"13 pts", risk:"Low",
+    desc:"Build a churn-risk health score from product usage and support signals for the CS team.",
+    ai:"Exploratory and unblocked. AI estimates 13 points; recommends a 2-day spike to validate feature availability before full commitment.",
+    subs:[["Feature inventory",false,"PN"],["Baseline model",false,"PN"]] }
+];
+
+const COLUMNS = ["Backlog","In Progress","Review","Done"];
+
+// ===================== RENDER HELPERS =====================
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const fmtDate = d => new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const today = new Date("2026-06-23T00:00:00");
+function dueClass(d){ const diff = (new Date(d+"T00:00:00")-today)/86400000; if(diff<0) return "due-over"; if(diff<=4) return "due-soon"; return ""; }
+function avatar(code, cls){ const p=PEOPLE[code]; return `<div class="avatar ${cls||''}" style="background:${p.color}" title="${p.name}">${code}</div>`; }
+
+let activeFilter = { owner:"all", priority:"all", search:"" };
+
+function passesFilter(t){
+  if(activeFilter.owner!=="all" && !t.owner.includes(activeFilter.owner)) return false;
+  if(activeFilter.priority!=="all" && t.priority!==activeFilter.priority) return false;
+  if(activeFilter.search){
+    const q = activeFilter.search.toLowerCase();
+    const hay = (t.title+" "+t.stream+" "+t.owner.map(o=>PEOPLE[o].name).join(" ")).toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+// ---------- Kanban ----------
+function renderKanban(){
+  const kb = $("#kanban");
+  kb.innerHTML = "";
+  const list = TASKS.filter(passesFilter);
+  COLUMNS.forEach(col=>{
+    const items = list.filter(t=>t.status===col);
+    const colEl = document.createElement("div");
+    colEl.className = "col";
+    colEl.innerHTML = `
+      <div class="col-head">
+        <span class="dot" style="background:${STATUS[col].dot}"></span>
+        <b>${col}</b><span class="count">${items.length}</span>
+      </div>
+      <div class="col-body"></div>`;
+    const body = colEl.querySelector(".col-body");
+    if(items.length===0){
+      body.innerHTML = `<div class="empty" style="padding:18px 6px;font-size:11.5px">No tasks here</div>`;
+    }
+    items.forEach(t=>{
+      const card = document.createElement("div");
+      card.className = "card";
+      card.onclick = ()=>openDrawer(t.id);
+      const pr = PRIORITY[t.priority];
+      card.innerHTML = `
+        <div class="tag-row">
+          <span class="tag" style="background:${pr.bg};color:${pr.c}">${t.priority}</span>
+          <span class="tag" style="background:#eef1f4;color:#51607a">${t.stream}</span>
+        </div>
+        <h4>${t.title}</h4>
+        <p class="desc">${t.desc}</p>
+        <div class="pbar"><i style="width:${t.progress}%"></i></div>
+        <div class="card-foot">
+          <div class="avs">${t.owner.map(o=>avatar(o)).join("")}</div>
+          <div class="meta-mini">
+            <span class="${dueClass(t.due)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${fmtDate(t.due)}</span>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>${t.subs.filter(s=>s[1]).length}/${t.subs.length}</span>
+          </div>
+        </div>`;
+      body.appendChild(card);
+    });
+    kb.appendChild(colEl);
+  });
+}
+
+// ---------- Table ----------
+function renderTable(){
+  const tb = $("#tableBody");
+  tb.innerHTML = "";
+  const list = TASKS.filter(passesFilter);
+  if(list.length===0){
+    tb.innerHTML = `<tr><td colspan="7"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><div>No tasks match your filters.</div></div></td></tr>`;
+    return;
+  }
+  list.forEach(t=>{
+    const pr = PRIORITY[t.priority], st = STATUS[t.status];
+    const tr = document.createElement("tr");
+    tr.onclick = ()=>openDrawer(t.id);
+    tr.innerHTML = `
+      <td class="cell-name"><b>${t.title}</b><span>${t.effort} · ${t.subs.filter(s=>s[1]).length}/${t.subs.length} subtasks</span></td>
+      <td><span style="font-size:12px;color:var(--txt-2)">${t.stream}</span></td>
+      <td><div class="avs" style="display:flex">${t.owner.map(o=>avatar(o)).join("")}</div></td>
+      <td><span class="pill" style="background:${pr.bg};color:${pr.c}">${t.priority}</span></td>
+      <td><span class="mini-bar"><i style="width:${t.progress}%"></i></span><span style="font-size:11px;color:var(--txt-3)">${t.progress}%</span></td>
+      <td><span class="${dueClass(t.due)}" style="font-size:12.5px">${fmtDate(t.due)}</span></td>
+      <td><span class="pill" style="background:${st.dot}22;color:${st.c}">${t.status}</span></td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function renderAll(){ renderKanban(); renderTable(); }
+
+// ---------- Risk Radar ----------
+function renderRisk(){
+  const order = { High:0, Medium:1, Low:2 };
+  const scored = TASKS
+    .filter(t=>t.status!=="Done")
+    .map(t=>{
+      let s = (t.risk==="High"?70:t.risk==="Medium"?45:20);
+      s += (t.priority==="Critical"?22:t.priority==="High"?14:t.priority==="Medium"?6:0);
+      const diff = (new Date(t.due+"T00:00:00")-today)/86400000;
+      if(diff<3) s+=10; else if(diff<7) s+=5;
+      s += Math.round((100-t.progress)/12);
+      return {...t, score: Math.min(99,s)};
+    })
+    .sort((a,b)=> b.score-a.score)
+    .slice(0,5);
+  const wrap = $("#riskList");
+  wrap.innerHTML = "";
+  scored.forEach((t,i)=>{
+    const row = document.createElement("div");
+    row.className = "rank-row";
+    row.style.cursor = "pointer";
+    row.onclick = ()=>openDrawer(t.id);
+    const rc = RISK[t.risk];
+    row.innerHTML = `
+      <div class="rk ${i===0?'top':''}">${i+1}</div>
+      <div class="r-body">
+        <b>${t.title}</b>
+        <p>${t.stream} · due ${fmtDate(t.due)} · ${t.owner.map(o=>PEOPLE[o].name.split(" ")[0]).join(", ")}</p>
+      </div>
+      <div class="score" style="color:${rc}">${t.score}</div>`;
+    wrap.appendChild(row);
+  });
+}
+
+// ---------- Workload gauges ----------
+function gaugeSvg(pct, color){
+  const r=26, c=2*Math.PI*r, off=c*(1-pct/100);
+  return `<svg width="68" height="68" viewBox="0 0 68 68">
+    <circle cx="34" cy="34" r="${r}" fill="none" stroke="#e9ecf1" stroke-width="7"/>
+    <circle cx="34" cy="34" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 34 34)"/>
+    <text x="34" y="39" text-anchor="middle" fill="#1f2937" font-size="14" font-weight="700">${pct}%</text>
+  </svg>`;
+}
+function renderGauges(){
+  const load = [
+    { code:"DK", pct:96, color:"#dc2626", sub:"5 active tasks" },
+    { code:"MV", pct:88, color:"#d97706", sub:"4 active tasks" },
+    { code:"PN", pct:64, color:"#059669", sub:"3 active tasks" }
+  ];
+  const g = $("#gauges");
+  g.innerHTML = load.map(l=>`
+    <div class="gauge">
+      ${gaugeSvg(l.pct, l.color)}
+      <div class="lbl">${PEOPLE[l.code].name.split(" ")[0]}</div>
+      <div class="sub">${l.sub}</div>
+    </div>`).join("");
+}
+
+// ===================== DRAWER =====================
+function openDrawer(id){
+  const t = TASKS.find(x=>x.id===id);
+  if(!t) return;
+  const pr = PRIORITY[t.priority], st = STATUS[t.status], rc = RISK[t.risk];
+  $("#dPriorityPill").textContent = t.priority + " priority";
+  $("#dPriorityPill").style.background = pr.bg; $("#dPriorityPill").style.color = pr.c;
+  $("#dTitle").textContent = t.title;
+  $("#dStatusPill").textContent = t.status;
+  $("#dStatusPill").style.background = st.dot+"22"; $("#dStatusPill").style.color = st.c;
+  $("#dStream").textContent = "· "+t.stream+" stream";
+  $("#dAiSummary").textContent = t.ai;
+  $("#dRiskPill").textContent = t.risk+" risk";
+  $("#dRiskPill").style.background = rc+"22"; $("#dRiskPill").style.color = rc;
+  $("#dOwner").innerHTML = t.owner.map(o=>PEOPLE[o].name).join(", ");
+  $("#dDue").textContent = fmtDate(t.due);
+  $("#dEffort").textContent = t.effort;
+  $("#dProgress").innerHTML = `${t.progress}% <span class="mini-bar" style="margin-left:6px"><i style="width:${t.progress}%"></i></span>`;
+  $("#dDesc").textContent = t.desc;
+
+  $("#dSubtasks").innerHTML = t.subs.map((s,i)=>`
+    <div class="subtask ${s[1]?'done':''}" data-i="${i}">
+      <div class="check ${s[1]?'done':''}">${s[1]?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':''}</div>
+      <span>${s[0]}</span>
+      <span class="who">${avatar(s[2],'')}</span>
+    </div>`).join("");
+  $$("#dSubtasks .subtask").forEach(el=>{
+    el.querySelector(".check").onclick = ()=>{
+      const i = +el.dataset.i; t.subs[i][1] = !t.subs[i][1];
+      // recompute progress from subtasks
+      const done = t.subs.filter(s=>s[1]).length;
+      t.progress = Math.round(done/t.subs.length*100);
+      openDrawer(id); renderAll(); renderRisk();
+    };
+  });
+
+  drawBurndown(t);
+  $("#scrim").classList.add("open");
+  $("#drawer").classList.add("open");
+}
+function closeDrawer(){ $("#scrim").classList.remove("open"); $("#drawer").classList.remove("open"); }
+
+function drawBurndown(t){
+  const svg = $("#burndown");
+  const W=400,H=120, pad=8;
+  const days = 10;
+  const start = 100;
+  // ideal line
+  const idealPts = [];
+  for(let i=0;i<=days;i++){ idealPts.push([pad+(W-2*pad)*i/days, pad+(H-2*pad)*i/days]); }
+  // actual based on progress, with a little noise (deterministic)
+  const actualPts = [];
+  const cur = days * (1 - (t.progress/100)) ; // how far behind
+  for(let i=0;i<=days;i++){
+    let remainingFrac = 1 - (i/days) * (t.progress/100>0? Math.min(1, (i/days)*1.0):0);
+    // simpler: actual decays slightly slower than ideal early, then catches up
+    let yFrac = 1 - (i/days);
+    let bias = (t.risk==="High"?0.14: t.risk==="Medium"?0.06:0.0) * Math.sin(i/days*Math.PI);
+    yFrac = Math.max(0, Math.min(1, yFrac - bias));
+    // only draw actual up to "today" marker
+    actualPts.push([pad+(W-2*pad)*i/days, pad+(H-2*pad)*(1-yFrac)]);
+  }
+  const todayIdx = Math.round(days * (1 - 0.0)) ; // we'll mark progress as elapsed
+  const elapsed = Math.max(1, Math.round(days * Math.min(1, (t.progress/100)+0.15)));
+  const idealPath = idealPts.map(p=>p.join(",")).join(" ");
+  const actualPath = actualPts.slice(0,elapsed+1).map(p=>p.join(",")).join(" ");
+  const lastA = actualPts[elapsed];
+  svg.innerHTML = `
+    <defs><linearGradient id="bgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#059669" stop-opacity="0.20"/><stop offset="100%" stop-color="#059669" stop-opacity="0"/></linearGradient></defs>
+    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="#e3e6ea" stroke-width="1"/>
+    <polyline points="${idealPath}" fill="none" stroke="#c2c9d4" stroke-width="1.6" stroke-dasharray="4 4"/>
+    <polygon points="${actualPath} ${lastA?lastA[0]:pad},${H-pad} ${pad},${H-pad}" fill="url(#bgrad)"/>
+    <polyline points="${actualPath}" fill="none" stroke="#059669" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    ${lastA?`<circle cx="${lastA[0]}" cy="${lastA[1]}" r="4" fill="#059669" stroke="#ffffff" stroke-width="2"/>`:''}
+    <text x="${pad+2}" y="16" fill="#8a94a6" font-size="9">Remaining</text>
+    <text x="${W-pad-2}" y="${H-pad-4}" fill="#8a94a6" font-size="9" text-anchor="end">Due ${fmtDate(t.due)}</text>`;
+}
+
+// ===================== AI PLANNING ASSISTANT =====================
+function aiGenerate(){
+  const out = $("#aiOutput");
+  const btn = $("#aiRunBtn");
+  btn.disabled = true;
+  out.innerHTML = `<div class="empty"><svg class="spin" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg><div>Analyzing brief and drafting a plan…</div></div>`;
+  const spin = out.querySelector(".spin");
+  if(spin){ spin.style.animation="spin 0.9s linear infinite"; }
+  setTimeout(()=>{ renderAiPlan(); btn.disabled=false; }, 1150);
+}
+
+function renderAiPlan(){
+  const out = $("#aiOutput");
+  // Derived "AI" output for the seeded payments brief (deterministic, illustrative)
+  out.innerHTML = `
+    <div class="ai-result-card">
+      <div class="r-head">
+        <div class="seg-ic" style="background:rgba(220,38,38,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg></div>
+        <b>Classified as Reliability · Critical</b>
+        <span class="conf high">96% confidence</span>
+      </div>
+      <div class="field-grid">
+        <div class="fld"><label>Suggested Stream</label><b>Reliability</b></div>
+        <div class="fld"><label>Suggested Owner</label><b>Dani Kobayashi</b></div>
+        <div class="fld"><label>Total Estimate</label><b>26 points</b></div>
+        <div class="fld"><label>Target Date</label><b>Aug 18 (4d audit buffer)</b></div>
+      </div>
+      <div class="reason"><b>Why:</b> The brief mentions peak-traffic 500s and an audit deadline. Helmsman matched it to the Reliability stream and routed it to Dani, who owns the checkout hardening work and has the most context. Effort was estimated from 4 comparable past tasks.</div>
+    </div>
+
+    <div class="ai-result-card">
+      <div class="r-head">
+        <div class="seg-ic" style="background:rgba(5,150,105,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+        <b>Proposed Task Breakdown</b>
+        <span class="conf med">Review before adding</span>
+      </div>
+      <div id="aiTasks"></div>
+    </div>`;
+
+  const drafted = [
+    { t:"Reproduce peak-load 500s in a staging soak test", e:"5 pts", o:"DK", p:"High" },
+    { t:"Add circuit breaker + bulkhead to gateway calls", e:"8 pts", o:"DK", p:"Critical" },
+    { t:"Idempotency keys for retry-safe checkout", e:"5 pts", o:"MV", p:"High" },
+    { t:"Pre-audit load test at 3x peak + report", e:"5 pts", o:"PN", p:"High" },
+    { t:"Document degradation modes for evidence pack", e:"3 pts", o:"EM", p:"Medium" }
+  ];
+  $("#aiTasks").innerHTML = drafted.map((d,i)=>{
+    const pr = PRIORITY[d.p];
+    return `<div class="rank-row">
+      <div class="rk">${i+1}</div>
+      <div class="r-body">
+        <b>${d.t}</b>
+        <p>${d.e} · suggested owner ${PEOPLE[d.o].name}</p>
+      </div>
+      <span class="tag" style="background:${pr.bg};color:${pr.c}">${d.p}</span>
+    </div>`;
+  }).join("") + `<div style="display:flex;gap:9px;margin-top:14px">
+      <button class="btn-ai" style="background:#059669" onclick="addPlanToBoard()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add 5 tasks to Backlog</button>
+      <button class="chip-suggest" onclick="aiGenerate()">Regenerate</button>
+    </div>`;
+}
+
+let planAdded = false;
+function addPlanToBoard(){
+  if(planAdded) return;
+  planAdded = true;
+  const news = [
+    { id:101, title:"Add circuit breaker + bulkhead to gateway calls", stream:"Reliability", owner:["DK"], priority:"Critical", status:"Backlog", progress:0, due:"2026-07-05", effort:"8 pts", risk:"High",
+      desc:"Isolate downstream payment-provider calls with circuit breakers and bulkheads so peak-load failures degrade gracefully.",
+      ai:"Created by the AI Planning Assistant from the payments hardening brief. High risk due to the audit deadline — recommend starting before the cutover rehearsal.",
+      subs:[["Provider call isolation",false,"DK"],["Breaker thresholds",false,"DK"]] },
+    { id:102, title:"Pre-audit load test at 3x peak", stream:"Reliability", owner:["PN"], priority:"High", status:"Backlog", progress:0, due:"2026-07-12", effort:"5 pts", risk:"Medium",
+      desc:"Run a sustained 3x peak-traffic load test on the hardened checkout path and produce a report for the audit evidence pack.",
+      ai:"Created by the AI Planning Assistant. Depends on the circuit-breaker work landing first; sequenced automatically.",
+      subs:[["Test plan",false,"PN"],["Run + report",false,"PN"]] }
+  ];
+  TASKS.push(...news);
+  renderAll(); renderRisk();
+  const btn = event.target.closest("button");
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Added to Backlog`;
+  btn.style.opacity = ".8";
+}
+
+// ===================== WIRING =====================
+// view tabs
+$$(".tab").forEach(tab=>{
+  tab.onclick = ()=>{
+    $$(".tab").forEach(x=>x.classList.remove("active"));
+    tab.classList.add("active");
+    const v = tab.dataset.view;
+    $("#boardView").classList.toggle("hidden", v!=="board");
+    $("#listView").classList.toggle("hidden", v!=="list");
+  };
+});
+
+// owner filter populate
+const of = $("#ownerFilter");
+of.innerHTML = `<option value="all">All Owners</option>` + Object.keys(PEOPLE).map(c=>`<option value="${c}">${PEOPLE[c].name}</option>`).join("");
+of.onchange = ()=>{ activeFilter.owner = of.value; renderAll(); };
+$("#priorityFilter").onchange = e=>{ activeFilter.priority = e.target.value; renderAll(); };
+$("#searchInput").oninput = e=>{ activeFilter.search = e.target.value.trim(); renderAll(); };
+
+$("#chip-all").onclick = ()=>{
+  activeFilter = { owner:"all", priority:"all", search:"" };
+  of.value="all"; $("#priorityFilter").value="all"; $("#searchInput").value="";
+  renderAll();
+};
+
+// AI buttons
+$("#aiRunBtn").onclick = aiGenerate;
+$$(".chip-suggest[data-fill]").forEach(c=>{
+  c.onclick = ()=>{ $("#aiInput").value = c.dataset.fill; $("#aiInput").focus(); };
+});
+
+// drawer close
+$("#drawerClose").onclick = closeDrawer;
+$("#scrim").onclick = closeDrawer;
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+// spin keyframe
+const style = document.createElement("style");
+style.textContent = "@keyframes spin{to{transform:rotate(360deg)}} .spin{transform-origin:center}";
+document.head.appendChild(style);
+
+// initial render
+renderAll();
+renderRisk();
+renderGauges();
+</script>
+</body>
+</html>

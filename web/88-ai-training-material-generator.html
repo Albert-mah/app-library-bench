@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Training Material Generator</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --panel-2:#f6f7f9;
+    --panel-3:#eef1f5;
+    --line:#e2e6ec;
+    --line-soft:#eceff3;
+    --txt:#1f2937;
+    --txt-dim:#5b6675;
+    --txt-faint:#8a94a3;
+    --accent:#2563eb;
+    --accent-2:#3b82f6;
+    --accent-soft:rgba(37,99,235,.10);
+    --green:#16a34a;
+    --green-soft:rgba(22,163,74,.12);
+    --amber:#d97706;
+    --amber-soft:rgba(217,119,6,.12);
+    --red:#dc2626;
+    --red-soft:rgba(220,38,38,.12);
+    --cyan:#0891b2;
+    --radius:14px;
+    --shadow:0 8px 24px rgba(15,23,42,.10);
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#d3d9e2;border-radius:8px;border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#bcc4cf;background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- Layout shell ---------- */
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  .sidebar{
+    background:#ffffff;
+    border-right:1px solid var(--line);
+    padding:20px 16px;
+    position:sticky;top:0;height:100vh;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+  .brand-mark{
+    width:38px;height:38px;border-radius:11px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(37,99,235,.30);
+  }
+  .brand-mark svg{width:22px;height:22px}
+  .brand-name{font-weight:700;font-size:15px;letter-spacing:.2px;line-height:1.15}
+  .brand-sub{font-size:11px;color:var(--txt-faint);letter-spacing:.3px}
+  .nav-label{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-faint);padding:14px 10px 6px}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;
+    padding:9px 11px;border-radius:10px;
+    color:var(--txt-dim);cursor:pointer;
+    font-size:13.5px;font-weight:500;
+    transition:.15s;user-select:none;
+  }
+  .nav-item svg{width:17px;height:17px;flex:none;opacity:.85}
+  .nav-item:hover{background:var(--panel-2);color:var(--txt)}
+  .nav-item.active{background:var(--accent-soft);color:var(--accent)}
+  .nav-item.active svg{opacity:1}
+  .nav-badge{margin-left:auto;font-size:10.5px;background:var(--panel-3);color:var(--txt-dim);border-radius:20px;padding:1px 8px;font-weight:600}
+  .nav-item.active .nav-badge{background:rgba(37,99,235,.16);color:var(--accent)}
+  .sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line-soft)}
+  .usage{font-size:11px;color:var(--txt-faint);padding:0 8px;margin-bottom:8px}
+  .usage b{color:var(--txt-dim)}
+  .meter{height:6px;border-radius:6px;background:var(--panel-3);overflow:hidden;margin:6px 8px 0}
+  .meter span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:6px}
+  .user-chip{display:flex;align-items:center;gap:10px;padding:10px 8px 2px}
+  .avatar{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;flex:none}
+  .user-name{font-size:12.5px;font-weight:600}
+  .user-role{font-size:11px;color:var(--txt-faint)}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    display:flex;align-items:center;gap:16px;
+    padding:16px 26px;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.82);backdrop-filter:blur(8px);
+    position:sticky;top:0;z-index:20;
+  }
+  .page-title{font-size:18px;font-weight:700;letter-spacing:.2px}
+  .page-sub{font-size:12px;color:var(--txt-faint);margin-top:1px}
+  .search{
+    margin-left:auto;position:relative;
+  }
+  .search input{
+    background:var(--panel-2);border:1px solid var(--line);
+    border-radius:10px;color:var(--txt);
+    padding:9px 12px 9px 34px;width:248px;font-size:13px;outline:none;transition:.15s;
+  }
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);width:280px}
+  .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--txt-faint)}
+  .btn{
+    border:1px solid var(--line);background:var(--panel-2);color:var(--txt);
+    padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;
+  }
+  .btn svg{width:15px;height:15px}
+  .btn:hover{border-color:#cbd2dc;background:var(--panel-3)}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    border:none;color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.28);
+  }
+  .btn.primary:hover{filter:brightness(1.05)}
+  .content{padding:22px 26px 40px;overflow:auto}
+
+  /* ---------- Stat cards ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .stat{
+    background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 18px;position:relative;overflow:hidden;box-shadow:var(--shadow);
+  }
+  .stat::after{content:"";position:absolute;inset:0;background:radial-gradient(120px 60px at 100% 0,rgba(37,99,235,.05),transparent 70%);pointer-events:none}
+  .stat-top{display:flex;align-items:center;justify-content:space-between}
+  .stat-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+  .stat-ico svg{width:18px;height:18px}
+  .stat-ico.g{background:var(--green-soft);color:var(--green)}
+  .stat-ico.a{background:var(--amber-soft);color:var(--amber)}
+  .stat-ico.c{background:rgba(8,145,178,.12);color:var(--cyan)}
+  .stat-val{font-size:27px;font-weight:750;margin-top:12px;letter-spacing:.5px}
+  .stat-label{font-size:12px;color:var(--txt-faint);margin-top:2px}
+  .stat-trend{font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px}
+  .trend-up{background:var(--green-soft);color:var(--green)}
+  .trend-dn{background:var(--red-soft);color:var(--red)}
+
+  /* ---------- Generator composer ---------- */
+  .grid-2{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;align-items:start;margin-bottom:22px}
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+  }
+  .panel-head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+  .panel-head h3{font-size:14.5px;font-weight:700}
+  .panel-head .ph-ico{width:30px;height:30px;border-radius:9px;background:var(--accent-soft);display:grid;place-items:center;color:var(--accent);flex:none}
+  .panel-head .ph-ico svg{width:16px;height:16px}
+  .panel-head .spacer{margin-left:auto}
+  .chip{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--panel-3);color:var(--txt-dim);border:1px solid var(--line)}
+  .composer{padding:18px}
+  .field-label{font-size:12px;font-weight:600;color:var(--txt-dim);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+  .src-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+  .src-tile{
+    border:1px solid var(--line);border-radius:11px;padding:13px 12px;cursor:pointer;transition:.15s;text-align:left;background:var(--panel-2);
+  }
+  .src-tile:hover{border-color:#cbd2dc;background:var(--panel-3)}
+  .src-tile.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px var(--accent-soft)}
+  .src-tile .si{width:30px;height:30px;border-radius:8px;background:var(--panel-3);display:grid;place-items:center;color:var(--txt-dim);margin-bottom:9px}
+  .src-tile.sel .si{background:rgba(37,99,235,.16);color:var(--accent)}
+  .src-tile svg{width:16px;height:16px}
+  .src-tile .st{font-size:12.5px;font-weight:600}
+  .src-tile .sd{font-size:11px;color:var(--txt-faint);margin-top:2px}
+  .composer textarea{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;
+    color:var(--txt);padding:13px;font-size:13.5px;line-height:1.55;resize:vertical;min-height:96px;outline:none;font-family:inherit;transition:.15s;
+  }
+  .composer textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .opt-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+  .select-wrap{position:relative}
+  .select-wrap select{
+    width:100%;appearance:none;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;color:var(--txt);
+    padding:10px 32px 10px 12px;font-size:13px;outline:none;cursor:pointer;font-family:inherit;
+  }
+  .select-wrap select:focus{border-color:var(--accent)}
+  .select-wrap::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:2px solid var(--txt-faint);border-bottom:2px solid var(--txt-faint);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .toggle-pill{
+    font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt-dim);cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px;
+  }
+  .toggle-pill:hover{border-color:#cbd2dc}
+  .toggle-pill.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  .toggle-pill .dot{width:7px;height:7px;border-radius:50%;background:#c2c9d3}
+  .toggle-pill.on .dot{background:var(--accent)}
+  .gen-bar{display:flex;align-items:center;gap:12px;margin-top:18px}
+  .gen-hint{font-size:11.5px;color:var(--txt-faint)}
+  .gen-hint b{color:var(--txt-dim)}
+
+  /* Generated output preview (right of composer) */
+  .preview-body{padding:0}
+  .gen-progress{padding:16px 18px;display:none}
+  .gen-progress.show{display:block}
+  .gp-row{display:flex;align-items:center;gap:11px;padding:9px 0;font-size:13px;color:var(--txt-dim)}
+  .gp-ico{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;flex:none;background:var(--panel-3);color:var(--txt-faint)}
+  .gp-row.done .gp-ico{background:var(--green-soft);color:var(--green)}
+  .gp-row.active .gp-ico{background:var(--accent-soft);color:var(--accent)}
+  .gp-row.done{color:var(--txt)}
+  .spin{width:13px;height:13px;border:2px solid rgba(37,99,235,.25);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+  .btn.primary .spin{border:2px solid rgba(255,255,255,.4);border-top-color:#fff}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .preview-empty{padding:40px 24px;text-align:center;color:var(--txt-faint)}
+  .preview-empty svg{width:46px;height:46px;opacity:.4;margin-bottom:12px}
+  .preview-empty .pe-t{font-size:13.5px;color:var(--txt-dim);font-weight:600}
+  .preview-empty .pe-s{font-size:12px;margin-top:4px}
+
+  .result-card{padding:16px 18px;display:none}
+  .result-card.show{display:block;animation:fade .4s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .rc-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .rc-meta{font-size:11.5px;color:var(--txt-faint);margin:6px 0 14px}
+  .rc-outline{display:flex;flex-direction:column;gap:8px}
+  .ro-item{display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:9px 12px}
+  .ro-num{width:22px;height:22px;border-radius:6px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+  .ro-txt{font-size:12.5px;font-weight:500}
+  .ro-txt small{display:block;color:var(--txt-faint);font-weight:400;font-size:11px;margin-top:1px}
+  .ro-time{margin-left:auto;font-size:11px;color:var(--txt-faint);white-space:nowrap}
+  .conf-badge{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px}
+  .conf-hi{background:var(--green-soft);color:var(--green)}
+  .conf-md{background:var(--amber-soft);color:var(--amber)}
+  .rc-foot{display:flex;gap:9px;margin-top:15px}
+
+  /* ---------- Library section ---------- */
+  .section-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .section-head h2{font-size:16px;font-weight:700}
+  .section-head .count{font-size:12px;color:var(--txt-faint);font-weight:500}
+  .tabs{display:flex;gap:4px;margin-left:6px;background:var(--panel-2);padding:4px;border-radius:11px;border:1px solid var(--line)}
+  .tab{font-size:12.5px;font-weight:600;color:var(--txt-dim);padding:6px 13px;border-radius:8px;cursor:pointer;transition:.15s;user-select:none;display:flex;align-items:center;gap:7px}
+  .tab:hover{color:var(--txt)}
+  .tab.active{background:var(--accent-soft);color:var(--accent)}
+  .tab .tcount{font-size:10.5px;background:var(--panel-3);border-radius:20px;padding:0 6px;font-weight:700}
+  .tab.active .tcount{background:rgba(37,99,235,.16);color:var(--accent)}
+  .toolbar{margin-left:auto;display:flex;gap:9px;align-items:center}
+  .filter-select{position:relative}
+  .filter-select select{appearance:none;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;color:var(--txt-dim);padding:8px 30px 8px 12px;font-size:12.5px;outline:none;cursor:pointer;font-family:inherit;font-weight:600}
+  .filter-select::after{content:"";position:absolute;right:12px;top:50%;width:6px;height:6px;border-right:2px solid var(--txt-faint);border-bottom:2px solid var(--txt-faint);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .mat-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;cursor:pointer;transition:.18s;display:flex;flex-direction:column;box-shadow:var(--shadow);
+  }
+  .mat-card:hover{border-color:#cbd2dc;transform:translateY(-3px);box-shadow:0 12px 28px rgba(15,23,42,.14)}
+  .mc-banner{height:84px;position:relative;display:flex;align-items:flex-end;padding:11px 14px;overflow:hidden}
+  .mc-banner::before{content:"";position:absolute;inset:0;opacity:.9}
+  .mc-banner.b0::before{background:linear-gradient(135deg,#2563eb,#3b82f6)}
+  .mc-banner.b1::before{background:linear-gradient(135deg,#0891b2,#06b6d4)}
+  .mc-banner.b2::before{background:linear-gradient(135deg,#e11d48,#f97316)}
+  .mc-banner.b3::before{background:linear-gradient(135deg,#d97706,#eab308)}
+  .mc-banner.b4::before{background:linear-gradient(135deg,#3b82f6,#10b981)}
+  .mc-banner svg.pat{position:absolute;inset:0;width:100%;height:100%;opacity:.18}
+  .mc-format{position:relative;z-index:1;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.28);padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;backdrop-filter:blur(2px)}
+  .mc-format svg{width:13px;height:13px}
+  .mc-body{padding:14px 15px 15px;display:flex;flex-direction:column;flex:1}
+  .mc-title{font-size:14px;font-weight:700;line-height:1.35}
+  .mc-desc{font-size:12px;color:var(--txt-faint);margin-top:6px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .mc-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+  .mtag{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--panel-3);color:var(--txt-dim);border:1px solid var(--line-soft)}
+  .mc-foot{display:flex;align-items:center;gap:10px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line-soft)}
+  .mc-foot .av{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:#fff;flex:none}
+  .mc-meta-txt{font-size:11px;color:var(--txt-faint)}
+  .mc-meta-txt b{color:var(--txt-dim);font-weight:600}
+  .status-pill{margin-left:auto;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .status-pill .sd{width:6px;height:6px;border-radius:50%}
+  .sp-pub{background:var(--green-soft);color:var(--green)}
+  .sp-pub .sd{background:var(--green)}
+  .sp-rev{background:var(--amber-soft);color:var(--amber)}
+  .sp-rev .sd{background:var(--amber)}
+  .sp-draft{background:rgba(37,99,235,.12);color:var(--accent)}
+  .sp-draft .sd{background:var(--accent)}
+  .sp-gen{background:rgba(8,145,178,.12);color:var(--cyan)}
+  .sp-gen .sd{background:var(--cyan)}
+  .qmini{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt-faint);margin-top:11px}
+  .qbar{flex:1;height:5px;border-radius:5px;background:var(--panel-3);overflow:hidden}
+  .qbar span{display:block;height:100%;border-radius:5px}
+  .empty-grid{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--txt-faint)}
+  .empty-grid svg{width:54px;height:54px;opacity:.35;margin-bottom:14px}
+
+  /* ---------- Activity feed (sidebar of library) ---------- */
+  .lib-grid{display:grid;grid-template-columns:1fr 312px;gap:18px;align-items:start}
+  .feed-panel{position:sticky;top:86px}
+  .feed-list{padding:6px 4px 12px}
+  .feed-item{display:flex;gap:11px;padding:11px 14px;position:relative}
+  .feed-item:not(:last-child)::before{content:"";position:absolute;left:25px;top:34px;bottom:-6px;width:1.5px;background:var(--line-soft)}
+  .feed-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;z-index:1}
+  .feed-ico svg{width:15px;height:15px}
+  .fi-gen{background:var(--accent-soft);color:var(--accent)}
+  .fi-ok{background:var(--green-soft);color:var(--green)}
+  .fi-rev{background:var(--amber-soft);color:var(--amber)}
+  .fi-pub{background:rgba(8,145,178,.12);color:var(--cyan)}
+  .feed-txt{font-size:12.5px;line-height:1.5}
+  .feed-txt b{font-weight:700}
+  .feed-txt .ft-ai{color:var(--accent);font-weight:600}
+  .feed-time{font-size:11px;color:var(--txt-faint);margin-top:2px}
+
+  /* ---------- Drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.40);backdrop-filter:blur(2px);opacity:0;visibility:hidden;transition:.25s;z-index:40}
+  .scrim.open{opacity:1;visibility:visible}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:560px;max-width:94vw;
+    background:var(--panel);border-left:1px solid var(--line);
+    transform:translateX(100%);transition:transform .32s cubic-bezier(.4,0,.1,1);
+    z-index:50;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(15,23,42,.18);
+  }
+  .drawer.open{transform:none}
+  .dr-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:14px}
+  .dr-icon{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;color:#fff}
+  .dr-icon svg{width:20px;height:20px}
+  .dr-h-txt{flex:1;min-width:0}
+  .dr-title{font-size:17px;font-weight:750;line-height:1.3}
+  .dr-sub{font-size:12px;color:var(--txt-faint);margin-top:4px}
+  .dr-close{width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt-dim);cursor:pointer;display:grid;place-items:center;flex:none;transition:.15s}
+  .dr-close:hover{background:var(--panel-3);color:var(--txt)}
+  .dr-close svg{width:16px;height:16px}
+  .dr-body{padding:20px 22px;overflow:auto;flex:1}
+  .dr-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px}
+  .meta-box{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:11px;padding:12px 14px}
+  .meta-box .ml{font-size:11px;color:var(--txt-faint);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .meta-box .mv{font-size:14px;font-weight:700;margin-top:5px;display:flex;align-items:center;gap:7px}
+  .dr-sec-title{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--txt-dim);margin:6px 0 12px;display:flex;align-items:center;gap:8px}
+  .dr-sec-title .ai-tag{font-size:10px;font-weight:700;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:20px;letter-spacing:.04em;text-transform:none}
+  /* quality gauge */
+  .quality-wrap{display:flex;align-items:center;gap:22px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:13px;padding:18px;margin-bottom:22px}
+  .gauge{position:relative;width:110px;height:110px;flex:none}
+  .gauge .gv{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+  .gauge .gv b{font-size:26px;font-weight:800;line-height:1}
+  .gauge .gv small{font-size:10.5px;color:var(--txt-faint);display:block;margin-top:2px}
+  .q-breakdown{flex:1;display:flex;flex-direction:column;gap:10px}
+  .qb-row{display:flex;align-items:center;gap:10px;font-size:12px}
+  .qb-name{width:96px;color:var(--txt-dim);font-weight:500}
+  .qb-track{flex:1;height:7px;background:var(--panel-3);border-radius:6px;overflow:hidden}
+  .qb-track span{display:block;height:100%;border-radius:6px}
+  .qb-val{width:34px;text-align:right;font-weight:700;font-size:11.5px}
+  /* reasoning blurb */
+  .ai-note{background:linear-gradient(135deg,rgba(37,99,235,.07),rgba(59,130,246,.04));border:1px solid rgba(37,99,235,.20);border-radius:12px;padding:14px 16px;margin-bottom:22px;font-size:13px;line-height:1.6;color:var(--txt-dim);position:relative}
+  .ai-note .ai-h{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--accent);margin-bottom:7px;text-transform:uppercase;letter-spacing:.05em}
+  .ai-note .ai-h svg{width:15px;height:15px}
+  /* extracted chips */
+  .extract-list{display:flex;flex-direction:column;gap:9px;margin-bottom:22px}
+  .ex-row{display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:11px 14px}
+  .ex-key{font-size:12px;color:var(--txt-faint);width:140px;flex:none;font-weight:500}
+  .ex-val{font-size:13px;font-weight:600;flex:1}
+  /* outline / modules in drawer */
+  .mod-list{display:flex;flex-direction:column;gap:9px;margin-bottom:22px}
+  .mod-row{display:flex;align-items:center;gap:12px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:11px;padding:12px 14px;transition:.15s}
+  .mod-row:hover{border-color:var(--line)}
+  .mod-n{width:26px;height:26px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+  .mod-info{flex:1;min-width:0}
+  .mod-info .mt{font-size:13px;font-weight:600}
+  .mod-info .ms{font-size:11px;color:var(--txt-faint);margin-top:2px}
+  .mod-dur{font-size:11px;color:var(--txt-dim);font-weight:600;background:var(--panel-3);padding:3px 9px;border-radius:7px;flex:none}
+  /* suggestions */
+  .sugg-list{display:flex;flex-direction:column;gap:10px}
+  .sugg-row{display:flex;gap:11px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:11px;padding:13px 14px;align-items:flex-start}
+  .sugg-ico{width:28px;height:28px;border-radius:8px;background:var(--amber-soft);color:var(--amber);display:grid;place-items:center;flex:none}
+  .sugg-ico svg{width:15px;height:15px}
+  .sugg-txt{font-size:12.5px;line-height:1.55;flex:1}
+  .sugg-txt b{font-weight:700}
+  .sugg-act{font-size:11.5px;font-weight:700;color:var(--accent);cursor:pointer;background:var(--accent-soft);border:none;padding:6px 11px;border-radius:8px;flex:none;align-self:center;transition:.15s}
+  .sugg-act:hover{background:rgba(37,99,235,.18)}
+  .dr-foot{padding:15px 22px;border-top:1px solid var(--line);display:flex;gap:10px;background:var(--panel)}
+  .dr-foot .btn{flex:1;justify-content:center}
+
+  /* toast */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120%);background:#1f2937;color:#fff;border:1px solid #2b3645;border-radius:11px;padding:12px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:0 10px 30px rgba(15,23,42,.30);z-index:60;transition:transform .3s cubic-bezier(.4,0,.1,1)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast svg{width:18px;height:18px;color:#4ade80}
+
+  @media(max-width:1180px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .grid-2{grid-template-columns:1fr}
+    .lib-grid{grid-template-columns:1fr}
+    .feed-panel{position:static}
+    .cards{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:760px){
+    .app{grid-template-columns:1fr}.sidebar{display:none}
+    .cards,.src-grid,.stats{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/><path d="m6.3 6.3 1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Lumina LMS</div>
+        <div class="brand-sub">AI 培训材料生成系统</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Material Library
+      <span class="nav-badge">24</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>
+      Source Documents
+      <span class="nav-badge">61</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Review Queue
+      <span class="nav-badge">5</span>
+    </div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      Learning Analytics
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+      Learner Profiles
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.33.62.97 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="usage"><b>AI Credits</b> — 1,840 / 3,000 this month</div>
+      <div class="meter"><span style="width:61%"></span></div>
+      <div class="user-chip">
+        <div class="avatar">EM</div>
+        <div>
+          <div class="user-name">Elena Marsh</div>
+          <div class="user-role">L&amp;D Lead</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <div class="page-title">Training Studio</div>
+        <div class="page-sub">Turn source docs into ready-to-publish learning material</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search materials, topics, tags…">
+      </div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Ask Studio
+      </button>
+      <button class="btn primary" onclick="scrollToComposer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>
+        New Material
+      </button>
+    </header>
+
+    <div class="content">
+      <!-- ---- Stats ---- -->
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-top">
+            <div class="stat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+            <span class="stat-trend trend-up">▲ 18%</span>
+          </div>
+          <div class="stat-val">24</div>
+          <div class="stat-label">Materials generated</div>
+        </div>
+        <div class="stat">
+          <div class="stat-top">
+            <div class="stat-ico c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+            <span class="stat-trend trend-up">▲ 4.2×</span>
+          </div>
+          <div class="stat-val">11 hrs</div>
+          <div class="stat-label">Author time saved / wk</div>
+        </div>
+        <div class="stat">
+          <div class="stat-top">
+            <div class="stat-ico g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <span class="stat-trend trend-up">▲ 6 pts</span>
+          </div>
+          <div class="stat-val">92<span style="font-size:16px;color:var(--txt-faint)">/100</span></div>
+          <div class="stat-label">Avg. quality score</div>
+        </div>
+        <div class="stat">
+          <div class="stat-top">
+            <div class="stat-ico a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+            <span class="stat-trend trend-dn">5 pending</span>
+          </div>
+          <div class="stat-val">5</div>
+          <div class="stat-label">Awaiting review</div>
+        </div>
+      </div>
+
+      <!-- ---- Composer + Live preview ---- -->
+      <div class="grid-2" id="composer">
+        <!-- Composer -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="ph-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg></div>
+            <h3>Generate Training Material</h3>
+            <span class="chip spacer">Step 1 of 1</span>
+          </div>
+          <div class="composer">
+            <div class="field-label">Source material</div>
+            <div class="src-grid">
+              <button class="src-tile sel" data-src onclick="pickSrc(this)">
+                <div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+                <div class="st">Upload document</div>
+                <div class="sd">PDF · DOCX · PPTX</div>
+              </button>
+              <button class="src-tile" data-src onclick="pickSrc(this)">
+                <div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></div>
+                <div class="st">Paste / URL</div>
+                <div class="sd">Text or web link</div>
+              </button>
+              <button class="src-tile" data-src onclick="pickSrc(this)">
+                <div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                <div class="st">From library</div>
+                <div class="sd">Reuse a source</div>
+              </button>
+            </div>
+
+            <div class="field-label">What should this material teach?</div>
+            <textarea id="briefInput" placeholder="e.g. Onboard new support reps on our refund policy — cover eligibility rules, the 3-step process, and common edge cases. Keep it practical with examples.">Onboard new support reps on the updated refund &amp; returns policy. Cover eligibility windows, the escalation path, and 5 common edge cases. Practical tone, with a knowledge check at the end.</textarea>
+
+            <div class="opt-row">
+              <div>
+                <div class="field-label">Output format</div>
+                <div class="select-wrap">
+                  <select id="fmtSelect">
+                    <option>Interactive course (modules)</option>
+                    <option>Slide deck</option>
+                    <option>Quick-reference guide</option>
+                    <option>Quiz / knowledge check</option>
+                    <option>Microlearning cards</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div class="field-label">Audience level</div>
+                <div class="select-wrap">
+                  <select id="lvlSelect">
+                    <option>New hire / beginner</option>
+                    <option>Intermediate</option>
+                    <option>Advanced / specialist</option>
+                    <option>Manager</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="field-label">Include</div>
+            <div class="pill-row" id="incPills">
+              <span class="toggle-pill on" onclick="togglePill(this)"><span class="dot"></span>Learning objectives</span>
+              <span class="toggle-pill on" onclick="togglePill(this)"><span class="dot"></span>Knowledge check</span>
+              <span class="toggle-pill on" onclick="togglePill(this)"><span class="dot"></span>Real examples</span>
+              <span class="toggle-pill" onclick="togglePill(this)"><span class="dot"></span>Speaker notes</span>
+              <span class="toggle-pill" onclick="togglePill(this)"><span class="dot"></span>Glossary</span>
+            </div>
+
+            <div class="gen-bar">
+              <button class="btn primary" id="genBtn" onclick="runGenerate()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>
+                Generate Material
+              </button>
+              <div class="gen-hint"><b>~40 sec</b> · costs ~12 credits · drafts to Review Queue</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live preview / output -->
+        <div class="panel">
+          <div class="panel-head">
+            <div class="ph-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg></div>
+            <h3>Generation Output</h3>
+            <span class="chip spacer" id="outChip">Idle</span>
+          </div>
+          <div class="preview-body">
+            <!-- empty -->
+            <div class="preview-empty" id="prevEmpty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg>
+              <div class="pe-t">Your draft will appear here</div>
+              <div class="pe-s">Fill in a brief and hit Generate. The AI builds a structured draft you can review and refine.</div>
+            </div>
+            <!-- progress -->
+            <div class="gen-progress" id="genProgress">
+              <div class="gp-row" data-step="0"><div class="gp-ico"><span class="spin"></span></div>Reading source document…</div>
+              <div class="gp-row" data-step="1"><div class="gp-ico">2</div>Extracting key concepts</div>
+              <div class="gp-row" data-step="2"><div class="gp-ico">3</div>Structuring modules &amp; objectives</div>
+              <div class="gp-row" data-step="3"><div class="gp-ico">4</div>Writing content &amp; knowledge check</div>
+              <div class="gp-row" data-step="4"><div class="gp-ico">5</div>Scoring quality &amp; readability</div>
+            </div>
+            <!-- result -->
+            <div class="result-card" id="resultCard">
+              <div class="rc-title">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#16a34a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Draft ready — “Refund &amp; Returns Policy”
+              </div>
+              <div class="rc-meta">Interactive course · 4 modules · ~18 min · generated just now</div>
+              <div class="rc-outline">
+                <div class="ro-item"><div class="ro-num">1</div><div class="ro-txt">Eligibility windows<small>When a refund qualifies — by channel &amp; tier</small></div><span class="conf-badge conf-hi">96%</span></div>
+                <div class="ro-item"><div class="ro-num">2</div><div class="ro-txt">The 3-step refund process<small>Verify → authorize → confirm</small></div><span class="conf-badge conf-hi">94%</span></div>
+                <div class="ro-item"><div class="ro-num">3</div><div class="ro-txt">Handling 5 common edge cases<small>Partial returns, late requests, gifts…</small></div><span class="conf-badge conf-md">81%</span></div>
+                <div class="ro-item"><div class="ro-num">4</div><div class="ro-txt">Knowledge check<small>6 questions, auto-graded</small></div><span class="conf-badge conf-hi">90%</span></div>
+              </div>
+              <div class="rc-foot">
+                <button class="btn primary" style="flex:1;justify-content:center" onclick="openDrawerById('draft-new')">Review draft</button>
+                <button class="btn" onclick="toast('Regenerating with new variation…')">Regenerate</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- Library + Feed ---- -->
+      <div class="lib-grid">
+        <div>
+          <div class="section-head">
+            <h2>Material Library</h2>
+            <div class="tabs" id="statusTabs">
+              <div class="tab active" data-status="all" onclick="setTab(this)">All <span class="tcount" id="c-all">0</span></div>
+              <div class="tab" data-status="review" onclick="setTab(this)">In Review <span class="tcount" id="c-review">0</span></div>
+              <div class="tab" data-status="published" onclick="setTab(this)">Published <span class="tcount" id="c-published">0</span></div>
+              <div class="tab" data-status="draft" onclick="setTab(this)">Drafts <span class="tcount" id="c-draft">0</span></div>
+            </div>
+            <div class="toolbar">
+              <div class="filter-select">
+                <select id="fmtFilter" onchange="render()">
+                  <option value="all">All formats</option>
+                  <option value="Course">Course</option>
+                  <option value="Slides">Slide deck</option>
+                  <option value="Guide">Guide</option>
+                  <option value="Quiz">Quiz</option>
+                  <option value="Cards">Cards</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="cards" id="cardGrid"></div>
+        </div>
+
+        <!-- Activity feed -->
+        <div class="panel feed-panel">
+          <div class="panel-head">
+            <div class="ph-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+            <h3>AI Activity</h3>
+          </div>
+          <div class="feed-list" id="feedList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRAWER ============ -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div class="dr-icon" id="drIcon"></div>
+    <div class="dr-h-txt">
+      <div class="dr-title" id="drTitle"></div>
+      <div class="dr-sub" id="drSub"></div>
+    </div>
+    <button class="dr-close" onclick="closeDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot">
+    <button class="btn" onclick="toast('Draft sent back to author')">Request changes</button>
+    <button class="btn primary" onclick="approveDrawer()" id="drApprove">Approve &amp; publish</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ---------------- DATA ---------------- */
+const AV_COLORS = ['#10b981','#3b82f6','#e11d48','#d97706','#0891b2','#2563eb','#f97316','#0d9488'];
+function initials(n){return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
+
+const materials = [
+  {id:'m1', title:'Refund & Returns Policy 2024', format:'Course', fmtLabel:'Interactive Course', desc:'New-hire course covering eligibility windows, the 3-step refund process and edge-case handling for the support team.', status:'review', author:'Priya Nair', src:'refund-policy-v4.pdf', tags:['Support','Compliance','Onboarding'], modules:5, mins:18, quality:88, conf:94, banner:0, date:'2024-06-21', q:{accuracy:92,clarity:88,coverage:84,engagement:86}},
+  {id:'m2', title:'Cybersecurity Awareness Essentials', format:'Slides', fmtLabel:'Slide Deck', desc:'Annual security training — phishing, password hygiene, device policy and incident reporting, mapped to ISO 27001 controls.', status:'published', author:'Marcus Webb', src:'infosec-handbook.docx', tags:['Security','Mandatory'], modules:8, mins:25, quality:95, conf:97, banner:2, date:'2024-06-18', q:{accuracy:97,clarity:94,coverage:96,engagement:90}},
+  {id:'m3', title:'Salesforce CRM Quick Start', format:'Guide', fmtLabel:'Quick-Reference Guide', desc:'Step-by-step reference for logging leads, updating pipeline stages and running the weekly forecast report.', status:'published', author:'Elena Marsh', src:'crm-sop-2024.pdf', tags:['Sales','Tools'], modules:6, mins:12, quality:91, conf:92, banner:4, date:'2024-06-15', q:{accuracy:93,clarity:95,coverage:86,engagement:88}},
+  {id:'m4', title:'Workplace Harassment Prevention', format:'Course', fmtLabel:'Interactive Course', desc:'Compliance course with scenario-based decisions and a graded assessment, localized for US & EU policy.', status:'review', author:'Dana Olsen', src:'hr-policy-pack.pdf', tags:['HR','Compliance','Mandatory'], modules:6, mins:30, quality:86, conf:89, banner:2, date:'2024-06-20', q:{accuracy:90,clarity:85,coverage:88,engagement:80}},
+  {id:'m5', title:'Forklift Safety & Inspection', format:'Cards', fmtLabel:'Microlearning Cards', desc:'12 microlearning cards on pre-operation checks, load limits and hazard zones for warehouse staff.', status:'published', author:'Tomás Rivera', src:'osha-forklift.pptx', tags:['Operations','Safety'], modules:12, mins:8, quality:90, conf:91, banner:3, date:'2024-06-12', q:{accuracy:94,clarity:90,coverage:85,engagement:91}},
+  {id:'m6', title:'New Manager Onboarding Path', format:'Course', fmtLabel:'Interactive Course', desc:'Five-week blended path: 1:1s, feedback frameworks, performance reviews and budgeting basics.', status:'draft', author:'Elena Marsh', src:'mgmt-playbook.docx', tags:['Leadership','Onboarding'], modules:10, mins:45, quality:79, conf:82, banner:0, date:'2024-06-22', q:{accuracy:84,clarity:78,coverage:80,engagement:74}},
+  {id:'m7', title:'GDPR for Customer Teams', format:'Quiz', fmtLabel:'Knowledge Check', desc:'15-question assessment on data subject rights, consent and breach timelines, auto-graded with feedback.', status:'review', author:'Marcus Webb', src:'gdpr-summary.pdf', tags:['Legal','Compliance'], modules:1, mins:15, quality:84, conf:87, banner:1, date:'2024-06-19', q:{accuracy:88,clarity:86,coverage:82,engagement:80}},
+  {id:'m8', title:'API Integration Fundamentals', format:'Guide', fmtLabel:'Quick-Reference Guide', desc:'Developer onboarding guide: authentication, rate limits, webhook setup and common error codes.', status:'published', author:'Sora Tanaka', src:'api-docs-export.pdf', tags:['Engineering','Tools'], modules:7, mins:20, quality:93, conf:95, banner:1, date:'2024-06-10', q:{accuracy:96,clarity:92,coverage:90,engagement:85}},
+  {id:'m9', title:'Brand Voice & Messaging Guide', format:'Slides', fmtLabel:'Slide Deck', desc:'How we write — tone principles, do/don\'t examples and channel-specific guidance for marketing.', status:'draft', author:'Dana Olsen', src:'brand-guidelines.pptx', tags:['Marketing','Brand'], modules:9, mins:16, quality:81, conf:84, banner:4, date:'2024-06-22', q:{accuracy:83,clarity:88,coverage:76,engagement:84}},
+  {id:'m10', title:'Onboarding: Expense Reporting', format:'Cards', fmtLabel:'Microlearning Cards', desc:'Quick cards on submitting expenses, approval limits, receipts policy and reimbursement timelines.', status:'published', author:'Priya Nair', src:'finance-sop.docx', tags:['Finance','Onboarding'], modules:8, mins:6, quality:89, conf:90, banner:3, date:'2024-06-08', q:{accuracy:91,clarity:92,coverage:84,engagement:88}},
+  {id:'m11', title:'De-escalation for Frontline Staff', format:'Course', fmtLabel:'Interactive Course', desc:'Scenario-driven course on calming tense interactions, active listening and when to escalate.', status:'review', author:'Tomás Rivera', src:'support-training.pdf', tags:['Support','Soft Skills'], modules:5, mins:22, quality:87, conf:88, banner:2, date:'2024-06-21', q:{accuracy:89,clarity:90,coverage:83,engagement:90}},
+  {id:'m12', title:'Accessibility Basics for Designers', format:'Guide', fmtLabel:'Quick-Reference Guide', desc:'WCAG essentials — color contrast, focus order, alt text and keyboard navigation with examples.', status:'published', author:'Sora Tanaka', src:'a11y-checklist.pdf', tags:['Design','Best Practice'], modules:6, mins:14, quality:92, conf:93, banner:4, date:'2024-06-05', q:{accuracy:94,clarity:93,coverage:88,engagement:86}},
+];
+
+const feed = [
+  {type:'gen', txt:'<span class="ft-ai">AI generated</span> a draft course from <b>refund-policy-v4.pdf</b>', time:'2 min ago'},
+  {type:'ok', txt:'Quality scoring complete — <b>Cybersecurity Essentials</b> scored <b>95/100</b>', time:'24 min ago'},
+  {type:'rev', txt:'<span class="ft-ai">AI flagged</span> 3 sections in <b>New Manager Path</b> as low-coverage', time:'1 hr ago'},
+  {type:'pub', txt:'<b>Elena Marsh</b> published <b>Salesforce CRM Quick Start</b>', time:'3 hrs ago'},
+  {type:'gen', txt:'<span class="ft-ai">AI extracted</span> 14 key concepts from <b>osha-forklift.pptx</b>', time:'5 hrs ago'},
+  {type:'ok', txt:'<span class="ft-ai">AI suggested</span> 2 readability fixes on <b>GDPR Knowledge Check</b>', time:'6 hrs ago'},
+  {type:'pub', txt:'<b>Sora Tanaka</b> published <b>API Integration Fundamentals</b>', time:'Yesterday'},
+];
+
+/* ---------------- STATE ---------------- */
+let curStatus = 'all';
+let curFmt = 'all';
+let curSearch = '';
+
+/* ---------------- RENDER ---------------- */
+const statusMeta = {
+  published:{cls:'sp-pub', label:'Published'},
+  review:{cls:'sp-rev', label:'In Review'},
+  draft:{cls:'sp-draft', label:'Draft'},
+};
+const fmtIcon = {
+  Course:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  Slides:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  Guide:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/>',
+  Quiz:'<path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/>',
+  Cards:'<rect x="3" y="5" width="14" height="16" rx="2"/><path d="M7 5V3h12a2 2 0 0 1 2 2v14"/>',
+};
+function qColor(v){return v>=90?'var(--green)':v>=80?'var(--amber)':'var(--red)';}
+
+function counts(){
+  const all = materials.length;
+  const c = {all, review:0, published:0, draft:0};
+  materials.forEach(m=>c[m.status]++);
+  document.getElementById('c-all').textContent = all;
+  document.getElementById('c-review').textContent = c.review;
+  document.getElementById('c-published').textContent = c.published;
+  document.getElementById('c-draft').textContent = c.draft;
+}
+
+function render(){
+  curFmt = document.getElementById('fmtFilter').value;
+  const grid = document.getElementById('cardGrid');
+  let list = materials.filter(m=>{
+    if(curStatus!=='all' && m.status!==curStatus) return false;
+    if(curFmt!=='all' && m.format!==curFmt) return false;
+    if(curSearch){
+      const hay = (m.title+' '+m.desc+' '+m.tags.join(' ')+' '+m.author).toLowerCase();
+      if(!hay.includes(curSearch)) return false;
+    }
+    return true;
+  });
+
+  if(!list.length){
+    grid.innerHTML = `<div class="empty-grid">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <div style="font-size:14px;color:var(--txt-dim);font-weight:600">No materials match these filters</div>
+      <div style="font-size:12.5px;margin-top:4px">Try a different status, format, or search term.</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(m=>{
+    const sm = statusMeta[m.status];
+    const ac = AV_COLORS[m.banner % AV_COLORS.length];
+    return `<div class="mat-card" onclick="openDrawerById('${m.id}')">
+      <div class="mc-banner b${m.banner}">
+        <svg class="pat" viewBox="0 0 100 60" preserveAspectRatio="none"><defs><pattern id="p${m.id}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(20)"><circle cx="2" cy="2" r="1.4" fill="#fff"/></pattern></defs><rect width="100" height="60" fill="url(#p${m.id})"/></svg>
+        <span class="mc-format"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${fmtIcon[m.format]}</svg>${m.fmtLabel}</span>
+      </div>
+      <div class="mc-body">
+        <div class="mc-title">${m.title}</div>
+        <div class="mc-desc">${m.desc}</div>
+        <div class="mc-tags">${m.tags.map(t=>`<span class="mtag">${t}</span>`).join('')}</div>
+        <div class="qmini" title="AI quality score">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21"/></svg>
+          <span style="color:var(--txt-dim);font-weight:600">Quality ${m.quality}</span>
+          <span class="qbar"><span style="width:${m.quality}%;background:${qColor(m.quality)}"></span></span>
+        </div>
+        <div class="mc-foot">
+          <div class="av" style="background:${ac}">${initials(m.author)}</div>
+          <div class="mc-meta-txt"><b>${m.modules}</b> modules · <b>${m.mins}</b> min</div>
+          <span class="status-pill ${sm.cls}"><span class="sd"></span>${sm.label}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderFeed(){
+  const fl = document.getElementById('feedList');
+  const im = {
+    gen:'<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/>',
+    ok:'<path d="M20 6 9 17l-5-5"/>',
+    rev:'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+    pub:'<path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/>',
+  };
+  const cls = {gen:'fi-gen', ok:'fi-ok', rev:'fi-rev', pub:'fi-pub'};
+  fl.innerHTML = feed.map(f=>`<div class="feed-item">
+    <div class="feed-ico ${cls[f.type]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${im[f.type]}</svg></div>
+    <div><div class="feed-txt">${f.txt}</div><div class="feed-time">${f.time}</div></div>
+  </div>`).join('');
+}
+
+/* ---------------- TABS / FILTERS / SEARCH ---------------- */
+function setTab(el){
+  document.querySelectorAll('#statusTabs .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  curStatus = el.dataset.status;
+  render();
+}
+document.getElementById('searchInput').addEventListener('input', e=>{
+  curSearch = e.target.value.trim().toLowerCase();
+  render();
+});
+
+/* ---------------- COMPOSER ---------------- */
+function pickSrc(el){
+  document.querySelectorAll('[data-src]').forEach(s=>s.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function togglePill(el){ el.classList.toggle('on'); }
+function scrollToComposer(){
+  document.getElementById('composer').scrollIntoView({behavior:'smooth', block:'center'});
+  document.getElementById('briefInput').focus();
+}
+
+let generating = false;
+function runGenerate(){
+  if(generating) return;
+  generating = true;
+  const btn = document.getElementById('genBtn');
+  const empty = document.getElementById('prevEmpty');
+  const prog = document.getElementById('genProgress');
+  const res = document.getElementById('resultCard');
+  const chip = document.getElementById('outChip');
+
+  empty.style.display='none';
+  res.classList.remove('show');
+  prog.classList.add('show');
+  btn.style.opacity=.6; btn.style.pointerEvents='none';
+  btn.innerHTML = '<span class="spin"></span> Generating…';
+  chip.textContent = 'Working…';
+  chip.style.background = 'var(--accent-soft)'; chip.style.color='var(--accent)';
+
+  const rows = [...prog.querySelectorAll('.gp-row')];
+  rows.forEach((r,i)=>{ r.classList.remove('done','active'); const ic=r.querySelector('.gp-ico'); ic.innerHTML = i===0?'<span class="spin"></span>':(i+1); });
+
+  let step = 0;
+  rows[0].classList.add('active');
+  const timer = setInterval(()=>{
+    rows[step].classList.remove('active');
+    rows[step].classList.add('done');
+    rows[step].querySelector('.gp-ico').innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    step++;
+    if(step>=rows.length){
+      clearInterval(timer);
+      prog.classList.remove('show');
+      res.classList.add('show');
+      chip.textContent='Draft ready';
+      chip.style.background='var(--green-soft)'; chip.style.color='var(--green)';
+      btn.style.opacity=1; btn.style.pointerEvents='auto';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg> Generate Material';
+      generating=false;
+      toast('Draft generated and added to Review Queue');
+    } else {
+      rows[step].classList.add('active');
+      rows[step].querySelector('.gp-ico').innerHTML = '<span class="spin"></span>';
+    }
+  }, 720);
+}
+
+/* ---------------- DRAWER ---------------- */
+const bannerGrad = ['linear-gradient(135deg,#2563eb,#3b82f6)','linear-gradient(135deg,#0891b2,#06b6d4)','linear-gradient(135deg,#e11d48,#f97316)','linear-gradient(135deg,#d97706,#eab308)','linear-gradient(135deg,#3b82f6,#10b981)'];
+
+const reasoningByFmt = {
+  Course:'Structured the source into a 5-module learning path with clear objectives per module. Section 3 (edge cases) scored lower on coverage — the source document mentions partial returns but gives no worked example, so I drafted a placeholder example flagged for SME review.',
+  Slides:'Condensed a dense handbook into a presenter-friendly deck with one idea per slide. Mapped each section to the relevant control reference and kept speaker notes concise. Engagement is high thanks to scenario prompts; clarity could improve by splitting two text-heavy slides.',
+  Guide:'Reformatted procedural content into a scannable quick-reference with numbered steps and callouts. Authentication and rate-limit sections are well-covered; a few error codes in the source lacked descriptions, so I marked those rows as needs-detail.',
+  Quiz:'Generated questions across all six topic areas in the source, balancing recall and application items. Two questions on breach timelines were flagged because the source gives a range rather than a fixed figure — recommend confirming the exact SLA before publishing.',
+  Cards:'Broke the procedure into bite-size cards, one task per card, ordered by the real-world sequence. Visual-check steps were emphasized since the source stresses inspection. Coverage is solid; consider adding a card on load-limit math for completeness.',
+};
+
+const modulesByFmt = {
+  Course:[['Eligibility windows','When a refund qualifies by channel & tier','4 min'],['The 3-step refund process','Verify, authorize, confirm','3 min'],['Handling 5 common edge cases','Partial returns, late requests, gifts','5 min'],['Escalation path','When and how to involve a manager','3 min'],['Knowledge check','6 auto-graded questions','3 min']],
+  Slides:[['Threat landscape','Why this matters now','3 min'],['Spotting phishing','Red flags & real examples','4 min'],['Password hygiene','Length, reuse, managers','3 min'],['Device policy','BYOD & encryption','3 min'],['Reporting incidents','The 15-minute rule','4 min']],
+  Guide:[['Getting set up','Keys & environments','3 min'],['Authentication','OAuth flow walkthrough','4 min'],['Rate limits','Tiers & retry strategy','3 min'],['Webhooks','Setup & verification','4 min'],['Error reference','Common codes explained','3 min']],
+  Quiz:[['Section A — Rights','5 questions','5 min'],['Section B — Consent','5 questions','5 min'],['Section C — Breach timelines','5 questions','5 min']],
+  Cards:[['Pre-operation check','Card 1–3','2 min'],['Load limits','Card 4–6','2 min'],['Hazard zones','Card 7–9','2 min'],['Shutdown & report','Card 10–12','2 min']],
+};
+
+const suggestionsByFmt = {
+  Course:[['Add a worked example to <b>Edge case #3 (partial returns)</b> — the source has none, which lowered coverage.','Add'],['Module 5 quiz reuses two similar stems — <b>regenerate question 4</b> for variety.','Fix'],['Tone is slightly formal for new hires — <b>soften the intro</b> by one reading level.','Apply']],
+  Slides:[['Slides 6 & 9 are text-heavy — <b>split each into two slides</b> for readability.','Split'],['Add a real phishing screenshot to slide 4 to <b>boost engagement</b>.','Add'],['Speaker note on slide 7 references an old policy date — <b>update to 2024</b>.','Fix']],
+  Guide:[['3 error codes lack descriptions — <b>pull definitions</b> from the source appendix.','Add'],['Add a copy-paste cURL snippet to the auth section.','Add'],['Cross-link the webhook section to the rate-limit page.','Link']],
+  Quiz:[['Two breach-timeline questions use a range — <b>confirm the exact SLA</b> first.','Review'],['Add one application-level question to <b>Section A</b> to balance recall.','Add'],['Question 11 has two plausible correct answers — <b>tighten the distractors</b>.','Fix']],
+  Cards:[['Add a card on <b>load-limit math</b> for completeness.','Add'],['Card 8 image is low-contrast — <b>swap for a clearer diagram</b>.','Swap'],['Reorder cards 10–11 to match the real shutdown sequence.','Reorder']],
+};
+
+let activeMat = null;
+
+function openDrawerById(id){
+  let m = materials.find(x=>x.id===id);
+  if(id==='draft-new'){
+    m = {id:'draft-new', title:'Refund & Returns Policy 2024', format:'Course', fmtLabel:'Interactive Course', desc:'Freshly generated draft.', status:'review', author:'AI Studio', src:'refund-policy-v4.pdf', tags:['Support','Compliance','Onboarding'], modules:5, mins:18, quality:88, conf:94, banner:0, date:'2024-06-22', q:{accuracy:92,clarity:88,coverage:84,engagement:86}};
+  }
+  if(!m) return;
+  activeMat = m;
+  const sm = statusMeta[m.status];
+
+  document.getElementById('drIcon').style.background = bannerGrad[m.banner % bannerGrad.length];
+  document.getElementById('drIcon').innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${fmtIcon[m.format]}</svg>`;
+  document.getElementById('drTitle').textContent = m.title;
+  document.getElementById('drSub').textContent = `${m.fmtLabel} · generated from ${m.src}`;
+  document.getElementById('drApprove').textContent = m.status==='published' ? 'View live' : 'Approve & publish';
+
+  const mods = modulesByFmt[m.format] || modulesByFmt.Course;
+  const sugg = suggestionsByFmt[m.format] || suggestionsByFmt.Course;
+  const reasoning = reasoningByFmt[m.format] || reasoningByFmt.Course;
+  const ac = AV_COLORS[m.banner % AV_COLORS.length];
+
+  // gauge geometry
+  const R=46, C=2*Math.PI*R, off=C*(1-m.quality/100);
+
+  document.getElementById('drBody').innerHTML = `
+    <div class="dr-pills">
+      <span class="status-pill ${sm.cls}"><span class="sd"></span>${sm.label}</span>
+      ${m.tags.map(t=>`<span class="chip">${t}</span>`).join('')}
+    </div>
+
+    <div class="quality-wrap">
+      <div class="gauge">
+        <svg viewBox="0 0 110 110" width="110" height="110">
+          <circle cx="55" cy="55" r="${R}" fill="none" stroke="#e2e6ec" stroke-width="9"/>
+          <circle cx="55" cy="55" r="${R}" fill="none" stroke="${qColor(m.quality)}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 55 55)"/>
+        </svg>
+        <div class="gv"><div><b>${m.quality}</b><small>Quality score</small></div></div>
+      </div>
+      <div class="q-breakdown">
+        ${[['Accuracy',m.q.accuracy],['Clarity',m.q.clarity],['Coverage',m.q.coverage],['Engagement',m.q.engagement]].map(([k,v])=>`
+          <div class="qb-row"><div class="qb-name">${k}</div><div class="qb-track"><span style="width:${v}%;background:${qColor(v)}"></span></div><div class="qb-val">${v}</div></div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="ai-note">
+      <div class="ai-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>AI Generation Summary</div>
+      ${reasoning}
+    </div>
+
+    <div class="dr-sec-title">Extracted from source <span class="ai-tag">AI · auto-detected</span></div>
+    <div class="extract-list">
+      <div class="ex-row"><div class="ex-key">Key concepts</div><div class="ex-val">${m.modules + 9} found</div><span class="conf-badge conf-hi">${m.conf}%</span></div>
+      <div class="ex-row"><div class="ex-key">Source pages</div><div class="ex-val">${12 + (m.banner*3)} pages parsed</div><span class="conf-badge conf-hi">99%</span></div>
+      <div class="ex-row"><div class="ex-key">Detected audience</div><div class="ex-val">${m.tags.includes('Onboarding')?'New hire':'Practitioner'}</div><span class="conf-badge conf-md">84%</span></div>
+      <div class="ex-row"><div class="ex-key">Reading level</div><div class="ex-val">Grade ${8 + (m.banner%3)} · Plain</div><span class="conf-badge conf-hi">91%</span></div>
+    </div>
+
+    <div class="dr-sec-title">Generated outline</div>
+    <div class="mod-list">
+      ${mods.map((md,i)=>`
+        <div class="mod-row">
+          <div class="mod-n">${i+1}</div>
+          <div class="mod-info"><div class="mt">${md[0]}</div><div class="ms">${md[1]}</div></div>
+          <span class="mod-dur">${md[2]}</span>
+        </div>`).join('')}
+    </div>
+
+    <div class="dr-sec-title">AI suggestions <span class="ai-tag">${sugg.length} to review</span></div>
+    <div class="sugg-list">
+      ${sugg.map(s=>`
+        <div class="sugg-row">
+          <div class="sugg-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4"/><path d="M15.1 14a5 5 0 1 0-6.2 0c.6.5 1.1 1.2 1.1 2h4c0-.8.5-1.5 1.1-2z"/></svg></div>
+          <div class="sugg-txt">${s[0]}</div>
+          <button class="sugg-act" onclick="applySugg(this)">${s[1]}</button>
+        </div>`).join('')}
+    </div>
+  `;
+
+  document.getElementById('scrim').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+function applySugg(btn){
+  btn.textContent='✓ Done';
+  btn.style.background='var(--green-soft)';
+  btn.style.color='var(--green)';
+  btn.disabled=true;
+  toast('AI suggestion applied to draft');
+}
+function approveDrawer(){
+  if(!activeMat) return;
+  if(activeMat.status!=='published'){
+    toast('“'+activeMat.title+'” published');
+  } else {
+    toast('Opening live version…');
+  }
+  closeDrawer();
+}
+function closeDrawer(){
+  document.getElementById('scrim').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+/* ---------------- TOAST ---------------- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ---------------- INIT ---------------- */
+counts();
+render();
+renderFeed();
+</script>
+</body>
+</html>

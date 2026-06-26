@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Expense Reimbursement System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --surface:#ffffff;
+    --ink:#1e2330;
+    --ink-2:#4a5161;
+    --ink-3:#828a9a;
+    --line:#e7e9ef;
+    --line-2:#eef0f4;
+    --indigo:#4f46e5;
+    --indigo-soft:#eef0ff;
+    --indigo-ink:#3730a3;
+    --green:#0f9d58;
+    --green-soft:#e7f6ee;
+    --amber:#b7791f;
+    --amber-soft:#fdf4e3;
+    --red:#d6453d;
+    --red-soft:#fceceb;
+    --blue:#2563eb;
+    --blue-soft:#e8effd;
+    --shadow:0 1px 2px rgba(20,24,40,.04), 0 4px 16px rgba(20,24,40,.05);
+    --shadow-lg:0 12px 40px rgba(20,24,40,.16);
+    --radius:12px;
+    --radius-sm:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    font-size:14px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ===== Shell ===== */
+  .app{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+  .sidebar{
+    background:var(--surface);
+    border-right:1px solid var(--line);
+    padding:18px 14px;
+    display:flex;flex-direction:column;gap:6px;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px}
+  .brand .logo{
+    width:32px;height:32px;border-radius:9px;
+    background:linear-gradient(135deg,#4f46e5,#6366f1);
+    display:grid;place-items:center;color:#fff;flex:none;
+    box-shadow:0 4px 12px rgba(79,70,229,.3);
+  }
+  .brand b{font-size:14.5px;letter-spacing:-.2px}
+  .brand small{display:block;color:var(--ink-3);font-size:11px;font-weight:500}
+  .nav-group{font-size:10.5px;font-weight:600;letter-spacing:.07em;color:var(--ink-3);text-transform:uppercase;padding:14px 8px 4px}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 10px;border-radius:9px;color:var(--ink-2);
+    font-weight:500;cursor:pointer;font-size:13.5px;position:relative;
+  }
+  .nav-item:hover{background:var(--line-2)}
+  .nav-item.active{background:var(--indigo-soft);color:var(--indigo-ink);font-weight:600}
+  .nav-item svg{width:17px;height:17px;flex:none;opacity:.85}
+  .nav-item .badge{margin-left:auto;background:#fff;border:1px solid var(--line);color:var(--ink-2);font-size:10.5px;font-weight:600;border-radius:20px;padding:1px 7px}
+  .nav-item.active .badge{background:var(--indigo);color:#fff;border-color:transparent}
+  .sb-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:center;gap:10px}
+  .avatar{width:30px;height:30px;border-radius:50%;background:#dfe3f5;color:var(--indigo-ink);display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+
+  /* ===== Main ===== */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    background:rgba(255,255,255,.85);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    padding:14px 28px;display:flex;align-items:center;gap:16px;
+    position:sticky;top:0;z-index:20;
+  }
+  .topbar h1{font-size:18px;letter-spacing:-.3px;font-weight:700}
+  .topbar .sub{color:var(--ink-3);font-size:12.5px;margin-top:1px}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:8px;
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:7px 11px;width:260px;color:var(--ink-3);
+  }
+  .search input{border:none;background:none;outline:none;font-size:13px;color:var(--ink);width:100%;font-family:inherit}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    padding:8px 13px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+    transition:background .12s,border-color .12s;
+  }
+  .btn:hover{background:var(--line-2)}
+  .btn svg{width:15px;height:15px}
+  .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+  .btn.primary:hover{background:#4338ca}
+  .btn.ghost{border-color:transparent;background:transparent}
+  .btn.ghost:hover{background:var(--line-2)}
+
+  .content{padding:24px 28px 60px;display:flex;flex-direction:column;gap:20px}
+
+  /* ===== KPI ===== */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;box-shadow:var(--shadow)}
+  .kpi .lbl{font-size:12px;color:var(--ink-3);font-weight:600;display:flex;align-items:center;gap:7px}
+  .kpi .lbl .dot{width:7px;height:7px;border-radius:50%}
+  .kpi .val{font-size:25px;font-weight:700;letter-spacing:-.6px;margin-top:7px}
+  .kpi .delta{font-size:11.5px;font-weight:600;margin-top:5px;display:flex;align-items:center;gap:4px}
+  .up{color:var(--green)} .down{color:var(--red)} .neu{color:var(--ink-3)}
+
+  /* ===== Layout split ===== */
+  .split{display:grid;grid-template-columns:1.65fr 1fr;gap:20px;align-items:start}
+  @media(max-width:1180px){.split{grid-template-columns:1fr}}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card-h{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  .card-h h2{font-size:14.5px;font-weight:700;letter-spacing:-.2px}
+  .card-h .meta{font-size:12px;color:var(--ink-3);margin-top:1px}
+  .card-h .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+  /* ===== Report builder header ===== */
+  .rb-head{padding:18px;border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .rb-title input{
+    font-size:17px;font-weight:700;border:1px solid transparent;background:transparent;
+    padding:5px 8px;border-radius:8px;letter-spacing:-.3px;color:var(--ink);width:340px;font-family:inherit;
+  }
+  .rb-title input:hover{background:var(--line-2)}
+  .rb-title input:focus{outline:none;background:#fff;border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo-soft)}
+  .rb-title small{display:block;color:var(--ink-3);font-size:12px;padding-left:8px;margin-top:2px}
+  .rb-tot{margin-left:auto;text-align:right}
+  .rb-tot .t1{font-size:11.5px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .rb-tot .t2{font-size:28px;font-weight:800;letter-spacing:-.8px;margin-top:2px}
+  .rb-tot .t3{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+
+  /* ===== Tabs ===== */
+  .tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line)}
+  .tab{
+    padding:11px 14px;font-size:13px;font-weight:600;color:var(--ink-3);cursor:pointer;
+    border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:7px;
+  }
+  .tab:hover{color:var(--ink-2)}
+  .tab.active{color:var(--indigo);border-bottom-color:var(--indigo)}
+  .tab .cnt{background:var(--line-2);color:var(--ink-2);font-size:10.5px;font-weight:700;border-radius:20px;padding:1px 7px}
+  .tab.active .cnt{background:var(--indigo-soft);color:var(--indigo-ink)}
+
+  /* ===== Line items ===== */
+  .lines{display:flex;flex-direction:column}
+  .line{
+    display:grid;grid-template-columns:46px 1fr 130px 110px;gap:14px;align-items:center;
+    padding:13px 18px;border-bottom:1px solid var(--line-2);cursor:pointer;transition:background .1s;
+  }
+  .line:hover{background:#fafbfc}
+  .line.flagged{background:linear-gradient(90deg,var(--red-soft) 0 3px,#fff 3px)}
+  .line.flagged:hover{background:linear-gradient(90deg,var(--red-soft) 0 3px,#fffafa 3px)}
+  .receipt{
+    width:46px;height:46px;border-radius:9px;border:1px solid var(--line);
+    display:grid;place-items:center;background:var(--bg);overflow:hidden;flex:none;position:relative;
+  }
+  .receipt svg{width:100%;height:100%}
+  .receipt .ai-dot{position:absolute;top:-3px;right:-3px;width:14px;height:14px;border-radius:50%;background:var(--indigo);border:2px solid #fff;display:grid;place-items:center}
+  .receipt .ai-dot svg{width:8px;height:8px}
+  .l-main{min-width:0}
+  .l-main .l-title{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
+  .l-main .l-sub{font-size:12px;color:var(--ink-3);margin-top:2px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .l-sub .sep{width:3px;height:3px;border-radius:50%;background:var(--line);}
+  .cat-pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .cat-pill .ic{width:11px;height:11px}
+  .l-conf{font-size:11px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px}
+  .l-conf .bar{height:5px;border-radius:4px;background:var(--line-2);overflow:hidden;width:108px}
+  .l-conf .bar i{display:block;height:100%;border-radius:4px}
+  .l-amt{text-align:right;font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+  .l-amt small{display:block;font-weight:500;color:var(--ink-3);font-size:11px;margin-top:2px}
+
+  .chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.02em;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+  .chip.ok{background:var(--green-soft);color:var(--green)}
+  .chip.warn{background:var(--amber-soft);color:var(--amber)}
+  .chip.err{background:var(--red-soft);color:var(--red)}
+  .chip.info{background:var(--blue-soft);color:var(--blue)}
+  .chip.mut{background:var(--line-2);color:var(--ink-2)}
+  .chip.ind{background:var(--indigo-soft);color:var(--indigo-ink)}
+
+  .empty{padding:46px 20px;text-align:center;color:var(--ink-3)}
+  .empty svg{width:40px;height:40px;opacity:.4;margin-bottom:10px}
+  .empty b{display:block;color:var(--ink-2);font-size:14px;margin-bottom:3px}
+
+  /* ===== Right column ===== */
+  .stack{display:flex;flex-direction:column;gap:20px}
+  .pad{padding:16px 18px}
+
+  /* Donut */
+  .donut-wrap{display:flex;align-items:center;gap:18px}
+  .legend{display:flex;flex-direction:column;gap:9px;flex:1}
+  .leg{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .leg .sw{width:10px;height:10px;border-radius:3px;flex:none}
+  .leg .ln{color:var(--ink-2);font-weight:500}
+  .leg .vl{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+  .leg .pc{color:var(--ink-3);font-size:11px;width:36px;text-align:right}
+
+  /* AI panel */
+  .ai-card{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,#fbfbff,#fff);box-shadow:var(--shadow);overflow:hidden}
+  .ai-head{padding:14px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+  .ai-head .spark{width:28px;height:28px;border-radius:8px;background:var(--indigo-soft);display:grid;place-items:center;color:var(--indigo);flex:none}
+  .ai-head h2{font-size:14px;font-weight:700}
+  .ai-head small{display:block;color:var(--ink-3);font-size:11.5px}
+  .ai-head .live{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--green);display:flex;align-items:center;gap:5px}
+  .ai-head .live i{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(15,157,88,.5);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(15,157,88,.45)}70%{box-shadow:0 0 0 7px rgba(15,157,88,0)}100%{box-shadow:0 0 0 0 rgba(15,157,88,0)}}
+
+  .feed{display:flex;flex-direction:column}
+  .fi{display:flex;gap:11px;padding:12px 18px;border-bottom:1px solid var(--line-2);position:relative}
+  .fi:last-child{border-bottom:none}
+  .fi .fic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none}
+  .fi .fic svg{width:14px;height:14px}
+  .fi.t-ok .fic{background:var(--green-soft);color:var(--green)}
+  .fi.t-flag .fic{background:var(--red-soft);color:var(--red)}
+  .fi.t-info .fic{background:var(--blue-soft);color:var(--blue)}
+  .fi.t-extract .fic{background:var(--indigo-soft);color:var(--indigo)}
+  .fi .ft{font-size:12.8px;line-height:1.5}
+  .fi .ft b{font-weight:700}
+  .fi .ft .why{color:var(--ink-3);display:block;margin-top:2px;font-size:11.5px}
+  .fi .fw{font-size:10.5px;color:var(--ink-3);margin-top:3px}
+  .fi .conf{font-size:10px;font-weight:700;padding:1px 6px;border-radius:20px;background:var(--indigo-soft);color:var(--indigo-ink);margin-left:6px}
+
+  /* policy meter */
+  .meter{display:flex;flex-direction:column;gap:13px}
+  .mrow .mtop{display:flex;align-items:center;font-size:12.5px;margin-bottom:5px}
+  .mrow .mtop b{font-weight:600}
+  .mrow .mtop span{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+  .mbar{height:7px;border-radius:5px;background:var(--line-2);overflow:hidden}
+  .mbar i{display:block;height:100%;border-radius:5px}
+
+  /* ===== Drawer ===== */
+  .scrim{position:fixed;inset:0;background:rgba(22,26,40,.34);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .22s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:460px;max-width:94vw;background:var(--surface);
+    box-shadow:var(--shadow-lg);transform:translateX(102%);transition:transform .26s cubic-bezier(.4,.1,.2,1);
+    z-index:50;display:flex;flex-direction:column;
+  }
+  .drawer.show{transform:translateX(0)}
+  .dw-h{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:12px}
+  .dw-h .x{margin-left:auto;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;color:var(--ink-3)}
+  .dw-h .x:hover{background:var(--line-2)}
+  .dw-body{padding:20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:18px}
+  .dw-receipt{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+  .dw-receipt .rh{padding:9px 13px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--ink-3);font-weight:600;display:flex;align-items:center;gap:7px;background:#fff}
+  .dw-receipt svg{display:block;width:100%}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .fld{background:#fff;padding:11px 13px}
+  .fld .fk{font-size:11px;color:var(--ink-3);font-weight:600;display:flex;align-items:center;gap:5px}
+  .fld .fv{font-size:13.5px;font-weight:600;margin-top:3px}
+  .fld .fc{font-size:10px;font-weight:700;color:var(--indigo-ink);background:var(--indigo-soft);border-radius:20px;padding:0 6px}
+  .sec-t{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .reason{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:13px;font-size:12.8px;color:var(--ink-2);line-height:1.6}
+  .reason b{color:var(--ink)}
+  .dw-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;background:#fff}
+  .dw-foot .btn{flex:1;justify-content:center}
+
+  .pol-list{display:flex;flex-direction:column;gap:8px}
+  .pol{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:12.5px}
+  .pol .pi{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;flex:none;margin-top:1px}
+  .pol .pi svg{width:12px;height:12px}
+  .pol.ok .pi{background:var(--green-soft);color:var(--green)}
+  .pol.warn .pi{background:var(--amber-soft);color:var(--amber)}
+  .pol.err .pi{background:var(--red-soft);color:var(--red)}
+  .pol b{display:block;margin-bottom:1px}
+  .pol span{color:var(--ink-3)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;
+    box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.25s;z-index:60;display:flex;align-items:center;gap:9px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast svg{width:16px;height:16px;color:#7ee2a8}
+
+  .hide{display:none!important}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d6dae2;border-radius:8px;border:2px solid #fff}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div>
+        <b>Expensa</b>
+        <small>Reimbursement</small>
+      </div>
+    </div>
+
+    <div class="nav-group">Workspace</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg>Expense Reports<span class="badge">3</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>Receipts<span class="badge">42</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Approvals<span class="badge">5</span></div>
+
+    <div class="nav-group">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M7 14l3-4 4 3 5-7"/></svg>Spend Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Policy Center</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Audit Log</div>
+
+    <div class="sb-foot">
+      <div class="avatar">DR</div>
+      <div style="min-width:0">
+        <div style="font-weight:600;font-size:13px">Dana Reyes</div>
+        <div style="font-size:11px;color:var(--ink-3)">Field Sales · NA</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1>Expense Report Builder</h1>
+        <div class="sub">Q2 trip · Auto-extraction enabled · Last synced 2 min ago</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search line items, merchants…" />
+      </div>
+      <button class="btn" id="addBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add expense</button>
+      <button class="btn primary" id="submitBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>Submit report</button>
+    </header>
+
+    <div class="content">
+      <!-- KPIs -->
+      <section class="kpis">
+        <div class="kpi">
+          <div class="lbl"><span class="dot" style="background:var(--indigo)"></span>Report Total</div>
+          <div class="val" id="kpiTotal">$4,182.60</div>
+          <div class="delta neu">17 line items · 3 categories</div>
+        </div>
+        <div class="kpi">
+          <div class="lbl"><span class="dot" style="background:var(--green)"></span>Reimbursable</div>
+          <div class="val" id="kpiReimb">$3,946.10</div>
+          <div class="delta up">94.3% of total within policy</div>
+        </div>
+        <div class="kpi">
+          <div class="lbl"><span class="dot" style="background:var(--amber)"></span>Policy Flags</div>
+          <div class="val" id="kpiFlags">4</div>
+          <div class="delta down">$236.50 needs review</div>
+        </div>
+        <div class="kpi">
+          <div class="lbl"><span class="dot" style="background:var(--blue)"></span>AI Auto-filled</div>
+          <div class="val">15 / 17</div>
+          <div class="delta up">avg confidence 96%</div>
+        </div>
+      </section>
+
+      <!-- Split -->
+      <div class="split">
+        <!-- Left: report builder -->
+        <section class="card">
+          <div class="rb-head">
+            <div class="rb-title">
+              <input value="Northeast Sales Tour — May 2026" />
+              <small>EXP-2026-0418 · Trip May 12–18 · Cost center: SALES-NA-04</small>
+            </div>
+            <div class="rb-tot">
+              <div class="t1">Running total</div>
+              <div class="t2" id="rbTotal">$4,182.60</div>
+              <div class="t3"><span id="rbShown">17</span> items shown</div>
+            </div>
+          </div>
+
+          <div class="tabs" id="tabs">
+            <div class="tab active" data-f="all">All <span class="cnt" id="c-all">17</span></div>
+            <div class="tab" data-f="ok">Within policy <span class="cnt" id="c-ok">12</span></div>
+            <div class="tab" data-f="flag">Flagged <span class="cnt" id="c-flag">4</span></div>
+            <div class="tab" data-f="pending">Pending AI <span class="cnt" id="c-pending">1</span></div>
+          </div>
+
+          <div class="lines" id="lines"></div>
+          <div class="empty hide" id="empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <b>No matching line items</b>
+            Try a different search term or switch tabs.
+          </div>
+        </section>
+
+        <!-- Right: stack -->
+        <div class="stack">
+          <!-- AI Assistant -->
+          <div class="ai-card">
+            <div class="ai-head">
+              <div class="spark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg></div>
+              <div>
+                <h2>AI Audit Assistant</h2>
+                <small>Receipt OCR · policy checks · routing</small>
+              </div>
+              <div class="live"><i></i>LIVE</div>
+            </div>
+            <div class="pad" style="padding-bottom:6px">
+              <button class="btn primary" id="rescanBtn" style="width:100%;justify-content:center">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.7 1 6.3 2.7L21 8"/><path d="M21 3v5h-5"/></svg>
+                Re-run audit on all receipts
+              </button>
+            </div>
+            <div class="feed" id="feed"></div>
+          </div>
+
+          <!-- Category breakdown -->
+          <div class="card">
+            <div class="card-h"><h2>Spend by Category</h2><div class="right"><span class="chip mut">This report</span></div></div>
+            <div class="pad">
+              <div class="donut-wrap">
+                <svg width="116" height="116" viewBox="0 0 42 42" id="donut"></svg>
+                <div class="legend" id="legend"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Policy compliance -->
+          <div class="card">
+            <div class="card-h"><h2>Policy Compliance</h2></div>
+            <div class="pad">
+              <div class="meter">
+                <div class="mrow">
+                  <div class="mtop"><b>Per-diem usage</b><span>$214 / $280</span></div>
+                  <div class="mbar"><i style="width:76%;background:var(--green)"></i></div>
+                </div>
+                <div class="mrow">
+                  <div class="mtop"><b>Lodging cap (NYC)</b><span>$420 / $350</span></div>
+                  <div class="mbar"><i style="width:100%;background:var(--red)"></i></div>
+                </div>
+                <div class="mrow">
+                  <div class="mtop"><b>Receipt coverage</b><span>16 / 17</span></div>
+                  <div class="mbar"><i style="width:94%;background:var(--indigo)"></i></div>
+                </div>
+                <div class="mrow">
+                  <div class="mtop"><b>Submitted within window</b><span>6 days left</span></div>
+                  <div class="mbar"><i style="width:60%;background:var(--amber)"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dw-h">
+    <div id="dwIcon" style="flex:none"></div>
+    <div style="min-width:0">
+      <div id="dwTitle" style="font-weight:700;font-size:15px;letter-spacing:-.2px"></div>
+      <div id="dwSub" style="font-size:12px;color:var(--ink-3);margin-top:2px"></div>
+    </div>
+    <div class="x" id="dwClose">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </div>
+  </div>
+  <div class="dw-body" id="dwBody"></div>
+  <div class="dw-foot">
+    <button class="btn" id="dwReject"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Exclude</button>
+    <button class="btn primary" id="dwApprove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Approve item</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ============ Data ============ */
+const CATS = {
+  meals:   {label:'Meals',         color:'#4f46e5', soft:'#eef0ff', ink:'#3730a3'},
+  lodging: {label:'Lodging',       color:'#2563eb', soft:'#e8effd', ink:'#1d4ed8'},
+  transit: {label:'Transport',     color:'#0f9d58', soft:'#e7f6ee', ink:'#0a7b45'},
+  air:     {label:'Airfare',       color:'#b7791f', soft:'#fdf4e3', ink:'#92600f'},
+  supplies:{label:'Supplies',      color:'#9333ea', soft:'#f3e9fd', ink:'#7022c4'},
+  client:  {label:'Client Ent.',   color:'#dc2626', soft:'#fceceb', ink:'#b1201a'}
+};
+function catIcon(c){
+  const m={
+    meals:'<path d="M3 2v7c0 1.1.9 2 2 2h0c1.1 0 2-.9 2-2V2M5 2v20M16 2c-1.7 0-3 2-3 5s1.3 5 3 5v10"/>',
+    lodging:'<path d="M3 21h18M4 21V8l8-5 8 5v13M9 21v-6h6v6"/>',
+    transit:'<path d="M5 17h14M6 17V8h12v9M8 8V5h8v3M7 21v-2M17 21v-2"/><circle cx="8.5" cy="17" r="1.2"/><circle cx="15.5" cy="17" r="1.2"/>',
+    air:'<path d="M17.8 19.2 16 11l3.5-3.5a2.1 2.1 0 0 0-3-3L13 8 4.8 6.2a.7.7 0 0 0-.7 1.1l4.4 3.9-2.7 2.7H3.3a.7.7 0 0 0-.5 1.2l2.4 1.9 1.9 2.4a.7.7 0 0 0 1.2-.5v-2.5l2.7-2.7 3.9 4.4a.7.7 0 0 0 1.1-.7Z"/>',
+    supplies:'<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 14h3"/>',
+    client:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'
+  };
+  return m[c]||m.supplies;
+}
+
+const ITEMS = [
+  {id:1, merchant:'Delta Air Lines', desc:'DL 482 · BOS → JFK round trip', cat:'air', amount:412.40, date:'May 12', status:'ok', conf:99, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Delta Air Lines',99],Amount:['$412.40',99],Date:['May 12, 2026',98],Tax:['$0.00',95],'Confirmation #':['HQ4-9TF2',97]},
+   reason:'Receipt parsed cleanly. Fare matches the booked itinerary in Travel and falls under the <b>$500 domestic airfare cap</b>. No duplicate found.', policy:'ok'},
+
+  {id:2, merchant:'The Langham NYC', desc:'2 nights lodging · King room', cat:'lodging', amount:420.00, date:'May 12', status:'flag', conf:97, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['The Langham NYC',98],Amount:['$420.00 /night',99],Date:['May 12–14, 2026',97],Tax:['$58.32',93],'Folio #':['LH-220517',90]},
+   reason:'Nightly rate of <b>$420</b> exceeds the <b>$350 NYC lodging cap</b> by $70/night. AI routed this to your manager for an out-of-policy exception. Consider attaching a justification note.', policy:'err'},
+
+  {id:3, merchant:'Yellow Cab Co-op', desc:'JFK → Midtown', cat:'transit', amount:68.50, date:'May 12', status:'ok', conf:95, method:'Cash', receipt:true,
+   fields:{Merchant:['Yellow Cab Co-op',94],Amount:['$68.50',96],Date:['May 12, 2026',95],Tip:['$11.00',88],Distance:['18.4 mi',82]},
+   reason:'Within the <b>ground-transport</b> allowance. Cash receipt scanned and legible. Tip of 19% is under the 20% guideline.', policy:'ok'},
+
+  {id:4, merchant:'Eleven Madison', desc:'Client dinner · 4 guests', cat:'client', amount:486.00, date:'May 12', status:'flag', conf:91, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Eleven Madison',96],Amount:['$486.00',95],Date:['May 12, 2026',93],'Guest count':['4 (detected)',74],Tax:['$43.10',90]},
+   reason:'Client entertainment over <b>$75/person</b> requires attendee names. AI detected 4 covers from the itemized check but no attendee list was attached. Add names to clear the flag.', policy:'warn'},
+
+  {id:5, merchant:'Starbucks', desc:'Team coffee · morning standup', cat:'meals', amount:23.80, date:'May 13', status:'ok', conf:98, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Starbucks #2241',98],Amount:['$23.80',99],Date:['May 13, 2026',98],Tax:['$1.96',96],Items:['5 beverages',90]},
+   reason:'Routine meal expense, well within the <b>$60 daily breakfast</b> allowance. No issues found.', policy:'ok'},
+
+  {id:6, merchant:'Hertz Rent-A-Car', desc:'Compact · 2 days', cat:'transit', amount:142.18, date:'May 13', status:'ok', conf:96, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Hertz Rent-A-Car',97],Amount:['$142.18',97],Date:['May 13–15, 2026',95],'Fuel charge':['$18.40',88],'Rental class':['Compact',92]},
+   reason:'Rental class is <b>Compact</b>, matching policy for trips under 3 days. Fuel surcharge is itemized and reimbursable.', policy:'ok'},
+
+  {id:7, merchant:'Shake Shack', desc:'Lunch · solo', cat:'meals', amount:18.45, date:'May 13', status:'ok', conf:99, method:'Cash', receipt:true,
+   fields:{Merchant:['Shake Shack',99],Amount:['$18.45',99],Date:['May 13, 2026',98],Tax:['$1.51',97]},
+   reason:'Under the <b>$40 daily lunch</b> allowance. Cash receipt verified.', policy:'ok'},
+
+  {id:8, merchant:'WeWork', desc:'Day pass · meeting room 2h', cat:'supplies', amount:79.00, date:'May 14', status:'ok', conf:94, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['WeWork Bryant Park',95],Amount:['$79.00',97],Date:['May 14, 2026',94],Tax:['$7.01',86],Type:['Meeting room',82]},
+   reason:'Coworking day pass categorized as <b>Supplies / Facilities</b>. Within the $100 ad-hoc workspace limit.', policy:'ok'},
+
+  {id:9, merchant:'Uber', desc:'Surge ride · late meeting', cat:'transit', amount:54.20, date:'May 14', status:'flag', conf:88, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Uber Technologies',92],Amount:['$54.20',90],Date:['May 14, 2026',89],'Surge mult.':['2.1×',71],Distance:['6.2 mi',80]},
+   reason:'AI flagged a <b>2.1× surge multiplier</b>. The base fare for 6.2 mi would be ~$26. Surge rides over 1.8× ask for a one-line reason during peak hours.', policy:'warn'},
+
+  {id:10, merchant:'Joe\'s Pizza', desc:'Dinner · solo', cat:'meals', amount:21.00, date:'May 14', status:'ok', conf:97, method:'Cash', receipt:true,
+   fields:{Merchant:['Joe\'s Pizza',97],Amount:['$21.00',98],Date:['May 14, 2026',96]},
+   reason:'Within the <b>$55 daily dinner</b> allowance. No anomalies.', policy:'ok'},
+
+  {id:11, merchant:'The Langham NYC', desc:'Mini-bar charges', cat:'lodging', amount:32.50, date:'May 14', status:'flag', conf:90, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['The Langham NYC',96],Amount:['$32.50',94],Date:['May 14, 2026',93],Items:['Mini-bar',80]},
+   reason:'<b>Mini-bar / in-room snacks</b> are explicitly non-reimbursable under the travel policy. AI excluded this from the reimbursable total automatically.', policy:'err'},
+
+  {id:12, merchant:'Amtrak', desc:'Acela · NYC → Boston', cat:'transit', amount:189.00, date:'May 15', status:'ok', conf:98, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Amtrak',99],Amount:['$189.00',98],Date:['May 15, 2026',98],Class:['Business',91],'Train #':['2168',94]},
+   reason:'Rail fare under the <b>$250 intercity cap</b>. Business class permitted for trips over 3 hours.', policy:'ok'},
+
+  {id:13, merchant:'Pret A Manger', desc:'Breakfast · airport', cat:'meals', amount:14.60, date:'May 15', status:'ok', conf:99, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Pret A Manger',99],Amount:['$14.60',99],Date:['May 15, 2026',98],Tax:['$1.19',95]},
+   reason:'Routine breakfast, within allowance. Clean receipt.', policy:'ok'},
+
+  {id:14, merchant:'Staples', desc:'Presentation materials', cat:'supplies', amount:46.80, date:'May 16', status:'ok', conf:93, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Staples',95],Amount:['$46.80',96],Date:['May 16, 2026',93],Tax:['$3.85',85],Items:['Print + binders',78]},
+   reason:'Office supplies for the client presentation. Within the $100 per-trip supplies allowance.', policy:'ok'},
+
+  {id:15, merchant:'Marriott Boston', desc:'1 night lodging', cat:'lodging', amount:289.00, date:'May 16', status:'ok', conf:96, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Marriott Boston',97],Amount:['$289.00',97],Date:['May 16, 2026',96],Tax:['$41.92',90],'Folio #':['MB-77410',88]},
+   reason:'Boston nightly rate of <b>$289</b> is under the <b>$300 city cap</b>. Fully reimbursable.', policy:'ok'},
+
+  {id:16, merchant:'Legal Sea Foods', desc:'Client lunch · 2 guests', cat:'client', amount:128.00, date:'May 17', status:'ok', conf:94, method:'Amex •8841', receipt:true,
+   fields:{Merchant:['Legal Sea Foods',95],Amount:['$128.00',96],Date:['May 17, 2026',94],'Guests':['2 (named)',88],Tip:['$22.00',85]},
+   reason:'Client lunch at <b>$64/person</b>, under the $75 threshold. Attendees listed — no flag. Reimbursable.', policy:'ok'},
+
+  {id:17, merchant:'Lyft', desc:'Hotel → Logan Airport', cat:'transit', amount:41.60, date:'May 18', status:'pending', conf:0, method:'Amex •8841', receipt:false,
+   fields:{Merchant:['Lyft',0],Amount:['$41.60 (manual)',0],Date:['May 18, 2026',0]},
+   reason:'No receipt image attached yet — AI extraction is <b>pending</b>. Upload the email confirmation or photo to auto-fill merchant, tax and route, then we will run policy checks.', policy:'warn'}
+];
+
+const FEED = [
+  {type:'extract', html:'Extracted <b>5 fields</b> from <b>Delta Air Lines</b> receipt', why:'Merchant, amount, date, tax, confirmation #', conf:'99%', when:'just now'},
+  {type:'flag', html:'Flagged <b>The Langham NYC</b> — over lodging cap', why:'$420/night vs $350 NYC cap · routed to manager', conf:null, when:'1m ago'},
+  {type:'ok', html:'Auto-categorized <b>WeWork</b> as Supplies', why:'Coworking day pass · matched vendor pattern', conf:'94%', when:'2m ago'},
+  {type:'flag', html:'Detected surge pricing on <b>Uber</b> ride', why:'2.1× multiplier above 1.8× threshold', conf:null, when:'3m ago'},
+  {type:'info', html:'Excluded <b>mini-bar charge</b> from reimbursable total', why:'Non-reimbursable per travel policy §4.2', conf:null, when:'4m ago'},
+  {type:'ok', html:'Matched 16 / 17 line items to receipts', why:'1 item (Lyft) awaiting upload', conf:null, when:'5m ago'}
+];
+
+/* ============ State ============ */
+let curFilter='all', curSearch='';
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const money=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+/* ============ Render line items ============ */
+function statusChip(it){
+  if(it.status==='ok')   return '<span class="chip ok">✓ Within policy</span>';
+  if(it.status==='flag') return '<span class="chip warn">⚑ Needs review</span>';
+  if(it.status==='pending') return '<span class="chip info">◷ Pending AI</span>';
+  return '';
+}
+function confColor(c){ return c>=95?'var(--green)':c>=85?'var(--amber)':'var(--red)'; }
+
+function receiptThumb(it,big){
+  const c=CATS[it.cat];
+  if(!it.receipt){
+    return `<div class="receipt" style="${big?'width:42px;height:42px;':''}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#b9c0cd" stroke-width="1.6" stroke-linecap="round" style="width:20px;height:20px"><path d="M12 5v14M5 12h14"/></svg></div>`;
+  }
+  const aidot = it.conf>0 ? `<span class="ai-dot"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>`:'';
+  return `<div class="receipt" style="${big?'width:42px;height:42px;':''}">
+    <svg viewBox="0 0 46 46" preserveAspectRatio="xMidYMid slice">
+      <rect width="46" height="46" fill="${c.soft}"/>
+      <rect x="11" y="6" width="24" height="34" rx="2" fill="#fff" stroke="${c.color}" stroke-opacity=".5"/>
+      <rect x="15" y="11" width="11" height="2.4" rx="1.2" fill="${c.color}" fill-opacity=".7"/>
+      <rect x="15" y="16" width="16" height="1.8" rx="0.9" fill="#cbd2dd"/>
+      <rect x="15" y="20" width="13" height="1.8" rx="0.9" fill="#cbd2dd"/>
+      <rect x="15" y="24" width="16" height="1.8" rx="0.9" fill="#cbd2dd"/>
+      <rect x="15" y="31" width="9" height="2.6" rx="1.3" fill="${c.color}" fill-opacity=".85"/>
+    </svg>${aidot}</div>`;
+}
+
+function lineRow(it){
+  const c=CATS[it.cat];
+  const confBlock = it.conf>0
+    ? `<div class="l-conf"><div>AI ${it.conf}%</div><div class="bar"><i style="width:${it.conf}%;background:${confColor(it.conf)}"></i></div></div>`
+    : `<div class="l-conf"><div style="color:var(--amber)">awaiting</div><div class="bar"><i style="width:6%;background:var(--line)"></i></div></div>`;
+  return `<div class="line ${it.status==='flag'||it.status==='pending'?'flagged':''}" data-id="${it.id}">
+    ${receiptThumb(it)}
+    <div class="l-main">
+      <div class="l-title">${it.merchant} ${statusChip(it)}</div>
+      <div class="l-sub">
+        <span class="cat-pill" style="background:${c.soft};color:${c.ink}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${catIcon(it.cat)}</svg>${c.label}</span>
+        <span class="sep"></span>${it.desc}
+        <span class="sep"></span>${it.method}
+      </div>
+    </div>
+    ${confBlock}
+    <div class="l-amt">${money(it.amount)}<small>${it.date}</small></div>
+  </div>`;
+}
+
+function passFilter(it){
+  if(curFilter==='ok' && it.status!=='ok') return false;
+  if(curFilter==='flag' && it.status!=='flag') return false;
+  if(curFilter==='pending' && it.status!=='pending') return false;
+  if(curSearch){
+    const q=curSearch.toLowerCase();
+    if(!(it.merchant.toLowerCase().includes(q)||it.desc.toLowerCase().includes(q)||CATS[it.cat].label.toLowerCase().includes(q))) return false;
+  }
+  return true;
+}
+
+function renderLines(){
+  const rows=ITEMS.filter(passFilter);
+  $('#lines').innerHTML=rows.map(lineRow).join('');
+  $('#empty').classList.toggle('hide', rows.length>0);
+  $('#rbShown').textContent=rows.length;
+  const shownTotal=rows.reduce((s,i)=>s+i.amount,0);
+  $('#rbTotal').textContent=money(shownTotal);
+  $$('.line').forEach(el=>el.addEventListener('click',()=>openDrawer(+el.dataset.id)));
+}
+
+/* ============ Tabs / search ============ */
+$('#tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab'); if(!t)return;
+  $$('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  curFilter=t.dataset.f;
+  renderLines();
+});
+$('#search').addEventListener('input',e=>{curSearch=e.target.value;renderLines();});
+
+/* ============ Counts ============ */
+function setCounts(){
+  $('#c-all').textContent=ITEMS.length;
+  $('#c-ok').textContent=ITEMS.filter(i=>i.status==='ok').length;
+  $('#c-flag').textContent=ITEMS.filter(i=>i.status==='flag').length;
+  $('#c-pending').textContent=ITEMS.filter(i=>i.status==='pending').length;
+}
+
+/* ============ Donut ============ */
+function renderDonut(){
+  const totals={};
+  ITEMS.forEach(i=>{totals[i.cat]=(totals[i.cat]||0)+i.amount;});
+  const grand=Object.values(totals).reduce((a,b)=>a+b,0);
+  const order=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
+  let off=25; // start at top
+  const svg=$('#donut'); svg.innerHTML='';
+  svg.insertAdjacentHTML('beforeend',`<circle cx="21" cy="21" r="15.9" fill="#fff"/>`);
+  order.forEach(cat=>{
+    const pct=totals[cat]/grand*100;
+    const c=CATS[cat];
+    const circ=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circ.setAttribute('cx','21'); circ.setAttribute('cy','21'); circ.setAttribute('r','15.9');
+    circ.setAttribute('fill','transparent');
+    circ.setAttribute('stroke',c.color);
+    circ.setAttribute('stroke-width','5.4');
+    circ.setAttribute('stroke-dasharray',`${pct} ${100-pct}`);
+    circ.setAttribute('stroke-dashoffset',off);
+    svg.appendChild(circ);
+    off-=pct;
+  });
+  svg.insertAdjacentHTML('beforeend',`<text x="21" y="20.4" text-anchor="middle" font-size="6.2" font-weight="800" fill="#1e2330">${grand>=1000?'$'+(grand/1000).toFixed(1)+'k':'$'+grand.toFixed(0)}</text><text x="21" y="25.6" text-anchor="middle" font-size="2.7" fill="#828a9a" font-weight="600">TOTAL</text>`);
+  $('#legend').innerHTML=order.map(cat=>{
+    const c=CATS[cat], pct=(totals[cat]/grand*100);
+    return `<div class="leg"><span class="sw" style="background:${c.color}"></span><span class="ln">${c.label}</span><span class="vl">${money(totals[cat])}</span><span class="pc">${pct.toFixed(0)}%</span></div>`;
+  }).join('');
+}
+
+/* ============ Feed ============ */
+function feedIcon(t){
+  const m={
+    extract:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/>',
+    flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',
+    ok:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>',
+    info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>'
+  };
+  return m[t]||m.info;
+}
+function renderFeed(){
+  $('#feed').innerHTML=FEED.map(f=>`
+    <div class="fi t-${f.type}">
+      <div class="fic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${feedIcon(f.type)}</svg></div>
+      <div style="min-width:0">
+        <div class="ft">${f.html}${f.conf?`<span class="conf">${f.conf}</span>`:''}<span class="why">${f.why}</span></div>
+        <div class="fw">${f.when}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ============ Drawer ============ */
+function policyChip(p){
+  if(p==='ok')  return '<span class="chip ok">✓ Within policy</span>';
+  if(p==='warn')return '<span class="chip warn">⚑ Review required</span>';
+  if(p==='err') return '<span class="chip err">✕ Out of policy</span>';
+  return '';
+}
+function policyRows(it){
+  // derive a few policy checks per item
+  const rows=[];
+  rows.push({k:it.receipt?'ok':'err', t:it.receipt?'Receipt attached':'Receipt missing', s:it.receipt?'Image scanned and parsed by AI':'Upload required before submission'});
+  rows.push({k: it.conf>=90?'ok': it.conf>0?'warn':'err', t: it.conf>0?`Extraction confidence ${it.conf}%`:'Extraction pending', s: it.conf>=90?'Above the 90% auto-approve bar':it.conf>0?'Manual field check suggested':'No data extracted yet'});
+  if(it.policy==='ok')  rows.push({k:'ok', t:'Category limit', s:'Amount is within the applicable cap'});
+  if(it.policy==='warn')rows.push({k:'warn', t:'Policy condition', s:'A reason or attendee detail is requested'});
+  if(it.policy==='err') rows.push({k:'err', t:'Limit exceeded', s:'Routed for exception approval'});
+  rows.push({k:'ok', t:'Duplicate check', s:'No matching prior submission found'});
+  return rows;
+}
+function polIcon(k){
+  if(k==='ok') return '<path d="M20 6 9 17l-5-5"/>';
+  if(k==='warn') return '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>';
+  return '<path d="M18 6 6 18M6 6l12 12"/>';
+}
+
+function bigReceipt(it){
+  const c=CATS[it.cat];
+  if(!it.receipt){
+    return `<div class="dw-receipt"><div class="rh"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>No receipt uploaded</div>
+      <div style="padding:34px;text-align:center;color:var(--ink-3);font-size:13px">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#c3cad6" stroke-width="1.5" style="margin-bottom:8px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <div>Drag a photo here or tap to upload</div></div></div>`;
+  }
+  return `<div class="dw-receipt"><div class="rh"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>receipt_${it.merchant.split(' ')[0].toLowerCase()}_${it.date.replace(' ','').toLowerCase()}.jpg · scanned</div>
+    <svg viewBox="0 0 420 210" preserveAspectRatio="xMidYMid meet" style="height:170px">
+      <rect width="420" height="210" fill="${c.soft}"/>
+      <rect x="120" y="14" width="180" height="182" rx="6" fill="#fff" stroke="${c.color}" stroke-opacity=".35"/>
+      <rect x="146" y="30" width="92" height="13" rx="3" fill="${c.color}" fill-opacity=".85"/>
+      <rect x="146" y="52" width="128" height="6" rx="3" fill="#d3d9e3"/>
+      <rect x="146" y="64" width="100" height="6" rx="3" fill="#d3d9e3"/>
+      <line x1="146" y1="84" x2="274" y2="84" stroke="#e4e8ef"/>
+      <rect x="146" y="96" width="70" height="6" rx="3" fill="#c0c7d3"/><rect x="240" y="96" width="34" height="6" rx="3" fill="${c.color}" fill-opacity=".6"/>
+      <rect x="146" y="110" width="60" height="6" rx="3" fill="#c0c7d3"/><rect x="246" y="110" width="28" height="6" rx="3" fill="${c.color}" fill-opacity=".6"/>
+      <rect x="146" y="124" width="80" height="6" rx="3" fill="#c0c7d3"/><rect x="244" y="124" width="30" height="6" rx="3" fill="${c.color}" fill-opacity=".6"/>
+      <line x1="146" y1="142" x2="274" y2="142" stroke="#e4e8ef"/>
+      <rect x="146" y="154" width="50" height="9" rx="3" fill="#1e2330"/><rect x="226" y="154" width="48" height="9" rx="3" fill="${c.color}"/>
+      <g stroke="${c.color}" stroke-width="2" stroke-dasharray="5 4" fill="none"><rect x="234" y="150" width="48" height="17" rx="3"/></g>
+      <rect x="226" y="178" width="48" height="8" rx="3" fill="#e4e8ef"/>
+    </svg></div>`;
+}
+
+function openDrawer(id){
+  const it=ITEMS.find(i=>i.id===id); if(!it)return;
+  const c=CATS[it.cat];
+  $('#dwIcon').innerHTML=receiptThumb(it,true);
+  $('#dwTitle').textContent=it.merchant;
+  $('#dwSub').innerHTML=`${it.desc} · ${it.date} · ${it.method}`;
+
+  const fieldsHTML=Object.entries(it.fields).map(([k,[v,cf]])=>`
+    <div class="fld">
+      <div class="fk">${k} ${cf>0?`<span class="fc">${cf}%</span>`:'<span class="fc" style="background:var(--amber-soft);color:var(--amber)">—</span>'}</div>
+      <div class="fv">${v}</div>
+    </div>`).join('');
+
+  const polHTML=policyRows(it).map(r=>`
+    <div class="pol ${r.k}">
+      <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${polIcon(r.k)}</svg></div>
+      <div><b>${r.t}</b><span>${r.s}</span></div>
+    </div>`).join('');
+
+  $('#dwBody').innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+      <div style="font-size:26px;font-weight:800;letter-spacing:-.7px">${money(it.amount)}</div>
+      ${policyChip(it.policy)}
+    </div>
+    ${bigReceipt(it)}
+    <div>
+      <div class="sec-t"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="3"/></svg>AI-extracted fields</div>
+      <div class="field-grid">${fieldsHTML}</div>
+    </div>
+    <div>
+      <div class="sec-t"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12c.6.5 1 1.2 1 2h6c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>AI reasoning</div>
+      <div class="reason">${it.reason}</div>
+    </div>
+    <div>
+      <div class="sec-t"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="var(--indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Policy checks</div>
+      <div class="pol-list">${polHTML}</div>
+    </div>`;
+
+  $('#scrim').classList.add('show');
+  $('#drawer').classList.add('show');
+}
+function closeDrawer(){$('#scrim').classList.remove('show');$('#drawer').classList.remove('show');}
+$('#dwClose').addEventListener('click',closeDrawer);
+$('#scrim').addEventListener('click',closeDrawer);
+$('#dwApprove').addEventListener('click',()=>{closeDrawer();toast('Line item approved and added to reimbursable total');});
+$('#dwReject').addEventListener('click',()=>{closeDrawer();toast('Line item excluded from this report');});
+
+/* ============ Toast ============ */
+let toastT;
+function toast(msg){
+  $('#toastMsg').textContent=msg;
+  $('#toast').classList.add('show');
+  clearTimeout(toastT);
+  toastT=setTimeout(()=>$('#toast').classList.remove('show'),2400);
+}
+
+/* ============ Actions ============ */
+$('#submitBtn').addEventListener('click',()=>{
+  const flags=ITEMS.filter(i=>i.status==='flag'||i.status==='pending').length;
+  toast(flags>0?`Submitted — ${flags} flagged items routed to manager for review`:'Report submitted for reimbursement');
+});
+$('#addBtn').addEventListener('click',()=>toast('Drop a receipt photo — AI will extract the fields'));
+$('#rescanBtn').addEventListener('click',function(){
+  const old=this.innerHTML;
+  this.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-9-9"/></svg> Scanning 17 receipts…';
+  this.disabled=true;
+  setTimeout(()=>{this.innerHTML=old;this.disabled=false;toast('Audit complete — 15 auto-cleared, 4 flagged, 1 pending upload');},1700);
+});
+const spinStyle=document.createElement('style');
+spinStyle.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(spinStyle);
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+
+/* ============ Init ============ */
+setCounts();
+renderLines();
+renderDonut();
+renderFeed();
+</script>
+</body>
+</html>

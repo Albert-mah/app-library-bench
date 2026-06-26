@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Internal Tool Builder</title>
+<style>
+  :root{
+    --bg:#ffffff;
+    --bg-soft:#f6f7f9;
+    --panel:#ffffff;
+    --ink:#1c2030;
+    --ink-2:#4a5066;
+    --ink-3:#7d8499;
+    --line:#e7e9ef;
+    --line-2:#eef0f5;
+    --violet:#7c3aed;
+    --violet-soft:#f3eefe;
+    --violet-ink:#5b21b6;
+    --green:#0f9d6a;
+    --green-soft:#e7f6ef;
+    --amber:#b7791f;
+    --amber-soft:#fdf3e2;
+    --red:#d4453f;
+    --red-soft:#fdeceb;
+    --blue:#2563c4;
+    --blue-soft:#eaf1fc;
+    --shadow:0 1px 2px rgba(20,25,45,.04), 0 8px 24px rgba(20,25,45,.06);
+    --shadow-lg:0 12px 40px rgba(20,25,45,.14);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg-soft);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer;border:none;background:none}
+
+  /* ---------- Shell ---------- */
+  .shell{display:flex;min-height:100vh}
+  .side{
+    width:236px;flex:0 0 236px;background:var(--panel);
+    border-right:1px solid var(--line);padding:22px 16px;
+    position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 18px}
+  .brand .logo{
+    width:32px;height:32px;border-radius:9px;
+    background:linear-gradient(135deg,#8b5cf6,#7c3aed);
+    display:grid;place-items:center;box-shadow:0 4px 12px rgba(124,58,237,.35);
+  }
+  .brand .name{font-weight:700;font-size:15px;letter-spacing:-.2px}
+  .brand .sub{font-size:11px;color:var(--ink-3);font-weight:500}
+  .nav-label{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+    font-weight:600;padding:14px 10px 6px}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;
+    color:var(--ink-2);font-weight:500;font-size:13.5px;transition:.15s;cursor:pointer;
+  }
+  .nav-item:hover{background:var(--bg-soft);color:var(--ink)}
+  .nav-item.active{background:var(--violet-soft);color:var(--violet-ink);font-weight:600}
+  .nav-item svg{flex:0 0 18px;opacity:.85}
+  .nav-item .badge{margin-left:auto;font-size:11px;background:var(--bg-soft);
+    color:var(--ink-3);padding:1px 7px;border-radius:20px;font-weight:600}
+  .nav-item.active .badge{background:#fff;color:var(--violet)}
+  .side-foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px;
+    border-top:1px solid var(--line);}
+  .avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#c4b5fd,#7c3aed);
+    color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+  .side-foot .who{font-size:12.5px;font-weight:600}
+  .side-foot .role{font-size:11px;color:var(--ink-3)}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{
+    height:62px;display:flex;align-items:center;gap:16px;padding:0 30px;
+    background:rgba(255,255,255,.86);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;
+  }
+  .crumb{font-size:13px;color:var(--ink-3)}
+  .crumb b{color:var(--ink);font-weight:600}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--bg-soft);
+    border:1px solid var(--line);border-radius:10px;padding:8px 12px;width:300px;color:var(--ink-3);
+  }
+  .search input{border:none;background:none;outline:none;font-size:13px;color:var(--ink);width:100%}
+  .top-btn{display:flex;align-items:center;gap:7px;background:var(--violet);color:#fff;
+    padding:9px 15px;border-radius:10px;font-weight:600;font-size:13px;
+    box-shadow:0 6px 16px rgba(124,58,237,.3);transition:.15s}
+  .top-btn:hover{filter:brightness(1.06)}
+  .icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
+    background:#fff;display:grid;place-items:center;color:var(--ink-2);transition:.15s}
+  .icon-btn:hover{background:var(--bg-soft)}
+
+  .canvas{padding:30px;max-width:1340px;width:100%}
+
+  /* ---------- Hero / Composer ---------- */
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:22px;margin-bottom:26px}
+  .composer{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:24px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .composer:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+    background:linear-gradient(90deg,#a78bfa,#7c3aed,#a78bfa)}
+  .eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;
+    color:var(--violet-ink);background:var(--violet-soft);padding:4px 11px;border-radius:30px}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--violet);
+    box-shadow:0 0 0 4px rgba(124,58,237,.15)}
+  h1.title{font-size:25px;letter-spacing:-.6px;margin:14px 0 5px;font-weight:700;line-height:1.15}
+  .lead{color:var(--ink-2);font-size:14px;max-width:46ch;margin:0 0 16px}
+  .prompt-box{border:1.5px solid var(--line);border-radius:12px;background:#fff;
+    transition:.15s;overflow:hidden}
+  .prompt-box:focus-within{border-color:var(--violet);box-shadow:0 0 0 4px rgba(124,58,237,.1)}
+  .prompt-box textarea{width:100%;border:none;outline:none;resize:none;padding:14px;
+    font-family:inherit;font-size:14px;color:var(--ink);min-height:74px;line-height:1.55}
+  .prompt-foot{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line-2)}
+  .chip{font-size:11.5px;color:var(--ink-2);background:var(--bg-soft);border:1px solid var(--line);
+    padding:4px 10px;border-radius:20px;font-weight:500;transition:.15s}
+  .chip:hover{border-color:var(--violet);color:var(--violet-ink);background:var(--violet-soft)}
+  .gen-btn{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--violet);
+    color:#fff;padding:9px 16px;border-radius:9px;font-weight:600;font-size:13px;
+    box-shadow:0 6px 16px rgba(124,58,237,.3);transition:.15s}
+  .gen-btn:hover{filter:brightness(1.07)}
+  .gen-btn:disabled{opacity:.65;cursor:wait}
+  .suggest-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+  /* preview panel */
+  .preview{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;min-height:340px;
+  }
+  .preview-head{display:flex;align-items:center;gap:9px;padding:12px 16px;
+    border-bottom:1px solid var(--line);background:var(--bg-soft)}
+  .traffic{display:flex;gap:6px}.traffic i{width:10px;height:10px;border-radius:50%;display:block}
+  .traffic i:nth-child(1){background:#febc2e}.traffic i:nth-child(2){background:#28c840}
+  .traffic i:nth-child(3){background:#ff5f57}
+  .preview-url{font-size:11.5px;color:var(--ink-3);background:#fff;border:1px solid var(--line);
+    border-radius:7px;padding:4px 10px;margin-left:4px}
+  .preview-tag{margin-left:auto;font-size:11px;font-weight:600;color:var(--violet-ink);
+    background:var(--violet-soft);padding:3px 9px;border-radius:20px}
+  .preview-body{padding:16px;flex:1;position:relative}
+  .skeleton-app{display:flex;flex-direction:column;gap:11px}
+  .sk-title{display:flex;align-items:center;justify-content:space-between}
+  .sk-h{height:13px;width:140px;border-radius:5px;background:#dfe3ec}
+  .sk-h.sm{width:80px;height:10px}
+  .sk-btn{height:26px;width:96px;border-radius:7px;background:var(--violet-soft);
+    border:1px solid #e3d8fb}
+  .sk-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .sk-card{height:54px;border-radius:9px;border:1px solid var(--line);background:var(--bg-soft);
+    padding:9px;display:flex;flex-direction:column;gap:6px}
+  .sk-card .l{height:8px;width:60%;border-radius:4px;background:#dfe3ec}
+  .sk-card .n{height:16px;width:36%;border-radius:4px;background:#cdd3e0}
+  .sk-table{border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .sk-tr{display:grid;grid-template-columns:1.4fr 1fr 1fr .8fr;gap:0;
+    padding:9px 11px;border-bottom:1px solid var(--line-2)}
+  .sk-tr:last-child{border-bottom:none}
+  .sk-tr.head{background:var(--bg-soft)}
+  .sk-cell{height:9px;border-radius:4px;background:#dfe3ec;margin-right:14px}
+  .sk-tr.head .sk-cell{background:#c9cfdd;height:8px}
+  .sk-pill{height:18px;width:54px;border-radius:20px;background:var(--green-soft)}
+  .build-anim{position:absolute;inset:0;background:rgba(255,255,255,.78);backdrop-filter:blur(2px);
+    display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:5}
+  .build-anim.on{display:flex}
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--violet-soft);
+    border-top-color:var(--violet);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .build-steps{font-size:12.5px;color:var(--ink-2);text-align:center;min-height:18px;font-weight:500}
+
+  /* ---------- Stat strip ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 18px;box-shadow:var(--shadow)}
+  .stat .k{font-size:11.5px;color:var(--ink-3);font-weight:600;text-transform:uppercase;
+    letter-spacing:.04em;display:flex;align-items:center;gap:7px}
+  .stat .v{font-size:27px;font-weight:700;letter-spacing:-.8px;margin-top:7px}
+  .stat .d{font-size:12px;margin-top:3px;font-weight:600}
+  .up{color:var(--green)}.down{color:var(--red)}
+  .spark{margin-top:8px}
+
+  /* ---------- Section header ---------- */
+  .sec-head{display:flex;align-items:flex-end;gap:14px;margin:0 0 16px}
+  .sec-head h2{font-size:18px;font-weight:700;letter-spacing:-.3px;margin:0}
+  .sec-head .desc{font-size:13px;color:var(--ink-3);margin-bottom:2px}
+  .sec-head .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  /* tabs / filters */
+  .tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);
+    border-radius:11px;padding:4px}
+  .tab{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink-2);transition:.15s}
+  .tab:hover{color:var(--ink)}
+  .tab.active{background:var(--violet);color:#fff;box-shadow:0 4px 10px rgba(124,58,237,.25)}
+  .tab .cnt{opacity:.7;font-weight:500;margin-left:5px}
+  .tab.active .cnt{opacity:.85}
+
+  .toolfilter{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .mini-search{display:flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line);
+    border-radius:9px;padding:7px 11px;width:240px;color:var(--ink-3)}
+  .mini-search input{border:none;outline:none;background:none;font-size:13px;color:var(--ink);width:100%}
+  .seg{display:flex;gap:4px}
+  .seg button{padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:8px;
+    font-size:12.5px;font-weight:600;color:var(--ink-2);transition:.15s}
+  .seg button:hover{background:var(--bg-soft)}
+  .seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* ---------- Tool gallery ---------- */
+  .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .tool{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;box-shadow:var(--shadow);cursor:pointer;transition:.18s;position:relative;
+    display:flex;flex-direction:column;gap:0;
+  }
+  .tool:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:#dcd3f4}
+  .tool-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+  .tool-ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex:0 0 42px;
+    font-size:19px}
+  .tic-v{background:var(--violet-soft);color:var(--violet)}
+  .tic-b{background:var(--blue-soft);color:var(--blue)}
+  .tic-g{background:var(--green-soft);color:var(--green)}
+  .tic-a{background:var(--amber-soft);color:var(--amber)}
+  .tool-name{font-weight:700;font-size:15px;letter-spacing:-.2px}
+  .tool-cat{font-size:11.5px;color:var(--ink-3);font-weight:500;margin-top:1px}
+  .tool-desc{font-size:12.8px;color:var(--ink-2);line-height:1.5;margin:0 0 14px;flex:1}
+  .tool-meta{display:flex;align-items:center;gap:14px;font-size:11.5px;color:var(--ink-3);
+    border-top:1px solid var(--line-2);padding-top:12px;font-weight:500}
+  .tool-meta .m{display:flex;align-items:center;gap:5px}
+  .ai-tag{position:absolute;top:14px;right:14px;font-size:10px;font-weight:700;color:var(--violet-ink);
+    background:var(--violet-soft);padding:3px 8px;border-radius:20px;display:flex;align-items:center;gap:4px}
+  .status-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+    padding:2px 9px;border-radius:20px}
+  .status-pill .pd{width:6px;height:6px;border-radius:50%}
+  .sp-live{background:var(--green-soft);color:var(--green)}.sp-live .pd{background:var(--green)}
+  .sp-draft{background:var(--amber-soft);color:var(--amber)}.sp-draft .pd{background:var(--amber)}
+  .sp-review{background:var(--blue-soft);color:var(--blue)}.sp-review .pd{background:var(--blue)}
+  .sp-arch{background:var(--bg-soft);color:var(--ink-3)}.sp-arch .pd{background:var(--ink-3)}
+  .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)}
+  .empty svg{margin-bottom:10px;opacity:.5}
+  .empty b{display:block;color:var(--ink-2);font-size:15px;margin-bottom:4px}
+
+  /* ---------- Activity feed ---------- */
+  .twocol{display:grid;grid-template-columns:1fr 360px;gap:22px;margin-top:30px;align-items:start}
+  .feed{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden}
+  .feed-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+  .feed-head h3{margin:0;font-size:14.5px;font-weight:700}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 0 rgba(15,157,106,.5);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(15,157,106,.45)}70%{box-shadow:0 0 0 7px rgba(15,157,106,0)}100%{box-shadow:0 0 0 0 rgba(15,157,106,0)}}
+  .feed-list{padding:6px 0;max-height:430px;overflow:auto}
+  .fitem{display:flex;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line-2);position:relative}
+  .fitem:last-child{border-bottom:none}
+  .fic{width:30px;height:30px;border-radius:9px;flex:0 0 30px;display:grid;place-items:center;font-size:13px}
+  .fitem .ftxt{font-size:12.8px;color:var(--ink-2);line-height:1.45}
+  .fitem .ftxt b{color:var(--ink);font-weight:600}
+  .fitem .ftime{font-size:11px;color:var(--ink-3);margin-top:3px}
+  .ai-mark{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;
+    color:var(--violet-ink);background:var(--violet-soft);padding:1px 7px;border-radius:20px;margin-left:6px}
+
+  /* usage chart card */
+  .chart-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:18px}
+  .chart-card h3{margin:0 0 3px;font-size:14.5px;font-weight:700}
+  .chart-card .sub{font-size:12px;color:var(--ink-3);margin-bottom:14px}
+  .bars{display:flex;align-items:flex-end;gap:9px;height:130px;padding-top:8px}
+  .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+  .bar{width:100%;background:linear-gradient(180deg,#a78bfa,#7c3aed);border-radius:6px 6px 0 0;
+    transition:.6s cubic-bezier(.2,.8,.2,1);position:relative}
+  .bar:hover{filter:brightness(1.08)}
+  .bar-wrap .bl{font-size:10.5px;color:var(--ink-3);font-weight:600}
+  .legend{display:flex;gap:16px;margin-top:14px;font-size:11.5px;color:var(--ink-2)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .legend i{width:9px;height:9px;border-radius:3px;display:block}
+
+  /* ---------- Drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(20,25,45,.32);backdrop-filter:blur(2px);
+    opacity:0;pointer-events:none;transition:.25s;z-index:50}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:560px;max-width:94vw;background:var(--bg-soft);
+    box-shadow:-12px 0 50px rgba(20,25,45,.18);transform:translateX(100%);transition:.32s cubic-bezier(.3,.9,.3,1);
+    z-index:60;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{padding:20px 24px;background:#fff;border-bottom:1px solid var(--line);
+    display:flex;align-items:flex-start;gap:14px}
+  .drawer-head .x{margin-left:auto;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);
+    background:#fff;display:grid;place-items:center;color:var(--ink-2);transition:.15s;flex:0 0 34px}
+  .drawer-head .x:hover{background:var(--bg-soft)}
+  .drawer-body{padding:20px 24px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:18px}
+  .dt-name{font-size:18px;font-weight:700;letter-spacing:-.3px}
+  .dt-cat{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+  .panel h4{margin:0 0 12px;font-size:12px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--ink-3);display:flex;align-items:center;gap:7px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:10px 12px;font-size:13px}
+  .kv .kk{color:var(--ink-3);font-weight:500}
+  .kv .vv{color:var(--ink);font-weight:600}
+
+  /* AI output: extracted fields */
+  .ai-panel{background:linear-gradient(180deg,#faf7ff,#fff);border:1px solid #ece3fb}
+  .field-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-2)}
+  .field-row:last-child{border-bottom:none}
+  .field-row .fl{font-size:12px;color:var(--ink-3);width:120px;flex:0 0 120px;font-weight:500}
+  .field-row .fv{font-size:13.5px;color:var(--ink);font-weight:600;flex:1}
+  .conf{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;flex:0 0 auto}
+  .conf-hi{background:var(--green-soft);color:var(--green)}
+  .conf-md{background:var(--amber-soft);color:var(--amber)}
+  .conf-lo{background:var(--red-soft);color:var(--red)}
+  .reason{font-size:12px;color:var(--ink-2);background:var(--violet-soft);border-left:3px solid var(--violet);
+    padding:10px 12px;border-radius:0 8px 8px 0;line-height:1.5;margin-top:4px}
+  .reason b{color:var(--violet-ink)}
+  .score-ring{display:flex;align-items:center;gap:16px}
+  .ring-svg{flex:0 0 76px}
+  .score-meta .lbl{font-size:11.5px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .score-meta .route{font-size:14px;font-weight:700;margin-top:4px}
+  .route-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+    padding:4px 11px;border-radius:20px;background:var(--green-soft);color:var(--green);margin-top:6px}
+  .review-actions{display:flex;gap:8px;margin-top:14px}
+  .btn{padding:9px 14px;border-radius:9px;font-weight:600;font-size:13px;transition:.15s;
+    display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--violet);color:#fff;box-shadow:0 5px 14px rgba(124,58,237,.28)}
+  .btn-primary:hover{filter:brightness(1.06)}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink-2)}
+  .btn-ghost:hover{background:var(--bg-soft)}
+  .suggest-item{display:flex;gap:10px;align-items:flex-start;font-size:12.8px;color:var(--ink-2);
+    padding:9px 0;border-bottom:1px solid var(--line-2);line-height:1.45}
+  .suggest-item:last-child{border-bottom:none}
+  .suggest-item .si-ico{width:22px;height:22px;border-radius:7px;background:var(--violet-soft);
+    color:var(--violet);display:grid;place-items:center;flex:0 0 22px}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:11px 20px;border-radius:11px;font-size:13px;font-weight:600;
+    box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.25s;z-index:80;
+    display:flex;align-items:center;gap:9px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:1080px){
+    .hero{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(2,1fr)}
+    .stats{grid-template-columns:repeat(2,1fr)}.twocol{grid-template-columns:1fr}
+    .side{display:none}
+  }
+  @media(max-width:640px){.gallery,.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- Sidebar -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 5.6L20 9.2l-4.3 3.8L17 19 12 15.8 7 19l1.3-6L4 9.2l5.6-1.6L12 2z" fill="#fff"/></svg>
+      </div>
+      <div>
+        <div class="name">ForgeKit</div>
+        <div class="sub">AI Tool Builder</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      Tool Gallery <span class="badge">18</span>
+    </div>
+    <div class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18" stroke-linecap="round"/></svg>
+      Composer
+    </div>
+    <div class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-6M20 16v-2" stroke-linecap="round"/></svg>
+      Usage & Insights
+    </div>
+    <div class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2" stroke-linecap="round"/></svg>
+      AI Activity <span class="badge">24</span>
+    </div>
+
+    <div class="nav-label">Manage</div>
+    <div class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18" stroke-linecap="round"/></svg>
+      Templates
+    </div>
+    <div class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0112 0M16 11a3 3 0 100-6M14 20a6 6 0 017-5.2" stroke-linecap="round"/></svg>
+      Teams & Access
+    </div>
+    <div class="nav-item">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 00-2.2-1.3L16 3h-4l-.4 2.2A7 7 0 009.4 6.5l-2.3-1-2 3.4 2 1.5A7 7 0 005 12c0 .4 0 .9.1 1.3l-2 1.5 2 3.4 2.3-1c.7.6 1.4 1 2.2 1.3L12 21h4l.4-2.2c.8-.3 1.5-.7 2.2-1.3l2.3 1 2-3.4-2-1.5c.1-.4.1-.9.1-1.3z"/></svg>
+      Settings
+    </div>
+
+    <div class="side-foot">
+      <div class="avatar">AM</div>
+      <div>
+        <div class="who">Alex Mercer</div>
+        <div class="role">Platform Admin</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb">Workspace / <b>Tool Gallery</b></div>
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+        <input id="globalSearch" placeholder="Search tools, templates, owners…" />
+      </div>
+      <button class="icon-btn" title="Notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0" stroke-linecap="round"/></svg>
+      </button>
+      <button class="top-btn" onclick="document.getElementById('promptInput').focus()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+        New Tool
+      </button>
+    </header>
+
+    <div class="canvas">
+      <!-- HERO: Prompt-to-app composer + live preview -->
+      <section class="hero">
+        <div class="composer">
+          <span class="eyebrow"><span class="dot"></span> Prompt-to-App Composer</span>
+          <h1 class="title">Describe the internal tool.<br/>We assemble the app.</h1>
+          <p class="lead">Type what your team needs in plain English. The AI proposes data fields, screens and a working app skeleton — review it on the right, then publish.</p>
+
+          <div class="prompt-box">
+            <textarea id="promptInput" placeholder="e.g. A vendor onboarding tracker where ops can submit suppliers, finance reviews tax docs, and risk is auto-scored…">A travel & expense approval tool: employees submit receipts, the AI extracts amount, category and merchant, then auto-routes for manager or finance approval.</textarea>
+            <div class="prompt-foot">
+              <button class="chip" onclick="setPrompt('A bug intake form that classifies severity, assigns the right squad, and drafts a triage note.')">Bug intake</button>
+              <button class="chip" onclick="setPrompt('A customer feedback inbox that tags sentiment, extracts feature requests and routes to product.')">Feedback inbox</button>
+              <button class="chip" onclick="setPrompt('An asset request portal where staff request laptops, IT approves, and stock is auto-checked.')">Asset request</button>
+              <button class="gen-btn" id="genBtn" onclick="generate()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 3l1.5 3.5L10 8 6.5 9.5 5 13 3.5 9.5 0 8l3.5-1.5L5 3z" transform="translate(3 2)"/><path d="M17 13l1 2.4L20.5 16 18 17l-1 2.5L16 17l-2.5-1L16 15l1-2z"/></svg>
+                Generate
+              </button>
+            </div>
+          </div>
+          <div class="suggest-row">
+            <span class="chip" style="cursor:default;background:#fff;color:var(--ink-3)">Suggested data fields:</span>
+            <span class="chip" style="cursor:default">Employee</span>
+            <span class="chip" style="cursor:default">Amount</span>
+            <span class="chip" style="cursor:default">Category</span>
+            <span class="chip" style="cursor:default">Receipt</span>
+            <span class="chip" style="cursor:default">Approver</span>
+            <span class="chip" style="cursor:default">+3 more</span>
+          </div>
+        </div>
+
+        <!-- Live preview -->
+        <div class="preview">
+          <div class="preview-head">
+            <span class="traffic"><i></i><i></i><i></i></span>
+            <span class="preview-url">apps.acme.internal/t-and-e</span>
+            <span class="preview-tag" id="previewTag">Live skeleton</span>
+          </div>
+          <div class="preview-body">
+            <div class="skeleton-app">
+              <div class="sk-title"><div class="sk-h"></div><div class="sk-btn"></div></div>
+              <div class="sk-cards">
+                <div class="sk-card"><div class="l"></div><div class="n"></div></div>
+                <div class="sk-card"><div class="l"></div><div class="n"></div></div>
+                <div class="sk-card"><div class="l"></div><div class="n"></div></div>
+              </div>
+              <div class="sk-table">
+                <div class="sk-tr head"><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-cell"></div></div>
+                <div class="sk-tr"><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-pill"></div></div>
+                <div class="sk-tr"><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-pill"></div></div>
+                <div class="sk-tr"><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-pill"></div></div>
+                <div class="sk-tr"><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-cell"></div><div class="sk-pill"></div></div>
+              </div>
+            </div>
+            <div class="build-anim" id="buildAnim">
+              <div class="spinner"></div>
+              <div class="build-steps" id="buildSteps">Reading intent…</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STAT STRIP -->
+      <section class="stats">
+        <div class="stat">
+          <div class="k"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/></svg> Tools published</div>
+          <div class="v">18</div>
+          <div class="d up">▲ 4 this month</div>
+        </div>
+        <div class="stat">
+          <div class="k"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 3l1.5 4L11 8.5 6.5 10 5 14 3.5 10 0 8.5 4.5 7 5 3z" transform="translate(2 1)"/></svg> AI runs (7d)</div>
+          <div class="v">2,841</div>
+          <div class="d up">▲ 18.6%</div>
+        </div>
+        <div class="stat">
+          <div class="k"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5" stroke-linecap="round"/></svg> Auto-resolved</div>
+          <div class="v">73%</div>
+          <div class="d up">▲ 5.2%</div>
+          <svg class="spark" width="100%" height="22" viewBox="0 0 120 22" preserveAspectRatio="none"><polyline points="0,16 15,15 30,12 45,13 60,9 75,8 90,6 105,5 120,3" fill="none" stroke="#0f9d6a" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="stat">
+          <div class="k"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2" stroke-linecap="round"/></svg> Avg build time</div>
+          <div class="v">41s</div>
+          <div class="d down">▼ 12s faster</div>
+        </div>
+      </section>
+
+      <!-- TOOL GALLERY -->
+      <div class="sec-head">
+        <h2>Tool Gallery</h2>
+        <span class="desc">Internal apps assembled across the org</span>
+        <div class="right">
+          <div class="tabs" id="statusTabs">
+            <button class="tab active" data-status="all">All <span class="cnt">18</span></button>
+            <button class="tab" data-status="live">Live <span class="cnt">11</span></button>
+            <button class="tab" data-status="review">In review <span class="cnt">3</span></button>
+            <button class="tab" data-status="draft">Draft <span class="cnt">3</span></button>
+            <button class="tab" data-status="archived">Archived <span class="cnt">1</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolfilter">
+        <div class="mini-search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+          <input id="toolSearch" placeholder="Filter by name…" />
+        </div>
+        <div class="seg" id="catSeg">
+          <button class="on" data-cat="all">All categories</button>
+          <button data-cat="Finance">Finance</button>
+          <button data-cat="IT">IT</button>
+          <button data-cat="People">People</button>
+          <button data-cat="Sales">Sales</button>
+          <button data-cat="Support">Support</button>
+        </div>
+        <div style="margin-left:auto;font-size:12.5px;color:var(--ink-3)" id="resultCount"></div>
+      </div>
+
+      <div class="gallery" id="gallery"></div>
+
+      <!-- ACTIVITY + USAGE -->
+      <div class="twocol">
+        <div class="feed">
+          <div class="feed-head">
+            <span class="live-dot"></span>
+            <h3>AI Activity</h3>
+            <span style="margin-left:auto;font-size:12px;color:var(--ink-3)">Last 30 min</span>
+          </div>
+          <div class="feed-list" id="feedList"></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div class="chart-card">
+            <h3>AI runs by tool</h3>
+            <div class="sub">Top 6 internal apps · last 7 days</div>
+            <div class="bars" id="bars"></div>
+            <div class="legend">
+              <span><i style="background:#7c3aed"></i> Runs</span>
+              <span><i style="background:#d6c8f7"></i> Needs review</span>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Auto-resolution rate</h3>
+            <div class="sub">Share handled without a human</div>
+            <div class="score-ring">
+              <svg class="ring-svg" width="76" height="76" viewBox="0 0 76 76">
+                <circle cx="38" cy="38" r="32" fill="none" stroke="#eef0f5" stroke-width="9"/>
+                <circle cx="38" cy="38" r="32" fill="none" stroke="#7c3aed" stroke-width="9" stroke-linecap="round"
+                  stroke-dasharray="201" stroke-dashoffset="54" transform="rotate(-90 38 38)"/>
+                <text x="38" y="42" text-anchor="middle" font-size="17" font-weight="700" fill="#1c2030">73%</text>
+              </svg>
+              <div class="score-meta">
+                <div class="lbl">Hands-off</div>
+                <div class="route" style="color:var(--violet-ink)">2,074 of 2,841 runs</div>
+                <div class="route-pill">▲ trending up</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="tool-ico tic-v" id="dIco" style="width:46px;height:46px;flex:0 0 46px;font-size:21px">💳</div>
+    <div>
+      <div class="dt-name" id="dName">Tool name</div>
+      <div class="dt-cat" id="dCat">Category · Owner</div>
+    </div>
+    <button class="x" onclick="closeDrawer()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<div class="toast" id="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7ee2b8" stroke-width="2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round"/></svg>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+/* ---------------- Seed data (all English) ---------------- */
+const TOOLS = [
+  {id:1, name:"T&E Approvals", cat:"Finance", icon:"💳", iclass:"tic-v", status:"live",
+   owner:"Priya Nair", desc:"Receipt capture with AI field extraction and auto-routing to manager or finance.",
+   runs:642, users:118, updated:"2h ago", ai:"Extract + Route", model:"vision-extract",
+   sample:{title:"Receipt #RX-4821",src:"uploaded by D. Reyes"},
+   fields:[{l:"Merchant",v:"Blue Bottle Coffee",c:"hi"},{l:"Amount",v:"$184.20",c:"hi"},{l:"Category",v:"Meals & Travel",c:"md"},{l:"Date",v:"Jun 19, 2026",c:"hi"},{l:"Tax ID",v:"—",c:"lo"}],
+   reason:"Amount over <b>$150</b> meals threshold → routed to <b>Finance review</b> instead of manager. Tax ID unreadable, flagged for correction.",
+   score:88, route:"Finance review", routeColor:"amber",
+   suggest:["Add a duplicate-receipt check across the last 30 days.","Pre-fill cost center from the employee's department."]},
+
+  {id:2, name:"Bug Intake & Triage", cat:"Support", icon:"🐞", iclass:"tic-g", status:"live",
+   owner:"Marcus Lee", desc:"Classifies severity, assigns the right squad and drafts a triage note for new reports.",
+   runs:531, users:84, updated:"12m ago", ai:"Classify + Draft", model:"text-classify",
+   sample:{title:"Report #BG-2290",src:"checkout page crash"},
+   fields:[{l:"Severity",v:"High",c:"hi"},{l:"Component",v:"Checkout / Payments",c:"hi"},{l:"Squad",v:"Payments Core",c:"md"},{l:"Reproducible",v:"Yes",c:"hi"},{l:"Affected users",v:"~1,200",c:"md"}],
+   reason:"Keywords <b>'cannot pay'</b> + revenue path → <b>High severity</b>. Stack trace points at payments module, assigned to <b>Payments Core</b>.",
+   score:91, route:"Payments Core", routeColor:"red",
+   suggest:["Link similar past incidents to speed up triage.","Auto-page on-call when severity = Critical."]},
+
+  {id:3, name:"Customer Feedback Inbox", cat:"Support", icon:"💬", iclass:"tic-b", status:"live",
+   owner:"Sofia Alvarez", desc:"Tags sentiment, extracts feature requests and routes themes to product.",
+   runs:489, users:62, updated:"43m ago", ai:"Sentiment + Tag", model:"text-classify",
+   sample:{title:"Feedback #FB-7741",src:"in-app survey"},
+   fields:[{l:"Sentiment",v:"Negative",c:"hi"},{l:"Theme",v:"Slow export",c:"hi"},{l:"Feature ask",v:"Bulk CSV export",c:"md"},{l:"Priority",v:"Medium",c:"md"},{l:"Account tier",v:"Enterprise",c:"hi"}],
+   reason:"Tone is frustrated about <b>export speed</b>. Enterprise tier → priority bumped. Mapped to product theme <b>Data Export</b>.",
+   score:79, route:"Product · Data Export", routeColor:"blue",
+   suggest:["Cluster recurring themes into a weekly digest.","Notify the CSM when an Enterprise account is negative."]},
+
+  {id:4, name:"Vendor Onboarding", cat:"Finance", icon:"🏷️", iclass:"tic-a", status:"review",
+   owner:"Priya Nair", desc:"Validates tax documents, scores supplier risk and prepares a finance summary.",
+   runs:210, users:34, updated:"1h ago", ai:"Extract + Score", model:"doc-risk",
+   sample:{title:"Supplier: Norvell Logistics",src:"W-9 + COI uploaded"},
+   fields:[{l:"Legal name",v:"Norvell Logistics LLC",c:"hi"},{l:"Tax form",v:"W-9 valid",c:"hi"},{l:"Insurance",v:"COI expires soon",c:"md"},{l:"Risk band",v:"Medium",c:"md"},{l:"Sanctions",v:"Clear",c:"hi"}],
+   reason:"All docs parsed. Certificate of Insurance expires in <b>21 days</b> → risk band <b>Medium</b>, finance asked to request renewal before activation.",
+   score:66, route:"Finance approval", routeColor:"amber",
+   suggest:["Auto-remind vendor 30 days before COI expiry.","Block activation until insurance is current."]},
+
+  {id:5, name:"Asset Request Portal", cat:"IT", icon:"💻", iclass:"tic-b", status:"live",
+   owner:"Daniel Cho", desc:"Staff request hardware, AI checks stock and policy, IT approves in one click.",
+   runs:377, users:96, updated:"5h ago", ai:"Validate + Route", model:"policy-check",
+   sample:{title:"Request #AR-0912",src:"MacBook Pro 14\""},
+   fields:[{l:"Item",v:"MacBook Pro 14\"",c:"hi"},{l:"In stock",v:"3 units",c:"hi"},{l:"Eligibility",v:"Approved tier",c:"hi"},{l:"Est. cost",v:"$1,999",c:"hi"},{l:"Lead time",v:"Same day",c:"md"}],
+   reason:"Requester role is eligible and stock available → <b>auto-approved</b> within policy. No manager step needed.",
+   score:95, route:"Auto-approved", routeColor:"green",
+   suggest:["Offer a refurbished option when budget is tight.","Trigger a reorder when stock drops below 2."]},
+
+  {id:6, name:"Lead Qualifier", cat:"Sales", icon:"🎯", iclass:"tic-v", status:"live",
+   owner:"Hannah Park", desc:"Scores inbound leads on fit and intent, then assigns the right AE.",
+   runs:298, users:41, updated:"22m ago", ai:"Score + Assign", model:"lead-score",
+   sample:{title:"Lead: Atlas Robotics",src:"demo request"},
+   fields:[{l:"Company size",v:"480 employees",c:"hi"},{l:"Industry",v:"Manufacturing",c:"hi"},{l:"Intent",v:"High",c:"md"},{l:"Fit score",v:"82 / 100",c:"hi"},{l:"Owner",v:"J. Okafor",c:"hi"}],
+   reason:"Strong ICP match and a demo request signal high intent → <b>fit score 82</b>, routed to enterprise AE <b>J. Okafor</b>.",
+   score:82, route:"Enterprise AE", routeColor:"green",
+   suggest:["Enrich with funding data before scoring.","Slack the AE the moment fit score > 80."]},
+
+  {id:7, name:"PTO & Leave Requests", cat:"People", icon:"🌴", iclass:"tic-g", status:"live",
+   owner:"Nadia Rahman", desc:"Balances are checked, conflicts flagged, manager approval pre-drafted.",
+   runs:264, users:142, updated:"1d ago", ai:"Check + Draft", model:"policy-check",
+   sample:{title:"Request #PT-3340",src:"5 days, July"},
+   fields:[{l:"Days",v:"5",c:"hi"},{l:"Balance after",v:"7 days left",c:"hi"},{l:"Team conflict",v:"None",c:"hi"},{l:"Coverage",v:"Confirmed",c:"md"},{l:"Approver",v:"R. Singh",c:"hi"}],
+   reason:"Balance sufficient and no overlap with teammates' booked leave → low risk, manager approval pre-filled for one click.",
+   score:90, route:"Manager approval", routeColor:"green",
+   suggest:["Auto-decline when two teammates already off.","Sync approved leave to the shared calendar."]},
+
+  {id:8, name:"Invoice Matcher", cat:"Finance", icon:"🧾", iclass:"tic-a", status:"live",
+   owner:"Priya Nair", desc:"Matches invoices to POs, extracts line items and flags mismatches.",
+   runs:241, users:28, updated:"3h ago", ai:"Extract + Match", model:"vision-extract",
+   sample:{title:"Invoice #INV-55120",src:"PO #PO-2231"},
+   fields:[{l:"Vendor",v:"Crestline Supply",c:"hi"},{l:"PO match",v:"Partial",c:"md"},{l:"Total",v:"$12,480",c:"hi"},{l:"Variance",v:"+$320",c:"md"},{l:"Line items",v:"14 parsed",c:"hi"}],
+   reason:"Total exceeds PO by <b>$320</b> on one line → flagged as a <b>partial match</b>, held for AP review rather than auto-paid.",
+   score:71, route:"AP review", routeColor:"amber",
+   suggest:["Allow a 2% tolerance for freight overages.","Auto-pay clean exact matches under $5k."]},
+
+  {id:9, name:"Access Review", cat:"IT", icon:"🔐", iclass:"tic-v", status:"review",
+   owner:"Daniel Cho", desc:"Reviews user permissions, flags over-provisioned accounts for managers.",
+   runs:156, users:53, updated:"6h ago", ai:"Detect + Flag", model:"policy-check",
+   sample:{title:"Review: Q3 cycle",src:"312 accounts"},
+   fields:[{l:"Accounts",v:"312 scanned",c:"hi"},{l:"Over-provisioned",v:"19 flagged",c:"hi"},{l:"Dormant",v:"7 accounts",c:"md"},{l:"Risk",v:"Medium",c:"md"},{l:"Owner sign-off",v:"Pending",c:"lo"}],
+   reason:"Found <b>19 accounts</b> with admin scopes unused for 90+ days → flagged for manager sign-off before revoke.",
+   score:64, route:"Manager sign-off", routeColor:"amber",
+   suggest:["Auto-revoke dormant accounts after 120 days.","Group flags by department for faster review."]},
+
+  {id:10, name:"NPS Pulse", cat:"Support", icon:"📊", iclass:"tic-g", status:"draft",
+   owner:"Sofia Alvarez", desc:"Summarizes survey verbatims into themes with sentiment and quotes.",
+   runs:48, users:12, updated:"2d ago", ai:"Summarize + Tag", model:"text-classify",
+   sample:{title:"Pulse: May cohort",src:"214 responses"},
+   fields:[{l:"Avg NPS",v:"+42",c:"hi"},{l:"Top driver",v:"Onboarding",c:"hi"},{l:"Detractor theme",v:"Pricing",c:"md"},{l:"Responses",v:"214",c:"hi"},{l:"Quotes pulled",v:"18",c:"md"}],
+   reason:"Promoters cite <b>onboarding</b>; detractors cluster on <b>pricing clarity</b>. Drafted a 3-bullet summary for the QBR.",
+   score:74, route:"Product digest", routeColor:"blue",
+   suggest:["Compare against last quarter automatically.","Surface verbatim quotes per theme."]},
+
+  {id:11, name:"Contract Reviewer", cat:"Finance", icon:"📄", iclass:"tic-b", status:"review",
+   owner:"Marcus Lee", desc:"Extracts key clauses, flags non-standard terms and drafts a redline note.",
+   runs:132, users:19, updated:"4h ago", ai:"Extract + Flag", model:"doc-risk",
+   sample:{title:"MSA: Veltris Inc.",src:"24-page PDF"},
+   fields:[{l:"Term length",v:"24 months",c:"hi"},{l:"Auto-renew",v:"Yes",c:"hi"},{l:"Liability cap",v:"Non-standard",c:"md"},{l:"Payment terms",v:"Net 60",c:"md"},{l:"Governing law",v:"Delaware",c:"hi"}],
+   reason:"Liability cap is <b>2x annual fees</b> (above our standard 1x) and Net 60 exceeds Net 30 → flagged <b>2 clauses</b> for legal redline.",
+   score:58, route:"Legal redline", routeColor:"red",
+   suggest:["Compare against the approved clause library.","Draft fallback language for the liability cap."]},
+
+  {id:12, name:"Onboarding Checklist", cat:"People", icon:"✅", iclass:"tic-v", status:"live",
+   owner:"Nadia Rahman", desc:"Builds a personalized new-hire checklist and tracks completion.",
+   runs:97, users:57, updated:"8h ago", ai:"Generate + Track", model:"text-generate",
+   sample:{title:"New hire: T. Okonkwo",src:"Engineering"},
+   fields:[{l:"Role",v:"Backend Engineer",c:"hi"},{l:"Tasks",v:"14 generated",c:"hi"},{l:"Done",v:"9 of 14",c:"md"},{l:"Buddy",v:"Assigned",c:"hi"},{l:"Day-1 ready",v:"Yes",c:"hi"}],
+   reason:"Role-specific tasks generated (laptop, repo access, on-call shadow). <b>9 of 14</b> complete, hire is on track for day one.",
+   score:86, route:"On track", routeColor:"green",
+   suggest:["Nudge owners when a task is 2 days overdue.","Add a 30-day check-in survey automatically."]},
+
+  {id:13, name:"Refund Approvals", cat:"Support", icon:"💸", iclass:"tic-a", status:"live",
+   owner:"Sofia Alvarez", desc:"Validates refund eligibility, flags fraud signals and routes by amount.",
+   runs:188, users:46, updated:"35m ago", ai:"Validate + Route", model:"policy-check",
+   sample:{title:"Refund #RF-8810",src:"$240 · order #9921"},
+   fields:[{l:"Amount",v:"$240",c:"hi"},{l:"Window",v:"Within policy",c:"hi"},{l:"Fraud signal",v:"None",c:"hi"},{l:"History",v:"2 prior refunds",c:"md"},{l:"Decision",v:"Manager review",c:"md"}],
+   reason:"Within return window but <b>3rd refund</b> on this account this quarter → routed to <b>manager review</b> rather than auto-approved.",
+   score:69, route:"Manager review", routeColor:"amber",
+   suggest:["Auto-approve under $50 with clean history.","Flag accounts with 3+ refunds per quarter."]},
+
+  {id:14, name:"Deal Desk", cat:"Sales", icon:"🤝", iclass:"tic-g", status:"draft",
+   owner:"Hannah Park", desc:"Checks discount policy, summarizes deal terms and routes for approval.",
+   runs:62, users:23, updated:"1d ago", ai:"Check + Summarize", model:"policy-check",
+   sample:{title:"Deal: Meridian Bank",src:"$140k ARR"},
+   fields:[{l:"ARR",v:"$140,000",c:"hi"},{l:"Discount",v:"22%",c:"hi"},{l:"Policy",v:"Needs VP",c:"md"},{l:"Term",v:"2 years",c:"hi"},{l:"Margin",v:"Healthy",c:"md"}],
+   reason:"Discount of <b>22%</b> exceeds the rep's 15% authority → routed to <b>VP Sales</b> with a one-paragraph summary attached.",
+   score:60, route:"VP Sales", routeColor:"amber",
+   suggest:["Auto-approve discounts under 15%.","Attach margin impact to every routed deal."]},
+
+  {id:15, name:"IT Helpdesk Router", cat:"IT", icon:"🛠️", iclass:"tic-b", status:"live",
+   owner:"Daniel Cho", desc:"Classifies tickets, suggests a KB article and routes to the right queue.",
+   runs:412, users:108, updated:"8m ago", ai:"Classify + Suggest", model:"text-classify",
+   sample:{title:"Ticket #IT-6630",src:"VPN won't connect"},
+   fields:[{l:"Category",v:"Network / VPN",c:"hi"},{l:"Urgency",v:"Medium",c:"md"},{l:"KB match",v:"VPN reset guide",c:"hi"},{l:"Queue",v:"Network Ops",c:"hi"},{l:"Self-serve",v:"Likely",c:"md"}],
+   reason:"Matched a known <b>VPN reset</b> article with high confidence → suggested self-serve first, queued to <b>Network Ops</b> as fallback.",
+   score:84, route:"Network Ops", routeColor:"blue",
+   suggest:["Deflect with the KB article before queueing.","Auto-close if the user marks it resolved."]},
+
+  {id:16, name:"Expense Policy Bot", cat:"Finance", icon:"⚖️", iclass:"tic-v", status:"live",
+   owner:"Priya Nair", desc:"Answers policy questions and pre-checks expenses against the handbook.",
+   runs:176, users:131, updated:"2h ago", ai:"Answer + Check", model:"text-generate",
+   sample:{title:"Query #EX-2201",src:"client dinner limit?"},
+   fields:[{l:"Topic",v:"Meal limits",c:"hi"},{l:"Answer",v:"$75 / head",c:"hi"},{l:"Source",v:"Handbook §4.2",c:"hi"},{l:"Confidence",v:"High",c:"hi"},{l:"Escalate",v:"No",c:"hi"}],
+   reason:"Pulled the <b>$75 per head</b> client-dinner limit straight from <b>Handbook §4.2</b> with a citation, no human needed.",
+   score:93, route:"Auto-answered", routeColor:"green",
+   suggest:["Show the exact handbook section inline.","Log unanswered questions for policy gaps."]},
+
+  {id:17, name:"Candidate Screener", cat:"People", icon:"📋", iclass:"tic-a", status:"live",
+   owner:"Nadia Rahman", desc:"Summarizes resumes against the role and ranks applicants for recruiters.",
+   runs:143, users:27, updated:"5h ago", ai:"Summarize + Rank", model:"text-classify",
+   sample:{title:"Role: Sr. Designer",src:"58 applicants"},
+   fields:[{l:"Top match",v:"L. Fontaine",c:"hi"},{l:"Match score",v:"88 / 100",c:"hi"},{l:"Years",v:"7 relevant",c:"hi"},{l:"Gap",v:"No mobile work",c:"md"},{l:"Shortlist",v:"6 of 58",c:"md"}],
+   reason:"Ranked applicants on role criteria; top candidate strong on systems design but light on mobile → noted as a <b>gap to probe</b> in interview.",
+   score:81, route:"Recruiter shortlist", routeColor:"blue",
+   suggest:["Hide names during ranking to reduce bias.","Auto-draft a screening call invite for top 6."]},
+
+  {id:18, name:"Legacy Survey Tool", cat:"Support", icon:"🗂️", iclass:"tic-b", status:"archived",
+   owner:"Marcus Lee", desc:"Older feedback collector, replaced by NPS Pulse. Kept for historical data.",
+   runs:0, users:0, updated:"3 mo ago", ai:"—", model:"legacy",
+   sample:{title:"Archived",src:"read-only"},
+   fields:[{l:"Status",v:"Archived",c:"lo"},{l:"Records",v:"4,210 kept",c:"md"},{l:"Replaced by",v:"NPS Pulse",c:"hi"},{l:"Access",v:"Read-only",c:"md"},{l:"Retention",v:"24 months",c:"hi"}],
+   reason:"This tool is retired. Historical responses are preserved read-only; new collection happens in <b>NPS Pulse</b>.",
+   score:0, route:"Archived", routeColor:"arch",
+   suggest:["Export historical data to the warehouse.","Schedule deletion after retention window."]},
+];
+
+const FEED = [
+  {ico:"💳",cl:"tic-v",ai:1,txt:"<b>T&E Approvals</b> extracted 4 fields from a $184.20 receipt and routed it to finance review.",t:"2 min ago"},
+  {ico:"🛠️",cl:"tic-b",ai:1,txt:"<b>IT Helpdesk Router</b> classified ticket #IT-6630 as Network/VPN and suggested a KB article.",t:"8 min ago"},
+  {ico:"🎯",cl:"tic-v",ai:1,txt:"<b>Lead Qualifier</b> scored Atlas Robotics at 82 and assigned it to J. Okafor.",t:"22 min ago"},
+  {ico:"⚖️",cl:"tic-v",ai:1,txt:"<b>Expense Policy Bot</b> auto-answered a meal-limit question, citing Handbook §4.2.",t:"31 min ago"},
+  {ico:"🐞",cl:"tic-g",ai:1,txt:"<b>Bug Intake</b> flagged report #BG-2290 as High severity and paged Payments Core.",t:"44 min ago"},
+  {ico:"🏗️",cl:"tic-a",ai:0,txt:"<b>Alex Mercer</b> published a new tool draft: <b>Deal Desk</b>.",t:"1 hr ago"},
+  {ico:"📄",cl:"tic-b",ai:1,txt:"<b>Contract Reviewer</b> flagged 2 non-standard clauses in the Veltris MSA.",t:"1 hr ago"},
+  {ico:"🧾",cl:"tic-a",ai:1,txt:"<b>Invoice Matcher</b> caught a $320 variance and held INV-55120 for AP review.",t:"3 hr ago"},
+];
+
+const BARS = [
+  {l:"T&E",runs:642,rev:84},{l:"Bug",runs:531,rev:62},{l:"Feedbk",runs:489,rev:71},
+  {l:"IT Desk",runs:412,rev:48},{l:"Asset",runs:377,rev:22},{l:"Lead",runs:298,rev:31},
+];
+
+/* ---------------- Render gallery ---------------- */
+const G = document.getElementById('gallery');
+let curStatus="all", curCat="all", curQ="";
+
+function statusPill(s){
+  const map={live:["sp-live","Live"],draft:["sp-draft","Draft"],review:["sp-review","In review"],archived:["sp-arch","Archived"]};
+  const [cls,lbl]=map[s];
+  return `<span class="status-pill ${cls}"><span class="pd"></span>${lbl}</span>`;
+}
+
+function renderGallery(){
+  const list = TOOLS.filter(t=>
+    (curStatus==="all"||t.status===curStatus) &&
+    (curCat==="all"||t.cat===curCat) &&
+    (curQ===""||t.name.toLowerCase().includes(curQ)||t.desc.toLowerCase().includes(curQ)||t.owner.toLowerCase().includes(curQ))
+  );
+  document.getElementById('resultCount').textContent = `${list.length} tool${list.length!==1?'s':''}`;
+  if(!list.length){
+    G.innerHTML=`<div class="empty">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#9aa1b3" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+      <b>No tools match your filters</b>
+      <div>Try a different category, status, or search term.</div>
+    </div>`;
+    return;
+  }
+  G.innerHTML = list.map(t=>`
+    <div class="tool" onclick="openDrawer(${t.id})">
+      ${t.status!=="archived"?`<span class="ai-tag"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>${t.ai}</span>`:''}
+      <div class="tool-top">
+        <div class="tool-ico ${t.iclass}">${t.icon}</div>
+        <div>
+          <div class="tool-name">${t.name}</div>
+          <div class="tool-cat">${t.cat} · ${t.owner}</div>
+        </div>
+      </div>
+      <p class="tool-desc">${t.desc}</p>
+      <div class="tool-meta">
+        ${statusPill(t.status)}
+        <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l1.5 4L11 8.5 6.5 10 5 14 3.5 10 0 8.5 4.5 7 5 3z" transform="translate(2 1)"/></svg>${t.runs.toLocaleString()}</span>
+        <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0114 0"/></svg>${t.users}</span>
+        <span class="m" style="margin-left:auto">${t.updated}</span>
+      </div>
+    </div>
+  `).join('');
+}
+renderGallery();
+
+/* ---------------- Tabs / filters ---------------- */
+document.querySelectorAll('#statusTabs .tab').forEach(tab=>{
+  tab.onclick=()=>{
+    document.querySelectorAll('#statusTabs .tab').forEach(x=>x.classList.remove('active'));
+    tab.classList.add('active'); curStatus=tab.dataset.status; renderGallery();
+  };
+});
+document.querySelectorAll('#catSeg button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#catSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); curCat=b.dataset.cat; renderGallery();
+  };
+});
+document.getElementById('toolSearch').addEventListener('input',e=>{curQ=e.target.value.toLowerCase().trim();renderGallery();});
+document.getElementById('globalSearch').addEventListener('input',e=>{
+  curQ=e.target.value.toLowerCase().trim();
+  document.getElementById('toolSearch').value=e.target.value;
+  renderGallery();
+});
+
+/* ---------------- Feed ---------------- */
+document.getElementById('feedList').innerHTML = FEED.map(f=>`
+  <div class="fitem">
+    <div class="fic ${f.cl}">${f.ico}</div>
+    <div>
+      <div class="ftxt">${f.txt}${f.ai?'<span class="ai-mark"><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>AI</span>':''}</div>
+      <div class="ftime">${f.t}</div>
+    </div>
+  </div>
+`).join('');
+
+/* ---------------- Bars chart ---------------- */
+const maxRuns = Math.max(...BARS.map(b=>b.runs));
+document.getElementById('bars').innerHTML = BARS.map(b=>{
+  const h = Math.round((b.runs/maxRuns)*100);
+  const revH = Math.round((b.rev/b.runs)*h);
+  return `<div class="bar-wrap" title="${b.runs} runs · ${b.rev} need review">
+    <div class="bar" style="height:0%" data-h="${h}">
+      <div style="position:absolute;bottom:0;left:0;right:0;height:${revH}%;background:#d6c8f7;border-radius:0 0 6px 6px"></div>
+    </div>
+    <div class="bl">${b.l}</div>
+  </div>`;
+}).join('');
+setTimeout(()=>{document.querySelectorAll('#bars .bar').forEach(bar=>{bar.style.height=bar.dataset.h+'%';});},120);
+
+/* ---------------- Drawer ---------------- */
+function confClass(c){return c==="hi"?"conf-hi":c==="md"?"conf-md":"conf-lo";}
+function confLabel(c){return c==="hi"?"High":c==="md"?"Medium":"Low";}
+function routeColorClass(c){
+  return {green:["var(--green-soft)","var(--green)"],amber:["var(--amber-soft)","var(--amber)"],
+    red:["var(--red-soft)","var(--red)"],blue:["var(--blue-soft)","var(--blue)"],
+    arch:["var(--bg-soft)","var(--ink-3)"]}[c];
+}
+
+function openDrawer(id){
+  const t = TOOLS.find(x=>x.id===id);
+  document.getElementById('dIco').textContent=t.icon;
+  document.getElementById('dIco').className=`tool-ico ${t.iclass}`;
+  document.getElementById('dIco').style.cssText="width:46px;height:46px;flex:0 0 46px;font-size:21px";
+  document.getElementById('dName').textContent=t.name;
+  document.getElementById('dCat').innerHTML=`${t.cat} · Owned by ${t.owner} &nbsp;·&nbsp; ${statusPill(t.status)}`;
+
+  const ringOffset = 201 - (t.score/100*201);
+  const [rbg,rfg]=routeColorClass(t.routeColor);
+
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="panel">
+      <h4>Tool overview</h4>
+      <div class="kv">
+        <div class="kk">AI capability</div><div class="vv">${t.ai}</div>
+        <div class="kk">Engine</div><div class="vv">${t.model}</div>
+        <div class="kk">AI runs</div><div class="vv">${t.runs.toLocaleString()}</div>
+        <div class="kk">Active users</div><div class="vv">${t.users}</div>
+        <div class="kk">Last updated</div><div class="vv">${t.updated}</div>
+      </div>
+    </div>
+
+    <div class="panel ai-panel">
+      <h4><svg width="13" height="13" viewBox="0 0 24 24" fill="#7c3aed"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg> AI output · ${t.sample.title} <span style="font-weight:500;color:var(--ink-3);text-transform:none;letter-spacing:0">— ${t.sample.src}</span></h4>
+      ${t.fields.map(f=>`
+        <div class="field-row">
+          <div class="fl">${f.l}</div>
+          <div class="fv">${f.v}</div>
+          <div class="conf ${confClass(f.c)}">${confLabel(f.c)}</div>
+        </div>`).join('')}
+      <div class="reason"><b>Why:</b> ${t.reason}</div>
+    </div>
+
+    <div class="panel">
+      <h4>Decision · score & route</h4>
+      <div class="score-ring">
+        <svg class="ring-svg" width="76" height="76" viewBox="0 0 76 76">
+          <circle cx="38" cy="38" r="32" fill="none" stroke="#eef0f5" stroke-width="9"/>
+          <circle cx="38" cy="38" r="32" fill="none" stroke="${rfg}" stroke-width="9" stroke-linecap="round"
+            stroke-dasharray="201" stroke-dashoffset="${ringOffset}" transform="rotate(-90 38 38)"/>
+          <text x="38" y="42" text-anchor="middle" font-size="17" font-weight="700" fill="#1c2030">${t.score}</text>
+        </svg>
+        <div class="score-meta">
+          <div class="lbl">AI confidence</div>
+          <div class="route">Routed to</div>
+          <div class="route-pill" style="background:${rbg};color:${rfg}">${t.route}</div>
+        </div>
+      </div>
+      <div class="review-actions">
+        <button class="btn btn-primary" onclick="toast('Routing accepted — ${t.route}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round"/></svg>
+          Accept routing
+        </button>
+        <button class="btn btn-ghost" onclick="toast('Sent back for correction')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6M3 13a9 9 0 102-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Review & correct
+        </button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.2"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg> AI suggestions</h4>
+      ${t.suggest.map(s=>`
+        <div class="suggest-item">
+          <span class="si-ico"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg></span>
+          <span>${s}</span>
+        </div>`).join('')}
+    </div>
+  `;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('scrim').classList.add('open');
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('scrim').classList.remove('open');
+}
+document.addEventListener('keydown',e=>{if(e.key==="Escape")closeDrawer();});
+
+/* ---------------- Composer generate ---------------- */
+function setPrompt(p){document.getElementById('promptInput').value=p;document.getElementById('promptInput').focus();}
+const STEPS=["Reading intent…","Proposing data fields…","Drafting screens…","Wiring the AI extract step…","Assembling app skeleton…"];
+function generate(){
+  const btn=document.getElementById('genBtn');
+  const anim=document.getElementById('buildAnim');
+  const stepEl=document.getElementById('buildSteps');
+  const tag=document.getElementById('previewTag');
+  btn.disabled=true; btn.innerHTML='Generating…';
+  anim.classList.add('on'); tag.textContent="Building…";
+  let i=0; stepEl.textContent=STEPS[0];
+  const iv=setInterval(()=>{
+    i++;
+    if(i<STEPS.length){stepEl.textContent=STEPS[i];}
+    else{
+      clearInterval(iv);
+      anim.classList.remove('on');
+      btn.disabled=false;
+      btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 3l1.5 3.5L10 8 6.5 9.5 5 13 3.5 9.5 0 8l3.5-1.5L5 3z" transform="translate(3 2)"/></svg> Generate';
+      tag.textContent="Live skeleton";
+      toast("App skeleton assembled — 6 fields, 3 screens, 1 AI step");
+    }
+  },620);
+}
+
+/* ---------------- Toast ---------------- */
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2600);
+}
+</script>
+</body>
+</html>

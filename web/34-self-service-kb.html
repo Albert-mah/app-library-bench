@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Helix Help Center — Self-Service Knowledge Base</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Self-Service Knowledge Base (Helix Help Center)",
+  "prefix": "ssk_",
+  "archetype": "customer-facing self-service portal — marketing-grade hero (big search) + trending/popular articles + guided category cards. Distinct from an INTERNAL KB (#05): this is a public, branded help portal with a conversion-style hero, not an editor/wiki.",
+  "collections": {
+    "ssk_categories": {"titleField":"name","fields":{"name":"input","slug":"input","icon":"input","blurb":"textarea","color":"select:indigo|violet|cyan|emerald|amber|rose","article_count":"integer","sort":"integer","is_featured":"boolean"}},
+    "ssk_articles": {"titleField":"title","fields":{"title":"input","slug":"input","excerpt":"textarea","body":"richtext","read_minutes":"integer","view_count":"integer","helpful_count":"integer","unhelpful_count":"integer","status":"select:published|draft|archived","is_trending":"boolean","updated_label":"input"},"relations":{"category":"m2o ssk_categories (fk category_id)","author":"m2o ssk_authors (fk author_id)","tags":"m2m ssk_tags"}},
+    "ssk_authors": {"titleField":"name","fields":{"name":"input","role":"input","avatar_initials":"input"}},
+    "ssk_tags": {"titleField":"name","fields":{"name":"input"}},
+    "ssk_tickets": {"titleField":"subject","fields":{"subject":"input","email":"input","message":"textarea","status":"select:open|pending|solved"}}
+  },
+  "page": {
+    "name": "Help Center",
+    "layout": "hero = JSBlock (gradient marketing hero + big search + popular-search pills + live result suggestions) | trending = native List + JSField card (horizontal scroller) | categories = native List(GridCard) + JSField card grid (guided cards) | popular-articles = native List + JSField row | contact-cta = JSBlock (data-less banner with ssk_tickets create action)",
+    "regions": [
+      {"id":"hero","block":"JSBlock (data-less marketing hero)","intent":"conversion-style entry: huge headline + big search box that filters ssk_articles live","content":["gradient hero background","H1 + subhead","big search input bound to ssk_articles search","popular-search pills (push addFilterGroup to articles)","live result dropdown (queries ssk_articles via ctx.resource)"]},
+      {"id":"categories","block":"native List rendered as GridCard + JSField whole-record card","collection":"ssk_categories","intent":"guided category cards — pick a topic","sort":"sort asc","card":["color-tinted icon tile","category name","blurb 2-line","article_count badge","hover lift + arrow"]},
+      {"id":"trending","block":"native List + JSField card (horizontal scroller)","collection":"ssk_articles","intent":"most-read right now","filter":"is_trending = true, status = published","sort":"view_count desc","card":["rank number","title","category chip","read_minutes + view_count","trending flame"]},
+      {"id":"popular","block":"native List + JSField row","collection":"ssk_articles","intent":"popular articles list with helpful score","sort":"helpful_count desc","row":["title + excerpt clamp","category chip","read time","helpful % bar","author avatar"]},
+      {"id":"contact","block":"JSBlock (data-less CTA banner)","intent":"still need help → open a ticket","action":"create ssk_tickets (subject/email/message)"}
+    ]
+  },
+  "interactions": ["hero big-search filters ssk_articles live (debounced) → result dropdown","popular-search pill click pushes addFilterGroup + scrolls to results","category card click → ctx.openView(article-list filtered by category)","article helpful/unhelpful writes ssk_articles.helpful_count","contact CTA opens ssk_tickets create form"],
+  "jsKernels": ["hero search-with-live-suggestions JSBlock","category guided-card JSField","trending horizontal-scroller card JSField","popular-article row JSField with helpful bar","contact CTA JSBlock"],
+  "notes": "Data containers stay NATIVE (List for categories/trending/popular over ssk_articles & ssk_categories); the custom look (gradient hero, guided cards, helpful bar) is delivered via JSField cards inside those Lists and two data-less JSBlocks (hero + contact CTA). The hero search is a JSBlock because it has no single data container — it queries ssk_articles via ctx.resource and pushes cross-block filters. Do NOT rebuild the whole portal as one freestanding JSBlock. This is the PUBLIC self-service variant — marketing hero + trending + guided cards — explicitly different from the internal-editor KB (#05)."
+}
+</script>
+<style>
+  :root{
+    --indigo:#5b5bd6; --indigo-d:#4a4ac0; --indigo-soft:#eef0ff; --indigo-line:#d6daff;
+    --violet:#8b5cf6; --cyan:#06b6d4; --emerald:#10b981; --amber:#f59e0b; --rose:#f43f5e;
+    --ink:#11141a; --ink-2:#3a4150; --ink-3:#6b7384; --ink-4:#9aa2b1;
+    --line:#eef0f4; --line-2:#e3e7ee; --bg:#f7f8fb; --card:#ffffff;
+    --r:14px; --r-sm:10px;
+    --shadow:0 1px 2px rgba(17,20,26,.04), 0 6px 20px rgba(17,20,26,.05);
+    --shadow-h:0 8px 16px rgba(17,20,26,.06), 0 22px 50px rgba(17,20,26,.12);
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--indigo-soft)}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+  /* ---------- top nav ---------- */
+  .nav{
+    position:sticky;top:0;z-index:50;height:62px;
+    background:rgba(255,255,255,.82);backdrop-filter:saturate(180%) blur(14px);
+    border-bottom:1px solid var(--line-2);
+    display:flex;align-items:center;
+  }
+  .nav .wrap{display:flex;align-items:center;gap:26px;width:100%}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:-.4px}
+  .brand .glyph{
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:15px;font-weight:900;
+    background:linear-gradient(135deg,var(--indigo),var(--violet));box-shadow:0 4px 12px rgba(91,91,214,.35);
+  }
+  .brand small{font-weight:600;color:var(--ink-4);font-size:11.5px;margin-left:1px;letter-spacing:0}
+  .nav-links{display:flex;gap:4px;margin-left:6px}
+  .nav-links a{padding:7px 13px;border-radius:8px;color:var(--ink-2);font-size:13.5px;font-weight:600}
+  .nav-links a.on{background:var(--indigo-soft);color:var(--indigo)}
+  .nav-links a:not(.on):hover{background:var(--line)}
+  .nav-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .nav-search{
+    display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;color:var(--ink-4);font-size:13px;cursor:pointer;width:210px;
+  }
+  .nav-search kbd{margin-left:auto;background:#fff;border:1px solid var(--line-2);border-radius:5px;padding:1px 6px;font-size:11px;color:var(--ink-3);font-family:inherit}
+  .btn{border:none;border-radius:9px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;transition:.14s;white-space:nowrap}
+  .btn-primary{background:var(--indigo);color:#fff;box-shadow:0 4px 12px rgba(91,91,214,.3)}
+  .btn-primary:hover{background:var(--indigo-d)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#cfd5df}
+
+  /* ---------- hero ---------- */
+  .hero{
+    position:relative;overflow:hidden;color:#fff;
+    background:radial-gradient(1200px 480px at 18% -10%, rgba(139,92,246,.55), transparent 60%),
+               radial-gradient(900px 460px at 92% 10%, rgba(6,182,212,.40), transparent 55%),
+               linear-gradient(135deg,#4a4ac0 0%, #5b5bd6 45%, #6d4ad6 100%);
+    padding:62px 0 120px;
+  }
+  .hero::after{
+    content:"";position:absolute;inset:0;opacity:.5;pointer-events:none;
+    background-image:radial-gradient(rgba(255,255,255,.10) 1px, transparent 1px);
+    background-size:22px 22px;
+  }
+  .hero .wrap{position:relative;z-index:2;text-align:center}
+  .hero .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:.3px;
+    background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:30px;padding:6px 14px;margin-bottom:22px;
+  }
+  .hero .eyebrow .pulse{width:7px;height:7px;border-radius:50%;background:#7cf2c8;box-shadow:0 0 0 0 rgba(124,242,200,.7);animation:beat 1.8s infinite}
+  @keyframes beat{0%{box-shadow:0 0 0 0 rgba(124,242,200,.6)}70%{box-shadow:0 0 0 8px rgba(124,242,200,0)}100%{box-shadow:0 0 0 0 rgba(124,242,200,0)}}
+  .hero h1{font-size:42px;line-height:1.12;font-weight:800;letter-spacing:-1px;max-width:760px;margin:0 auto}
+  .hero h1 .grad{background:linear-gradient(90deg,#c7f9ff,#e7d9ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hero p.sub{font-size:16px;color:rgba(255,255,255,.86);max-width:560px;margin:16px auto 0;font-weight:500}
+
+  /* big search */
+  .searchbox{position:relative;max-width:660px;margin:30px auto 0}
+  .searchbar{
+    display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:8px 8px 8px 20px;
+    box-shadow:0 20px 50px rgba(20,16,60,.32),0 2px 6px rgba(20,16,60,.18);
+  }
+  .searchbar .mag{font-size:19px;color:var(--ink-4);flex:none}
+  .searchbar input{flex:1;border:none;outline:none;font-family:inherit;font-size:16px;color:var(--ink);background:none;padding:8px 0}
+  .searchbar input::placeholder{color:var(--ink-4)}
+  .searchbar .btn{padding:12px 22px;font-size:14px}
+  .pop-row{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:18px}
+  .pop-row .lbl{font-size:12.5px;color:rgba(255,255,255,.7);font-weight:600}
+  .pop-pill{
+    font-size:12.5px;font-weight:600;color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);
+    border-radius:20px;padding:5px 13px;cursor:pointer;transition:.14s;
+  }
+  .pop-pill:hover{background:rgba(255,255,255,.24)}
+  /* live suggest dropdown */
+  .suggest{
+    position:absolute;left:0;right:0;top:calc(100% + 10px);background:#fff;border-radius:14px;
+    box-shadow:0 24px 60px rgba(20,16,60,.30);overflow:hidden;text-align:left;display:none;z-index:20;
+  }
+  .suggest.show{display:block}
+  .suggest .sg-head{font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-4);padding:13px 18px 7px}
+  .sg-item{display:flex;align-items:center;gap:12px;padding:11px 18px;cursor:pointer;border-top:1px solid var(--line)}
+  .sg-item:hover{background:var(--indigo-soft)}
+  .sg-ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex:none}
+  .sg-main{min-width:0;flex:1}
+  .sg-main b{font-size:13.5px;color:var(--ink);font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sg-main b mark{background:#fff1a8;color:inherit;border-radius:3px;padding:0 1px}
+  .sg-main span{font-size:11.5px;color:var(--ink-3)}
+  .sg-meta{font-size:11.5px;color:var(--ink-4);font-weight:600;flex:none}
+  .sg-empty{padding:22px 18px;text-align:center;color:var(--ink-3);font-size:13px}
+
+  /* hero stat strip */
+  .hero-stats{display:flex;justify-content:center;gap:42px;margin-top:34px;flex-wrap:wrap}
+  .hstat{text-align:center}
+  .hstat b{font-size:22px;font-weight:800;display:block;letter-spacing:-.5px}
+  .hstat span{font-size:12px;color:rgba(255,255,255,.72);font-weight:600}
+
+  /* ---------- main canvas pulled up over hero ---------- */
+  .canvas{margin-top:-72px;position:relative;z-index:5;padding-bottom:64px}
+
+  .sec-head{display:flex;align-items:flex-end;justify-content:space-between;margin:0 0 16px}
+  .sec-head h2{font-size:20px;font-weight:800;letter-spacing:-.4px;display:flex;align-items:center;gap:9px}
+  .sec-head h2 .flame{font-size:17px}
+  .sec-head p{font-size:13px;color:var(--ink-3);margin-top:2px}
+  .sec-head a.more{font-size:13px;font-weight:700;color:var(--indigo);display:flex;align-items:center;gap:5px}
+  .sec-head a.more:hover{gap:8px}
+
+  /* trending scroller */
+  .trend-block{
+    background:var(--card);border:1px solid var(--line-2);border-radius:18px;box-shadow:var(--shadow);
+    padding:22px 22px 24px;margin-bottom:30px;
+  }
+  .trend-scroll{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}
+  .trend-scroll::-webkit-scrollbar{height:7px}
+  .trend-scroll::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:10px}
+  .tcard{
+    flex:0 0 300px;scroll-snap-align:start;background:var(--bg);border:1px solid var(--line-2);border-radius:var(--r);
+    padding:16px;cursor:pointer;transition:.16s;position:relative;overflow:hidden;
+  }
+  .tcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-h);border-color:var(--indigo-line);background:#fff}
+  .tcard .rank{
+    position:absolute;top:-6px;right:8px;font-size:46px;font-weight:900;color:var(--line-2);line-height:1;font-variant-numeric:tabular-nums;
+    transition:.16s;
+  }
+  .tcard:hover .rank{color:var(--indigo-soft)}
+  .tc-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;border-radius:20px;padding:3px 9px;margin-bottom:11px}
+  .tc-title{font-size:14.5px;font-weight:700;line-height:1.4;color:var(--ink);position:relative;z-index:2;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:40px}
+  .tc-meta{display:flex;align-items:center;gap:13px;margin-top:14px;font-size:11.5px;color:var(--ink-3);font-weight:600}
+  .tc-meta .dot{width:3px;height:3px;border-radius:50%;background:var(--ink-4)}
+
+  /* ---------- category guided cards ---------- */
+  .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:38px}
+  .ccard{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:22px;cursor:pointer;
+    transition:.16s;position:relative;overflow:hidden;
+  }
+  .ccard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c,var(--indigo));opacity:0;transition:.16s}
+  .ccard:hover{transform:translateY(-3px);box-shadow:var(--shadow-h);border-color:transparent}
+  .ccard:hover::before{opacity:1}
+  .cc-ic{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;font-size:23px;margin-bottom:15px}
+  .cc-title{font-size:16px;font-weight:800;letter-spacing:-.2px;display:flex;align-items:center;gap:7px}
+  .cc-title .arr{margin-left:auto;color:var(--ink-4);transition:.16s;font-size:15px}
+  .ccard:hover .cc-title .arr{color:var(--c,var(--indigo));transform:translateX(3px)}
+  .cc-blurb{font-size:13px;color:var(--ink-3);margin-top:7px;line-height:1.55;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .cc-foot{display:flex;align-items:center;gap:8px;margin-top:15px;padding-top:14px;border-top:1px solid var(--line)}
+  .cc-count{font-size:12px;font-weight:700;color:var(--ink-2)}
+  .cc-foot .feat{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.4px;color:var(--amber);background:#fff7e6;border-radius:6px;padding:2px 8px}
+
+  /* ---------- popular articles list ---------- */
+  .two-col{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:26px;align-items:start}
+  .pop-block{background:var(--card);border:1px solid var(--line-2);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+  .pa-row{display:flex;gap:16px;padding:18px 22px;border-bottom:1px solid var(--line);cursor:pointer;transition:.13s;position:relative}
+  .pa-row:last-child{border-bottom:none}
+  .pa-row:hover{background:var(--bg)}
+  .pa-rank{font-size:13px;font-weight:800;color:var(--ink-4);width:22px;flex:none;padding-top:2px;font-variant-numeric:tabular-nums}
+  .pa-main{flex:1;min-width:0}
+  .pa-main .t{font-size:15px;font-weight:700;color:var(--ink);letter-spacing:-.2px}
+  .pa-main .ex{font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .pa-tags{display:flex;align-items:center;gap:10px;margin-top:11px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;border-radius:20px;padding:3px 9px}
+  .pa-time{font-size:11.5px;color:var(--ink-4);font-weight:600;display:flex;align-items:center;gap:5px}
+  .pa-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;flex:none;width:120px}
+  .pa-author{display:flex;align-items:center;gap:7px}
+  .pa-ava{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10.5px;font-weight:700;flex:none;
+    background:linear-gradient(135deg,var(--indigo),var(--violet))}
+  .pa-author span{font-size:11.5px;color:var(--ink-3);font-weight:600}
+  .helpful{width:100%}
+  .helpful .hl-top{display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--ink-3);margin-bottom:4px}
+  .helpful .hl-top b{color:var(--emerald)}
+  .hl-bar{height:6px;border-radius:6px;background:var(--line-2);overflow:hidden}
+  .hl-bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#10b981,#34d399)}
+
+  /* right rail */
+  .rail{display:flex;flex-direction:column;gap:18px;position:sticky;top:80px}
+  .rail-card{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+  .rail-card h3{font-size:14px;font-weight:800;margin-bottom:13px;display:flex;align-items:center;gap:7px}
+  .rl-item{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--line)}
+  .rl-item:first-of-type{border-top:none;padding-top:2px}
+  .rl-ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex:none}
+  .rl-item .m{flex:1;min-width:0}
+  .rl-item .m b{font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rl-item .m span{font-size:11px;color:var(--ink-4)}
+  .rl-item .v{font-size:11.5px;color:var(--ink-4);font-weight:700;flex:none}
+  .status-line{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink-2);padding:5px 0}
+  .status-line .led{width:9px;height:9px;border-radius:50%;flex:none}
+  .led.up{background:var(--emerald);box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+  .led.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(245,158,11,.15)}
+  .status-line .pct{margin-left:auto;font-size:12px;color:var(--ink-4);font-weight:700}
+
+  /* ---------- contact CTA ---------- */
+  .cta{
+    margin-top:40px;border-radius:20px;overflow:hidden;position:relative;color:#fff;
+    background:radial-gradient(700px 300px at 85% -40%, rgba(6,182,212,.4),transparent 55%),
+               linear-gradient(120deg,#11141a,#222742);
+    display:grid;grid-template-columns:1fr auto;align-items:center;gap:30px;padding:34px 40px;
+  }
+  .cta::after{content:"";position:absolute;inset:0;opacity:.4;background-image:radial-gradient(rgba(255,255,255,.08) 1px,transparent 1px);background-size:20px 20px}
+  .cta .ct-text{position:relative;z-index:2}
+  .cta h2{font-size:23px;font-weight:800;letter-spacing:-.4px}
+  .cta p{font-size:14px;color:rgba(255,255,255,.78);margin-top:7px;max-width:480px}
+  .cta-actions{position:relative;z-index:2;display:flex;gap:12px;align-items:center}
+  .cta .btn-light{background:#fff;color:var(--ink)}
+  .cta .btn-light:hover{background:#f0f0f5}
+  .cta .btn-out{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.28);color:#fff}
+  .cta .btn-out:hover{background:rgba(255,255,255,.2)}
+
+  /* footer */
+  .foot{border-top:1px solid var(--line-2);background:#fff;padding:26px 0;margin-top:8px}
+  .foot .wrap{display:flex;align-items:center;justify-content:space-between;color:var(--ink-4);font-size:12.5px;flex-wrap:wrap;gap:12px}
+  .foot .fl{display:flex;gap:18px}
+  .foot a:hover{color:var(--ink-2)}
+
+  /* color tints */
+  .t-indigo{background:var(--indigo-soft);color:var(--indigo)} .b-indigo{--c:var(--indigo)}
+  .t-violet{background:#f3eefe;color:var(--violet)} .b-violet{--c:var(--violet)}
+  .t-cyan{background:#e2f7fb;color:#0e7490} .b-cyan{--c:var(--cyan)}
+  .t-emerald{background:#e6f8f1;color:#047857} .b-emerald{--c:var(--emerald)}
+  .t-amber{background:#fff5e0;color:#b45309} .b-amber{--c:var(--amber)}
+  .t-rose{background:#ffe9ee;color:#be123c} .b-rose{--c:var(--rose)}
+
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(17,20,26,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:80;padding:24px}
+  .scrim.show{display:flex}
+  .modal{background:#fff;border-radius:18px;width:100%;max-width:520px;box-shadow:0 30px 80px rgba(0,0,0,.4);overflow:hidden}
+  .modal-head{padding:22px 24px 18px;border-bottom:1px solid var(--line);position:relative}
+  .modal-head h3{font-size:18px;font-weight:800;letter-spacing:-.3px}
+  .modal-head p{font-size:13px;color:var(--ink-3);margin-top:4px}
+  .modal-head .x{position:absolute;top:18px;right:18px;width:30px;height:30px;border-radius:8px;border:none;background:var(--bg);cursor:pointer;font-size:16px;color:var(--ink-3)}
+  .modal-head .x:hover{background:var(--line)}
+  .modal-body{padding:20px 24px}
+  .f-grp{margin-bottom:15px}
+  .f-grp label{font-size:12.5px;font-weight:700;color:var(--ink-2);display:block;margin-bottom:6px}
+  .f-grp input,.f-grp textarea{width:100%;border:1.5px solid var(--line-2);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:14px;outline:none;transition:.13s;color:var(--ink)}
+  .f-grp textarea{min-height:96px;resize:vertical}
+  .f-grp input:focus,.f-grp textarea:focus{border-color:var(--indigo-line);box-shadow:0 0 0 3px var(--indigo-soft)}
+  .modal-foot{padding:16px 24px 22px;display:flex;gap:10px;justify-content:flex-end;align-items:center}
+  .modal-foot .sla{margin-right:auto;font-size:12px;color:var(--ink-4);display:flex;align-items:center;gap:6px}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:12px 18px;border-radius:11px;font-size:13.5px;font-weight:600;
+    box-shadow:0 10px 30px rgba(0,0,0,.3);transition:.25s;z-index:90;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .ck{width:18px;height:18px;border-radius:50%;background:var(--emerald);display:grid;place-items:center;font-size:11px;flex:none}
+
+  @media(max-width:1024px){
+    .cat-grid{grid-template-columns:repeat(2,1fr)}
+    .two-col{grid-template-columns:1fr}
+    .rail{position:static}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ TOP NAV ============ -->
+<header class="nav">
+  <div class="wrap">
+    <div class="brand"><span class="glyph">H</span>Helix <small>Help Center</small></div>
+    <nav class="nav-links">
+      <a href="#" class="on">Help Center</a>
+      <a href="#categories">Topics</a>
+      <a href="#trending">Trending</a>
+      <a href="#community">Community</a>
+      <a href="#status">Status</a>
+    </nav>
+    <div class="nav-right">
+      <div class="nav-search" id="navSearch"><span>🔍</span><span>Search…</span><kbd>/</kbd></div>
+      <button class="btn btn-primary" id="navContact">Contact support</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ HERO (JSBlock: marketing hero + big search) ============ -->
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="pulse"></span> 418 articles · updated daily</span>
+    <h1>How can we <span class="grad">help you</span> today?</h1>
+    <p class="sub">Search the Helix knowledge base, browse by topic, or reach a human in under 5 minutes.</p>
+
+    <div class="searchbox">
+      <div class="searchbar">
+        <span class="mag">🔍</span>
+        <input type="text" id="heroSearch" placeholder="Search articles, guides, error codes…" autocomplete="off" />
+        <button class="btn btn-primary" id="heroGo">Search</button>
+      </div>
+      <div class="suggest" id="suggest"></div>
+      <div class="pop-row">
+        <span class="lbl">Popular:</span>
+        <span class="pop-pill" data-q="reset password">Reset password</span>
+        <span class="pop-pill" data-q="billing">Update billing</span>
+        <span class="pop-pill" data-q="api key">API keys</span>
+        <span class="pop-pill" data-q="export">Export data</span>
+        <span class="pop-pill" data-q="sso">SSO setup</span>
+      </div>
+    </div>
+
+    <div class="hero-stats">
+      <div class="hstat"><b>418</b><span>Help articles</span></div>
+      <div class="hstat"><b>96%</b><span>Found it helpful</span></div>
+      <div class="hstat"><b>&lt; 5 min</b><span>Avg. reply time</span></div>
+      <div class="hstat"><b>24 / 7</b><span>Support coverage</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CANVAS ============ -->
+<main class="wrap canvas">
+
+  <!-- ===== TRENDING (native List + JSField card, horizontal scroller) ===== -->
+  <section class="trend-block" id="trending">
+    <div class="sec-head">
+      <div>
+        <h2><span class="flame">🔥</span> Trending right now</h2>
+        <p>The articles your peers are reading most this week.</p>
+      </div>
+      <a class="more" href="#">View all →</a>
+    </div>
+    <div class="trend-scroll" id="trendScroll"></div>
+  </section>
+
+  <!-- ===== CATEGORY GUIDED CARDS (native List → GridCard + JSField) ===== -->
+  <section id="categories">
+    <div class="sec-head">
+      <div>
+        <h2>Browse by topic</h2>
+        <p>Pick a category to find step-by-step guides and answers.</p>
+      </div>
+    </div>
+    <div class="cat-grid" id="catGrid"></div>
+  </section>
+
+  <!-- ===== POPULAR + RIGHT RAIL ===== -->
+  <div class="two-col">
+    <section class="pop-block" id="popular">
+      <div class="sec-head" style="padding:20px 22px 0;margin-bottom:0">
+        <div>
+          <h2>Most helpful articles</h2>
+          <p>Ranked by how many readers said "this solved it".</p>
+        </div>
+        <a class="more" href="#">All articles →</a>
+      </div>
+      <div id="popList"></div>
+    </section>
+
+    <aside class="rail">
+      <div class="rail-card" id="status">
+        <h3>📡 System status</h3>
+        <div class="status-line"><span class="led up"></span> Web app <span class="pct">100%</span></div>
+        <div class="status-line"><span class="led up"></span> API <span class="pct">99.98%</span></div>
+        <div class="status-line"><span class="led warn"></span> Email delivery <span class="pct">degraded</span></div>
+        <div class="status-line"><span class="led up"></span> Webhooks <span class="pct">100%</span></div>
+      </div>
+
+      <div class="rail-card">
+        <h3>📥 Recently updated</h3>
+        <div id="recentList"></div>
+      </div>
+
+      <div class="rail-card" id="community">
+        <h3>💬 Ask the community</h3>
+        <div id="commList"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===== CONTACT CTA (JSBlock, data-less → ssk_tickets create) ===== -->
+  <section class="cta">
+    <div class="ct-text">
+      <h2>Still stuck? We're real humans.</h2>
+      <p>Can't find what you need? Open a ticket and our support team will get back to you, usually in under 5 minutes during business hours.</p>
+    </div>
+    <div class="cta-actions">
+      <button class="btn btn-light" id="ctaTicket">Open a ticket</button>
+      <button class="btn btn-out" id="ctaChat">Live chat</button>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>© 2026 Helix, Inc. · Self-service knowledge base</span>
+    <div class="fl">
+      <a href="#">Privacy</a><a href="#">Terms</a><a href="#">Status</a><a href="#">Developers</a><a href="#">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ===== TICKET MODAL ===== -->
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Open a support ticket</h3>
+      <p>Tell us what's going on. We'll reply by email.</p>
+      <button class="x" id="modalX">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="f-grp"><label>Subject</label><input type="text" id="tSubject" placeholder="Brief summary of the issue"></div>
+      <div class="f-grp"><label>Your email</label><input type="email" id="tEmail" placeholder="you@company.com"></div>
+      <div class="f-grp"><label>Message</label><textarea id="tMessage" placeholder="Describe what you tried and what happened…"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <span class="sla">⚡ Typical first reply &lt; 5 min</span>
+      <button class="btn btn-ghost" id="modalCancel">Cancel</button>
+      <button class="btn btn-primary" id="modalSubmit">Send ticket</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="ck">✓</span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- mock data: ssk_categories ----------
+  var CATS = [
+    {id:1, name:"Getting Started",   icon:"🚀", color:"indigo",  blurb:"Set up your workspace, invite teammates, and ship your first project in minutes.", count:42, featured:true},
+    {id:2, name:"Account & Billing", icon:"💳", color:"violet",  blurb:"Manage subscriptions, update payment methods, download invoices and receipts.", count:38, featured:false},
+    {id:3, name:"Integrations",      icon:"🔌", color:"cyan",    blurb:"Connect Slack, Salesforce, Zapier and 60+ other tools to your Helix workspace.", count:54, featured:true},
+    {id:4, name:"Security & SSO",    icon:"🔐", color:"emerald", blurb:"SAML SSO, two-factor auth, audit logs, and data residency controls.", count:29, featured:false},
+    {id:5, name:"API & Developers",  icon:"⚙️", color:"amber",   blurb:"REST API reference, webhooks, rate limits, and SDKs for every major language.", count:67, featured:true},
+    {id:6, name:"Troubleshooting",   icon:"🛟", color:"rose",    blurb:"Fix common errors, recover access, and diagnose sync or export problems.", count:48, featured:false}
+  ];
+
+  // ---------- mock data: ssk_articles ----------
+  var ARTICLES = [
+    {id:101, title:"How to reset your password", excerpt:"Step-by-step guide to recovering access if you've forgotten your password or lost your 2FA device.", cat:"Troubleshooting", catColor:"rose", read:3, views:18420, helpful:94, author:"Priya N.", trending:true, updated:"2 days ago", q:"reset password recover access login 2fa"},
+    {id:102, title:"Update your billing & payment method", excerpt:"Change the card on file, switch billing cycles, and update your company tax details.", cat:"Account & Billing", catColor:"violet", read:4, views:14210, helpful:91, author:"Marcus L.", trending:true, updated:"5 days ago", q:"billing payment card invoice subscription update"},
+    {id:103, title:"Creating and managing API keys", excerpt:"Generate scoped API keys, rotate secrets safely, and understand rate limits per plan.", cat:"API & Developers", catColor:"amber", read:6, views:12880, helpful:96, author:"Dana K.", trending:true, updated:"1 day ago", q:"api key token secret developer rate limit"},
+    {id:104, title:"Set up SAML single sign-on (SSO)", excerpt:"Configure Okta, Azure AD, or Google Workspace as your identity provider in 10 minutes.", cat:"Security & SSO", catColor:"emerald", read:8, views:9640, helpful:89, author:"Dana K.", trending:true, updated:"3 days ago", q:"sso saml okta azure google identity provider login"},
+    {id:105, title:"Export your data to CSV or JSON", excerpt:"Run a full workspace export, schedule recurring backups, and import into BI tools.", cat:"Getting Started", catColor:"indigo", read:5, views:8730, helpful:88, author:"Aria M.", trending:true, updated:"1 week ago", q:"export csv json data backup download"},
+    {id:106, title:"Connect Slack to your workspace", excerpt:"Pipe notifications into channels, run slash commands, and link Helix records to threads.", cat:"Integrations", catColor:"cyan", read:4, views:7610, helpful:92, author:"Leo F.", trending:true, updated:"4 days ago", q:"slack integration notification channel connect"},
+    {id:107, title:"Invite teammates and assign roles", excerpt:"Add members, set permissions with role-based access, and manage seats on your plan.", cat:"Getting Started", catColor:"indigo", read:3, views:6920, helpful:95, author:"Aria M.", trending:false, updated:"6 days ago", q:"invite teammate role permission member seat user"},
+    {id:108, title:"Fix 'sync failed' and stuck imports", excerpt:"Diagnose connector errors, re-authenticate sources, and recover from partial syncs.", cat:"Troubleshooting", catColor:"rose", read:7, views:6340, helpful:84, author:"Priya N.", trending:false, updated:"2 days ago", q:"sync failed import error connector troubleshoot fix"},
+    {id:109, title:"Understanding webhook events & retries", excerpt:"Subscribe to events, verify signatures, and handle delivery retries with idempotency.", cat:"API & Developers", catColor:"amber", read:9, views:5980, helpful:90, author:"Dana K.", trending:false, updated:"3 days ago", q:"webhook event retry signature idempotency api"},
+    {id:110, title:"Enable two-factor authentication (2FA)", excerpt:"Turn on app-based or hardware-key 2FA for your account and enforce it org-wide.", cat:"Security & SSO", catColor:"emerald", read:3, views:5410, helpful:93, author:"Dana K.", trending:false, updated:"1 week ago", q:"2fa two factor authentication security mfa hardware key"},
+    {id:111, title:"Download invoices and tax receipts", excerpt:"Find past invoices, add a billing email, and configure VAT/GST details for your region.", cat:"Account & Billing", catColor:"violet", read:2, views:4870, helpful:87, author:"Marcus L.", trending:false, updated:"5 days ago", q:"invoice receipt tax vat gst billing download"},
+    {id:112, title:"Build your first automation with Zapier", excerpt:"Trigger Helix actions from 6,000+ apps without writing a single line of code.", cat:"Integrations", catColor:"cyan", read:6, views:4320, helpful:86, author:"Leo F.", trending:false, updated:"1 week ago", q:"zapier automation trigger integration no-code"}
+  ];
+
+  var TINT = {indigo:"t-indigo",violet:"t-violet",cyan:"t-cyan",emerald:"t-emerald",amber:"t-amber",rose:"t-rose"};
+  var BTINT = {indigo:"b-indigo",violet:"b-violet",cyan:"b-cyan",emerald:"b-emerald",amber:"b-amber",rose:"b-rose"};
+  function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  function fmtViews(n){return n>=1000?(n/1000).toFixed(1).replace(/\.0$/,"")+"k":(""+n);}
+
+  // ===== TRENDING scroller (sorted by views, trending only) =====
+  (function renderTrending(){
+    var host=document.getElementById("trendScroll");
+    var list=ARTICLES.filter(function(a){return a.trending;}).sort(function(a,b){return b.views-a.views;});
+    host.innerHTML=list.map(function(a,i){
+      return '<div class="tcard" data-id="'+a.id+'">'+
+        '<div class="rank">'+(i+1)+'</div>'+
+        '<span class="tc-chip '+TINT[a.catColor]+'">📁 '+esc(a.cat)+'</span>'+
+        '<div class="tc-title">'+esc(a.title)+'</div>'+
+        '<div class="tc-meta"><span>⏱ '+a.read+' min read</span><span class="dot"></span><span>👁 '+fmtViews(a.views)+'</span><span class="dot"></span><span>🔥 trending</span></div>'+
+      '</div>';
+    }).join("");
+    host.querySelectorAll(".tcard").forEach(function(c){
+      c.onclick=function(){openArticle(+c.dataset.id);};
+    });
+  })();
+
+  // ===== CATEGORY guided cards =====
+  (function renderCats(){
+    var host=document.getElementById("catGrid");
+    host.innerHTML=CATS.map(function(c){
+      return '<div class="ccard '+BTINT[c.color]+'" data-cat="'+esc(c.name)+'">'+
+        '<div class="cc-ic '+TINT[c.color]+'">'+c.icon+'</div>'+
+        '<div class="cc-title">'+esc(c.name)+'<span class="arr">→</span></div>'+
+        '<div class="cc-blurb">'+esc(c.blurb)+'</div>'+
+        '<div class="cc-foot"><span class="cc-count">'+c.count+' articles</span>'+
+          (c.featured?'<span class="feat">POPULAR</span>':'')+'</div>'+
+      '</div>';
+    }).join("");
+    host.querySelectorAll(".ccard").forEach(function(card){
+      card.onclick=function(){ flash('Opening "'+card.dataset.cat+'" — '+ARTICLES.filter(function(a){return a.cat===card.dataset.cat;}).length+' matching article(s)'); };
+    });
+  })();
+
+  // ===== POPULAR articles (by helpful score) =====
+  (function renderPopular(){
+    var host=document.getElementById("popList");
+    var list=ARTICLES.slice().sort(function(a,b){return b.helpful-a.helpful;}).slice(0,7);
+    host.innerHTML=list.map(function(a,i){
+      var initials=a.author.split(" ").map(function(x){return x[0];}).join("");
+      return '<div class="pa-row" data-id="'+a.id+'">'+
+        '<div class="pa-rank">'+(i+1)+'</div>'+
+        '<div class="pa-main">'+
+          '<div class="t">'+esc(a.title)+'</div>'+
+          '<div class="ex">'+esc(a.excerpt)+'</div>'+
+          '<div class="pa-tags">'+
+            '<span class="chip '+TINT[a.catColor]+'">📁 '+esc(a.cat)+'</span>'+
+            '<span class="pa-time">⏱ '+a.read+' min</span>'+
+            '<span class="pa-time">👁 '+fmtViews(a.views)+'</span>'+
+          '</div>'+
+        '</div>'+
+        '<div class="pa-side">'+
+          '<div class="pa-author"><span class="pa-ava">'+esc(initials)+'</span><span>'+esc(a.author)+'</span></div>'+
+          '<div class="helpful"><div class="hl-top"><span>Helpful</span><b>'+a.helpful+'%</b></div>'+
+            '<div class="hl-bar"><i style="width:'+a.helpful+'%"></i></div></div>'+
+        '</div>'+
+      '</div>';
+    }).join("");
+    host.querySelectorAll(".pa-row").forEach(function(r){
+      r.onclick=function(){openArticle(+r.dataset.id);};
+    });
+  })();
+
+  // ===== RIGHT RAIL: recently updated =====
+  (function renderRecent(){
+    var host=document.getElementById("recentList");
+    var list=ARTICLES.slice(0,4);
+    host.innerHTML=list.map(function(a){
+      return '<div class="rl-item" data-id="'+a.id+'">'+
+        '<div class="rl-ic '+TINT[a.catColor]+'">📄</div>'+
+        '<div class="m"><b>'+esc(a.title)+'</b><span>'+esc(a.cat)+'</span></div>'+
+        '<span class="v">'+esc(a.updated)+'</span>'+
+      '</div>';
+    }).join("");
+    host.querySelectorAll(".rl-item").forEach(function(r){ r.onclick=function(){openArticle(+r.dataset.id);}; });
+  })();
+
+  // ===== RIGHT RAIL: community questions =====
+  (function renderComm(){
+    var Q=[
+      {q:"Can I migrate data from a legacy workspace?", a:12, ic:"🚀", t:"indigo"},
+      {q:"Does the API support cursor pagination?", a:8, ic:"⚙️", t:"amber"},
+      {q:"How do I revoke a teammate's SSO access?", a:5, ic:"🔐", t:"emerald"}
+    ];
+    document.getElementById("commList").innerHTML=Q.map(function(x){
+      return '<div class="rl-item">'+
+        '<div class="rl-ic '+TINT[x.t]+'">'+x.ic+'</div>'+
+        '<div class="m"><b>'+esc(x.q)+'</b><span>'+x.a+' answers</span></div>'+
+        '<span class="v">↗</span>'+
+      '</div>';
+    }).join("");
+  })();
+
+  // ===== HERO live search =====
+  var heroInput=document.getElementById("heroSearch");
+  var suggest=document.getElementById("suggest");
+
+  function searchArticles(term){
+    term=term.trim().toLowerCase();
+    if(!term) return [];
+    return ARTICLES.filter(function(a){
+      return (a.title+" "+a.excerpt+" "+a.cat+" "+a.q).toLowerCase().indexOf(term)>-1;
+    }).sort(function(a,b){return b.views-a.views;}).slice(0,6);
+  }
+  function hl(text,term){
+    if(!term) return esc(text);
+    var i=text.toLowerCase().indexOf(term.toLowerCase());
+    if(i<0) return esc(text);
+    return esc(text.slice(0,i))+"<mark>"+esc(text.slice(i,i+term.length))+"</mark>"+esc(text.slice(i+term.length));
+  }
+  function renderSuggest(){
+    var term=heroInput.value.trim();
+    if(!term){ suggest.classList.remove("show"); return; }
+    var res=searchArticles(term);
+    if(res.length===0){
+      suggest.innerHTML='<div class="sg-empty">No articles match "'+esc(term)+'". <br>Try a different keyword or <a href="#" id="sgContact" style="color:var(--indigo);font-weight:700">open a ticket</a>.</div>';
+      suggest.classList.add("show");
+      var sc=document.getElementById("sgContact"); if(sc) sc.onclick=function(e){e.preventDefault();openModal();};
+      return;
+    }
+    suggest.innerHTML='<div class="sg-head">'+res.length+' result'+(res.length>1?"s":"")+' for "'+esc(term)+'"</div>'+
+      res.map(function(a){
+        return '<div class="sg-item" data-id="'+a.id+'">'+
+          '<div class="sg-ic '+TINT[a.catColor]+'">📄</div>'+
+          '<div class="sg-main"><b>'+hl(a.title,term)+'</b><span>'+esc(a.cat)+' · '+a.read+' min read</span></div>'+
+          '<span class="sg-meta">'+a.helpful+'% 👍</span>'+
+        '</div>';
+      }).join("");
+    suggest.classList.add("show");
+    suggest.querySelectorAll(".sg-item").forEach(function(it){ it.onclick=function(){openArticle(+it.dataset.id);}; });
+  }
+  heroInput.addEventListener("input",renderSuggest);
+  heroInput.addEventListener("focus",renderSuggest);
+  document.addEventListener("click",function(e){
+    if(!e.target.closest(".searchbox")) suggest.classList.remove("show");
+  });
+  document.getElementById("heroGo").onclick=function(){
+    var term=heroInput.value.trim();
+    if(!term){ heroInput.focus(); return; }
+    var res=searchArticles(term);
+    flash(res.length?('Found '+res.length+' article(s) for "'+term+'"'):('No matches for "'+term+'" — opening a ticket might be faster'));
+  };
+  heroInput.addEventListener("keydown",function(e){ if(e.key==="Enter") document.getElementById("heroGo").click(); });
+
+  // popular search pills
+  document.querySelectorAll(".pop-pill").forEach(function(p){
+    p.onclick=function(){ heroInput.value=p.dataset.q; heroInput.focus(); renderSuggest(); window.scrollTo({top:0,behavior:"smooth"}); };
+  });
+
+  // keyboard "/" focuses search
+  document.addEventListener("keydown",function(e){
+    if(e.key==="/" && document.activeElement!==heroInput && !/input|textarea/i.test(document.activeElement.tagName)){
+      e.preventDefault(); heroInput.focus(); window.scrollTo({top:0,behavior:"smooth"});
+    }
+  });
+  document.getElementById("navSearch").onclick=function(){ heroInput.focus(); window.scrollTo({top:0,behavior:"smooth"}); };
+
+  // ===== article "open" (mock) — writes a view + helpful prompt =====
+  function openArticle(id){
+    var a=ARTICLES.filter(function(x){return x.id===id;})[0];
+    if(!a) return;
+    a.views++;
+    flash('Opening "'+a.title+'" · '+a.cat);
+  }
+
+  // ===== contact ticket modal (ssk_tickets create) =====
+  var scrim=document.getElementById("scrim");
+  function openModal(){ scrim.classList.add("show"); setTimeout(function(){document.getElementById("tSubject").focus();},60); }
+  function closeModal(){ scrim.classList.remove("show"); }
+  document.getElementById("navContact").onclick=openModal;
+  document.getElementById("ctaTicket").onclick=openModal;
+  document.getElementById("ctaChat").onclick=function(){ flash("Connecting you to live chat…"); };
+  document.getElementById("modalX").onclick=closeModal;
+  document.getElementById("modalCancel").onclick=closeModal;
+  scrim.onclick=function(e){ if(e.target===scrim) closeModal(); };
+  document.getElementById("modalSubmit").onclick=function(){
+    var s=document.getElementById("tSubject").value.trim();
+    var em=document.getElementById("tEmail").value.trim();
+    if(!s){ flash("Add a subject so we can route your ticket"); return; }
+    if(!em){ flash("We need an email to reply to"); return; }
+    closeModal();
+    document.getElementById("tSubject").value="";
+    document.getElementById("tEmail").value="";
+    document.getElementById("tMessage").value="";
+    flash("Ticket created — we'll reply to "+em+" shortly");
+  };
+
+  // ===== toast =====
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2400); }
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Self-Service KB: a customer help portal with a large search hero and guided topic cards. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/34-self-service-kb.html
+</script>
+</body>
+</html>

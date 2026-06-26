@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leave Management — Team Calendar</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary:       #1677ff;
+    --primary-light: #e6f4ff;
+    --primary-hover: #0958d9;
+    --text-primary:  #1d2129;
+    --text-secondary:#646a73;
+    --text-tertiary: #8d9199;
+    --border:        #e5e6eb;
+    --border-light:  #f2f3f5;
+    --bg:            #f5f5f5;
+    --surface:       #ffffff;
+    --radius:        8px;
+    --radius-sm:     6px;
+    --radius-xs:     4px;
+
+    /* Leave type palette — distinct, balanced, HR-friendly */
+    --annual:   #1677ff;  /* Annual Leave  — primary blue */
+    --sick:     #f5a623;  /* Sick Leave    — amber */
+    --personal: #52c41a;  /* Personal Leave— green */
+    --comp:     #722ed1;  /* Comp Off      — purple */
+    --maternity:#eb2f96;  /* Maternity     — pink */
+
+    --annual-bg:   #e6f4ff;
+    --sick-bg:     #fffbe6;
+    --personal-bg: #f6ffed;
+    --comp-bg:     #f9f0ff;
+    --maternity-bg:#fff0f6;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ────────────── TOP NAV ────────────── */
+  .nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    height: 52px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+  .nav-brand {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 15px; color: var(--text-primary);
+    margin-right: 32px;
+  }
+  .nav-brand .icon {
+    width: 28px; height: 28px;
+    background: var(--primary);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px;
+  }
+  .nav-tabs { display: flex; gap: 2px; }
+  .nav-tab {
+    padding: 6px 14px; border-radius: var(--radius-xs);
+    font-size: 13px; cursor: pointer; color: var(--text-secondary);
+    transition: background .15s, color .15s; user-select: none;
+  }
+  .nav-tab:hover { background: var(--border-light); color: var(--text-primary); }
+  .nav-tab.active { background: var(--primary-light); color: var(--primary); font-weight: 500; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--primary);
+    color: #fff; font-weight: 600; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .avatar:hover { opacity: .85; }
+  .notif-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: none; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); font-size: 15px;
+    position: relative; transition: background .15s;
+  }
+  .notif-btn:hover { background: var(--border-light); }
+  .notif-dot {
+    position: absolute; top: 5px; right: 5px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #ff4d4f; border: 1.5px solid #fff;
+  }
+
+  /* ────────────── MAIN LAYOUT ────────────── */
+  .app {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: auto 1fr;
+    gap: 16px;
+    padding: 16px 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ────────────── CALENDAR HEADER ────────────── */
+  .cal-header {
+    grid-column: 1;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .cal-nav { display: flex; align-items: center; gap: 6px; }
+  .cal-nav-btn {
+    width: 28px; height: 28px;
+    border: 1px solid var(--border);
+    background: none; border-radius: var(--radius-xs);
+    cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); transition: border-color .15s, color .15s;
+  }
+  .cal-nav-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .cal-month-label {
+    font-size: 16px; font-weight: 700;
+    min-width: 140px; text-align: center;
+  }
+  .today-btn {
+    padding: 5px 12px; border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+    background: none; cursor: pointer; font-size: 12px;
+    color: var(--text-secondary); transition: all .15s;
+  }
+  .today-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .cal-legend { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-secondary); }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 3px;
+  }
+  .view-toggle { display: flex; border: 1px solid var(--border); border-radius: var(--radius-xs); overflow: hidden; }
+  .view-btn {
+    padding: 4px 10px; font-size: 11.5px; cursor: pointer;
+    background: none; border: none; color: var(--text-secondary);
+    transition: background .15s, color .15s;
+  }
+  .view-btn.active { background: var(--primary); color: #fff; }
+  .view-btn:not(:last-child) { border-right: 1px solid var(--border); }
+
+  /* ────────────── TEAM FILTER ────────────── */
+  .team-filter {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 4px;
+  }
+  .team-chip {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 20px;
+    border: 1px solid var(--border);
+    cursor: pointer; font-size: 11.5px; color: var(--text-secondary);
+    transition: all .15s; user-select: none;
+    background: var(--surface);
+  }
+  .team-chip.active {
+    background: var(--primary-light); border-color: var(--primary);
+    color: var(--primary); font-weight: 500;
+  }
+  .team-chip .av {
+    width: 18px; height: 18px; border-radius: 50%;
+    font-size: 9px; font-weight: 600; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .filter-label { font-size: 11.5px; color: var(--text-tertiary); margin-right: 4px; }
+
+  /* ────────────── CALENDAR GRID ────────────── */
+  .cal-wrap {
+    grid-column: 1;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .cal-team-filter-row {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex; align-items: center; gap: 8px;
+    overflow-x: auto;
+  }
+  .cal-team-filter-row::-webkit-scrollbar { height: 3px; }
+  .cal-team-filter-row::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+  .cal-dow {
+    padding: 9px 10px;
+    font-size: 11px; font-weight: 600;
+    color: var(--text-tertiary);
+    text-align: center;
+    border-bottom: 1px solid var(--border-light);
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .cal-cell {
+    min-height: 108px;
+    padding: 7px 8px 6px;
+    border-right: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    position: relative;
+    vertical-align: top;
+    transition: background .12s;
+  }
+  .cal-cell:nth-child(7n) { border-right: none; }
+  .cal-cell:hover { background: #fafafa; }
+  .cal-cell.other-month .date-num { color: #c9cdd4; }
+  .cal-cell.today { background: #f0f7ff; }
+  .cal-cell.today .date-num {
+    background: var(--primary);
+    color: #fff;
+  }
+  .cal-cell.weekend .date-num { color: #f5a623; }
+  .cal-cell.today.weekend .date-num { background: var(--primary); color: #fff; }
+  .date-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%; font-size: 12px; font-weight: 500;
+    color: var(--text-primary); margin-bottom: 4px;
+  }
+
+  /* Leave bar strips in cells */
+  .leave-bars { display: flex; flex-direction: column; gap: 2px; }
+  .leave-bar {
+    height: 19px; border-radius: 4px;
+    display: flex; align-items: center; padding: 0 6px;
+    font-size: 10.5px; font-weight: 500;
+    cursor: pointer; user-select: none;
+    transition: opacity .15s, filter .15s;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    position: relative;
+  }
+  .leave-bar:hover { opacity: .88; filter: brightness(1.04); }
+  .leave-bar .bar-avatar {
+    width: 13px; height: 13px; border-radius: 50%;
+    font-size: 8px; font-weight: 700; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    margin-right: 4px; flex-shrink: 0;
+  }
+  .leave-bar.annual   { background: var(--annual-bg);   color: var(--annual);   border-left: 3px solid var(--annual); }
+  .leave-bar.sick     { background: var(--sick-bg);     color: #ad6800;         border-left: 3px solid var(--sick); }
+  .leave-bar.personal { background: var(--personal-bg); color: #389e0d;         border-left: 3px solid var(--personal); }
+  .leave-bar.comp     { background: var(--comp-bg);     color: #531dab;         border-left: 3px solid var(--comp); }
+  .leave-bar.maternity{ background: var(--maternity-bg);color: #c41d7f;         border-left: 3px solid var(--maternity); }
+  .leave-bar.cont     { border-left: none; border-radius: 0; }
+  .leave-bar.end      { border-radius: 0 4px 4px 0; }
+  .leave-bar.start    { border-radius: 4px 0 0 4px; }
+  .leave-bar.single   { border-radius: 4px; }
+
+  .more-badge {
+    font-size: 10px; color: var(--text-tertiary);
+    margin-top: 2px; cursor: pointer;
+  }
+  .more-badge:hover { color: var(--primary); }
+
+  /* ────────────── RIGHT COLUMN ────────────── */
+  .right-col {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  /* Card base */
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .card-head {
+    padding: 14px 16px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .card-title { font-size: 13px; font-weight: 600; }
+  .card-body { padding: 14px 16px; }
+
+  /* ────────────── APPLY FORM ────────────── */
+  .form-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .form-group.full { flex: none; width: 100%; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 11.5px; color: var(--text-secondary); font-weight: 500; }
+  .form-control {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    padding: 6px 10px;
+    font-size: 12.5px;
+    color: var(--text-primary);
+    background: var(--surface);
+    width: 100%;
+    transition: border-color .15s, box-shadow .15s;
+    outline: none;
+    appearance: none;
+  }
+  .form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(22,119,255,.12);
+  }
+  select.form-control { cursor: pointer; }
+  .type-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .type-chip {
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 7px 8px;
+    cursor: pointer; user-select: none;
+    text-align: center; font-size: 11.5px; font-weight: 500;
+    color: var(--text-secondary);
+    transition: all .15s;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .type-chip .dot { width: 8px; height: 8px; border-radius: 2px; }
+  .type-chip.selected.annual   { border-color: var(--annual);   background: var(--annual-bg);   color: var(--annual); }
+  .type-chip.selected.sick     { border-color: var(--sick);     background: var(--sick-bg);     color: #ad6800; }
+  .type-chip.selected.personal { border-color: var(--personal); background: var(--personal-bg); color: #389e0d; }
+  .type-chip.selected.comp     { border-color: var(--comp);     background: var(--comp-bg);     color: #531dab; }
+  .days-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--primary-light); color: var(--primary);
+    border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600;
+    margin-left: auto;
+  }
+  .days-row {
+    display: flex; align-items: center; margin-bottom: 10px;
+  }
+  .days-label { font-size: 11.5px; color: var(--text-secondary); }
+  textarea.form-control {
+    resize: vertical; min-height: 60px;
+    font-family: inherit;
+  }
+  .btn {
+    width: 100%; padding: 8px;
+    border-radius: var(--radius-sm);
+    border: none; cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all .15s;
+    letter-spacing: .2px;
+  }
+  .btn-primary {
+    background: var(--primary); color: #fff;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:active { transform: scale(.99); }
+
+  /* ────────────── BALANCE CARD ────────────── */
+  .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .balance-item {
+    background: var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+  .balance-type { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; font-weight: 500; }
+  .balance-num  { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .balance-sub  { font-size: 10.5px; color: var(--text-tertiary); }
+  .progress-wrap { margin-top: 6px; }
+  .progress-track {
+    height: 4px; border-radius: 2px; background: var(--border);
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width .4s; }
+  .ring-row {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 12px; padding: 12px;
+    background: var(--border-light); border-radius: var(--radius-sm);
+  }
+  .ring-svg { flex-shrink: 0; }
+  .ring-info .ring-val { font-size: 22px; font-weight: 700; color: var(--primary); }
+  .ring-info .ring-label { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+  .ring-info .ring-detail { font-size: 10.5px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* ────────────── PENDING LIST ────────────── */
+  .pending-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .pending-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .pending-av {
+    width: 32px; height: 32px; border-radius: 50%;
+    font-size: 12px; font-weight: 700; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .pending-info { flex: 1; min-width: 0; }
+  .pending-name { font-size: 12.5px; font-weight: 600; }
+  .pending-meta { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
+  .pending-dates { font-size: 10.5px; color: var(--text-tertiary); margin-top: 2px; }
+  .pending-actions { display: flex; gap: 6px; margin-top: 4px; }
+  .btn-sm {
+    padding: 3px 10px; border-radius: var(--radius-xs);
+    border: none; cursor: pointer; font-size: 11px; font-weight: 500;
+    transition: all .14s;
+  }
+  .btn-approve { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+  .btn-approve:hover { background: #389e0d; color: #fff; }
+  .btn-reject  { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+  .btn-reject:hover  { background: #cf1322; color: #fff; }
+  .status-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 500;
+    white-space: nowrap; margin-top: 2px; display: inline-block;
+  }
+  .status-pending  { background: #fffbe6; color: #ad6800; }
+  .status-approved { background: #f6ffed; color: #389e0d; }
+  .status-rejected { background: #fff1f0; color: #cf1322; }
+
+  /* ────────────── TOOLTIP ────────────── */
+  .tooltip-overlay {
+    position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  }
+  .tooltip {
+    position: absolute;
+    background: #1d2129;
+    color: #fff;
+    border-radius: var(--radius-sm);
+    padding: 10px 13px;
+    font-size: 12px;
+    min-width: 180px;
+    max-width: 240px;
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+    opacity: 0; transition: opacity .15s;
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip-name { font-weight: 600; margin-bottom: 3px; }
+  .tooltip-type { font-size: 11px; color: #bec3ca; }
+  .tooltip-dates { font-size: 11.5px; margin-top: 4px; color: #e0e3e8; }
+  .tooltip-note  { font-size: 10.5px; margin-top: 3px; color: #969ca6; font-style: italic; }
+
+  /* ────────────── SUCCESS TOAST ────────────── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1d2129; color: #fff;
+    padding: 11px 20px; border-radius: var(--radius);
+    font-size: 13px; font-weight: 500;
+    box-shadow: var(--shadow-md);
+    opacity: 0; transition: opacity .25s, transform .25s;
+    z-index: 300; pointer-events: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast-icon { color: #52c41a; font-size: 15px; }
+
+  /* ────────────── RESPONSIVE ────────────── */
+  @media (max-width: 1024px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto; }
+    .right-col { grid-column: 1; grid-row: auto; display: grid; grid-template-columns: 1fr 1fr; }
+    .cal-header, .cal-wrap { grid-column: 1; }
+  }
+  @media (max-width: 700px) {
+    .right-col { grid-template-columns: 1fr; }
+    .cal-legend { display: none; }
+    .app { padding: 10px 10px; gap: 10px; }
+  }
+
+  /* ────────────── SCROLLBAR ────────────── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d0d3d8; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="icon">🗓</div>
+    <span>LeaveBoard</span>
+  </div>
+  <div class="nav-tabs">
+    <div class="nav-tab active">Team Calendar</div>
+    <div class="nav-tab">My Requests</div>
+    <div class="nav-tab">Reports</div>
+    <div class="nav-tab">Policy</div>
+  </div>
+  <div class="nav-right">
+    <button class="notif-btn" title="Notifications">
+      🔔
+      <span class="notif-dot"></span>
+    </button>
+    <div class="avatar" title="Sarah Chen (me)">SC</div>
+  </div>
+</nav>
+
+<!-- APP SHELL -->
+<div class="app">
+
+  <!-- CALENDAR HEADER -->
+  <div class="cal-header">
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="prevBtn">‹</button>
+      <span class="cal-month-label" id="monthLabel">June 2026</span>
+      <button class="cal-nav-btn" id="nextBtn">›</button>
+    </div>
+    <button class="today-btn" id="todayBtn">Today</button>
+    <div class="cal-legend">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--annual)"></span> Annual</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--sick)"></span> Sick</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--personal)"></span> Personal</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--comp)"></span> Comp</div>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active">Month</button>
+      <button class="view-btn">Week</button>
+    </div>
+  </div>
+
+  <!-- CALENDAR GRID WRAP -->
+  <div class="cal-wrap">
+    <div class="cal-team-filter-row" id="teamFilterRow"></div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-col">
+
+    <!-- APPLY FORM -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Apply for Leave</span>
+        <span style="font-size:11px;color:var(--text-tertiary)">Sarah Chen</span>
+      </div>
+      <div class="card-body">
+        <div style="margin-bottom:10px;">
+          <div class="form-label" style="margin-bottom:6px;">Leave Type</div>
+          <div class="type-selector" id="typeSelector">
+            <div class="type-chip annual selected" data-type="annual">
+              <span class="dot" style="background:var(--annual)"></span>Annual Leave
+            </div>
+            <div class="type-chip sick" data-type="sick">
+              <span class="dot" style="background:var(--sick)"></span>Sick Leave
+            </div>
+            <div class="type-chip personal" data-type="personal">
+              <span class="dot" style="background:var(--personal)"></span>Personal
+            </div>
+            <div class="type-chip comp" data-type="comp">
+              <span class="dot" style="background:var(--comp)"></span>Comp Off
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-control" id="startDate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-control" id="endDate">
+          </div>
+        </div>
+        <div class="days-row">
+          <span class="days-label">Working days</span>
+          <span class="days-badge" id="daysBadge">— days</span>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">Reason / Notes</label>
+          <textarea class="form-control" id="reasonField" placeholder="Optional — trip, medical appointment, etc."></textarea>
+        </div>
+        <button class="btn btn-primary" id="submitBtn">Submit Request</button>
+      </div>
+    </div>
+
+    <!-- BALANCE CARD -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">My Leave Balance</span>
+        <span style="font-size:11px;color:var(--text-tertiary)">2026 FY</span>
+      </div>
+      <div class="card-body" style="padding-top:10px;">
+        <div class="ring-row">
+          <svg class="ring-svg" width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="#e5e6eb" stroke-width="8"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--primary)" stroke-width="8"
+              stroke-dasharray="163.36" stroke-dashoffset="65.3"
+              stroke-linecap="round" transform="rotate(-90 32 32)"/>
+            <text x="32" y="36" text-anchor="middle" font-size="13" font-weight="700" fill="var(--primary)">13</text>
+          </svg>
+          <div class="ring-info">
+            <div class="ring-val">13 days</div>
+            <div class="ring-label">Annual leave remaining</div>
+            <div class="ring-detail">Used 7 of 20 days this year</div>
+          </div>
+        </div>
+        <div class="balance-grid">
+          <div class="balance-item">
+            <div class="balance-type">🟡 Sick Leave</div>
+            <div class="balance-num" style="color:var(--sick)">8</div>
+            <div class="balance-sub">of 10 remaining</div>
+            <div class="progress-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:20%;background:var(--sick)"></div></div>
+            </div>
+          </div>
+          <div class="balance-item">
+            <div class="balance-type">🟢 Personal</div>
+            <div class="balance-num" style="color:var(--personal)">3</div>
+            <div class="balance-sub">of 5 remaining</div>
+            <div class="progress-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:40%;background:var(--personal)"></div></div>
+            </div>
+          </div>
+          <div class="balance-item">
+            <div class="balance-type">🟣 Comp Off</div>
+            <div class="balance-num" style="color:var(--comp)">4.5</div>
+            <div class="balance-sub">earned this quarter</div>
+            <div class="progress-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:90%;background:var(--comp)"></div></div>
+            </div>
+          </div>
+          <div class="balance-item">
+            <div class="balance-type">📅 Carry-over</div>
+            <div class="balance-num" style="color:#13c2c2">2</div>
+            <div class="balance-sub">from 2025</div>
+            <div class="progress-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:100%;background:#13c2c2"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PENDING APPROVALS -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Pending Approvals</span>
+        <span style="font-size:11px;background:#fffbe6;color:#ad6800;padding:2px 8px;border-radius:20px;font-weight:600;">3 pending</span>
+      </div>
+      <div class="card-body" style="padding-top:8px;" id="pendingList"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div class="tooltip-overlay" id="tooltipOverlay">
+  <div class="tooltip" id="tooltip">
+    <div class="tooltip-name" id="ttName"></div>
+    <div class="tooltip-type" id="ttType"></div>
+    <div class="tooltip-dates" id="ttDates"></div>
+    <div class="tooltip-note" id="ttNote"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span class="toast-icon">✓</span>
+  <span id="toastMsg">Leave request submitted!</span>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+
+const TEAM = [
+  { id: 1, name: 'Sarah Chen',    initials: 'SC', color: '#1677ff' }, // me
+  { id: 2, name: 'Marcus Webb',   initials: 'MW', color: '#722ed1' },
+  { id: 3, name: 'Priya Nair',    initials: 'PN', color: '#eb2f96' },
+  { id: 4, name: 'James Okoro',   initials: 'JO', color: '#13c2c2' },
+  { id: 5, name: 'Aiko Yamada',   initials: 'AY', color: '#fa8c16' },
+  { id: 6, name: 'Leo Ferreira',  initials: 'LF', color: '#52c41a' },
+];
+
+const TYPES = {
+  annual:   { label: 'Annual Leave',   color: '#1677ff', bg: '#e6f4ff' },
+  sick:     { label: 'Sick Leave',     color: '#f5a623', bg: '#fffbe6' },
+  personal: { label: 'Personal Leave', color: '#52c41a', bg: '#f6ffed' },
+  comp:     { label: 'Comp Off',       color: '#722ed1', bg: '#f9f0ff' },
+  maternity:{ label: 'Maternity',      color: '#eb2f96', bg: '#fff0f6' },
+};
+
+// Leave records: [userId, type, startY, startM(0-based), startD, endY, endM, endD, note]
+let LEAVES = [
+  { id: 'l1',  userId: 2, type: 'annual',   start: new Date(2026,5,1),  end: new Date(2026,5,5),  note: 'Family holiday — Bali', status: 'approved' },
+  { id: 'l2',  userId: 3, type: 'sick',     start: new Date(2026,5,3),  end: new Date(2026,5,4),  note: 'Migraine, doctor visit', status: 'approved' },
+  { id: 'l3',  userId: 4, type: 'comp',     start: new Date(2026,5,8),  end: new Date(2026,5,9),  note: 'Comp for weekend sprint', status: 'approved' },
+  { id: 'l4',  userId: 5, type: 'annual',   start: new Date(2026,5,10), end: new Date(2026,5,12), note: 'Visiting parents', status: 'approved' },
+  { id: 'l5',  userId: 6, type: 'personal', start: new Date(2026,5,15), end: new Date(2026,5,15), note: 'Apartment viewing', status: 'approved' },
+  { id: 'l6',  userId: 2, type: 'personal', start: new Date(2026,5,17), end: new Date(2026,5,18), note: 'Moving house', status: 'approved' },
+  { id: 'l7',  userId: 3, type: 'annual',   start: new Date(2026,5,22), end: new Date(2026,5,26), note: 'Summer vacation — Italy', status: 'approved' },
+  { id: 'l8',  userId: 4, type: 'annual',   start: new Date(2026,5,29), end: new Date(2026,6,3),  note: 'End-of-month break', status: 'approved' },
+  { id: 'l9',  userId: 5, type: 'sick',     start: new Date(2026,5,25), end: new Date(2026,5,25), note: 'Dental procedure', status: 'approved' },
+  { id: 'l10', userId: 6, type: 'comp',     start: new Date(2026,5,30), end: new Date(2026,5,30), note: 'June 30 comp day', status: 'approved' },
+
+  // Pending
+  { id: 'p1',  userId: 2, type: 'annual',   start: new Date(2026,6,7),  end: new Date(2026,6,10), note: 'Conference & leave combo', status: 'pending' },
+  { id: 'p2',  userId: 5, type: 'personal', start: new Date(2026,6,14), end: new Date(2026,6,14), note: 'Child school event', status: 'pending' },
+  { id: 'p3',  userId: 6, type: 'comp',     start: new Date(2026,6,21), end: new Date(2026,6,22), note: 'Weekend deploy comp', status: 'pending' },
+];
+
+const PENDING_REQUESTS = [
+  { userId: 2, type: 'annual',   start: 'Jul 7', end: 'Jul 10', days: 4, note: 'Conference & leave combo' },
+  { userId: 5, type: 'personal', start: 'Jul 14', end: 'Jul 14', days: 1, note: 'Child school event' },
+  { userId: 6, type: 'comp',     start: 'Jul 21', end: 'Jul 22', days: 2, note: 'Weekend deploy comp' },
+];
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+
+let currentYear  = 2026;
+let currentMonth = 5; // 0-based, June
+let activeUsers  = new Set(TEAM.map(t => t.id));
+let selectedType = 'annual';
+let leaveIdSeq   = 100;
+
+const today = new Date(2026, 5, 4); // fixed "today" for demo
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+function dateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtDate(d) {
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+function workingDays(start, end) {
+  let count = 0, d = new Date(start);
+  while (d <= end) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    d.setDate(d.getDate()+1);
+  }
+  return count;
+}
+function getMember(id) { return TEAM.find(t => t.id === id); }
+
+// ─── CALENDAR RENDER ────────────────────────────────────────────────────────
+
+function buildCalendar() {
+  const grid   = document.getElementById('calGrid');
+  const label  = document.getElementById('monthLabel');
+  const monthName = new Date(currentYear, currentMonth, 1)
+    .toLocaleDateString('en-US', { month:'long', year:'numeric' });
+  label.textContent = monthName;
+
+  // DOW headers
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let html = DAYS.map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  // First day of month & days in month
+  const firstDay  = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMon = new Date(currentYear, currentMonth+1, 0).getDate();
+  const daysInPrev= new Date(currentYear, currentMonth, 0).getDate();
+  const totalCells= Math.ceil((firstDay + daysInMon) / 7) * 7;
+
+  for (let i = 0; i < totalCells; i++) {
+    let day, month = currentMonth, year = currentYear, otherMonth = false;
+    if (i < firstDay) {
+      day = daysInPrev - firstDay + i + 1;
+      month--; if (month < 0) { month = 11; year--; }
+      otherMonth = true;
+    } else if (i >= firstDay + daysInMon) {
+      day = i - firstDay - daysInMon + 1;
+      month++; if (month > 11) { month = 0; year++; }
+      otherMonth = true;
+    } else {
+      day = i - firstDay + 1;
+    }
+
+    const cellDate = new Date(year, month, day);
+    const isToday  = dateStr(cellDate) === dateStr(today);
+    const dow      = cellDate.getDay();
+    const isWeekend= dow === 0 || dow === 6;
+
+    let cls = 'cal-cell';
+    if (otherMonth) cls += ' other-month';
+    if (isToday)    cls += ' today';
+    if (isWeekend)  cls += ' weekend';
+
+    // Gather leaves for this cell
+    const dayLeaves = getLeavesBarsForDate(cellDate, otherMonth);
+
+    html += `<div class="${cls}" data-date="${dateStr(cellDate)}">
+      <span class="date-num">${day}</span>
+      <div class="leave-bars">${dayLeaves.html}</div>
+      ${dayLeaves.more > 0 ? `<div class="more-badge">+${dayLeaves.more} more</div>` : ''}
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+  attachBarHovers();
+}
+
+function getLeavesBarsForDate(date, otherMonth) {
+  const MAX_BARS = 3;
+  const dateKey  = dateStr(date);
+  let bars = [];
+
+  for (const leave of LEAVES) {
+    if (leave.status !== 'approved') continue;
+    const member = getMember(leave.userId);
+    if (!member || !activeUsers.has(leave.userId)) continue;
+
+    const s = leave.start, e = leave.end;
+    if (date < s || date > e) continue;
+
+    const isStart  = dateStr(date) === dateStr(s);
+    const isEnd    = dateStr(date) === dateStr(e);
+    const isSingle = isStart && isEnd;
+    let posClass = 'cont';
+    if (isSingle) posClass = 'single';
+    else if (isStart) posClass = 'start';
+    else if (isEnd)   posClass = 'end';
+
+    const showName = isStart || isSingle;
+    bars.push({
+      leave, member, posClass, showName,
+      type: leave.type
+    });
+  }
+
+  const shown = bars.slice(0, MAX_BARS);
+  const more  = bars.length - MAX_BARS;
+
+  const html = shown.map(b => {
+    const avHtml = b.showName
+      ? `<span class="bar-avatar" style="background:${b.member.color}">${b.member.initials}</span>`
+      : '';
+    const nameHtml = b.showName ? b.member.name.split(' ')[0] : '&nbsp;';
+    return `<div class="leave-bar ${b.type} ${b.posClass}"
+      data-leave-id="${b.leave.id}"
+      title=""
+      >${avHtml}${b.showName ? `<span>${nameHtml}</span>` : ''}</div>`;
+  }).join('');
+
+  return { html, more: Math.max(0, more) };
+}
+
+function attachBarHovers() {
+  const tt = document.getElementById('tooltip');
+  document.querySelectorAll('.leave-bar').forEach(bar => {
+    bar.addEventListener('mouseenter', e => {
+      const leaveId = bar.dataset.leaveId;
+      const leave   = LEAVES.find(l => l.id === leaveId);
+      if (!leave) return;
+      const member  = getMember(leave.userId);
+      const type    = TYPES[leave.type];
+      document.getElementById('ttName').textContent  = member.name;
+      document.getElementById('ttType').textContent  = type.label;
+      document.getElementById('ttDates').textContent = `${fmtDate(leave.start)} → ${fmtDate(leave.end)} (${workingDays(leave.start,leave.end)} days)`;
+      document.getElementById('ttNote').textContent  = leave.note || '';
+      tt.classList.add('visible');
+      positionTooltip(e);
+    });
+    bar.addEventListener('mousemove', e => positionTooltip(e));
+    bar.addEventListener('mouseleave', () => tt.classList.remove('visible'));
+  });
+}
+
+function positionTooltip(e) {
+  const tt  = document.getElementById('tooltip');
+  let x = e.clientX + 14, y = e.clientY + 14;
+  const W = window.innerWidth, H = window.innerHeight;
+  if (x + 250 > W) x = e.clientX - 260;
+  if (y + 120 > H) y = e.clientY - 130;
+  tt.style.left = x + 'px';
+  tt.style.top  = y + 'px';
+}
+
+// ─── TEAM FILTER ────────────────────────────────────────────────────────────
+
+function buildTeamFilter() {
+  const row = document.getElementById('teamFilterRow');
+  let html = `<span class="filter-label">Team:</span>`;
+  html += `<div class="team-chip active" data-uid="all">All members</div>`;
+  TEAM.forEach(m => {
+    const active = activeUsers.has(m.id) ? 'active' : '';
+    html += `<div class="team-chip ${active}" data-uid="${m.id}">
+      <span class="av" style="background:${m.color}">${m.initials}</span>
+      ${m.name.split(' ')[0]}
+    </div>`;
+  });
+  row.innerHTML = html;
+
+  row.querySelectorAll('[data-uid]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const uid = chip.dataset.uid;
+      if (uid === 'all') {
+        activeUsers = new Set(TEAM.map(t => t.id));
+      } else {
+        const id = parseInt(uid);
+        if (activeUsers.size === TEAM.length) {
+          activeUsers = new Set([id]);
+        } else if (activeUsers.has(id) && activeUsers.size > 1) {
+          activeUsers.delete(id);
+        } else if (!activeUsers.has(id)) {
+          activeUsers.add(id);
+        } else {
+          activeUsers = new Set(TEAM.map(t => t.id));
+        }
+      }
+      buildTeamFilter();
+      buildCalendar();
+    });
+  });
+}
+
+// ─── PENDING LIST ────────────────────────────────────────────────────────────
+
+function buildPendingList() {
+  const list = document.getElementById('pendingList');
+  if (PENDING_REQUESTS.length === 0) {
+    list.innerHTML = `<div style="text-align:center;color:var(--text-tertiary);padding:16px 0;font-size:12px;">No pending approvals</div>`;
+    return;
+  }
+  list.innerHTML = PENDING_REQUESTS.map((r, i) => {
+    const m = getMember(r.userId);
+    const t = TYPES[r.type];
+    return `<div class="pending-item" data-pi="${i}">
+      <div class="pending-av" style="background:${m.color}">${m.initials}</div>
+      <div class="pending-info">
+        <div class="pending-name">${m.name}</div>
+        <div class="pending-meta">
+          <span style="color:${t.color};font-weight:500;">${t.label}</span>
+          · ${r.days} day${r.days>1?'s':''}
+        </div>
+        <div class="pending-dates">${r.start} → ${r.end}</div>
+        <div class="pending-actions">
+          <button class="btn-sm btn-approve" data-action="approve" data-pi="${i}">✓ Approve</button>
+          <button class="btn-sm btn-reject"  data-action="reject"  data-pi="${i}">✕ Decline</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.btn-sm').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx    = parseInt(btn.dataset.pi);
+      const action = btn.dataset.action;
+      const item   = list.querySelector(`[data-pi="${idx}"]`);
+      const actionsDiv = item.querySelector('.pending-actions');
+      actionsDiv.innerHTML = `<span class="status-badge ${action==='approve'?'status-approved':'status-rejected'}">
+        ${action==='approve'?'Approved':'Declined'}
+      </span>`;
+      PENDING_REQUESTS.splice(idx, 1);
+      setTimeout(() => {
+        buildPendingList();
+        // update header badge
+        const nb = document.querySelector('.card-head span[style*="fffbe6"]');
+        if (nb) nb.textContent = `${PENDING_REQUESTS.length} pending`;
+      }, 800);
+    });
+  });
+}
+
+// ─── APPLY FORM ─────────────────────────────────────────────────────────────
+
+function initForm() {
+  // Set default dates
+  const startIn = document.getElementById('startDate');
+  const endIn   = document.getElementById('endDate');
+  const f = new Date(today);
+  f.setDate(f.getDate() + 1);
+  startIn.value = dateStr(f);
+  const t2 = new Date(f);
+  t2.setDate(t2.getDate() + 1);
+  endIn.value   = dateStr(t2);
+  updateDays();
+
+  // Type selector
+  document.querySelectorAll('.type-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.type-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      selectedType = chip.dataset.type;
+    });
+  });
+
+  startIn.addEventListener('change', () => {
+    if (endIn.value < startIn.value) endIn.value = startIn.value;
+    updateDays();
+  });
+  endIn.addEventListener('change', updateDays);
+
+  document.getElementById('submitBtn').addEventListener('click', submitLeave);
+}
+
+function updateDays() {
+  const s = new Date(document.getElementById('startDate').value);
+  const e = new Date(document.getElementById('endDate').value);
+  const badge = document.getElementById('daysBadge');
+  if (isNaN(s) || isNaN(e) || e < s) { badge.textContent = '— days'; return; }
+  const wd = workingDays(s, e);
+  badge.textContent = `${wd} day${wd!==1?'s':''}`;
+}
+
+function submitLeave() {
+  const s    = new Date(document.getElementById('startDate').value);
+  const e    = new Date(document.getElementById('endDate').value);
+  const note = document.getElementById('reasonField').value;
+  if (isNaN(s) || isNaN(e) || e < s) { showToast('Please select valid dates', false); return; }
+
+  // Add to LEAVES as approved (for demo)
+  LEAVES.push({
+    id: 'new_' + (++leaveIdSeq),
+    userId: 1,
+    type: selectedType,
+    start: s, end: e,
+    note: note || 'My leave',
+    status: 'approved'
+  });
+  buildCalendar();
+  showToast(`Leave request submitted — ${workingDays(s,e)} working day(s)`, true);
+  // Reset form
+  document.getElementById('reasonField').value = '';
+}
+
+function showToast(msg, ok = true) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.querySelector('.toast-icon').textContent = ok ? '✓' : '⚠';
+  toast.querySelector('.toast-icon').style.color  = ok ? '#52c41a' : '#faad14';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ─── NAV ────────────────────────────────────────────────────────────────────
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  currentMonth--;
+  if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  buildCalendar();
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  currentMonth++;
+  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+  buildCalendar();
+});
+document.getElementById('todayBtn').addEventListener('click', () => {
+  currentYear = today.getFullYear();
+  currentMonth = today.getMonth();
+  buildCalendar();
+});
+
+// Nav tab decoration only
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+
+buildTeamFilter();
+buildCalendar();
+buildPendingList();
+initForm();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Leave Management: a multi-select calendar with pills, a balance dashboard, and a request ledger. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/18-leave-management.html
+</script>
+</body>
+</html>

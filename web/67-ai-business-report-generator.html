@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Business Report Generator</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --bg-soft:#ffffff;
+    --panel:#ffffff;
+    --panel-2:#f6f7f9;
+    --line:#e6e8ee;
+    --line-soft:#eef0f4;
+    --txt:#1f2937;
+    --txt-dim:#475569;
+    --txt-mut:#94a3b8;
+    --accent:#6366f1;
+    --accent-2:#8b5cf6;
+    --accent-glow:rgba(99,102,241,.28);
+    --green:#16a34a;
+    --amber:#d97706;
+    --red:#dc2626;
+    --cyan:#0891b2;
+    --pink:#db2777;
+    --radius:14px;
+    --shadow:0 14px 40px -20px rgba(31,41,55,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.45;
+    overflow:hidden;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#cdd2dc;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:#b3bac8;background-clip:padding-box}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- App shell ---------- */
+  .app{display:grid;grid-template-columns:248px 1fr;height:100vh}
+
+  /* ---------- Sidebar ---------- */
+  .side{
+    background:var(--bg-soft);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    padding:18px 14px;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+  .logo{
+    width:38px;height:38px;border-radius:11px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;box-shadow:0 8px 24px -8px var(--accent-glow);
+    position:relative;
+  }
+  .logo svg{width:21px;height:21px}
+  .brand .bt{font-size:14.5px;font-weight:700;letter-spacing:.2px;line-height:1.15}
+  .brand .bs{font-size:11px;color:var(--txt-mut);font-weight:500}
+  .nav{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+  .nav-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:var(--txt-mut);padding:14px 10px 6px;font-weight:700}
+  .nav a{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;
+    color:var(--txt-dim);text-decoration:none;font-size:13.5px;font-weight:500;cursor:pointer;
+    transition:.15s;position:relative;
+  }
+  .nav a svg{width:17px;height:17px;flex:0 0 auto;opacity:.85}
+  .nav a:hover{background:var(--panel-2);color:var(--txt)}
+  .nav a.on{background:linear-gradient(90deg,rgba(99,102,241,.14),rgba(99,102,241,.04));color:var(--accent)}
+  .nav a.on::before{content:"";position:absolute;left:-14px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+  .nav a .badge{margin-left:auto;font-size:10.5px;background:var(--panel-2);color:var(--txt-dim);padding:1px 7px;border-radius:20px;font-weight:600;border:1px solid var(--line)}
+  .nav a.on .badge{background:rgba(99,102,241,.16);color:var(--accent);border-color:transparent}
+  .side-foot{margin-top:auto;padding:10px 8px 2px;border-top:1px solid var(--line-soft)}
+  .quota{font-size:11px;color:var(--txt-mut);margin-bottom:7px;display:flex;justify-content:space-between}
+  .quota b{color:var(--txt-dim);font-weight:600}
+  .qbar{height:6px;border-radius:6px;background:var(--line);overflow:hidden}
+  .qbar i{display:block;height:100%;width:64%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--cyan))}
+  .user{display:flex;align-items:center;gap:10px;margin-top:14px;padding:6px 4px}
+  .ava{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+  .user .un{font-size:12.5px;font-weight:600}
+  .user .ue{font-size:10.5px;color:var(--txt-mut)}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh}
+  .top{
+    display:flex;align-items:center;gap:16px;padding:15px 26px;
+    border-bottom:1px solid var(--line);background:rgba(255,255,255,.75);backdrop-filter:blur(8px);
+  }
+  .top h1{font-size:17px;font-weight:700;letter-spacing:.2px}
+  .top .sub{font-size:12px;color:var(--txt-mut);margin-top:1px}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;padding:8px 12px;width:280px;transition:.15s;
+  }
+  .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  .search svg{width:15px;height:15px;color:var(--txt-mut)}
+  .search input{background:none;border:none;outline:none;color:var(--txt);font-size:13px;width:100%;font-family:inherit}
+  .search input::placeholder{color:var(--txt-mut)}
+  .icon-btn{
+    width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);
+    display:grid;place-items:center;color:var(--txt-dim);cursor:pointer;transition:.15s;position:relative;
+  }
+  .icon-btn:hover{color:var(--accent);border-color:var(--accent)}
+  .icon-btn svg{width:17px;height:17px}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid var(--panel)}
+
+  .body{flex:1;overflow:auto;padding:22px 26px 40px}
+
+  /* ---------- Composer hero ---------- */
+  .hero{
+    display:grid;grid-template-columns:1.55fr 1fr;gap:18px;margin-bottom:22px;
+  }
+  .composer{
+    background:
+      radial-gradient(600px 200px at 100% 0%, rgba(99,102,241,.05), transparent 55%),
+      var(--panel);
+    border:1px solid var(--line);border-radius:18px;padding:22px;position:relative;overflow:hidden;box-shadow:var(--shadow);
+  }
+  .composer::after{content:"";position:absolute;inset:0;border-radius:18px;padding:1px;background:linear-gradient(135deg,rgba(99,102,241,.25),transparent 40%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+  .comp-head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .spark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;box-shadow:0 6px 18px -6px var(--accent-glow)}
+  .spark svg{width:17px;height:17px}
+  .comp-head h2{font-size:15.5px;font-weight:700}
+  .comp-head p{font-size:11.5px;color:var(--txt-mut)}
+  .field-lbl{font-size:11px;font-weight:600;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
+  .ta-wrap{position:relative}
+  textarea#prompt{
+    width:100%;min-height:74px;resize:none;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:12px;color:var(--txt);font-family:inherit;font-size:13.5px;padding:13px 14px;line-height:1.55;transition:.15s;
+  }
+  textarea#prompt:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  textarea#prompt::placeholder{color:var(--txt-mut)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0 4px}
+  .chip{
+    font-size:11.5px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--txt-dim);cursor:pointer;transition:.15s;display:flex;align-items:center;gap:6px;font-weight:500;
+  }
+  .chip:hover{border-color:#c7cbd6;color:var(--txt)}
+  .chip.on{background:rgba(99,102,241,.12);border-color:rgba(99,102,241,.45);color:var(--accent)}
+  .chip svg{width:13px;height:13px}
+  .comp-row{display:flex;align-items:center;gap:12px;margin-top:18px}
+  .selects{display:flex;gap:9px;flex-wrap:wrap}
+  .sel{
+    display:flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:9px;padding:8px 11px;font-size:12px;color:var(--txt-dim);cursor:pointer;transition:.15s;
+  }
+  .sel:hover{border-color:#c7cbd6;color:var(--txt)}
+  .sel svg{width:13px;height:13px;color:var(--txt-mut)}
+  .sel b{color:var(--txt);font-weight:600}
+  .gen-btn{
+    margin-left:auto;display:flex;align-items:center;gap:9px;border:none;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;font-family:inherit;
+    font-size:13.5px;font-weight:700;padding:11px 20px;border-radius:11px;transition:.18s;
+    box-shadow:0 10px 26px -10px var(--accent-glow);white-space:nowrap;
+  }
+  .gen-btn:hover{transform:translateY(-1px);box-shadow:0 16px 34px -12px var(--accent-glow)}
+  .gen-btn:active{transform:translateY(0)}
+  .gen-btn svg{width:16px;height:16px}
+  .gen-btn.busy{pointer-events:none;opacity:.92}
+  .gen-btn .spin{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  .gen-btn.busy .spin{display:inline-block}
+  .gen-btn.busy .pl{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* progress line */
+  .prog{height:3px;border-radius:3px;background:var(--line);margin-top:16px;overflow:hidden;opacity:0;transition:opacity .2s}
+  .prog.show{opacity:1}
+  .prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--cyan));transition:width .3s}
+  .prog-lbl{font-size:11px;color:var(--accent);margin-top:7px;height:14px;opacity:0;transition:.2s;display:flex;align-items:center;gap:7px}
+  .prog-lbl.show{opacity:1}
+  .prog-lbl .pdot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* insight panel */
+  .insight{
+    background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);
+    border-radius:18px;padding:18px 20px;display:flex;flex-direction:column;
+  }
+  .insight h3{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .insight h3 .lt{margin-left:auto;font-size:10px;color:var(--green);background:rgba(22,163,74,.12);padding:2px 8px;border-radius:20px;font-weight:600;display:flex;align-items:center;gap:5px}
+  .insight h3 .lt::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite}
+  .insight p.cap{font-size:11px;color:var(--txt-mut);margin-bottom:14px}
+  .feed{display:flex;flex-direction:column;gap:11px;overflow:auto;max-height:208px;padding-right:4px}
+  .feed-item{display:flex;gap:11px;font-size:12px}
+  .fi-ico{width:26px;height:26px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;margin-top:1px}
+  .fi-ico svg{width:14px;height:14px}
+  .fi-b{flex:1;min-width:0}
+  .fi-b .ft{color:var(--txt);font-weight:500}
+  .fi-b .ft b{font-weight:700}
+  .fi-b .fm{color:var(--txt-mut);font-size:10.5px;margin-top:2px}
+  .i-blue{background:rgba(99,102,241,.12);color:var(--accent)}
+  .i-green{background:rgba(22,163,74,.12);color:var(--green)}
+  .i-amber{background:rgba(217,119,6,.12);color:var(--amber)}
+  .i-cyan{background:rgba(8,145,178,.12);color:var(--cyan)}
+  .i-pink{background:rgba(219,39,119,.12);color:var(--pink)}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .kpi{
+    background:var(--panel);border:1px solid var(--line);box-shadow:0 6px 18px -14px rgba(31,41,55,.25);
+    border-radius:14px;padding:16px 17px;position:relative;overflow:hidden;
+  }
+  .kpi .kl{font-size:11.5px;color:var(--txt-mut);font-weight:500;display:flex;align-items:center;gap:7px}
+  .kpi .kl svg{width:14px;height:14px}
+  .kpi .kv{font-size:25px;font-weight:800;margin:7px 0 3px;letter-spacing:-.5px}
+  .kpi .kd{font-size:11px;font-weight:600;display:flex;align-items:center;gap:5px}
+  .kpi .kd.up{color:var(--green)}.kpi .kd.dn{color:var(--red)}.kpi .kd.flat{color:var(--txt-mut)}
+  .spark-svg{position:absolute;right:14px;bottom:12px;width:74px;height:32px;opacity:.85}
+
+  /* ---------- Section title ---------- */
+  .sec-head{display:flex;align-items:center;gap:14px;margin:4px 0 15px}
+  .sec-head h2{font-size:15px;font-weight:700}
+  .sec-head .cnt{font-size:11.5px;color:var(--txt-mut);background:var(--panel);border:1px solid var(--line);padding:2px 9px;border-radius:20px}
+  .tabs{display:flex;gap:4px;margin-left:auto;background:var(--panel-2);border:1px solid var(--line);padding:3px;border-radius:11px}
+  .tab{font-size:12px;padding:6px 13px;border-radius:8px;color:var(--txt-dim);cursor:pointer;font-weight:600;transition:.15s;border:none;background:none;font-family:inherit}
+  .tab:hover{color:var(--txt)}
+  .tab.on{background:var(--panel);color:var(--accent);box-shadow:0 2px 6px -3px rgba(31,41,55,.25)}
+
+  /* ---------- Reports grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));gap:16px}
+  .card{
+    background:var(--panel);border:1px solid var(--line);box-shadow:0 4px 14px -12px rgba(31,41,55,.3);
+    border-radius:14px;padding:16px 17px;cursor:pointer;transition:.16s;position:relative;display:flex;flex-direction:column;min-height:188px;
+  }
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .card-top{display:flex;align-items:flex-start;gap:11px;margin-bottom:11px}
+  .doc-ico{width:36px;height:36px;border-radius:10px;flex:0 0 auto;display:grid;place-items:center;font-size:0}
+  .doc-ico svg{width:18px;height:18px}
+  .card .ct{font-size:13.5px;font-weight:700;line-height:1.3}
+  .card .cm{font-size:11px;color:var(--txt-mut);margin-top:3px}
+  .pill{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.02em;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+  .p-pub{color:var(--green);background:rgba(22,163,74,.12)}
+  .p-rev{color:var(--amber);background:rgba(217,119,6,.12)}
+  .p-gen{color:var(--accent);background:rgba(99,102,241,.12)}
+  .p-draft{color:var(--txt-dim);background:rgba(100,116,139,.12)}
+  .p-fail{color:var(--red);background:rgba(220,38,38,.12)}
+  .card .snip{font-size:11.5px;color:var(--txt-dim);line-height:1.5;margin:2px 0 12px;flex:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .card-foot{display:flex;align-items:center;gap:10px;margin-top:auto;padding-top:11px;border-top:1px solid var(--line-soft)}
+  .conf{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--txt-dim)}
+  .conf .cring{position:relative;width:26px;height:26px}
+  .conf .cring svg{transform:rotate(-90deg)}
+  .conf b{font-weight:700}
+  .meta-r{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--txt-mut)}
+  .meta-r .av{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff}
+  .card .top-r{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+  .tagline{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+  .tg{font-size:10px;color:var(--txt-mut);background:var(--panel-2);border:1px solid var(--line-soft);padding:2px 8px;border-radius:6px}
+
+  .empty{grid-column:1/-1;text-align:center;padding:54px 20px;color:var(--txt-mut)}
+  .empty svg{width:46px;height:46px;opacity:.4;margin-bottom:12px}
+  .empty p{font-size:13px}
+  .empty .es{font-size:11.5px;margin-top:5px;color:var(--txt-mut)}
+
+  /* ---------- Drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(5,7,11,.6);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:.25s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:min(640px,94vw);background:var(--bg-soft);
+    border-left:1px solid var(--line);box-shadow:-30px 0 80px -30px rgba(0,0,0,.8);
+    transform:translateX(100%);transition:transform .32s cubic-bezier(.4,0,.1,1);z-index:50;
+    display:flex;flex-direction:column;
+  }
+  .drawer.show{transform:translateX(0)}
+  .dr-head{padding:20px 24px 16px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--panel),transparent)}
+  .dr-top{display:flex;align-items:flex-start;gap:13px}
+  .dr-head .dt{font-size:18px;font-weight:800;line-height:1.25;letter-spacing:-.2px}
+  .dr-head .dm{font-size:12px;color:var(--txt-mut);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap}
+  .dr-head .dm span{display:flex;align-items:center;gap:5px}
+  .dr-head .dm svg{width:13px;height:13px}
+  .close{margin-left:auto;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--txt-dim);cursor:pointer;display:grid;place-items:center;flex:0 0 auto;transition:.15s}
+  .close:hover{color:var(--accent);border-color:var(--accent)}
+  .close svg{width:16px;height:16px}
+  .dr-body{flex:1;overflow:auto;padding:20px 24px 30px}
+
+  .ai-banner{
+    display:flex;align-items:center;gap:13px;background:linear-gradient(120deg,rgba(99,102,241,.1),rgba(139,92,246,.05));
+    border:1px solid rgba(99,102,241,.28);border-radius:12px;padding:13px 15px;margin-bottom:20px;
+  }
+  .ai-banner .ab-ic{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;flex:0 0 auto}
+  .ai-banner .ab-ic svg{width:17px;height:17px}
+  .ai-banner .ab-t{font-size:12.5px;font-weight:700}
+  .ai-banner .ab-s{font-size:11px;color:var(--txt-dim);margin-top:2px}
+  .ai-banner .ab-c{margin-left:auto;text-align:right;flex:0 0 auto}
+  .ai-banner .ab-c .v{font-size:18px;font-weight:800;color:var(--accent)}
+  .ai-banner .ab-c .l{font-size:9.5px;color:var(--txt-mut);text-transform:uppercase;letter-spacing:.08em}
+
+  .dr-sec{margin-bottom:22px}
+  .dr-sec h4{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--txt-mut);font-weight:700;margin-bottom:11px;display:flex;align-items:center;gap:8px}
+  .dr-sec h4 svg{width:14px;height:14px}
+
+  /* extracted fields */
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .fld{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .fld .fl{font-size:10.5px;color:var(--txt-mut);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+  .fld .fv{font-size:14px;font-weight:700}
+  .fld .fc{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:10px}
+  .cbadge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:5px}
+  .cb-hi{color:var(--green);background:rgba(22,163,74,.12)}
+  .cb-md{color:var(--amber);background:rgba(217,119,6,.12)}
+  .cb-lo{color:var(--red);background:rgba(220,38,38,.12)}
+  .minibar{flex:1;height:4px;border-radius:4px;background:var(--line);overflow:hidden}
+  .minibar i{display:block;height:100%;border-radius:4px}
+
+  /* draft body */
+  .draft{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:17px 19px;font-size:13px;line-height:1.7;color:var(--txt-dim)}
+  .draft h5{font-size:13.5px;font-weight:700;color:var(--txt);margin:14px 0 7px}
+  .draft h5:first-child{margin-top:0}
+  .draft p{margin-bottom:11px}
+  .draft strong{color:var(--txt);font-weight:700}
+  .draft .hl{background:rgba(99,102,241,.12);border-radius:3px;padding:0 3px;color:var(--accent);border-bottom:1px dashed rgba(99,102,241,.5);cursor:help}
+  .draft ul{margin:0 0 12px 4px;list-style:none}
+  .draft li{position:relative;padding-left:18px;margin-bottom:6px}
+  .draft li::before{content:"";position:absolute;left:2px;top:8px;width:6px;height:6px;border-radius:2px;background:var(--accent)}
+
+  /* mini chart inside drawer */
+  .chart-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .chart-card .cc-h{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+  .chart-card .cc-h .v{font-size:22px;font-weight:800}
+  .chart-card .cc-h .l{font-size:11px;color:var(--txt-mut)}
+  .chart-card .cc-h .d{margin-left:auto;font-size:11px;font-weight:700;color:var(--green)}
+  .bars{display:flex;align-items:flex-end;gap:9px;height:96px}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end}
+  .bar{width:100%;max-width:34px;border-radius:6px 6px 3px 3px;background:linear-gradient(180deg,var(--accent),rgba(99,102,241,.45));transition:.3s;position:relative}
+  .bar.alt{background:linear-gradient(180deg,var(--accent-2),rgba(139,92,246,.45))}
+  .bar-col span{font-size:9.5px;color:var(--txt-mut)}
+
+  /* review suggestions */
+  .sugg{display:flex;flex-direction:column;gap:9px}
+  .sg{display:flex;gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 13px;align-items:flex-start}
+  .sg .sgi{width:24px;height:24px;border-radius:7px;flex:0 0 auto;display:grid;place-items:center;margin-top:1px}
+  .sg .sgi svg{width:13px;height:13px}
+  .sg .sgb{flex:1;min-width:0}
+  .sg .sgt{font-size:12.5px;font-weight:600;color:var(--txt)}
+  .sg .sgm{font-size:11px;color:var(--txt-mut);margin-top:3px;line-height:1.5}
+  .sg .sga{display:flex;gap:7px;margin-top:9px}
+  .mini-btn{font-size:10.5px;font-weight:600;padding:4px 11px;border-radius:7px;cursor:pointer;border:1px solid var(--line);background:var(--panel-2);color:var(--txt-dim);transition:.15s;font-family:inherit}
+  .mini-btn:hover{color:var(--accent);border-color:var(--accent)}
+  .mini-btn.acc{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.3);color:var(--green)}
+  .mini-btn.acc:hover{background:rgba(22,163,74,.2);color:var(--green)}
+
+  .dr-foot{padding:15px 24px;border-top:1px solid var(--line);display:flex;align-items:center;gap:11px;background:var(--bg-soft)}
+  .dr-foot .ghost{font-size:13px;font-weight:600;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--txt-dim);cursor:pointer;transition:.15s;font-family:inherit;display:flex;align-items:center;gap:7px}
+  .dr-foot .ghost:hover{color:var(--accent);border-color:var(--accent)}
+  .dr-foot .ghost svg{width:15px;height:15px}
+  .dr-foot .primary{margin-left:auto;font-size:13px;font-weight:700;padding:10px 20px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--green),#15803d);color:#fff;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;transition:.15s}
+  .dr-foot .primary:hover{filter:brightness(1.06)}
+  .dr-foot .primary svg{width:15px;height:15px}
+
+  /* toast */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 18px;display:flex;align-items:center;gap:11px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.3s;z-index:60;font-size:13px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .ti{width:26px;height:26px;border-radius:8px;background:rgba(22,163,74,.12);color:var(--green);display:grid;place-items:center}
+  .toast .ti svg{width:15px;height:15px}
+  .toast b{font-weight:700}
+
+  @media(max-width:1080px){.hero{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.side{display:none}.app{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 5.6L20 9.2l-4.2 4 1.1 5.8L12 16.4 7.1 19l1.1-5.8L4 9.2l5.6-1.6L12 2z" fill="#fff" opacity=".95"/></svg>
+      </div>
+      <div>
+        <div class="bt">ReportForge</div>
+        <div class="bs">AI Report Studio</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-lbl">Workspace</div>
+      <a class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 13h8V3H3v10zm10 8h8V3h-8v18zM3 21h8v-6H3v6z"/></svg> Studio<span class="badge">24</span></a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h16v4H4zM4 12h10v8H4zM18 12h2v8h-2z"/></svg> Templates<span class="badge">12</span></a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Scheduled<span class="badge">5</span></a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg> Data Sources</a>
+      <div class="nav-lbl">Library</div>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2z"/></svg> Published<span class="badge">31</span></a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3h14v18l-7-4-7 4z"/></svg> Bookmarks</a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> Shared Feed</a>
+      <div class="nav-lbl">Account</div>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 00-1.7-1L16.5 2h-4l-.3 2.6a7 7 0 00-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 000 2l-2 1.6 2 3.4 2.4-1a7 7 0 001.7 1l.3 2.4h4l.3-2.4a7 7 0 001.7-1l2.4 1 2-3.4-2-1.6c.1-.3.1-.7.1-1z"/></svg> Settings</a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="quota"><span>Generation credits</span><b>1,920 / 3,000</b></div>
+      <div class="qbar"><i></i></div>
+      <div class="user">
+        <div class="ava">MA</div>
+        <div>
+          <div class="un">Maya Albrecht</div>
+          <div class="ue">Revenue Operations</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="top">
+      <div>
+        <h1>Report Studio</h1>
+        <div class="sub">Compose, generate &amp; review business reports with AI</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input id="searchBox" placeholder="Search reports, owners, sources…">
+      </div>
+      <button class="icon-btn"><span class="dot"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></button>
+      <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button>
+    </header>
+
+    <div class="body">
+      <!-- ===== HERO: composer + activity ===== -->
+      <section class="hero">
+        <div class="composer">
+          <div class="comp-head">
+            <div class="spark">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l1.9 4.6L18.5 8l-3.4 3.2.8 4.6L12 13.6 8.1 15.8l.8-4.6L5.5 8l4.6-1.4L12 2z" fill="#fff"/></svg>
+            </div>
+            <div>
+              <h2>Compose a new report</h2>
+              <p>Describe what you need — AI assembles the narrative from your connected data</p>
+            </div>
+          </div>
+
+          <div class="ta-wrap">
+            <p class="field-lbl">What should this report cover?</p>
+            <textarea id="prompt" placeholder="e.g. Summarize Q2 EMEA pipeline health, flag at-risk deals over $50k, and recommend next-quarter focus accounts…"></textarea>
+          </div>
+
+          <div class="chips" id="chips">
+            <button class="chip on" data-c="exec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>Executive Summary</button>
+            <button class="chip" data-c="rev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Revenue Breakdown</button>
+            <button class="chip" data-c="risk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Risk &amp; Anomalies</button>
+            <button class="chip" data-c="fcast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>Forecast</button>
+            <button class="chip" data-c="cohort"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="3"/><path d="M2 21v-2a5 5 0 015-5h2"/></svg>Customer Cohorts</button>
+          </div>
+
+          <div class="comp-row">
+            <div class="selects">
+              <div class="sel" id="srcSel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg>Source: <b>Salesforce + GA4</b></div>
+              <div class="sel" id="rangeSel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Range: <b>Last 90 days</b></div>
+              <div class="sel" id="toneSel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1v-7h1a2 2 0 012 2zM3 19a2 2 0 002 2h1v-7H5a2 2 0 00-2 2z"/></svg>Tone: <b>Boardroom</b></div>
+            </div>
+            <button class="gen-btn" id="genBtn">
+              <span class="spin"></span>
+              <span class="pl"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l1.9 4.6L18.5 8l-3.4 3.2.8 4.6L12 13.6 8.1 15.8l.8-4.6L5.5 8l4.6-1.4L12 2z" fill="#fff"/></svg></span>
+              <span class="gtxt">Generate Report</span>
+            </button>
+          </div>
+
+          <div class="prog" id="prog"><i></i></div>
+          <div class="prog-lbl" id="progLbl"><span class="pdot"></span><span class="ptxt"></span></div>
+        </div>
+
+        <div class="insight">
+          <h3>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--accent)"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            AI Activity
+            <span class="lt">Live</span>
+          </h3>
+          <p class="cap">What the engine has been doing across your workspace</p>
+          <div class="feed" id="feed">
+            <div class="feed-item"><div class="fi-ico i-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div><div class="fi-b"><div class="ft">Generated <b>Q2 Pipeline Health</b> — 4 sections, 11 charts</div><div class="fm">2 min ago · confidence 94%</div></div></div>
+            <div class="feed-item"><div class="fi-ico i-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4"/></svg></div><div class="fi-b"><div class="ft">Flagged <b>3 anomalies</b> in EMEA churn data</div><div class="fm">18 min ago · needs review</div></div></div>
+            <div class="feed-item"><div class="fi-ico i-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.5V4z"/></svg></div><div class="fi-b"><div class="ft">Extracted <b>27 fields</b> from uploaded earnings PDF</div><div class="fm">41 min ago · auto-mapped</div></div></div>
+            <div class="feed-item"><div class="fi-ico i-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/></svg></div><div class="fi-b"><div class="ft">Refreshed forecast model — <b>+5.2% MRR</b> projected</div><div class="fm">1 hr ago · model v4</div></div></div>
+            <div class="feed-item"><div class="fi-ico i-pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="3"/></svg></div><div class="fi-b"><div class="ft">Clustered <b>1,840 accounts</b> into 6 named cohorts</div><div class="fm">3 hr ago · auto-labeled</div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== KPI strip ===== -->
+      <section class="kpis">
+        <div class="kpi">
+          <div class="kl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v4H4zM4 12h10v8H4z"/></svg>Reports generated</div>
+          <div class="kv">248</div>
+          <div class="kd up">▲ 18% <span style="color:var(--txt-mut);font-weight:500">vs last month</span></div>
+          <svg class="spark-svg" viewBox="0 0 74 32" preserveAspectRatio="none"><polyline points="0,26 12,22 24,24 36,14 48,16 60,8 74,4" fill="none" stroke="var(--green)" stroke-width="2"/><polyline points="0,26 12,22 24,24 36,14 48,16 60,8 74,4 74,32 0,32" fill="rgba(22,163,74,.10)" stroke="none"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="kl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>Avg confidence</div>
+          <div class="kv">91.4<span style="font-size:15px;color:var(--txt-mut)">%</span></div>
+          <div class="kd up">▲ 2.1pt <span style="color:var(--txt-mut);font-weight:500">accuracy</span></div>
+          <svg class="spark-svg" viewBox="0 0 74 32" preserveAspectRatio="none"><polyline points="0,18 12,20 24,12 36,16 48,10 60,12 74,6" fill="none" stroke="var(--accent)" stroke-width="2"/><polyline points="0,18 12,20 24,12 36,16 48,10 60,12 74,6 74,32 0,32" fill="rgba(99,102,241,.10)" stroke="none"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="kl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Avg time saved</div>
+          <div class="kv">3.7<span style="font-size:15px;color:var(--txt-mut)">h</span></div>
+          <div class="kd up">▲ per report <span style="color:var(--txt-mut);font-weight:500">vs manual</span></div>
+          <svg class="spark-svg" viewBox="0 0 74 32" preserveAspectRatio="none"><polyline points="0,24 12,18 24,20 36,12 48,14 60,10 74,8" fill="none" stroke="var(--cyan)" stroke-width="2"/><polyline points="0,24 12,18 24,20 36,12 48,14 60,10 74,8 74,32 0,32" fill="rgba(8,145,178,.10)" stroke="none"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="kl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Pending review</div>
+          <div class="kv">7</div>
+          <div class="kd dn">▲ 2 <span style="color:var(--txt-mut);font-weight:500">flagged anomalies</span></div>
+          <svg class="spark-svg" viewBox="0 0 74 32" preserveAspectRatio="none"><polyline points="0,20 12,22 24,16 36,18 48,12 60,18 74,14" fill="none" stroke="var(--amber)" stroke-width="2"/><polyline points="0,20 12,22 24,16 36,18 48,12 60,18 74,14 74,32 0,32" fill="rgba(217,119,6,.10)" stroke="none"/></svg>
+        </div>
+      </section>
+
+      <!-- ===== Reports library ===== -->
+      <div class="sec-head">
+        <h2>Generated Reports</h2>
+        <span class="cnt" id="resultCount">24 reports</span>
+        <div class="tabs" id="tabs">
+          <button class="tab on" data-f="all">All</button>
+          <button class="tab" data-f="review">Needs review</button>
+          <button class="tab" data-f="published">Published</button>
+          <button class="tab" data-f="generating">Generating</button>
+          <button class="tab" data-f="draft">Drafts</button>
+        </div>
+      </div>
+
+      <div class="grid" id="grid"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ DRAWER ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div class="dr-top">
+      <div>
+        <div class="dt" id="drTitle">—</div>
+        <div class="dm" id="drMeta"></div>
+      </div>
+      <button class="close" id="drClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot">
+    <button class="ghost" id="regen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 019-9 9 9 0 016.7 3M21 12a9 9 0 01-9 9 9 9 0 01-6.7-3"/><path d="M21 3v5h-5M3 21v-5h5"/></svg>Regenerate</button>
+    <button class="ghost" id="exportBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Export PDF</button>
+    <button class="primary" id="publishBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Approve &amp; Publish</button>
+  </div>
+</aside>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast">
+  <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg></div>
+  <div id="toastTxt">Done</div>
+</div>
+
+<script>
+/* ============================================================
+   Seed data — 24 generated reports
+   ============================================================ */
+const AVA = [['#6366f1','MA'],['#0891b2','JD'],['#16a34a','RK'],['#d97706','LP'],['#db2777','SN'],['#8b5cf6','TW']];
+function avatar(i){return AVA[i%AVA.length];}
+
+const REPORTS = [
+  {id:1, title:"Q2 Pipeline Health — EMEA", type:"exec", status:"review", conf:94, owner:"Maya A.", date:"Jun 22", src:"Salesforce + GA4", range:"Last 90 days", tags:["Pipeline","At-Risk","EMEA"],
+   snip:"Pipeline coverage sits at 3.1x quota but $1.8M sits in stalled stage-4 deals. AI flags 3 accounts with declining engagement that need exec touch this week.",
+   summary:"Coverage healthy, conversion softening in mid-funnel. Three enterprise deals carry 41% of forecast risk.",
+   fields:[["Total pipeline","$24.6M",92],["Coverage ratio","3.1x",88],["At-risk value","$1.8M",73],["Win-rate (QoQ)","-4.2pt",61]],
+   chart:{label:"Weighted pipeline by stage ($M)",total:"$24.6M",delta:"+6.4%",bars:[["S1",5.2],["S2",6.8],["S3",4.4],["S4",5.6],["S5",2.6]]},
+   sugg:[
+     ["amber","Escalate 3 stalled deals","Northwind, Helios and Vantage have no activity in 21+ days. Combined value $1.8M.","Create tasks"],
+     ["blue","Reallocate SDR coverage","EMEA-North is 1.8x over capacity while EMEA-South runs at 0.6x.","Apply"],
+     ["green","Forecast looks defensible","82% of committed deals show healthy buyer engagement signals.","Accept"]
+   ]},
+  {id:2, title:"Monthly Revenue Breakdown", type:"rev", status:"published", conf:96, owner:"Jordan D.", date:"Jun 20", src:"NetSuite", range:"May 2026", tags:["Revenue","ARR","Finance"],
+   snip:"ARR closed at $42.3M, up 5.2% MoM driven by mid-market expansion. Net revenue retention holds at 114%. Two products outperformed plan.",
+   summary:"Strong month — expansion revenue offset a slight uptick in SMB churn. NRR remains best-in-class.",
+   fields:[["Closed ARR","$42.3M",97],["Net new","$2.1M",95],["NRR","114%",93],["Gross churn","2.4%",84]],
+   chart:{label:"Revenue by segment ($M)",total:"$42.3M",delta:"+5.2%",bars:[["Ent",18.4],["Mid",14.1],["SMB",6.2],["Self",3.6]]},
+   sugg:[
+     ["green","Expansion engine working","Mid-market net-new beat plan by 12%. Double down on this motion.","Accept"],
+     ["amber","Watch SMB churn","Logo churn ticked to 4.1% — concentrated in the legacy tier-1 plan.","Investigate"]
+   ]},
+  {id:3, title:"Customer Cohort Retention", type:"cohort", status:"published", conf:89, owner:"Riley K.", date:"Jun 19", src:"Amplitude", range:"Trailing 12mo", tags:["Cohorts","Retention","Product"],
+   snip:"Six AI-named cohorts. 'Power Adopters' retain at 96% while 'Trial Drifters' churn at 38% by month 3. Onboarding is the strongest predictor of survival.",
+   summary:"Activation in week one drives long-term retention. The drifting cohort never completes setup.",
+   fields:[["Cohorts found","6",90],["Best retention","96%",94],["Worst retention","62%",81],["Key predictor","Week-1 setup",86]],
+   chart:{label:"M3 retention by cohort (%)",total:"6 cohorts",delta:"+3.1%",bars:[["Pwr",96],["Grw",88],["Std",79],["Cas",71],["Drf",62]]},
+   sugg:[
+     ["blue","Target Trial Drifters","240 accounts stalled before first key action. Trigger a guided setup nudge.","Apply"],
+     ["green","Replicate Power Adopter path","Their first-week behavior is a strong template for onboarding.","Accept"]
+   ]},
+  {id:4, title:"Sales Forecast — Q3 2026", type:"fcast", status:"generating", conf:0, owner:"Maya A.", date:"Jun 23", src:"Salesforce", range:"Next quarter", tags:["Forecast","Q3"],
+   snip:"Model is assembling weighted scenarios across 412 open opportunities and historical close rates by rep and segment.",
+   summary:"",
+   fields:[], chart:null, sugg:[]},
+  {id:5, title:"EMEA Churn Anomaly Report", type:"risk", status:"review", conf:78, owner:"Sana N.", date:"Jun 21", src:"Zuora + Zendesk", range:"Last 30 days", tags:["Churn","Anomaly","Risk"],
+   snip:"Detected an unusual 2.3x spike in cancellation requests from German enterprise accounts, correlated with a support backlog. 3 anomalies need human confirmation.",
+   summary:"Churn spike is real but likely temporary — tied to a support SLA breach, not pricing or product.",
+   fields:[["Anomalies","3",100],["Churn spike","2.3x",71],["Correlation","Support SLA",68],["Accounts hit","14",90]],
+   chart:{label:"Daily cancel requests (DE-Ent)",total:"+138%",delta:"+138%",bars:[["W1",4],["W2",5],["W3",9],["W4",14],["W5",11]]},
+   sugg:[
+     ["red","Confirm anomaly cause","Spike aligns exactly with a 6-day support backlog. Verify before publishing.","Verify"],
+     ["amber","Brief CS leadership","14 enterprise accounts impacted — proactive outreach recommended.","Draft email"]
+   ]},
+  {id:6, title:"Board Deck — H1 Performance", type:"exec", status:"draft", conf:85, owner:"Jordan D.", date:"Jun 18", src:"Consolidated", range:"H1 2026", tags:["Board","Executive"],
+   snip:"Half-year narrative covering revenue, efficiency, headcount and the AI roadmap. Draft assembled — awaiting CFO numbers for the cash section.",
+   summary:"Solid first half. Magic number improved to 1.2; burn multiple trending the right way.",
+   fields:[["Revenue (H1)","$78.4M",91],["Magic number","1.2",83],["Burn multiple","0.9",80],["Headcount","412",96]],
+   chart:{label:"Quarterly revenue ($M)",total:"$78.4M",delta:"+11%",bars:[["Q4","32"],["Q1",37],["Q2",41]]},
+   sugg:[
+     ["blue","Add cash runway section","CFO data source not yet connected. Placeholder inserted.","Connect"],
+     ["green","Narrative reads board-ready","Tone and structure match prior approved decks.","Accept"]
+   ]},
+  {id:7, title:"Product Usage Digest", type:"cohort", status:"published", conf:92, owner:"Taylor W.", date:"Jun 17", src:"Mixpanel", range:"Weekly", tags:["Usage","Product","Engagement"],
+   snip:"DAU/MAU ratio climbed to 0.42. The new dashboard feature drove a 19% lift in weekly active sessions among enterprise seats.",
+   summary:"Stickiness improving. New dashboard is the clear driver of the engagement lift.",
+   fields:[["DAU/MAU","0.42",93],["WAU lift","+19%",90],["Top feature","Dashboards",95],["Sessions","1.2M",97]],
+   chart:{label:"Weekly active sessions (K)",total:"1.2M",delta:"+19%",bars:[["W1",210],["W2",228],["W3",251],["W4",289]]},
+   sugg:[["green","Promote the dashboard","Engagement data justifies a wider in-app announcement.","Accept"]]},
+  {id:8, title:"Win/Loss Analysis — Mid-Market", type:"rev", status:"review", conf:81, owner:"Riley K.", date:"Jun 16", src:"Gong + Salesforce", range:"Q2 2026", tags:["Win-Loss","Competitive"],
+   snip:"Across 96 closed deals, pricing was cited in 58% of losses while product depth won 71% of competitive wins. Two competitors gained share this quarter.",
+   summary:"We win on depth, lose on price. Discount guardrails may be costing winnable mid-market deals.",
+   fields:[["Deals analyzed","96",94],["Loss to price","58%",79],["Win on depth","71%",85],["Top rival","Acme Cloud",72]],
+   chart:{label:"Loss reasons (count)",total:"38 losses",delta:"-",bars:[["Price",22],["Timing",7],["Feat",5],["Other",4]]},
+   sugg:[
+     ["amber","Revisit discount policy","Pricing lost 9 deals that scored high on fit. Consider flexible floors.","Review"],
+     ["blue","Build battlecard vs Acme","Acme appeared in 11 competitive losses this quarter.","Draft"]
+   ]},
+  {id:9, title:"Marketing Attribution Rollup", type:"rev", status:"published", conf:88, owner:"Sana N.", date:"Jun 15", src:"HubSpot + GA4", range:"May 2026", tags:["Marketing","Attribution","ROI"],
+   snip:"Paid search returned 4.2x ROAS while events underperformed at 1.1x. AI recommends shifting 15% of event budget into high-intent search and partner co-marketing.",
+   summary:"Search and partner channels carry efficiency. Events need a hard look or a format change.",
+   fields:[["Blended ROAS","3.4x",87],["Best channel","Paid search",91],["Worst channel","Events",83],["Pipeline infl.","$11.2M",85]],
+   chart:{label:"ROAS by channel",total:"3.4x",delta:"+0.3x",bars:[["Srch",4.2],["Prtnr",3.8],["Email",2.9],["Soc",2.1],["Evt",1.1]]},
+   sugg:[["blue","Rebalance event budget","Move 15% into paid search for an estimated +$1.4M influenced pipeline.","Apply"]]},
+  {id:10, title:"Regional Performance — APAC", type:"exec", status:"draft", conf:79, owner:"Taylor W.", date:"Jun 14", src:"Salesforce", range:"Q2 2026", tags:["APAC","Regional"],
+   snip:"APAC grew 22% but off a small base. Japan leads expansion; ANZ pipeline thin. Draft needs a localized currency normalization pass before review.",
+   summary:"High-growth, early-stage region. Japan is the bright spot; invest selectively.",
+   fields:[["APAC growth","+22%",84],["Top market","Japan",90],["Weakest","ANZ",76],["FX exposure","Medium",70]],
+   chart:{label:"Bookings by market ($M)",total:"$6.4M",delta:"+22%",bars:[["JP",2.9],["SG",1.6],["IN",1.1],["ANZ",0.8]]},
+   sugg:[["amber","Normalize FX before publish","Three markets reported in local currency. Convert to USD.","Fix"]]},
+  {id:11, title:"Support Ticket Trends", type:"risk", status:"published", conf:90, owner:"Maya A.", date:"Jun 13", src:"Zendesk", range:"Last 30 days", tags:["Support","CSAT","Ops"],
+   snip:"Ticket volume down 8% but first-response time crept up 14%. Billing remains the top category. CSAT steady at 4.6/5 despite the slower response.",
+   summary:"Volume healthy, responsiveness slipping. Staffing or routing tweak needed on billing queue.",
+   fields:[["Ticket volume","4,210",95],["First response","6.2h",82],["CSAT","4.6/5",93],["Top topic","Billing",88]],
+   chart:{label:"Tickets by category",total:"4,210",delta:"-8%",bars:[["Bill",1480],["Tech",1120],["How",890],["Acct",720]]},
+   sugg:[["amber","Re-route billing queue","Billing drove the response-time slip. Add one specialist.","Apply"]]},
+  {id:12, title:"Expansion Opportunity Scan", type:"fcast", status:"review", conf:86, owner:"Jordan D.", date:"Jun 12", src:"Salesforce + Product", range:"Current", tags:["Expansion","Upsell"],
+   snip:"AI scored 1,840 accounts on upsell propensity. 142 high-fit accounts show seat-utilization above 85% — a combined $4.6M expansion opportunity.",
+   summary:"Clear upsell signal in seat-constrained accounts. Hand the top 50 to AEs this week.",
+   fields:[["Accounts scored","1,840",96],["High-fit","142",89],["Expansion TAM","$4.6M",84],["Avg propensity","0.71",82]],
+   chart:{label:"Accounts by propensity band",total:"1,840",delta:"-",bars:[["0.9+",58],["0.8",84],["0.7",210],["0.6",340],["<.6",1148]]},
+   sugg:[
+     ["green","Route top 50 to AEs","Highest-propensity, highest-value accounts ready for outreach.","Create tasks"],
+     ["blue","Trigger in-app seat prompt","87 accounts are at seat limits — surface a self-serve upgrade.","Apply"]
+   ]},
+  {id:13, title:"Cash Flow Statement Draft", type:"rev", status:"draft", conf:74, owner:"Riley K.", date:"Jun 11", src:"NetSuite", range:"May 2026", tags:["Finance","Cash"],
+   snip:"Operating cash flow positive at $3.1M. AI extracted line items from the ledger but two reclassifications need a controller's eyes before this can publish.",
+   summary:"Cash position solid. Two ambiguous entries flagged for manual reclassification.",
+   fields:[["Op. cash flow","$3.1M",80],["Free cash flow","$1.9M",77],["Runway","26 mo",83],["Flagged items","2",100]],
+   chart:{label:"Cash flow components ($M)",total:"$3.1M",delta:"+0.4",bars:[["Op",3.1],["Inv",-0.9],["Fin",-0.3]]},
+   sugg:[["red","Controller review needed","Two ledger entries had ambiguous classification — confidence below threshold.","Review"]]},
+  {id:14, title:"Competitive Landscape Brief", type:"exec", status:"published", conf:87, owner:"Sana N.", date:"Jun 10", src:"News + CRM", range:"Q2 2026", tags:["Competitive","Market"],
+   snip:"Synthesized 340 market signals. Two competitors raised funding; one shipped an AI feature overlapping our roadmap. Net positioning remains favorable on enterprise security.",
+   summary:"Market heating up. Our security story is a durable wedge; close the AI feature gap.",
+   fields:[["Signals parsed","340",91],["New raises","2",95],["Threat level","Moderate",78],["Our edge","Enterprise sec",84]],
+   chart:{label:"Signal mix",total:"340",delta:"-",bars:[["Fund",62],["Prod",98],["Hire",74],["Cust",106]]},
+   sugg:[["blue","Brief product on AI gap","Competitor shipped overlapping AI feature — assess parity.","Share"]]},
+  {id:15, title:"Onboarding Funnel Audit", type:"cohort", status:"review", conf:83, owner:"Taylor W.", date:"Jun 9", src:"Amplitude", range:"Last 60 days", tags:["Onboarding","Funnel"],
+   snip:"42% of signups stall at the integration step. AI traces the drop to a confusing OAuth screen. Fixing it could recover an estimated 380 activations per quarter.",
+   summary:"One step kills activation. The integration screen is the single biggest leak.",
+   fields:[["Funnel steps","5",96],["Biggest drop","Integration",85],["Stall rate","42%",81],["Recoverable","~380/q",77]],
+   chart:{label:"Funnel completion (%)",total:"5 steps",delta:"-",bars:[["Sign",100],["Setup",88],["Integ",46],["Invite",41],["Active",38]]},
+   sugg:[["amber","Redesign integration step","Largest single drop-off. Simplify the OAuth flow.","Apply"]]},
+  {id:16, title:"Renewal Risk Forecast", type:"fcast", status:"review", conf:80, owner:"Maya A.", date:"Jun 8", src:"Salesforce + Product", range:"Next 90 days", tags:["Renewals","Risk"],
+   snip:"$6.2M up for renewal in 90 days. AI scores 9 accounts ($2.1M) as high-risk based on usage decline and support friction. Early intervention window is closing.",
+   summary:"A third of upcoming renewal value carries elevated risk. Move now on the top 9.",
+   fields:[["Renewal value","$6.2M",92],["High-risk","$2.1M",79],["At-risk logos","9",88],["Save window","< 30 days",74]],
+   chart:{label:"Renewal value by risk ($M)",total:"$6.2M",delta:"-",bars:[["Safe",3.1],["Watch",1.0],["High",2.1]]},
+   sugg:[
+     ["red","Launch save plays now","9 accounts worth $2.1M show clear decline signals.","Create tasks"],
+     ["blue","Loop in CS leadership","Top 3 risk accounts exceed $400k ARR each.","Notify"]
+   ]},
+  {id:17, title:"Headcount & Efficiency", type:"exec", status:"published", conf:91, owner:"Jordan D.", date:"Jun 7", src:"Workday", range:"Q2 2026", tags:["People","Efficiency"],
+   snip:"Revenue per employee reached $191k, up 9%. Engineering hiring on plan; sales slightly behind. AI flags a span-of-control imbalance in two departments.",
+   summary:"Efficiency improving. Hiring mostly on track with two structural tweaks recommended.",
+   fields:[["Rev / employee","$191k",92],["Headcount","412",97],["Open roles","23",90],["Attrition","8.1%",88]],
+   chart:{label:"Headcount by function",total:"412",delta:"+6%",bars:[["Eng",148],["GTM",132],["Ops",74],["G&A",58]]},
+   sugg:[["blue","Rebalance two teams","Span-of-control over 9 in Support and Data. Consider a layer.","Review"]]},
+  {id:18, title:"Partner Channel Scorecard", type:"rev", status:"published", conf:85, owner:"Riley K.", date:"Jun 6", src:"PRM + Salesforce", range:"Q2 2026", tags:["Partners","Channel"],
+   snip:"Partners sourced $8.9M influenced pipeline, up 31%. Top 3 partners drive 64% of volume. AI recommends a tiering refresh to reward emerging mid-tier performers.",
+   summary:"Channel momentum strong but concentrated. Reward the rising middle to diversify.",
+   fields:[["Influenced pipe","$8.9M",88],["Active partners","41",94],["Top-3 share","64%",86],["New partners","6",90]],
+   chart:{label:"Pipeline by tier ($M)",total:"$8.9M",delta:"+31%",bars:[["T1",5.7],["T2",2.1],["T3",1.1]]},
+   sugg:[["green","Refresh partner tiers","Three mid-tier partners outperformed — promote and incentivize.","Apply"]]},
+  {id:19, title:"Anomaly Watch — Billing", type:"risk", status:"failed", conf:0, owner:"Sana N.", date:"Jun 5", src:"Stripe", range:"Last 7 days", tags:["Billing","Anomaly"],
+   snip:"Generation halted — the Stripe data source returned an incomplete export. Reconnect the source and retry to scan for billing anomalies.",
+   summary:"", fields:[], chart:null, sugg:[]},
+  {id:20, title:"NPS & Sentiment Pulse", type:"cohort", status:"published", conf:88, owner:"Taylor W.", date:"Jun 4", src:"Delighted + Support", range:"Q2 2026", tags:["NPS","Sentiment"],
+   snip:"NPS rose 6 points to 48. AI clustered 1,200 verbatims: praise centers on reliability, criticism on reporting depth — which this very product line addresses.",
+   summary:"Sentiment trending up. Reporting depth is the top request and a clear roadmap signal.",
+   fields:[["NPS","48",92],["Promoters","61%",90],["Top praise","Reliability",87],["Top ask","Reporting",85]],
+   chart:{label:"Verbatim themes (count)",total:"1,200",delta:"+6 NPS",bars:[["Rel",420],["UX",310],["Rpt",260],["Price",210]]},
+   sugg:[["green","Quote in roadmap","Reporting demand validates current investment.","Accept"]]},
+  {id:21, title:"Deal Velocity Report", type:"fcast", status:"published", conf:90, owner:"Maya A.", date:"Jun 3", src:"Salesforce", range:"Q2 2026", tags:["Velocity","Sales"],
+   snip:"Average sales cycle shortened to 58 days, down 11%. Mid-market velocity improved most after the new qualification framework. Enterprise cycles remain long but predictable.",
+   summary:"Faster deals across the board. The new qualification step is paying off in mid-market.",
+   fields:[["Avg cycle","58d",91],["QoQ change","-11%",88],["Fastest seg","Mid-market",89],["Stuck stage","Procurement",80]],
+   chart:{label:"Cycle length by segment (days)",total:"58d",delta:"-11%",bars:[["SMB",31],["Mid",52],["Ent",94]]},
+   sugg:[["blue","Tackle procurement drag","Procurement adds 18 days on average in enterprise.","Investigate"]]},
+  {id:22, title:"Product Adoption Heatmap", type:"cohort", status:"draft", conf:76, owner:"Jordan D.", date:"Jun 2", src:"Pendo", range:"Last 90 days", tags:["Adoption","Features"],
+   snip:"Mapped adoption across 38 features. Five core features carry 80% of usage; twelve are nearly dormant. Draft awaits a label cleanup on three renamed features.",
+   summary:"Heavy concentration in a few features. Candidates for deprecation or repositioning identified.",
+   fields:[["Features mapped","38",90],["Core (80%)","5",87],["Dormant","12",79],["New feature use","Low",70]],
+   chart:{label:"Adoption tiers",total:"38 feats",delta:"-",bars:[["Core",5],["Reg",9],["Occ",12],["Dorm",12]]},
+   sugg:[["amber","Clean up feature labels","Three features were renamed — adoption data is split across IDs.","Fix"]]},
+  {id:23, title:"Quarterly Business Review", type:"exec", status:"review", conf:93, owner:"Riley K.", date:"Jun 1", src:"Consolidated", range:"Q2 2026", tags:["QBR","Executive"],
+   snip:"Full QBR narrative assembled across revenue, product, GTM and risk. Every headline ties to a source metric. AI suggests leading with the NRR story this quarter.",
+   summary:"A clean, defensible QBR. Lead with retention; it's the strongest narrative this quarter.",
+   fields:[["Sections","6",95],["Metrics cited","41",96],["Confidence","93%",93],["Lead story","NRR 114%",91]],
+   chart:{label:"QBR section health",total:"6 sections",delta:"-",bars:[["Rev",92],["Prod",88],["GTM",84],["CS",79],["Risk",73]]},
+   sugg:[
+     ["green","Lead with NRR","Retention is the standout metric — open the deck with it.","Accept"],
+     ["blue","Tighten risk section","Risk section confidence trails the rest. Add supporting data.","Improve"]
+   ]},
+  {id:24, title:"Self-Serve Conversion Study", type:"rev", status:"published", conf:84, owner:"Sana N.", date:"May 30", src:"Stripe + Product", range:"Last 90 days", tags:["PLG","Conversion"],
+   snip:"Free-to-paid conversion holds at 4.1%. AI isolates the trial extension prompt as the highest-lift intervention, worth an estimated +0.6pt if rolled out broadly.",
+   summary:"PLG funnel steady. One prompt has outsized impact — scale it deliberately.",
+   fields:[["Free→paid","4.1%",86],["Best lever","Trial extend",83],["Est. lift","+0.6pt",78],["Trials/mo","2,140",92]],
+   chart:{label:"Conversion by entry point (%)",total:"4.1%",delta:"+0.2pt",bars:[["Web",4.6],["App",3.9],["Mkt",3.2],["Soc",2.4]]},
+   sugg:[["green","Roll out trial-extend prompt","Highest-lift lever in the study. Expand beyond the test cohort.","Apply"]]}
+];
+
+const TYPE_META = {
+  exec:{label:"Executive Summary", c:"#6366f1", bg:"rgba(99,102,241,.12)", ic:'<path d="M12 20V10M18 20V4M6 20v-4"/>'},
+  rev:{label:"Revenue Breakdown", c:"#16a34a", bg:"rgba(22,163,74,.12)", ic:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>'},
+  risk:{label:"Risk & Anomalies", c:"#dc2626", bg:"rgba(220,38,38,.12)", ic:'<path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/>'},
+  fcast:{label:"Forecast", c:"#0891b2", bg:"rgba(8,145,178,.12)", ic:'<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>'},
+  cohort:{label:"Customer Cohorts", c:"#db2777", bg:"rgba(219,39,119,.12)", ic:'<circle cx="9" cy="7" r="3"/><circle cx="17" cy="9" r="3"/><path d="M2 21v-2a5 5 0 015-5h2"/>'}
+};
+const STATUS_META = {
+  review:{cls:"p-rev", label:"Needs review"},
+  published:{cls:"p-pub", label:"Published"},
+  generating:{cls:"p-gen", label:"Generating"},
+  draft:{cls:"p-draft", label:"Draft"},
+  failed:{cls:"p-fail", label:"Failed"}
+};
+
+/* ============================================================
+   State + rendering
+   ============================================================ */
+let activeFilter = "all";
+let searchTerm = "";
+
+const grid = document.getElementById('grid');
+const resultCount = document.getElementById('resultCount');
+
+function confColor(c){ return c>=88 ? 'var(--green)' : c>=75 ? 'var(--amber)' : 'var(--red)'; }
+function confBadgeCls(c){ return c>=88 ? 'cb-hi' : c>=75 ? 'cb-md' : 'cb-lo'; }
+
+function cardHTML(r){
+  const tm = TYPE_META[r.type];
+  const sm = STATUS_META[r.status];
+  const [ac, ai] = avatar(r.id);
+  const isGen = r.status==='generating';
+  const isFail = r.status==='failed';
+
+  let footer;
+  if(isGen){
+    footer = `<div class="card-foot"><div class="conf" style="color:var(--accent)"><span class="spin" style="display:inline-block;width:14px;height:14px;border:2px solid rgba(99,102,241,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></span> Assembling…</div><div class="meta-r"><span>${r.date}</span></div></div>`;
+  } else if(isFail){
+    footer = `<div class="card-foot"><div class="conf" style="color:var(--red)">⚠ Source error</div><div class="meta-r"><span>${r.date}</span></div></div>`;
+  } else {
+    const cc = confColor(r.conf);
+    const dash = 2*Math.PI*10;
+    const off = dash*(1-r.conf/100);
+    footer = `<div class="card-foot">
+      <div class="conf">
+        <div class="cring">
+          <svg viewBox="0 0 26 26" width="26" height="26">
+            <circle cx="13" cy="13" r="10" fill="none" stroke="#e6e8ee" stroke-width="3"/>
+            <circle cx="13" cy="13" r="10" fill="none" stroke="${cc}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${dash}" stroke-dashoffset="${off}"/>
+          </svg>
+        </div>
+        <span><b style="color:${cc}">${r.conf}%</b> confidence</span>
+      </div>
+      <div class="meta-r"><div class="av" style="background:${ac}">${ai}</div><span>${r.date}</span></div>
+    </div>`;
+  }
+
+  const tags = r.tags.slice(0,3).map(t=>`<span class="tg">${t}</span>`).join('');
+
+  return `<div class="card" data-id="${r.id}">
+    <div class="card-top">
+      <div class="doc-ico" style="background:${tm.bg}"><svg viewBox="0 0 24 24" fill="none" stroke="${tm.c}" stroke-width="1.8">${tm.ic}</svg></div>
+      <div style="flex:1;min-width:0">
+        <div class="ct">${r.title}</div>
+        <div class="cm">${tm.label} · ${r.src}</div>
+      </div>
+      <div class="top-r"><span class="pill ${sm.cls}">${sm.label}</span></div>
+    </div>
+    <div class="tagline">${tags}</div>
+    <div class="snip">${r.snip}</div>
+    ${footer}
+  </div>`;
+}
+
+function render(){
+  let list = REPORTS.filter(r=>{
+    const matchF = activeFilter==='all' || r.status===activeFilter;
+    const s = searchTerm.toLowerCase();
+    const matchS = !s || (r.title+r.owner+r.src+r.tags.join(' ')+TYPE_META[r.type].label).toLowerCase().includes(s);
+    return matchF && matchS;
+  });
+  resultCount.textContent = `${list.length} report${list.length!==1?'s':''}`;
+  if(list.length===0){
+    grid.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 4h6l5 5v11a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/><path d="M9 13h6M9 17h4"/></svg>
+      <p>No reports match your filters</p>
+      <div class="es">Try a different tab or clear the search</div>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = list.map(cardHTML).join('');
+  grid.querySelectorAll('.card').forEach(c=>{
+    c.addEventListener('click', ()=>openDrawer(+c.dataset.id));
+  });
+}
+
+/* ============================================================
+   Drawer
+   ============================================================ */
+const scrim = document.getElementById('scrim');
+const drawer = document.getElementById('drawer');
+const drTitle = document.getElementById('drTitle');
+const drMeta = document.getElementById('drMeta');
+const drBody = document.getElementById('drBody');
+
+function openDrawer(id){
+  const r = REPORTS.find(x=>x.id===id);
+  if(!r) return;
+  const tm = TYPE_META[r.type];
+  const sm = STATUS_META[r.status];
+  drTitle.textContent = r.title;
+  drMeta.innerHTML = `
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0116 0v1"/></svg>${r.owner}</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/></svg>${r.date}, 2026</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg>${r.src}</span>
+    <span class="pill ${sm.cls}" style="font-size:9.5px">${sm.label}</span>`;
+
+  // body for generating / failed states
+  if(r.status==='generating'){
+    drBody.innerHTML = `<div class="ai-banner">
+      <div class="ab-ic"><span class="spin" style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite"></span></div>
+      <div><div class="ab-t">AI is assembling this report</div><div class="ab-s">Analyzing 412 open opportunities and historical close rates…</div></div>
+    </div>
+    <div class="dr-sec"><h4>Live progress</h4>
+      <div class="draft">
+        <p>✓ Connected data source — <strong>Salesforce</strong></p>
+        <p>✓ Pulled 412 open opportunities across 6 segments</p>
+        <p>⟳ Scoring weighted scenarios by rep and segment…</p>
+        <p style="color:var(--txt-mut)">○ Drafting narrative &amp; recommendations</p>
+        <p style="color:var(--txt-mut)">○ Rendering charts</p>
+      </div></div>`;
+  } else if(r.status==='failed'){
+    drBody.innerHTML = `<div class="ai-banner" style="border-color:rgba(247,109,114,.4);background:linear-gradient(120deg,rgba(247,109,114,.1),transparent)">
+      <div class="ab-ic" style="background:linear-gradient(135deg,#f76d72,#d8484e)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+      <div><div class="ab-t">Generation halted</div><div class="ab-s">The Stripe export was incomplete. Reconnect the source and retry.</div></div>
+    </div>
+    <div class="dr-sec"><h4>What happened</h4><div class="draft"><p>The AI engine began the billing anomaly scan but the <strong>Stripe</strong> data source returned a partial export (3 of 7 expected files). The run was stopped to avoid producing a misleading report.</p><p>No partial output was published. Reconnect the source and click <strong>Regenerate</strong> to retry.</p></div></div>`;
+  } else {
+    drBody.innerHTML = drawerContent(r, tm);
+  }
+
+  scrim.classList.add('show');
+  drawer.classList.add('show');
+  drBody.scrollTop = 0;
+}
+
+function drawerContent(r, tm){
+  // extracted fields
+  const fields = r.fields.map(([l,v,c])=>{
+    const cls = confBadgeCls(c);
+    return `<div class="fld">
+      <div class="fl">${l}</div>
+      <div class="fv">${v}</div>
+      <div class="fc"><span class="cbadge ${cls}">${c}%</span><div class="minibar"><i style="width:${c}%;background:${confColor(c)}"></i></div></div>
+    </div>`;
+  }).join('');
+
+  // chart
+  let chart = '';
+  if(r.chart){
+    const vals = r.chart.bars.map(b=>Math.abs(+b[1]));
+    const max = Math.max(...vals);
+    const cols = r.chart.bars.map((b,i)=>{
+      const h = max ? Math.max(6, Math.abs(+b[1])/max*100) : 6;
+      const alt = i%2===1?'alt':'';
+      return `<div class="bar-col"><div class="bar ${alt}" style="height:${h}%"></div><span>${b[0]}</span></div>`;
+    }).join('');
+    chart = `<div class="dr-sec"><h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.5z"/></svg>Key visual</h4>
+      <div class="chart-card">
+        <div class="cc-h"><div class="v">${r.chart.total}</div><div class="l">${r.chart.label}</div><div class="d">${r.chart.delta}</div></div>
+        <div class="bars">${cols}</div>
+      </div></div>`;
+  }
+
+  // suggestions
+  const sIco = {
+    green:['i-green','<path d="M20 6L9 17l-5-5"/>'],
+    blue:['i-blue','<path d="M13 2L3 14h9l-1 8 10-12h-9z"/>'],
+    amber:['i-amber','<path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4"/>'],
+    red:['i-pink','<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>']
+  };
+  const sugg = r.sugg.map((s,i)=>{
+    const [tone,title,msg,act] = s;
+    const [icls,ipath] = sIco[tone]||sIco.blue;
+    const accCls = tone==='green'?'acc':'';
+    return `<div class="sg" data-sg="${i}">
+      <div class="sgi ${icls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ipath}</svg></div>
+      <div class="sgb">
+        <div class="sgt">${title}</div>
+        <div class="sgm">${msg}</div>
+        <div class="sga"><button class="mini-btn ${accCls}">${act}</button><button class="mini-btn dismiss">Dismiss</button></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="ai-banner">
+      <div class="ab-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l1.9 4.6L18.5 8l-3.4 3.2.8 4.6L12 13.6 8.1 15.8l.8-4.6L5.5 8l4.6-1.4L12 2z" fill="#fff"/></svg></div>
+      <div><div class="ab-t">AI-generated summary</div><div class="ab-s">${r.summary}</div></div>
+      <div class="ab-c"><div class="v">${r.conf}%</div><div class="l">confidence</div></div>
+    </div>
+
+    <div class="dr-sec">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h9"/></svg>Extracted metrics <span style="margin-left:auto;font-size:10px;color:var(--txt-mut);font-weight:500">${r.fields.length} fields · hover bar for confidence</span></h4>
+      <div class="fields">${fields}</div>
+    </div>
+
+    ${chart}
+
+    <div class="dr-sec">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 12h16M4 19h10"/></svg>Generated narrative</h4>
+      <div class="draft">
+        <h5>Headline</h5>
+        <p>${r.snip}</p>
+        <h5>Why it matters</h5>
+        <p>The model cross-referenced <span class="hl" title="Source: ${r.src}">${r.src}</span> over <strong>${r.range.toLowerCase()}</strong> and weighted each signal by historical reliability. Findings below the confidence threshold are surfaced for human review rather than auto-published.</p>
+        <h5>Recommended next steps</h5>
+        <ul>
+          ${r.sugg.map(s=>`<li>${s[1]} — <span style="color:var(--txt-mut)">${s[2]}</span></li>`).join('')}
+        </ul>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l1.9 4.6L18.5 8l-3.4 3.2.8 4.6L12 13.6 8.1 15.8l.8-4.6L5.5 8l4.6-1.4z"/></svg>AI suggestions <span style="margin-left:auto;font-size:10px;color:var(--txt-mut);font-weight:500">review &amp; apply</span></h4>
+      <div class="sugg">${sugg||'<div style="color:var(--txt-mut);font-size:12px;padding:8px">No open suggestions.</div>'}</div>
+    </div>
+  `;
+}
+
+function closeDrawer(){
+  scrim.classList.remove('show');
+  drawer.classList.remove('show');
+}
+document.getElementById('drClose').addEventListener('click', closeDrawer);
+scrim.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+// suggestion accept/dismiss inside drawer (delegated)
+drBody.addEventListener('click', e=>{
+  const btn = e.target.closest('.mini-btn');
+  if(!btn) return;
+  const sg = btn.closest('.sg');
+  if(btn.classList.contains('dismiss')){
+    sg.style.transition='.25s'; sg.style.opacity='0'; sg.style.transform='translateX(12px)';
+    setTimeout(()=>sg.remove(),250);
+  } else {
+    btn.textContent = '✓ Applied';
+    btn.classList.add('acc');
+    btn.style.pointerEvents='none';
+    showToast('Suggestion applied to report');
+  }
+});
+
+/* ============================================================
+   Drawer footer actions
+   ============================================================ */
+document.getElementById('publishBtn').addEventListener('click', ()=>{ showToast('Report approved & published to the library'); closeDrawer(); });
+document.getElementById('exportBtn').addEventListener('click', ()=>showToast('Export queued — PDF will arrive shortly'));
+document.getElementById('regen').addEventListener('click', ()=>showToast('Regeneration started — refreshing from source'));
+
+/* ============================================================
+   Tabs + search
+   ============================================================ */
+document.getElementById('tabs').addEventListener('click', e=>{
+  const t = e.target.closest('.tab'); if(!t) return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  activeFilter = t.dataset.f;
+  render();
+});
+document.getElementById('searchBox').addEventListener('input', e=>{
+  searchTerm = e.target.value;
+  render();
+});
+
+/* ============================================================
+   Composer chips + selects
+   ============================================================ */
+document.getElementById('chips').addEventListener('click', e=>{
+  const c = e.target.closest('.chip'); if(!c) return;
+  c.classList.toggle('on');
+});
+const cycleSel = (el, label, opts)=>{
+  let idx = 0;
+  el.addEventListener('click', ()=>{
+    idx = (idx+1)%opts.length;
+    el.querySelector('b').textContent = opts[idx];
+  });
+};
+cycleSel(document.getElementById('srcSel'), 'Source', ['Salesforce + GA4','NetSuite','Amplitude','HubSpot + GA4','All connected']);
+cycleSel(document.getElementById('rangeSel'), 'Range', ['Last 90 days','Last 30 days','This quarter','Year to date','Custom']);
+cycleSel(document.getElementById('toneSel'), 'Tone', ['Boardroom','Analytical','Concise','Narrative']);
+
+/* ============================================================
+   Generate flow (frontend simulation)
+   ============================================================ */
+const genBtn = document.getElementById('genBtn');
+const prog = document.getElementById('prog');
+const progBar = prog.querySelector('i');
+const progLbl = document.getElementById('progLbl');
+const progTxt = progLbl.querySelector('.ptxt');
+const feed = document.getElementById('feed');
+
+const STEPS = [
+  [12,'Connecting to data sources…'],
+  [34,'Pulling 90 days of records…'],
+  [58,'Detecting trends & anomalies…'],
+  [78,'Drafting narrative & recommendations…'],
+  [92,'Rendering charts…'],
+  [100,'Report ready for review']
+];
+
+genBtn.addEventListener('click', ()=>{
+  if(genBtn.classList.contains('busy')) return;
+  const promptVal = document.getElementById('prompt').value.trim();
+  genBtn.classList.add('busy');
+  prog.classList.add('show'); progLbl.classList.add('show');
+  progBar.style.width='0%';
+  let i = 0;
+  const tick = ()=>{
+    if(i>=STEPS.length){ finishGen(promptVal); return; }
+    const [pct,msg] = STEPS[i];
+    progBar.style.width = pct+'%';
+    progTxt.textContent = msg;
+    i++;
+    setTimeout(tick, 620);
+  };
+  tick();
+});
+
+function finishGen(promptVal){
+  genBtn.classList.remove('busy');
+  // build a new report
+  const activeChips = [...document.querySelectorAll('.chip.on')].map(c=>c.dataset.c);
+  const type = activeChips[0] || 'exec';
+  const conf = 88 + Math.floor(Math.random()*9);
+  const titleBase = promptVal ? promptVal.split(/[.,;]/)[0].slice(0,42) : 'New AI Report';
+  const title = titleBase.charAt(0).toUpperCase()+titleBase.slice(1) + (titleBase.length<14?' — Generated':'');
+  const newR = {
+    id: Math.max(...REPORTS.map(r=>r.id))+1,
+    title, type, status:'review', conf, owner:'Maya A.', date:'Jun 23',
+    src: document.getElementById('srcSel').querySelector('b').textContent,
+    range: document.getElementById('rangeSel').querySelector('b').textContent,
+    tags:['New','Auto','Review'],
+    snip:'Freshly generated from your prompt. AI assembled the narrative and surfaced the items below for your review before publishing.',
+    summary:'A new draft is ready. Review the extracted metrics and suggestions, then approve to publish.',
+    fields:[['Confidence',conf+'%',conf],['Records used','12.4k',91],['Sections','4',95],['Flagged',''+(1+Math.floor(Math.random()*3)),100]],
+    chart:{label:'Generated metric trend',total:'+8.3%',delta:'+8.3%',bars:[['W1',6],['W2',8],['W3',7],['W4',11],['W5',13]]},
+    sugg:[
+      ['green','Narrative is publish-ready','Structure and tone match your selected boardroom style.','Accept'],
+      ['blue','Review one flagged figure','One metric fell below the confidence threshold.','Review']
+    ]
+  };
+  REPORTS.unshift(newR);
+  activeFilter='all';
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelector('.tab[data-f="all"]').classList.add('on');
+  render();
+
+  // prepend to activity feed
+  const fi = document.createElement('div');
+  fi.className='feed-item';
+  fi.style.opacity='0'; fi.style.transform='translateY(-6px)';
+  fi.innerHTML = `<div class="fi-ico i-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l1.9 4.6L18.5 8l-3.4 3.2.8 4.6L12 13.6 8.1 15.8l.8-4.6L5.5 8l4.6-1.4z"/></svg></div><div class="fi-b"><div class="ft">Generated <b>${escapeHtml(newR.title)}</b></div><div class="fm">just now · confidence ${conf}%</div></div>`;
+  feed.prepend(fi);
+  requestAnimationFrame(()=>{ fi.style.transition='.3s'; fi.style.opacity='1'; fi.style.transform='translateY(0)'; });
+
+  setTimeout(()=>{ prog.classList.remove('show'); progLbl.classList.remove('show'); }, 1400);
+  showToast('Report generated — open it to review');
+  // open the new report
+  setTimeout(()=>openDrawer(newR.id), 350);
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+/* ============================================================
+   Toast
+   ============================================================ */
+let toastTimer;
+const toast = document.getElementById('toast');
+function showToast(msg){
+  document.getElementById('toastTxt').innerHTML = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toast.classList.remove('show'), 2600);
+}
+
+/* init */
+render();
+</script>
+</body>
+</html>

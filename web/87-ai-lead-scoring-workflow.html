@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Lead Scoring Workflow</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-grad-1: #f6f7f9;
+    --bg-grad-2: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f6f7f9;
+    --surface-3: #f1f3f5;
+    --line: #e5e7eb;
+    --line-soft: #eef0f2;
+    --text: #1f2937;
+    --text-2: #3f4a5c;
+    --muted: #6b7280;
+    --muted-2: #9aa3af;
+    --primary: #059669;
+    --primary-soft: #e7f6ef;
+    --primary-2: #047857;
+    --hot: #ef4444;
+    --hot-soft: #fef0f0;
+    --warm: #f59e0b;
+    --warm-soft: #fef6e7;
+    --cool: #059669;
+    --cool-soft: #e7f6ef;
+    --cold: #64748b;
+    --cold-soft: #eef1f6;
+    --shadow-sm: 0 1px 2px rgba(17,24,39,.05), 0 1px 3px rgba(17,24,39,.04);
+    --shadow: 0 6px 20px rgba(17,24,39,.07), 0 2px 6px rgba(17,24,39,.04);
+    --shadow-lg: 0 20px 48px rgba(17,24,39,.14);
+    --radius: 14px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    color: var(--text);
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #d4dbe8; border-radius: 9px; }
+  ::-webkit-scrollbar-thumb:hover { background: #c0c9da; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- Shell ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 222px 1fr;
+    grid-template-rows: 60px 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 22px;
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--line);
+    z-index: 30;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; min-width: 196px; }
+  .brand .logo {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    display: grid; place-items: center;
+    box-shadow: 0 6px 14px rgba(5,150,105,.28);
+  }
+  .brand .logo svg { width: 19px; height: 19px; }
+  .brand .name { font-weight: 700; font-size: 14.5px; letter-spacing: .1px; }
+  .brand .name small { display: block; font-weight: 500; font-size: 10.5px; color: var(--muted); letter-spacing: .25px; }
+
+  .search { flex: 1; max-width: 440px; position: relative; }
+  .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--muted-2); }
+  .search input {
+    width: 100%; height: 38px; padding: 0 14px 0 36px;
+    border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface-2); color: var(--text); font-size: 13px;
+    transition: .16s;
+  }
+  .search input:focus { outline: none; border-color: var(--primary); background: #fff; box-shadow: 0 0 0 4px var(--primary-soft); }
+
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .pill-live {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 30px; padding: 0 12px; border-radius: 999px;
+    background: var(--cool-soft); color: #0c7a55; font-weight: 600; font-size: 11.5px;
+    border: 1px solid #c9f0df;
+  }
+  .pill-live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cool); box-shadow: 0 0 0 0 rgba(16,185,129,.6); animation: ping 1.8s infinite; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,.5); } 70% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); } }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); display: grid; place-items: center; cursor: pointer; color: var(--text-2); transition: .15s;
+  }
+  .icon-btn:hover { background: var(--surface-2); border-color: #d6deea; }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(135deg,#fb7185,#f59e0b);
+    color: #fff; font-weight: 700; font-size: 13px; display: grid; place-items: center;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    border-right: 1px solid var(--line);
+    background: #ffffff;
+    padding: 16px 12px;
+    display: flex; flex-direction: column; gap: 4px;
+    overflow-y: auto;
+  }
+  .nav-label { font-size: 10.5px; font-weight: 700; letter-spacing: .8px; color: var(--muted-2); text-transform: uppercase; padding: 14px 12px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 12px; border-radius: 10px; cursor: pointer;
+    color: var(--text-2); font-weight: 500; font-size: 13px; transition: .14s; position: relative;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: .8; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  .nav-item.active svg { opacity: 1; }
+  .nav-item .count { margin-left: auto; font-size: 11px; font-weight: 700; background: #fff; border: 1px solid var(--line); color: var(--muted); padding: 1px 7px; border-radius: 999px; }
+  .nav-item.active .count { background: #fff; border-color: #b8e6d2; color: var(--primary); }
+
+  .side-card {
+    margin-top: auto; padding: 14px; border-radius: 12px;
+    background: linear-gradient(150deg, #059669, #047857);
+    color: #fff; box-shadow: 0 10px 22px rgba(5,150,105,.26);
+  }
+  .side-card h4 { margin: 0 0 4px; font-size: 12.5px; }
+  .side-card p { margin: 0 0 10px; font-size: 11px; color: rgba(255,255,255,.82); line-height: 1.45; }
+  .side-card .bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.25); overflow: hidden; }
+  .side-card .bar span { display: block; height: 100%; width: 74%; background: #fff; border-radius: 999px; }
+  .side-card .meta { display: flex; justify-content: space-between; font-size: 10.5px; margin-top: 7px; color: rgba(255,255,255,.85); }
+
+  /* ---------- Main ---------- */
+  .main { overflow-y: auto; padding: 22px 26px 40px; }
+  .page-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  .page-head h1 { margin: 0; font-size: 21px; letter-spacing: -.3px; }
+  .page-head p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+  .head-actions { margin-left: auto; display: flex; gap: 10px; }
+  .btn {
+    height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); font-weight: 600; font-size: 12.5px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; transition: .15s;
+  }
+  .btn:hover { background: var(--surface-2); border-color: #d6deea; }
+  .btn svg { width: 15px; height: 15px; }
+  .btn.primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; border: none;
+    box-shadow: 0 8px 18px rgba(5,150,105,.26);
+  }
+  .btn.primary:hover { filter: brightness(1.05); }
+
+  /* KPI row */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+  }
+  .kpi .lab { font-size: 11.5px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 7px; }
+  .kpi .lab .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; }
+  .kpi .lab .ic svg { width: 14px; height: 14px; }
+  .kpi .val { font-size: 26px; font-weight: 800; margin-top: 9px; letter-spacing: -.5px; }
+  .kpi .sub { font-size: 11.5px; margin-top: 2px; display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .trend-up { color: #0c7a55; font-weight: 700; }
+  .trend-down { color: #c0392b; font-weight: 700; }
+  .kpi .spark { position: absolute; right: 12px; bottom: 10px; opacity: .9; }
+
+  /* layout split */
+  .grid-2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; align-items: start; }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); overflow: hidden;
+  }
+  .panel-head { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--line-soft); }
+  .panel-head h3 { margin: 0; font-size: 14px; }
+  .panel-head .sub { font-size: 11.5px; color: var(--muted); }
+  .panel-head .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  /* tabs / filters */
+  .seg { display: inline-flex; background: var(--surface-3); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg button {
+    border: none; background: transparent; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    font-weight: 600; font-size: 12px; color: var(--muted); transition: .14s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .seg button .b { font-size: 10.5px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; }
+  .seg button.on { background: #fff; color: var(--text); box-shadow: var(--shadow-sm); }
+  .seg button.on .b { border-color: transparent; }
+
+  .mini-search { position: relative; }
+  .mini-search input { height: 32px; width: 150px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); padding: 0 10px 0 28px; font-size: 12px; }
+  .mini-search input:focus { outline: none; border-color: var(--primary); background: #fff; box-shadow: 0 0 0 3px var(--primary-soft); }
+  .mini-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted-2); }
+
+  /* lead list */
+  .lead-list { max-height: 560px; overflow-y: auto; }
+  .lead-row {
+    display: grid; grid-template-columns: 56px 1fr auto; gap: 13px; align-items: center;
+    padding: 12px 18px; border-bottom: 1px solid var(--line-soft); cursor: pointer; transition: .14s; position: relative;
+  }
+  .lead-row:hover { background: var(--surface-2); }
+  .lead-row.sel { background: var(--primary-soft); }
+  .lead-row.sel::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--primary); }
+
+  .score-badge {
+    width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; position: relative; flex-shrink: 0;
+  }
+  .score-badge .ring { position: absolute; inset: 0; }
+  .score-badge .n { font-size: 16px; font-weight: 800; z-index: 1; line-height: 1; }
+  .score-badge .n small { display: block; font-size: 7.5px; font-weight: 700; letter-spacing: .5px; opacity: .7; margin-top: 1px; }
+
+  .lead-main { min-width: 0; }
+  .lead-main .ln1 { display: flex; align-items: center; gap: 8px; }
+  .lead-main .nm { font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lead-main .co { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lead-main .ln2 { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+
+  .tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+  .tag.hot { background: var(--hot-soft); color: #c0392b; }
+  .tag.warm { background: var(--warm-soft); color: #b06a00; }
+  .tag.cool { background: var(--cool-soft); color: #0c7a55; }
+  .tag.cold { background: var(--cold-soft); color: #475569; }
+  .tag.ghost { background: var(--surface-3); color: var(--muted); }
+  .src { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .src svg { width: 12px; height: 12px; opacity: .75; }
+
+  .lead-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .delta { font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+  .delta.up { color: #0c7a55; }
+  .delta.dn { color: #c0392b; }
+  .ago { font-size: 11px; color: var(--muted-2); }
+  .route-chip { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--surface-3); color: var(--text-2); border: 1px solid var(--line); }
+
+  .empty { padding: 50px 20px; text-align: center; color: var(--muted); display: none; }
+  .empty svg { width: 42px; height: 42px; color: var(--muted-2); margin-bottom: 10px; }
+  .empty h4 { margin: 0 0 4px; color: var(--text-2); font-size: 14px; }
+  .empty p { margin: 0; font-size: 12.5px; }
+
+  /* right column distribution + feed */
+  .dist-panel { padding: 16px 18px; }
+  .dist-bars { display: flex; align-items: flex-end; gap: 12px; height: 132px; padding: 8px 4px 0; }
+  .dist-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .dist-col .bar-wrap { width: 100%; height: 110px; display: flex; align-items: flex-end; }
+  .dist-col .bar { width: 100%; border-radius: 7px 7px 3px 3px; transition: .3s; cursor: pointer; position: relative; }
+  .dist-col .bar:hover { filter: brightness(.94); }
+  .dist-col .bar .tip {
+    position: absolute; top: -26px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: #fff; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px;
+    opacity: 0; pointer-events: none; transition: .15s; white-space: nowrap;
+  }
+  .dist-col .bar:hover .tip { opacity: 1; }
+  .dist-col .lab { font-size: 10.5px; font-weight: 700; color: var(--muted); }
+  .dist-col .lab b { display: block; color: var(--text); font-size: 12px; }
+
+  .feed { padding: 6px 6px 10px; max-height: 320px; overflow-y: auto; }
+  .feed-item { display: flex; gap: 11px; padding: 10px 12px; border-radius: 10px; transition: .14s; }
+  .feed-item:hover { background: var(--surface-2); }
+  .feed-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
+  .feed-ic svg { width: 15px; height: 15px; }
+  .feed-body { min-width: 0; flex: 1; }
+  .feed-body .t { font-size: 12.5px; line-height: 1.4; }
+  .feed-body .t b { font-weight: 700; }
+  .feed-body .t .ai { color: var(--primary); font-weight: 700; }
+  .feed-body .ts { font-size: 11px; color: var(--muted-2); margin-top: 2px; }
+
+  /* composer card */
+  .composer { padding: 16px 18px 18px; }
+  .composer .drop {
+    border: 1.5px dashed #cdd6e8; border-radius: 12px; background: var(--surface-2);
+    padding: 16px; display: flex; gap: 13px; align-items: center; transition: .15s;
+  }
+  .composer .drop:hover { border-color: var(--primary); background: #fff; }
+  .composer .drop .ic { width: 40px; height: 40px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; flex-shrink: 0; }
+  .composer .drop .ic svg { width: 20px; height: 20px; }
+  .composer .drop .tx { flex: 1; }
+  .composer .drop .tx b { font-size: 12.5px; }
+  .composer .drop .tx p { margin: 1px 0 0; font-size: 11.5px; color: var(--muted); }
+  .composer textarea {
+    width: 100%; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2);
+    padding: 11px 13px; font: inherit; font-size: 12.5px; resize: vertical; min-height: 64px; color: var(--text);
+  }
+  .composer textarea:focus { outline: none; border-color: var(--primary); background: #fff; box-shadow: 0 0 0 3px var(--primary-soft); }
+  .composer .row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .composer .hint { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .composer .hint svg { width: 13px; height: 13px; color: var(--primary); }
+
+  /* ---------- Drawer ---------- */
+  .overlay { position: fixed; inset: 0; background: rgba(20,28,48,.42); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: .25s; z-index: 60; }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 528px; max-width: 94vw;
+    background: var(--surface); box-shadow: var(--shadow-lg); z-index: 70;
+    transform: translateX(100%); transition: transform .3s cubic-bezier(.22,.61,.36,1);
+    display: flex; flex-direction: column;
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-head { padding: 18px 22px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: flex-start; gap: 14px; }
+  .drawer-head .av { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; color: #fff; flex-shrink: 0; font-size: 16px; }
+  .drawer-head .who { flex: 1; min-width: 0; }
+  .drawer-head .who h2 { margin: 0; font-size: 17px; letter-spacing: -.2px; }
+  .drawer-head .who .role { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+  .drawer-head .close { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; display: grid; place-items: center; color: var(--muted); }
+  .drawer-head .close:hover { background: var(--surface-2); color: var(--text); }
+  .drawer-body { overflow-y: auto; padding: 20px 22px 26px; flex: 1; }
+
+  /* gauge */
+  .gauge-card {
+    display: flex; gap: 20px; align-items: center; padding: 18px;
+    border-radius: 14px; background: linear-gradient(140deg, var(--surface-2), #fff);
+    border: 1px solid var(--line); margin-bottom: 18px;
+  }
+  .gauge { position: relative; width: 132px; height: 132px; flex-shrink: 0; }
+  .gauge .lab { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .gauge .lab .big { font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+  .gauge .lab .small { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--muted); margin-top: 3px; }
+  .gauge-info { flex: 1; }
+  .gauge-info .grade { font-size: 13px; font-weight: 800; padding: 3px 11px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; }
+  .gauge-info .conf { margin-top: 11px; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .conf-bar { height: 7px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin-top: 6px; }
+  .conf-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg,#059669,#10b981); }
+  .gauge-info .rec { margin-top: 12px; font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+  .gauge-info .rec .rdot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .sect-title { font-size: 11px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; color: var(--muted-2); margin: 22px 0 11px; display: flex; align-items: center; gap: 8px; }
+  .sect-title .ln { flex: 1; height: 1px; background: var(--line-soft); }
+
+  .reason {
+    background: linear-gradient(135deg, #effaf4, #f3f9f6); border: 1px solid #d6efe2;
+    border-radius: 12px; padding: 14px 16px; font-size: 12.5px; color: var(--text-2); line-height: 1.55; position: relative;
+  }
+  .reason .ai-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 800; color: var(--primary); letter-spacing: .4px; margin-bottom: 7px; text-transform: uppercase; }
+  .reason .ai-tag svg { width: 13px; height: 13px; }
+  .reason b { color: var(--text); }
+
+  /* signal breakdown */
+  .signal { margin-bottom: 11px; }
+  .signal .sh { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .signal .sh .nm { font-size: 12.5px; font-weight: 600; }
+  .signal .sh .pts { margin-left: auto; font-size: 12px; font-weight: 800; }
+  .signal .sh .pts.pos { color: #0c7a55; }
+  .signal .sh .pts.neg { color: #c0392b; }
+  .signal .sh .ico { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; }
+  .signal .sh .ico svg { width: 13px; height: 13px; }
+  .signal .track { height: 8px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+  .signal .track span { display: block; height: 100%; border-radius: 999px; }
+  .signal .desc { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .kv .k { font-size: 11px; color: var(--muted); font-weight: 600; }
+  .kv .v { font-size: 12.5px; font-weight: 600; margin-top: 1px; }
+  .kv .item { padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 10px; }
+
+  .extract-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+  .extract-row:last-child { border-bottom: none; }
+  .extract-row .ek { font-size: 12px; color: var(--muted); width: 116px; flex-shrink: 0; }
+  .extract-row .ev { font-size: 12.5px; font-weight: 600; flex: 1; }
+  .conf-badge { font-size: 9.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; letter-spacing: .3px; }
+  .conf-badge.high { background: var(--cool-soft); color: #0c7a55; }
+  .conf-badge.med { background: var(--warm-soft); color: #b06a00; }
+  .conf-badge.low { background: var(--hot-soft); color: #c0392b; }
+
+  .drawer-foot { padding: 14px 22px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; background: var(--surface); }
+  .drawer-foot .btn { flex: 1; justify-content: center; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--text); color: #fff; padding: 11px 18px; border-radius: 11px; font-size: 12.5px; font-weight: 600;
+    box-shadow: var(--shadow-lg); z-index: 90; display: flex; align-items: center; gap: 9px; opacity: 0; transition: .3s;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast svg { width: 16px; height: 16px; color: #4ade80; }
+
+  @media (max-width: 1180px) { .grid-2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 760px) { .sidebar { display: none; } .app { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2l2.4 5.2L20 8.4l-4 4 1 6-5-2.8L7 18.4l1-6-4-4 5.6-1.2z"/>
+        </svg>
+      </div>
+      <div class="name">LeadSense<small>AI Scoring Workspace</small></div>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-3.6-3.6"/></svg>
+      <input id="globalSearch" type="text" placeholder="Search leads, companies, sources…" />
+    </div>
+    <div class="top-actions">
+      <span class="pill-live"><span class="dot"></span> Scoring engine live</span>
+      <button class="icon-btn" title="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </button>
+      <div class="avatar">RM</div>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="nav-label">Pipeline</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 5-6"/></svg> Scoring Queue <span class="count">24</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg> Qualified <span class="count">9</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg> Assigned <span class="count">12</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Snoozed <span class="count">3</span></div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg> Score Distribution</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v6H4z"/><path d="M4 14h10v6H4z"/></svg> Routing Rules</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20v-6M6 20v-4M18 20V8"/><path d="M3 20h18"/></svg> Source Performance</div>
+
+    <div class="nav-label">Setup</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1A1.6 1.6 0 0 0 6.6 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4.6 13H4.5a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 6 6.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 11 4.6V4.5a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 .9 2.7h.1a2 2 0 0 1 0 4h-.1z"/></svg> Model & Weights</div>
+
+    <div class="side-card">
+      <h4>Model accuracy</h4>
+      <p>v3.2 ranks leads vs. closed-won outcomes from the last 90 days.</p>
+      <div class="bar"><span></span></div>
+      <div class="meta"><span>74% precision</span><span>+6% vs v3.1</span></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <h1>Scoring Queue</h1>
+        <p>AI ranks every inbound lead by likelihood to close — review, correct, and route the hottest first.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn" id="exportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Export
+        </button>
+        <button class="btn primary" id="rescoreBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+          Re-score all leads
+        </button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="lab"><span class="ic" style="background:var(--hot-soft);color:var(--hot)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-3 0 0 3 1 3 4"/></svg></span> Hot leads</div>
+        <div class="val">7</div>
+        <div class="sub"><span class="trend-up">▲ 3</span> new since 9:00 AM</div>
+        <svg class="spark" width="58" height="26" viewBox="0 0 58 26"><polyline fill="none" stroke="#ef4444" stroke-width="2" points="0,20 10,17 20,18 28,9 38,12 48,5 58,7"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="lab"><span class="ic" style="background:var(--primary-soft);color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 13 3-3 3 3 5-6"/></svg></span> Avg. score</div>
+        <div class="val">61.4</div>
+        <div class="sub"><span class="trend-up">▲ 4.2</span> week over week</div>
+        <svg class="spark" width="58" height="26" viewBox="0 0 58 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,18 10,16 20,14 28,15 38,10 48,11 58,7"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="lab"><span class="ic" style="background:var(--cool-soft);color:var(--cool)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span> Auto-routed</div>
+        <div class="val">18</div>
+        <div class="sub">to reps in last 24h</div>
+        <svg class="spark" width="58" height="26" viewBox="0 0 58 26"><polyline fill="none" stroke="#10b981" stroke-width="2" points="0,20 10,18 20,15 28,16 38,11 48,9 58,6"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="lab"><span class="ic" style="background:var(--warm-soft);color:var(--warm)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> Avg. response</div>
+        <div class="val">8m</div>
+        <div class="sub"><span class="trend-up">▼ 41%</span> faster than target</div>
+        <svg class="spark" width="58" height="26" viewBox="0 0 58 26"><polyline fill="none" stroke="#f59e0b" stroke-width="2" points="0,6 10,9 20,8 28,13 38,12 48,17 58,18"/></svg>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Left: lead queue -->
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h3>Ranked leads</h3>
+            <div class="sub" id="queueSub">24 leads scored · sorted by AI score</div>
+          </div>
+          <div class="right">
+            <div class="mini-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-3.6-3.6"/></svg>
+              <input id="listSearch" placeholder="Filter…" />
+            </div>
+          </div>
+        </div>
+        <div style="padding:11px 18px; border-bottom:1px solid var(--line-soft); display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div class="seg" id="tierSeg">
+            <button class="on" data-tier="all">All <span class="b">24</span></button>
+            <button data-tier="hot">Hot <span class="b">7</span></button>
+            <button data-tier="warm">Warm <span class="b">8</span></button>
+            <button data-tier="cool">Qualified <span class="b">5</span></button>
+            <button data-tier="cold">Nurture <span class="b">4</span></button>
+          </div>
+        </div>
+        <div class="lead-list" id="leadList"></div>
+        <div class="empty" id="emptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-3.6-3.6"/></svg>
+          <h4>No leads match</h4>
+          <p>Try a different tier or clear your search.</p>
+        </div>
+      </section>
+
+      <!-- Right: distribution + AI composer + activity -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Score distribution</h3>
+            <div class="right"><span class="sub">Today's 24 leads</span></div>
+          </div>
+          <div class="dist-panel">
+            <div class="dist-bars" id="distBars"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Score a new lead</h3>
+            <div class="right"><span class="tag ghost">AI assist</span></div>
+          </div>
+          <div class="composer">
+            <div class="drop" id="dropZone">
+              <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></div>
+              <div class="tx"><b>Drop a CSV, business card, or LinkedIn export</b><p>AI extracts firmographics & enrichment automatically</p></div>
+            </div>
+            <textarea id="leadInput" placeholder="…or paste lead details: name, company, role, intent, budget signals…">Priya Raman, VP Growth @ Northwind Analytics. Demo request from pricing page, ~140 employees, evaluating against 2 competitors, asked about SSO + API limits, budget approved this quarter.</textarea>
+            <div class="row">
+              <button class="btn primary" id="scoreNowBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+                Analyze &amp; score
+              </button>
+              <span class="hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4"/></svg> Scores in ~2s using model v3.2</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h3>AI activity</h3>
+            <div class="right"><span class="sub">Auto-updated</span></div>
+          </div>
+          <div class="feed" id="feed"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Drawer -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="av" id="dAv">PR</div>
+    <div class="who">
+      <h2 id="dName">—</h2>
+      <div class="role" id="dRole">—</div>
+    </div>
+    <button class="close" id="drawerClose">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn" id="snoozeBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      Snooze
+    </button>
+    <button class="btn primary" id="assignBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+      Assign to rep
+    </button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ---------- Seed data ---------- */
+const SRC_ICON = {
+  "Demo request": '<path d="M5 3l14 9-14 9V3z"/>',
+  "Pricing page": '<path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>',
+  "Webinar": '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="m23 7-7 5 7 5z"/>',
+  "Referral": '<circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4M16 11l2 2 4-4"/>',
+  "Content download": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  "Cold outbound": '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
+  "Trial signup": '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'
+};
+
+const LEADS = [
+  { id:1, name:"Priya Raman", role:"VP of Growth", company:"Northwind Analytics", score:94, tier:"hot", delta:+12, src:"Demo request", size:"140 emp", region:"US-East", time:"6m ago", route:"AE · Marcus Vale", color:"#ef4444",
+    reason:"Strong fit on every dimension. <b>Demo request from the pricing page</b> plus an explicit budget signal puts this in the top 4%. Decision-maker title, mid-market size, and active competitive evaluation all align with closed-won patterns.",
+    signals:[ {n:"Firmographic fit",p:+26,w:92,c:"#059669",d:"140 employees, B2B SaaS, ICP match"},{n:"Buying intent",p:+24,w:96,c:"#ef4444",d:"Pricing page + demo request in one session"},{n:"Engagement depth",p:+18,w:78,c:"#10b981",d:"5 sessions, 11 page views this week"},{n:"Decision authority",p:+15,w:88,c:"#7c3aed",d:"VP-level title, named in CRM"},{n:"Recency",p:+11,w:70,c:"#f59e0b",d:"Last activity 6 minutes ago"} ],
+    fields:[ {k:"Email",v:"priya.r@northwind.io",c:"high"},{k:"Annual revenue",v:"$22M (est.)",c:"med"},{k:"Tech stack",v:"Segment, Snowflake",c:"high"},{k:"Budget",v:"Approved Q3",c:"med"},{k:"Competitors",v:"2 in eval",c:"low"} ],
+    kv:[ {k:"Pipeline stage",v:"Demo scheduled"},{k:"Lead source",v:"Inbound"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 9:14 AM"} ] },
+  { id:2, name:"Daniel Okafor", role:"Head of RevOps", company:"Meridian Logistics", score:91, tier:"hot", delta:+8, src:"Referral", size:"480 emp", region:"UK", time:"14m ago", route:"AE · Lena Cho", color:"#ef4444",
+    reason:"Referred by an existing customer, which historically converts <b>3.1x better</b>. Large account, senior owner of the exact buying function we sell into. Slight risk: no pricing engagement yet.",
+    signals:[ {n:"Firmographic fit",p:+24,w:88,c:"#059669",d:"480 employees, logistics, enterprise ICP"},{n:"Referral weight",p:+22,w:90,c:"#10b981",d:"Referred by active customer (Acme)"},{n:"Decision authority",p:+20,w:94,c:"#7c3aed",d:"Owns RevOps function"},{n:"Buying intent",p:+14,w:55,c:"#ef4444",d:"No pricing visit yet"},{n:"Engagement depth",p:+11,w:60,c:"#f59e0b",d:"3 sessions this week"} ],
+    fields:[ {k:"Email",v:"d.okafor@meridian.co.uk",c:"high"},{k:"Annual revenue",v:"$95M (est.)",c:"med"},{k:"Tech stack",v:"Salesforce, dbt",c:"high"},{k:"Budget",v:"Unknown",c:"low"},{k:"Referred by",v:"Acme Corp",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Referral"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 9:02 AM"} ] },
+  { id:3, name:"Sofia Marchetti", role:"Director of Marketing", company:"Lumio Media", score:87, tier:"hot", delta:+5, src:"Trial signup", size:"75 emp", region:"EU", time:"22m ago", route:"AE · Marcus Vale", color:"#ef4444",
+    reason:"<b>Self-serve trial activated</b> and invited 4 teammates within an hour — a top behavioral predictor. Smaller account caps the ceiling, but velocity is exceptional.",
+    signals:[ {n:"Product activation",p:+28,w:95,c:"#10b981",d:"Trial started, 4 seats invited"},{n:"Engagement depth",p:+20,w:84,c:"#f59e0b",d:"Created 2 workspaces day one"},{n:"Firmographic fit",p:+16,w:66,c:"#059669",d:"75 employees, agency"},{n:"Decision authority",p:+13,w:72,c:"#7c3aed",d:"Director-level"},{n:"Recency",p:+10,w:80,c:"#ef4444",d:"Active 22 min ago"} ],
+    fields:[ {k:"Email",v:"sofia@lumio.media",c:"high"},{k:"Annual revenue",v:"$8M (est.)",c:"med"},{k:"Tech stack",v:"HubSpot, Figma",c:"med"},{k:"Budget",v:"Self-serve tier",c:"med"},{k:"Seats invited",v:"4",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Trialing"},{k:"Lead source",v:"PLG"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 8:48 AM"} ] },
+  { id:4, name:"James Whitlock", role:"CFO", company:"Brightpath Health", score:83, tier:"hot", delta:+3, src:"Pricing page", size:"1,200 emp", region:"US-West", time:"38m ago", route:"AE · Lena Cho", color:"#ef4444",
+    reason:"Enterprise account with an economic buyer engaged. <b>Visited pricing twice</b> and downloaded the ROI calculator. Longer cycle expected given size and healthcare procurement.",
+    signals:[ {n:"Account size",p:+25,w:98,c:"#059669",d:"1,200 employees, enterprise"},{n:"Decision authority",p:+22,w:96,c:"#7c3aed",d:"CFO — economic buyer"},{n:"Buying intent",p:+17,w:74,c:"#ef4444",d:"2 pricing visits + ROI download"},{n:"Engagement depth",p:+10,w:52,c:"#f59e0b",d:"2 sessions"},{n:"Compliance fit",p:-4,w:30,c:"#64748b",d:"HIPAA review may slow cycle"} ],
+    fields:[ {k:"Email",v:"jwhitlock@brightpath.org",c:"high"},{k:"Annual revenue",v:"$310M (est.)",c:"high"},{k:"Tech stack",v:"Workday, Oracle",c:"med"},{k:"Budget",v:"Enterprise",c:"med"},{k:"Vertical",v:"Healthcare",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Inbound"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 8:31 AM"} ] },
+  { id:5, name:"Aiko Tanaka", role:"Product Lead", company:"Kaizen Robotics", score:79, tier:"hot", delta:+6, src:"Webinar", size:"210 emp", region:"APAC", time:"51m ago", route:"AE · Marcus Vale", color:"#ef4444",
+    reason:"Attended the full <b>integrations webinar</b> and asked two questions in chat about API rate limits — a high-intent technical signal.",
+    signals:[ {n:"Buying intent",p:+22,w:80,c:"#ef4444",d:"2 technical questions in webinar"},{n:"Firmographic fit",p:+19,w:76,c:"#059669",d:"210 employees, robotics SaaS"},{n:"Engagement depth",p:+17,w:78,c:"#f59e0b",d:"Watched full 45-min session"},{n:"Decision authority",p:+12,w:64,c:"#7c3aed",d:"Product Lead, influencer"},{n:"Region fit",p:+9,w:55,c:"#10b981",d:"APAC, supported timezone"} ],
+    fields:[ {k:"Email",v:"a.tanaka@kaizen.jp",c:"high"},{k:"Annual revenue",v:"$40M (est.)",c:"med"},{k:"Tech stack",v:"Jira, GitLab",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Interest",v:"API / integrations",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Webinar"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 8:10 AM"} ] },
+  { id:6, name:"Marcus Bell", role:"Operations Manager", company:"Cobalt Freight", score:76, tier:"hot", delta:+2, src:"Demo request", size:"320 emp", region:"US-Central", time:"1h ago", route:"AE · Lena Cho", color:"#ef4444",
+    reason:"Solid mid-market fit with a direct demo request. <b>Title is one level below the buyer</b>, so AI flags a possible champion rather than decision-maker.",
+    signals:[ {n:"Buying intent",p:+21,w:82,c:"#ef4444",d:"Direct demo request"},{n:"Firmographic fit",p:+18,w:72,c:"#059669",d:"320 employees, freight"},{n:"Engagement depth",p:+14,w:68,c:"#f59e0b",d:"4 sessions this week"},{n:"Decision authority",p:+8,w:48,c:"#7c3aed",d:"Manager — likely champion"},{n:"Recency",p:+9,w:62,c:"#10b981",d:"Active 1h ago"} ],
+    fields:[ {k:"Email",v:"marcus.b@cobaltfreight.com",c:"high"},{k:"Annual revenue",v:"$60M (est.)",c:"med"},{k:"Tech stack",v:"NetSuite",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"Champion",c:"med"} ],
+    kv:[ {k:"Pipeline stage",v:"Demo requested"},{k:"Lead source",v:"Inbound"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 7:55 AM"} ] },
+  { id:7, name:"Elena Rossi", role:"CTO", company:"Vortex Systems", score:74, tier:"hot", delta:-1, src:"Content download", size:"95 emp", region:"EU", time:"1h ago", route:"AE · Marcus Vale", color:"#ef4444",
+    reason:"Technical leader downloaded the <b>security whitepaper</b>. Strong authority but early-stage intent — no pricing or demo activity yet.",
+    signals:[ {n:"Decision authority",p:+20,w:90,c:"#7c3aed",d:"CTO, technical buyer"},{n:"Firmographic fit",p:+17,w:70,c:"#059669",d:"95 employees, infra SaaS"},{n:"Engagement depth",p:+15,w:66,c:"#f59e0b",d:"Whitepaper + 2 blog reads"},{n:"Buying intent",p:+12,w:50,c:"#ef4444",d:"No pricing/demo yet"},{n:"Recency",p:+10,w:64,c:"#10b981",d:"Active 1h ago"} ],
+    fields:[ {k:"Email",v:"e.rossi@vortex.io",c:"high"},{k:"Annual revenue",v:"$18M (est.)",c:"med"},{k:"Tech stack",v:"Kubernetes, Go",c:"high"},{k:"Budget",v:"Unknown",c:"low"},{k:"Interest",v:"Security / SOC2",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Researching"},{k:"Lead source",v:"Content"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 7:40 AM"} ] },
+  { id:8, name:"Tomás Herrera", role:"Sales Director", company:"Andes Retail Group", score:68, tier:"warm", delta:+4, src:"Webinar", size:"650 emp", region:"LATAM", time:"2h ago", route:"SDR · Priya N.", color:"#f59e0b",
+    reason:"Good account size and attendance, but <b>buying role is adjacent</b> to the function we sell into. Needs an SDR touch to confirm fit before AE handoff.",
+    signals:[ {n:"Account size",p:+19,w:80,c:"#059669",d:"650 employees"},{n:"Engagement depth",p:+15,w:64,c:"#f59e0b",d:"Attended webinar"},{n:"Buying intent",p:+11,w:46,c:"#ef4444",d:"Exploratory"},{n:"Role fit",p:-6,w:35,c:"#64748b",d:"Sales role, adjacent to ICP"},{n:"Region fit",p:+7,w:50,c:"#10b981",d:"LATAM, supported"} ],
+    fields:[ {k:"Email",v:"t.herrera@andesretail.com",c:"high"},{k:"Annual revenue",v:"$120M (est.)",c:"med"},{k:"Tech stack",v:"SAP",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"Adjacent",c:"med"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Webinar"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 6:50 AM"} ] },
+  { id:9, name:"Hannah Schmidt", role:"Growth Marketer", company:"Pulse Fitness", score:64, tier:"warm", delta:+3, src:"Content download", size:"130 emp", region:"EU", time:"2h ago", route:"SDR · Priya N.", color:"#f59e0b",
+    reason:"Engaged content reader with repeat visits. <b>Mid-level role</b> means longer path to a decision; good nurture-to-warm candidate.",
+    signals:[ {n:"Engagement depth",p:+18,w:74,c:"#f59e0b",d:"3 downloads, 8 page views"},{n:"Firmographic fit",p:+15,w:62,c:"#059669",d:"130 employees, fitness SaaS"},{n:"Buying intent",p:+10,w:44,c:"#ef4444",d:"No demo/pricing"},{n:"Decision authority",p:+6,w:38,c:"#7c3aed",d:"Individual contributor"},{n:"Recency",p:+8,w:58,c:"#10b981",d:"Active 2h ago"} ],
+    fields:[ {k:"Email",v:"h.schmidt@pulsefit.de",c:"high"},{k:"Annual revenue",v:"$14M (est.)",c:"med"},{k:"Tech stack",v:"Marketo",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"Influencer",c:"med"} ],
+    kv:[ {k:"Pipeline stage",v:"Nurture"},{k:"Lead source",v:"Content"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 6:35 AM"} ] },
+  { id:10, name:"Raj Patel", role:"IT Manager", company:"Solara Energy", score:61, tier:"warm", delta:-2, src:"Pricing page", size:"540 emp", region:"US-West", time:"3h ago", route:"SDR · Devon L.", color:"#f59e0b",
+    reason:"Visited pricing but bounced quickly. AI reads this as <b>price-checking, not active buying</b> — worth a light SDR sequence.",
+    signals:[ {n:"Account size",p:+18,w:78,c:"#059669",d:"540 employees"},{n:"Buying intent",p:+12,w:48,c:"#ef4444",d:"Pricing visit, fast bounce"},{n:"Decision authority",p:+10,w:54,c:"#7c3aed",d:"IT Manager, influencer"},{n:"Engagement depth",p:+7,w:40,c:"#f59e0b",d:"1 session"},{n:"Recency",p:+5,w:46,c:"#10b981",d:"3h ago"} ],
+    fields:[ {k:"Email",v:"raj.p@solara.com",c:"high"},{k:"Annual revenue",v:"$88M (est.)",c:"med"},{k:"Tech stack",v:"Azure, ServiceNow",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Intent",v:"Price-check",c:"med"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Inbound"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 6:05 AM"} ] },
+  { id:11, name:"Grace Liang", role:"Founder", company:"Tidewater Apps", score:59, tier:"warm", delta:+5, src:"Trial signup", size:"12 emp", region:"APAC", time:"3h ago", route:"SDR · Devon L.", color:"#f59e0b",
+    reason:"Founder-led startup on a trial. <b>High authority but small ceiling</b> — strong PLG candidate, low ACV expected. Routed to nurture-with-upsell path.",
+    signals:[ {n:"Decision authority",p:+20,w:92,c:"#7c3aed",d:"Founder — full authority"},{n:"Product activation",p:+16,w:70,c:"#10b981",d:"Trial active, 1 workspace"},{n:"Account size",p:-8,w:20,c:"#64748b",d:"12 employees, low ceiling"},{n:"Engagement depth",p:+9,w:52,c:"#f59e0b",d:"2 sessions"},{n:"Recency",p:+7,w:50,c:"#ef4444",d:"3h ago"} ],
+    fields:[ {k:"Email",v:"grace@tidewater.app",c:"high"},{k:"Annual revenue",v:"$1.2M (est.)",c:"med"},{k:"Tech stack",v:"Vercel, Supabase",c:"high"},{k:"Budget",v:"Self-serve",c:"med"},{k:"Plan",v:"Starter",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Trialing"},{k:"Lead source",v:"PLG"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 5:50 AM"} ] },
+  { id:12, name:"Oliver Grant", role:"Procurement Lead", company:"Helix Manufacturing", score:55, tier:"warm", delta:+1, src:"Demo request", size:"2,400 emp", region:"US-East", time:"4h ago", route:"SDR · Priya N.", color:"#f59e0b",
+    reason:"Large enterprise, but a <b>procurement-only contact</b> with no technical or economic buyer attached. AI suggests multi-threading before AE engagement.",
+    signals:[ {n:"Account size",p:+24,w:96,c:"#059669",d:"2,400 employees, enterprise"},{n:"Buying intent",p:+12,w:50,c:"#ef4444",d:"Demo request"},{n:"Role fit",p:-10,w:25,c:"#64748b",d:"Procurement, not buyer"},{n:"Engagement depth",p:+8,w:42,c:"#f59e0b",d:"1 session"},{n:"Recency",p:+6,w:44,c:"#10b981",d:"4h ago"} ],
+    fields:[ {k:"Email",v:"o.grant@helixmfg.com",c:"high"},{k:"Annual revenue",v:"$540M (est.)",c:"high"},{k:"Tech stack",v:"SAP, Coupa",c:"med"},{k:"Budget",v:"Enterprise",c:"med"},{k:"Role weight",v:"Gatekeeper",c:"med"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Inbound"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Today, 5:20 AM"} ] },
+  { id:13, name:"Mei Wong", role:"Analytics Manager", company:"Cascade Analytics", score:62, tier:"warm", delta:+2, src:"Webinar", size:"180 emp", region:"APAC", time:"4h ago", route:"SDR · Devon L.", color:"#f59e0b",
+    reason:"Relevant role and account. Attended webinar but <b>no follow-up activity</b> since — re-engage with a tailored sequence.",
+    signals:[ {n:"Firmographic fit",p:+18,w:74,c:"#059669",d:"180 employees, analytics ICP"},{n:"Role fit",p:+14,w:70,c:"#7c3aed",d:"Analytics Manager, on-target"},{n:"Engagement depth",p:+10,w:48,c:"#f59e0b",d:"Webinar only"},{n:"Buying intent",p:+8,w:42,c:"#ef4444",d:"No further activity"},{n:"Recency",p:+5,w:40,c:"#10b981",d:"4h ago"} ],
+    fields:[ {k:"Email",v:"mei.w@cascade.io",c:"high"},{k:"Annual revenue",v:"$30M (est.)",c:"med"},{k:"Tech stack",v:"Looker, BigQuery",c:"high"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"On-target",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Nurture"},{k:"Lead source",v:"Webinar"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] },
+  { id:14, name:"Felix Andersson", role:"COO", company:"Boreal Ventures", score:67, tier:"warm", delta:+3, src:"Referral", size:"90 emp", region:"EU", time:"5h ago", route:"SDR · Priya N.", color:"#f59e0b",
+    reason:"Referred executive, but <b>company is a VC fund</b> — partial ICP match. Could be an introducer to portfolio companies rather than a direct buyer.",
+    signals:[ {n:"Decision authority",p:+19,w:86,c:"#7c3aed",d:"COO-level"},{n:"Referral weight",p:+16,w:72,c:"#10b981",d:"Warm intro"},{n:"Firmographic fit",p:+6,w:38,c:"#059669",d:"VC fund, partial ICP"},{n:"Buying intent",p:+9,w:44,c:"#ef4444",d:"Exploratory"},{n:"Recency",p:+6,w:42,c:"#f59e0b",d:"5h ago"} ],
+    fields:[ {k:"Email",v:"f.andersson@boreal.vc",c:"high"},{k:"Annual revenue",v:"N/A (fund)",c:"low"},{k:"Tech stack",v:"Affinity, Notion",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Referred by",v:"Acme Corp",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Referral"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] },
+  { id:15, name:"Nadia Hassan", role:"Demand Gen Lead", company:"Solstice SaaS", score:48, tier:"cool", delta:-3, src:"Content download", size:"60 emp", region:"US-East", time:"6h ago", route:"Nurture queue", color:"#10b981",
+    reason:"Repeat content engagement but <b>no buying signals</b> and a small account. Best fit for an automated nurture track, not direct outreach.",
+    signals:[ {n:"Engagement depth",p:+16,w:68,c:"#f59e0b",d:"4 content downloads"},{n:"Firmographic fit",p:+10,w:50,c:"#059669",d:"60 employees"},{n:"Buying intent",p:+4,w:30,c:"#ef4444",d:"No intent signals"},{n:"Decision authority",p:+5,w:36,c:"#7c3aed",d:"Lead-level"},{n:"Recency",p:+3,w:34,c:"#10b981",d:"6h ago"} ],
+    fields:[ {k:"Email",v:"nadia@solstice.io",c:"high"},{k:"Annual revenue",v:"$6M (est.)",c:"med"},{k:"Tech stack",v:"HubSpot",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Track",v:"Nurture",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Nurture"},{k:"Lead source",v:"Content"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] },
+  { id:16, name:"Victor Nguyen", role:"Engineering Lead", company:"Quanta Labs", score:52, tier:"cool", delta:+2, src:"Trial signup", size:"45 emp", region:"US-West", time:"7h ago", route:"PLG nurture", color:"#10b981",
+    reason:"Trialed the free tier but <b>activity stalled after signup</b>. Activation nudge sequence recommended before sales touch.",
+    signals:[ {n:"Product activation",p:+14,w:55,c:"#10b981",d:"Trial started, stalled"},{n:"Decision authority",p:+12,w:60,c:"#7c3aed",d:"Eng Lead"},{n:"Firmographic fit",p:+9,w:46,c:"#059669",d:"45 employees"},{n:"Buying intent",p:+6,w:36,c:"#ef4444",d:"No expansion signals"},{n:"Recency",p:+4,w:32,c:"#f59e0b",d:"7h ago"} ],
+    fields:[ {k:"Email",v:"victor@quantalabs.dev",c:"high"},{k:"Annual revenue",v:"$4M (est.)",c:"med"},{k:"Tech stack",v:"Rust, AWS",c:"high"},{k:"Budget",v:"Self-serve",c:"med"},{k:"Plan",v:"Free",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Trialing"},{k:"Lead source",v:"PLG"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] },
+  { id:17, name:"Isabella Moreau", role:"HR Director", company:"Verdant Foods", score:44, tier:"cool", delta:-1, src:"Webinar", size:"800 emp", region:"EU", time:"8h ago", route:"Nurture queue", color:"#10b981",
+    reason:"Large account but the contact's <b>function is off-ICP</b>. AI down-weights despite size; keep warm in case of internal referral.",
+    signals:[ {n:"Account size",p:+20,w:84,c:"#059669",d:"800 employees"},{n:"Role fit",p:-12,w:18,c:"#64748b",d:"HR, off-ICP function"},{n:"Engagement depth",p:+8,w:44,c:"#f59e0b",d:"Webinar only"},{n:"Buying intent",p:+4,w:28,c:"#ef4444",d:"None"},{n:"Recency",p:+3,w:30,c:"#10b981",d:"8h ago"} ],
+    fields:[ {k:"Email",v:"i.moreau@verdant.fr",c:"high"},{k:"Annual revenue",v:"$200M (est.)",c:"high"},{k:"Tech stack",v:"Workday",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"Off-ICP",c:"med"} ],
+    kv:[ {k:"Pipeline stage",v:"Nurture"},{k:"Lead source",v:"Webinar"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] },
+  { id:18, name:"Liam O'Brien", role:"Marketing Coordinator", company:"Harbor Digital", score:39, tier:"cool", delta:+1, src:"Content download", size:"25 emp", region:"UK", time:"9h ago", route:"Nurture queue", color:"#10b981",
+    reason:"Junior role at a small agency. <b>Single download, no other activity</b> — low priority, automated nurture only.",
+    signals:[ {n:"Engagement depth",p:+10,w:48,c:"#f59e0b",d:"1 download"},{n:"Firmographic fit",p:+6,w:34,c:"#059669",d:"25 employees"},{n:"Decision authority",p:+3,w:22,c:"#7c3aed",d:"Coordinator"},{n:"Buying intent",p:+2,w:18,c:"#ef4444",d:"None"},{n:"Recency",p:+2,w:26,c:"#10b981",d:"9h ago"} ],
+    fields:[ {k:"Email",v:"liam@harbordigital.uk",c:"high"},{k:"Annual revenue",v:"$2M (est.)",c:"med"},{k:"Tech stack",v:"Mailchimp",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"IC",c:"med"} ],
+    kv:[ {k:"Pipeline stage",v:"Nurture"},{k:"Lead source",v:"Content"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"2 days ago"} ] },
+  { id:19, name:"Camille Dubois", role:"VP Operations", company:"Aster Mobility", score:71, tier:"warm", delta:+7, src:"Demo request", size:"300 emp", region:"EU", time:"5h ago", route:"SDR · Devon L.", color:"#f59e0b",
+    reason:"Strong title and a demo request, but <b>no enrichment on budget or competitors yet</b>. AE-ready once SDR confirms timeline.",
+    signals:[ {n:"Buying intent",p:+20,w:80,c:"#ef4444",d:"Demo request"},{n:"Decision authority",p:+18,w:84,c:"#7c3aed",d:"VP-level"},{n:"Firmographic fit",p:+15,w:68,c:"#059669",d:"300 employees, mobility"},{n:"Engagement depth",p:+9,w:46,c:"#f59e0b",d:"2 sessions"},{n:"Recency",p:+6,w:44,c:"#10b981",d:"5h ago"} ],
+    fields:[ {k:"Email",v:"c.dubois@astermobility.eu",c:"high"},{k:"Annual revenue",v:"$70M (est.)",c:"med"},{k:"Tech stack",v:"Tableau",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"Decision-maker",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Demo requested"},{k:"Lead source",v:"Inbound"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] },
+  { id:20, name:"Derek Sun", role:"Finance Analyst", company:"Pioneer Mining", score:34, tier:"cold", delta:0, src:"Cold outbound", size:"4,000 emp", region:"APAC", time:"1d ago", route:"Disqualified", color:"#64748b",
+    reason:"Cold outbound reply with a polite decline. <b>Off-ICP vertical</b> and junior role. AI recommends suppressing from active sequences.",
+    signals:[ {n:"Account size",p:+14,w:70,c:"#059669",d:"4,000 employees"},{n:"Role fit",p:-14,w:14,c:"#64748b",d:"Junior, off-function"},{n:"Buying intent",p:-6,w:10,c:"#ef4444",d:"Declined outreach"},{n:"Vertical fit",p:-8,w:16,c:"#7c3aed",d:"Mining, off-ICP"},{n:"Recency",p:+1,w:20,c:"#10b981",d:"1d ago"} ],
+    fields:[ {k:"Email",v:"derek.sun@pioneermining.com",c:"med"},{k:"Annual revenue",v:"$900M (est.)",c:"high"},{k:"Tech stack",v:"Unknown",c:"low"},{k:"Budget",v:"Unknown",c:"low"},{k:"Status",v:"Declined",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Disqualified"},{k:"Lead source",v:"Outbound"},{k:"Owner",v:"—"},{k:"Created",v:"2 days ago"} ] },
+  { id:21, name:"Yusuf Demir", role:"Student", company:"Gmail (personal)", score:18, tier:"cold", delta:0, src:"Content download", size:"—", region:"EU", time:"1d ago", route:"Disqualified", color:"#64748b",
+    reason:"Personal email domain and <b>no company match</b>. AI classifies as a non-buyer / researcher and routes out of the pipeline.",
+    signals:[ {n:"Firmographic fit",p:-18,w:8,c:"#059669",d:"No company match"},{n:"Decision authority",p:-10,w:6,c:"#7c3aed",d:"Student, no authority"},{n:"Engagement depth",p:+6,w:30,c:"#f59e0b",d:"1 download"},{n:"Buying intent",p:0,w:12,c:"#ef4444",d:"Research only"},{n:"Email quality",p:-8,w:10,c:"#64748b",d:"Personal domain"} ],
+    fields:[ {k:"Email",v:"yusuf.demir@gmail.com",c:"high"},{k:"Annual revenue",v:"N/A",c:"low"},{k:"Tech stack",v:"—",c:"low"},{k:"Budget",v:"N/A",c:"low"},{k:"Status",v:"Non-buyer",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Disqualified"},{k:"Lead source",v:"Content"},{k:"Owner",v:"—"},{k:"Created",v:"2 days ago"} ] },
+  { id:22, name:"Olivia Park", role:"Customer Success", company:"Existing Customer", score:29, tier:"cold", delta:0, src:"Webinar", size:"—", region:"US-East", time:"2d ago", route:"Suppressed", color:"#64748b",
+    reason:"Matched to an <b>existing customer account</b>. Suppressed from new-lead scoring; routed to the CS team for expansion review instead.",
+    signals:[ {n:"Account match",p:-20,w:5,c:"#64748b",d:"Already a customer"},{n:"Engagement depth",p:+10,w:50,c:"#f59e0b",d:"Webinar attendee"},{n:"Decision authority",p:+4,w:30,c:"#7c3aed",d:"CS contact"},{n:"Buying intent",p:+2,w:20,c:"#ef4444",d:"Expansion-only"},{n:"Recency",p:+1,w:24,c:"#10b981",d:"2d ago"} ],
+    fields:[ {k:"Email",v:"olivia.park@acme.com",c:"high"},{k:"Annual revenue",v:"Customer",c:"high"},{k:"Tech stack",v:"—",c:"low"},{k:"Budget",v:"N/A",c:"low"},{k:"Status",v:"Existing",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Suppressed"},{k:"Lead source",v:"Webinar"},{k:"Owner",v:"CS team"},{k:"Created",v:"2 days ago"} ] },
+  { id:23, name:"Anders Holm", role:"BI Lead", company:"Fjord Telecom", score:57, tier:"warm", delta:+4, src:"Pricing page", size:"1,100 emp", region:"EU", time:"6h ago", route:"SDR · Priya N.", color:"#f59e0b",
+    reason:"Enterprise telecom with relevant BI ownership. <b>Engaged pricing but no demo</b> — strong SDR opportunity to qualify timeline.",
+    signals:[ {n:"Account size",p:+22,w:88,c:"#059669",d:"1,100 employees"},{n:"Role fit",p:+15,w:72,c:"#7c3aed",d:"BI Lead, on-target"},{n:"Buying intent",p:+12,w:54,c:"#ef4444",d:"Pricing visit"},{n:"Engagement depth",p:+7,w:42,c:"#f59e0b",d:"2 sessions"},{n:"Recency",p:+5,w:40,c:"#10b981",d:"6h ago"} ],
+    fields:[ {k:"Email",v:"a.holm@fjordtelecom.no",c:"high"},{k:"Annual revenue",v:"$420M (est.)",c:"high"},{k:"Tech stack",v:"Power BI, Azure",c:"med"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"On-target",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Inbound"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] },
+  { id:24, name:"Maya Cohen", role:"VP Product", company:"Crestline Software", score:50, tier:"cool", delta:+6, src:"Referral", size:"160 emp", region:"US-East", time:"7h ago", route:"PLG nurture", color:"#10b981",
+    reason:"Referred VP, but the referral was a <b>casual mention, not a warm intro</b>. Mid-range score pending an intent signal; nurture with product content.",
+    signals:[ {n:"Decision authority",p:+18,w:82,c:"#7c3aed",d:"VP Product"},{n:"Firmographic fit",p:+12,w:60,c:"#059669",d:"160 employees"},{n:"Referral weight",p:+8,w:40,c:"#10b981",d:"Casual mention only"},{n:"Buying intent",p:+5,w:32,c:"#ef4444",d:"No active signals"},{n:"Recency",p:+5,w:38,c:"#f59e0b",d:"7h ago"} ],
+    fields:[ {k:"Email",v:"maya.c@crestline.io",c:"high"},{k:"Annual revenue",v:"$28M (est.)",c:"med"},{k:"Tech stack",v:"Linear, Amplitude",c:"high"},{k:"Budget",v:"Unknown",c:"low"},{k:"Role weight",v:"Decision-maker",c:"high"} ],
+    kv:[ {k:"Pipeline stage",v:"Nurture"},{k:"Lead source",v:"Referral"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Yesterday"} ] }
+];
+
+const TIER_META = {
+  hot:  { label:"Hot",       cls:"hot",  color:"#ef4444", bg:"#fef0f0" },
+  warm: { label:"Warm",      cls:"warm", color:"#f59e0b", bg:"#fef6e7" },
+  cool: { label:"Qualified", cls:"cool", color:"#10b981", bg:"#e9f9f2" },
+  cold: { label:"Nurture",   cls:"cold", color:"#64748b", bg:"#eef1f6" }
+};
+function tierForScore(s){ return s>=72?"hot":s>=54?"warm":s>=42?"cool":"cold"; }
+
+/* ---------- State ---------- */
+let state = { tier:"all", q:"", selectedId:null };
+let leads = LEADS.slice();
+
+/* ---------- Render lead list ---------- */
+const leadList = document.getElementById('leadList');
+const emptyState = document.getElementById('emptyState');
+const queueSub = document.getElementById('queueSub');
+
+function ringSVG(score, color){
+  const r=20, c=2*Math.PI*r, off=c*(1-score/100);
+  return `<svg class="ring" viewBox="0 0 48 48"><circle cx="24" cy="24" r="${r}" fill="none" stroke="${color}22" stroke-width="4"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 24 24)"/></svg>`;
+}
+
+function renderList(){
+  const filtered = leads.filter(l=>{
+    const okTier = state.tier==='all' || l.tier===state.tier;
+    const q = state.q.trim().toLowerCase();
+    const okQ = !q || (l.name+' '+l.company+' '+l.role+' '+l.src).toLowerCase().includes(q);
+    return okTier && okQ;
+  }).sort((a,b)=> b.score-a.score);
+
+  queueSub.textContent = `${filtered.length} lead${filtered.length!==1?'s':''} scored · sorted by AI score`;
+
+  if(!filtered.length){ leadList.innerHTML=''; emptyState.style.display='block'; return; }
+  emptyState.style.display='none';
+
+  leadList.innerHTML = filtered.map(l=>{
+    const tm = TIER_META[l.tier];
+    const initials = l.name.split(' ').map(x=>x[0]).slice(0,2).join('');
+    const deltaHtml = l.delta>0 ? `<span class="delta up">▲ ${l.delta}</span>` : l.delta<0 ? `<span class="delta dn">▼ ${Math.abs(l.delta)}</span>` : `<span class="ago">±0</span>`;
+    const srcPath = SRC_ICON[l.src] || SRC_ICON["Demo request"];
+    return `<div class="lead-row ${state.selectedId===l.id?'sel':''}" data-id="${l.id}">
+      <div class="score-badge" style="background:${tm.bg}">
+        ${ringSVG(l.score, tm.color)}
+        <div class="n" style="color:${tm.color}">${l.score}<small>SCORE</small></div>
+      </div>
+      <div class="lead-main">
+        <div class="ln1"><span class="nm">${l.name}</span><span class="co">· ${l.company}</span></div>
+        <div class="ln2">
+          <span class="tag ${tm.cls}">${tm.label}</span>
+          <span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${srcPath}</svg>${l.src}</span>
+          <span class="ago">· ${l.size}</span>
+        </div>
+      </div>
+      <div class="lead-right">
+        ${deltaHtml}
+        <span class="route-chip">${l.route}</span>
+        <span class="ago">${l.time}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  leadList.querySelectorAll('.lead-row').forEach(row=>{
+    row.addEventListener('click', ()=> openDrawer(parseInt(row.dataset.id)));
+  });
+}
+
+/* ---------- Distribution chart ---------- */
+function renderDist(){
+  const buckets = [
+    {lab:"0–20", min:0, max:20, color:"#94a3b8"},
+    {lab:"21–40", min:21, max:40, color:"#64748b"},
+    {lab:"41–55", min:41, max:55, color:"#10b981"},
+    {lab:"56–71", min:56, max:71, color:"#f59e0b"},
+    {lab:"72–85", min:72, max:85, color:"#fb7185"},
+    {lab:"86+", min:86, max:100, color:"#ef4444"}
+  ];
+  const counts = buckets.map(b=> leads.filter(l=> l.score>=b.min && l.score<=b.max).length);
+  const max = Math.max(...counts, 1);
+  document.getElementById('distBars').innerHTML = buckets.map((b,i)=>{
+    const h = Math.round((counts[i]/max)*100);
+    return `<div class="dist-col">
+      <div class="bar-wrap"><div class="bar" style="height:${counts[i]?Math.max(h,8):3}%;background:linear-gradient(180deg,${b.color},${b.color}cc)">
+        <span class="tip">${counts[i]} lead${counts[i]!==1?'s':''}</span></div></div>
+      <div class="lab"><b>${counts[i]}</b>${b.lab}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- Activity feed ---------- */
+const FEED = [
+  { ic:"🔥", bg:"var(--hot-soft)", col:"#ef4444", svg:'<path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-3 0 0 3 1 3 4"/>', t:`<span class="ai">AI</span> scored <b>Priya Raman</b> at <b>94</b> — flagged Hot, auto-routed to Marcus Vale`, ts:"6 minutes ago" },
+  { ic:"⚡", bg:"var(--primary-soft)", col:"#059669", svg:'<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>', t:`<span class="ai">AI</span> enriched <b>Meridian Logistics</b> — added revenue & tech stack from referral`, ts:"14 minutes ago" },
+  { ic:"✅", bg:"var(--cool-soft)", col:"#10b981", svg:'<path d="M20 6 9 17l-5-5"/>', t:`<b>Sofia Marchetti</b> trial activation lifted score <b>+5 → 87</b>`, ts:"22 minutes ago" },
+  { ic:"➡️", bg:"var(--warm-soft)", col:"#f59e0b", svg:'<path d="M5 12h14M13 6l6 6-6 6"/>', t:`<span class="ai">AI</span> routed <b>Tomás Herrera</b> to SDR for fit confirmation`, ts:"1 hour ago" },
+  { ic:"🚫", bg:"var(--cold-soft)", col:"#64748b", svg:'<circle cx="12" cy="12" r="9"/><path d="m5 5 14 14"/>', t:`<span class="ai">AI</span> suppressed <b>Olivia Park</b> — matched existing customer account`, ts:"2 hours ago" },
+  { ic:"📉", bg:"var(--hot-soft)", col:"#ef4444", svg:'<path d="M3 7l6 6 4-4 8 8"/><path d="M21 17v-6h-6"/>', t:`<b>Raj Patel</b> score dropped <b>−2</b> after a fast pricing bounce`, ts:"3 hours ago" },
+  { ic:"🎓", bg:"var(--cold-soft)", col:"#64748b", svg:'<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 2.7 2 6 2s6-1 6-2v-5"/>', t:`<span class="ai">AI</span> disqualified <b>Yusuf Demir</b> — personal email, no company match`, ts:"5 hours ago" }
+];
+function renderFeed(){
+  document.getElementById('feed').innerHTML = FEED.map(f=>`
+    <div class="feed-item">
+      <div class="feed-ic" style="background:${f.bg};color:${f.col}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${f.svg}</svg>
+      </div>
+      <div class="feed-body"><div class="t">${f.t}</div><div class="ts">${f.ts}</div></div>
+    </div>`).join('');
+}
+
+/* ---------- Drawer ---------- */
+const overlay = document.getElementById('overlay');
+const drawer = document.getElementById('drawer');
+const drawerBody = document.getElementById('drawerBody');
+
+function gaugeSVG(score, color){
+  const r=54, c=Math.PI*r, off=c*(1-score/100); // semicircle
+  return `<svg width="132" height="132" viewBox="0 0 132 132">
+    <circle cx="66" cy="66" r="${r}" fill="none" stroke="${color}1f" stroke-width="11" stroke-dasharray="${c} ${2*Math.PI*r}" transform="rotate(180 66 66)"/>
+    <circle cx="66" cy="66" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${c-off} ${2*Math.PI*r}" transform="rotate(180 66 66)"/>
+  </svg>`;
+}
+
+function openDrawer(id){
+  const l = leads.find(x=>x.id===id);
+  if(!l) return;
+  state.selectedId = id;
+  renderList();
+  const tm = TIER_META[l.tier];
+  const initials = l.name.split(' ').map(x=>x[0]).slice(0,2).join('');
+
+  document.getElementById('dAv').textContent = initials;
+  document.getElementById('dAv').style.background = `linear-gradient(135deg, ${tm.color}, ${tm.color}aa)`;
+  document.getElementById('dName').textContent = l.name;
+  document.getElementById('dRole').textContent = `${l.role} · ${l.company}`;
+
+  const conf = Math.min(96, 52 + Math.round(l.score*0.42));
+  const recColor = tm.color;
+  const recText = l.tier==='hot' ? `Route to AE now — ${l.route.replace('AE · ','')}`
+                : l.tier==='warm' ? `Send to SDR — ${l.route.replace('SDR · ','')}`
+                : l.tier==='cool' ? `Add to nurture track`
+                : `Suppress from active outreach`;
+
+  drawerBody.innerHTML = `
+    <div class="gauge-card">
+      <div class="gauge">
+        ${gaugeSVG(l.score, tm.color)}
+        <div class="lab"><div class="big" style="color:${tm.color}">${l.score}</div><div class="small">AI SCORE</div></div>
+      </div>
+      <div class="gauge-info">
+        <span class="grade" style="background:${tm.bg};color:${tm.color}">${tm.label} lead · ${l.tier==='hot'?'Top tier':'Tier '+ (l.tier==='warm'?'2':l.tier==='cool'?'3':'4')}</span>
+        <div class="conf">Model confidence · ${conf}%</div>
+        <div class="conf-bar"><span style="width:${conf}%"></span></div>
+        <div class="rec"><span class="rdot" style="background:${recColor}"></span><b style="color:var(--text)">Recommended:</b> ${recText}</div>
+      </div>
+    </div>
+
+    <div class="sect-title">Why this score <div class="ln"></div></div>
+    <div class="reason">
+      <div class="ai-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 3-2 4-2 6H7c0-2-2-3-2-6a7 7 0 0 1 7-7z"/><path d="M9 21h6M10 18h4"/></svg> AI reasoning</div>
+      ${l.reason}
+    </div>
+
+    <div class="sect-title">Signal breakdown <div class="ln"></div></div>
+    <div>${l.signals.map(s=>`
+      <div class="signal">
+        <div class="sh">
+          <span class="ico" style="background:${s.c}1a;color:${s.c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span>
+          <span class="nm">${s.n}</span>
+          <span class="pts ${s.p>=0?'pos':'neg'}">${s.p>=0?'+':''}${s.p}</span>
+        </div>
+        <div class="track"><span style="width:${s.w}%;background:${s.c}"></span></div>
+        <div class="desc">${s.d}</div>
+      </div>`).join('')}
+    </div>
+
+    <div class="sect-title">AI-extracted fields <div class="ln"></div></div>
+    <div style="background:var(--surface-2);border:1px solid var(--line-soft);border-radius:12px;padding:4px 14px;">
+      ${l.fields.map(f=>`
+        <div class="extract-row">
+          <span class="ek">${f.k}</span>
+          <span class="ev">${f.v}</span>
+          <span class="conf-badge ${f.c}">${f.c==='high'?'HIGH':f.c==='med'?'MEDIUM':'LOW'} CONF.</span>
+        </div>`).join('')}
+    </div>
+
+    <div class="sect-title">Lead details <div class="ln"></div></div>
+    <div class="kv">
+      ${l.kv.map(x=>`<div class="item"><div class="k">${x.k}</div><div class="v">${x.v}</div></div>`).join('')}
+    </div>
+  `;
+
+  overlay.classList.add('show');
+  drawer.classList.add('show');
+}
+function closeDrawer(){ overlay.classList.remove('show'); drawer.classList.remove('show'); state.selectedId=null; renderList(); }
+
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+overlay.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+/* ---------- Tier segmented control ---------- */
+document.getElementById('tierSeg').addEventListener('click', e=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#tierSeg button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  state.tier = btn.dataset.tier;
+  renderList();
+});
+
+/* ---------- Search ---------- */
+function bindSearch(el){ el.addEventListener('input', e=>{ state.q = e.target.value; renderList(); }); }
+bindSearch(document.getElementById('listSearch'));
+bindSearch(document.getElementById('globalSearch'));
+
+/* ---------- Toast ---------- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ---------- Composer: analyze & score ---------- */
+const scoreBtn = document.getElementById('scoreNowBtn');
+scoreBtn.addEventListener('click', ()=>{
+  const txt = document.getElementById('leadInput').value.trim();
+  if(!txt){ toast('Paste or upload a lead first'); return; }
+  const orig = scoreBtn.innerHTML;
+  scoreBtn.disabled = true;
+  scoreBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-3-6.7"/></svg> Analyzing…';
+
+  setTimeout(()=>{
+    // Build a new scored lead from the pasted Priya-like text
+    const newScore = 92;
+    const newLead = {
+      id: 100, name:"Priya Raman", role:"VP of Growth", company:"Northwind Analytics", score:newScore,
+      tier:tierForScore(newScore), delta:+92, src:"Demo request", size:"140 emp", region:"US-East",
+      time:"just now", route:"AE · Marcus Vale", color:"#ef4444",
+      reason:`<b>Just scored.</b> AI parsed the pasted note and matched a top-tier inbound pattern: pricing-page demo request, approved budget this quarter, and a VP-level decision-maker. SSO + API questions indicate technical evaluation depth.`,
+      signals:[ {n:"Buying intent",p:+25,w:95,c:"#ef4444",d:"Demo from pricing page + budget approved"},{n:"Firmographic fit",p:+24,w:90,c:"#059669",d:"~140 employees, B2B SaaS ICP"},{n:"Decision authority",p:+18,w:88,c:"#7c3aed",d:"VP Growth — decision-maker"},{n:"Technical depth",p:+15,w:80,c:"#10b981",d:"Asked about SSO + API limits"},{n:"Competitive risk",p:-5,w:30,c:"#64748b",d:"Evaluating 2 competitors"} ],
+      fields:[ {k:"Email",v:"priya.r@northwind.io",c:"med"},{k:"Company size",v:"~140 employees",c:"high"},{k:"Budget",v:"Approved this quarter",c:"high"},{k:"Requirements",v:"SSO, API limits",c:"high"},{k:"Competitors",v:"2 in evaluation",c:"med"} ],
+      kv:[ {k:"Pipeline stage",v:"New"},{k:"Lead source",v:"Inbound (pasted)"},{k:"Owner",v:"Unassigned"},{k:"Created",v:"Just now"} ]
+    };
+    // remove existing duplicate (id 1) so the freshly scored one shows on top
+    leads = leads.filter(l=> l.name!=="Priya Raman");
+    leads.unshift(newLead);
+    scoreBtn.disabled = false;
+    scoreBtn.innerHTML = orig;
+    renderList(); renderDist();
+    toast('Scored 92 — Hot lead, routed to Marcus Vale');
+    openDrawer(100);
+  }, 1400);
+});
+
+/* drop zone (visual) */
+document.getElementById('dropZone').addEventListener('click', ()=> toast('Drag a file here, or paste text below'));
+
+/* ---------- Header buttons ---------- */
+document.getElementById('rescoreBtn').addEventListener('click', function(){
+  const b=this, orig=b.innerHTML; b.disabled=true;
+  b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-3-6.7"/></svg> Re-scoring…';
+  setTimeout(()=>{
+    // small jitter to feel live
+    leads.forEach(l=>{ const j=Math.round((Math.random()*4-2)); l.score=Math.max(8,Math.min(99,l.score+j)); l.delta=j; l.tier=tierForScore(l.score); });
+    b.disabled=false; b.innerHTML=orig; renderList(); renderDist();
+    toast('All 24 leads re-scored with model v3.2');
+  }, 1300);
+});
+document.getElementById('exportBtn').addEventListener('click', ()=> toast('Exported scored leads to CSV'));
+document.getElementById('snoozeBtn').addEventListener('click', ()=>{ toast('Lead snoozed for 3 days'); closeDrawer(); });
+document.getElementById('assignBtn').addEventListener('click', ()=>{ toast('Assigned to rep — added to their queue'); closeDrawer(); });
+
+/* spin keyframe */
+const sk = document.createElement('style'); sk.textContent='@keyframes spin{to{transform:rotate(360deg)}}'; document.head.appendChild(sk);
+
+/* ---------- Init ---------- */
+renderList();
+renderDist();
+renderFeed();
+</script>
+</body>
+</html>

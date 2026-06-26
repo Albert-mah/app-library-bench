@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AssetLoop — IT Asset Lifecycle Tracker</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "IT Asset Tracker (AssetLoop)",
+  "prefix": "ita_",
+  "archetype": "Table with rich lead column (lifecycle ledger) + record detail with checkout/return timeline + warranty period tracking",
+  "differentiation": "Lifecycle view: who-has-what right now, checkout/return circulation, and warranty clock. NOT location/position tracking (that is module 09); NOT depreciation/financial register (module 02).",
+  "collections": {
+    "ita_employees": {"titleField":"name","fields":{"name":"input","email":"input","department":"select:engineering|design|sales|finance|it|operations|marketing","title":"input"}},
+    "ita_models": {"titleField":"model_name","fields":{"model_name":"input","manufacturer":"input","category":"select:laptop|desktop|monitor|phone|tablet|peripheral|network","unit_cost":"number"}},
+    "ita_assets": {"titleField":"asset_tag","fields":{"asset_tag":"input","serial_no":"input","status":"select:in_use|available|maintenance|reserved|retired","condition":"select:new|good|fair|poor","purchase_date":"date","warranty_end":"date","notes":"textarea"},"relations":{"model":"m2o ita_models (fk model_id)","current_holder":"m2o ita_employees (fk holder_id)"}},
+    "ita_movements": {"titleField":"action","fields":{"action":"select:checkout|return|assign|maintenance_in|maintenance_out|retire","action_at":"datetime","condition_note":"input","notes":"textarea"},"relations":{"asset":"m2o ita_assets (fk asset_id)","actor":"m2o ita_employees (fk actor_id)"}}
+  },
+  "page": {
+    "name": "Asset Lifecycle",
+    "layout": "left = native Table of ita_assets with rich lead column (lifecycle ledger, status/warranty pills, cross-block facet pills in toolbar) | right = native Details panel of selected asset + native List of ita_movements rendered as JS-item checkout/return timeline",
+    "regions": [
+      {"id":"kpis","block":"JSBlock (data-less stat strip; values are aggregates of ita_assets)","intent":"fleet health at a glance","cards":["total assets","in use","available","warranty expiring <=90d","in maintenance"]},
+      {"id":"ledger","block":"native Table block (ita_assets)","intent":"who-has-what lifecycle ledger","leadColumn":"JSColumn — asset tag + model + manufacturer icon (rich cell)","columns":["asset (JS lead cell)","current_holder (m2o, avatar+name+dept)","status (JS status pill)","condition (badge)","warranty (JS warranty-clock cell: days left / expired bar)","last_movement (derived)"],"toolbar":["facet pills by status = JSAction cross-block filter (addFilterGroup + refresh)","search = native FilterForm pushing to this table","New checkout = JSAction opening checkout form"],"rowClick":"selects asset → drives right detail/timeline (ctx.openView or cross-block select)"},
+      {"id":"detail","block":"native Details block (ita_assets single record)","intent":"asset profile of the selected row","shows":["asset tag + model + serial","current holder card","status + condition","purchase date + warranty clock","quick actions: Check out / Return / Send to maintenance = native UpdateAction or JSAction writing status + inserting ita_movements row"]},
+      {"id":"timeline","block":"native List (ita_movements) + JSField item — circulation timeline","intent":"checkout/return flow history for the selected asset","collection":"ita_movements","filter":"asset_id = selected asset","sort":"action_at desc","card":["action icon (checkout/return/maintenance colored)","actor avatar + name","relative time","condition note","duration-held badge between checkout and return"]}
+    ]
+  },
+  "interactions": ["row click selects asset → Details + movement timeline refresh (cross-block / openView)","status facet pills filter the ledger (cross-block filter)","Check out / Return writes ita_assets.status + holder and appends an ita_movements row (status transition + write-back)","warranty clock cell computes days-to-warranty_end client-side"],
+  "jsKernels": ["KPI stat strip JSBlock","ledger rich lead JSColumn","warranty-clock JSColumn","movement timeline JSField (checkout/return flow item)"],
+  "workflow": "Optional: on ita_movements create where action=return, server workflow sets ita_assets.status=available and clears holder; on action=checkout sets status=in_use and holder=actor.",
+  "notes": "Container/content rule: data containers are NATIVE blocks (Table for the ledger, Details for the profile, List for the timeline). The custom look (rich asset lead cell, warranty clock, checkout/return flow timeline card) lives in JS columns/fields nested INSIDE those native blocks. The KPI strip has no single data record so it is a JSBlock that reads aggregates via ctx.resource. Do NOT rebuild the ledger as a freestanding JSBlock; do NOT use a calendar/map (this is lifecycle, not location)."
+}
+</script>
+<style>
+  :root{
+    --accent:#5b5bd6; --accent-hover:#6e6ee0; --accent-bg:#eeeefc; --accent-bd:#c7c7f5;
+    --teal:#0d9488; --teal-bg:#e6fbf7; --teal-bd:#99e9dd;
+    --success:#16a34a; --success-bg:#ecfdf3; --success-bd:#a7f3c9;
+    --warning:#d97706; --warning-bg:#fffaeb; --warning-bd:#fde68a;
+    --error:#dc2626; --error-bg:#fef2f2; --error-bd:#fecaca;
+    --info:#2563eb; --info-bg:#eff6ff; --info-bd:#bfdbfe;
+    --violet:#7c3aed; --violet-bg:#f5f0ff; --violet-bd:#ddd0fc;
+    --ink:#1e2230; --ink-2:#5a6072; --ink-3:#8b92a5;
+    --line:#eceef3; --line-2:#e2e5ed; --bg:#f5f6fa; --card:#fff;
+    --r:12px; --r-sm:8px;
+    --shadow:0 1px 2px rgba(20,24,40,.04),0 6px 18px -6px rgba(20,24,40,.10);
+    --shadow-md:0 12px 36px -12px rgba(20,24,40,.22);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* ---------- top bar ---------- */
+  .topbar{height:58px;background:var(--card);border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:18px;padding:0 24px;position:sticky;top:0;z-index:40}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:750;font-size:17px;letter-spacing:-.3px;flex:none}
+  .brand .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#5b5bd6,#8b8bf0);display:grid;place-items:center;color:#fff;font-size:16px;font-weight:800;box-shadow:0 3px 10px rgba(91,91,214,.35)}
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px}
+  .topnav{display:flex;gap:2px;margin-left:8px}
+  .topnav a{padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:550}
+  .topnav a.on{background:var(--accent-bg);color:var(--accent)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .gsearch{margin-left:14px;flex:1;max-width:380px;position:relative}
+  .gsearch input{width:100%;height:36px;border:1px solid var(--line-2);border-radius:9px;background:#fafbfc;padding:0 12px 0 34px;font-size:13px;color:var(--ink);outline:none}
+  .gsearch input:focus{border-color:var(--accent-bd);box-shadow:0 0 0 3px var(--accent-bg);background:#fff}
+  .gsearch .mag{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:14px}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .chip-sync{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);background:var(--success-bg);border:1px solid var(--success-bd);padding:4px 10px;border-radius:18px}
+  .chip-sync i{width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#5b5bd6,#a78bfa);color:#fff;display:grid;place-items:center;font-weight:650;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;padding:20px 24px 4px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:15px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:16px;margin-bottom:10px}
+  .kpi .v{font-size:25px;font-weight:780;letter-spacing:-.5px;line-height:1}
+  .kpi .l{font-size:12px;color:var(--ink-2);margin-top:5px;font-weight:550}
+  .kpi .d{font-size:11px;margin-top:7px;display:flex;align-items:center;gap:4px;font-weight:600}
+  .kpi.ac .ic{background:var(--accent-bg);color:var(--accent)}
+  .kpi.te .ic{background:var(--teal-bg);color:var(--teal)}
+  .kpi.su .ic{background:var(--success-bg);color:var(--success)}
+  .kpi.wa .ic{background:var(--warning-bg);color:var(--warning)}
+  .kpi.er .ic{background:var(--error-bg);color:var(--error)}
+  .up{color:var(--success)} .down{color:var(--error)} .flat{color:var(--ink-3)}
+
+  /* ---------- main split ---------- */
+  .main{display:grid;grid-template-columns:minmax(0,1fr) 432px;gap:14px;padding:14px 24px 24px;align-items:start}
+
+  /* ---------- ledger table ---------- */
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .panel-head{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  .panel-head h2{font-size:15px;font-weight:700;letter-spacing:-.2px}
+  .panel-head .sub{font-size:12px;color:var(--ink-3);font-weight:500}
+  .panel-head .cnt{font-size:11.5px;color:var(--accent);background:var(--accent-bg);border-radius:11px;padding:2px 9px;font-weight:700}
+  .ph-right{margin-left:auto;display:flex;gap:8px}
+  .btn{border:none;border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:.13s;display:inline-flex;align-items:center;gap:6px}
+  .btn-primary{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(91,91,214,.3)}
+  .btn-primary:hover{background:var(--accent-hover)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#cfd3dd;background:#fafbfc}
+
+  .facets{display:flex;gap:7px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;align-items:center}
+  .facet{font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:5px 11px;border-radius:16px;border:1px solid var(--line-2);background:#fff;transition:.12s;display:flex;align-items:center;gap:6px;user-select:none}
+  .facet .n{font-size:11px;color:var(--ink-3);background:var(--line);border-radius:9px;padding:0 6px;font-weight:700;line-height:1.6}
+  .facet:hover{border-color:#cfd3dd}
+  .facet.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .facet.on .n{background:rgba(255,255,255,.2);color:#fff}
+  .facets .spacer{margin-left:auto;font-size:12px;color:var(--ink-3)}
+
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);font-weight:650;text-align:left;padding:11px 14px;background:#fafbfc;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+  thead th.r{text-align:right}
+  tbody tr{cursor:pointer;transition:background .1s;border-bottom:1px solid var(--line)}
+  tbody tr:hover{background:#f8f9fd}
+  tbody tr.sel{background:var(--accent-bg)}
+  tbody tr.sel:hover{background:#e6e6fa}
+  tbody td{padding:11px 14px;vertical-align:middle}
+
+  /* lead asset cell */
+  .asset-lead{display:flex;align-items:center;gap:11px}
+  .asset-ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:18px;flex:none;border:1px solid var(--line-2)}
+  .asset-ic.laptop{background:#eef2ff;color:#4f46e5} .asset-ic.desktop{background:#eff6ff;color:#2563eb}
+  .asset-ic.monitor{background:#f0fdfa;color:#0d9488} .asset-ic.phone{background:#fdf4ff;color:#a21caf}
+  .asset-ic.tablet{background:#fff7ed;color:#ea580c} .asset-ic.peripheral{background:#f8fafc;color:#64748b}
+  .asset-ic.network{background:#f0f9ff;color:#0284c7}
+  .asset-meta b{font-size:13.5px;font-weight:650;display:block}
+  .asset-meta .tag{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .asset-meta .tag .mk{color:var(--ink-2);font-weight:600}
+
+  /* holder cell */
+  .holder{display:flex;align-items:center;gap:9px}
+  .holder .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-size:11px;flex:none}
+  .holder .nm b{font-size:13px;font-weight:600;display:block;line-height:1.25}
+  .holder .nm span{font-size:11px;color:var(--ink-3)}
+  .holder.none{color:var(--ink-3);font-size:12.5px;font-style:italic;display:flex;align-items:center;gap:7px}
+  .holder.none .dash{width:30px;height:30px;border-radius:50%;border:1.5px dashed var(--line-2);display:grid;place-items:center;color:var(--ink-3);font-style:normal}
+
+  /* status pill */
+  .st{font-size:11px;font-weight:700;padding:3px 9px;border-radius:11px;display:inline-flex;align-items:center;gap:5px;letter-spacing:.2px}
+  .st i{width:6px;height:6px;border-radius:50%}
+  .st.in_use{background:var(--accent-bg);color:var(--accent)} .st.in_use i{background:var(--accent)}
+  .st.available{background:var(--success-bg);color:var(--success)} .st.available i{background:var(--success)}
+  .st.maintenance{background:var(--warning-bg);color:var(--warning)} .st.maintenance i{background:var(--warning)}
+  .st.reserved{background:var(--violet-bg);color:var(--violet)} .st.reserved i{background:var(--violet)}
+  .st.retired{background:#f1f3f7;color:var(--ink-3)} .st.retired i{background:var(--ink-3)}
+
+  /* condition badge */
+  .cond{font-size:11px;font-weight:650;padding:2px 8px;border-radius:6px;border:1px solid}
+  .cond.new{background:var(--teal-bg);color:var(--teal);border-color:var(--teal-bd)}
+  .cond.good{background:var(--success-bg);color:var(--success);border-color:var(--success-bd)}
+  .cond.fair{background:var(--warning-bg);color:var(--warning);border-color:var(--warning-bd)}
+  .cond.poor{background:var(--error-bg);color:var(--error);border-color:var(--error-bd)}
+
+  /* warranty clock cell */
+  .warr{min-width:120px}
+  .warr .top{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;font-weight:650;margin-bottom:4px}
+  .warr .days{font-variant-numeric:tabular-nums}
+  .warr .bar{height:5px;border-radius:4px;background:var(--line);overflow:hidden}
+  .warr .bar i{display:block;height:100%;border-radius:4px}
+  .warr.ok .days{color:var(--success)} .warr.ok .bar i{background:var(--success)}
+  .warr.soon .days{color:var(--warning)} .warr.soon .bar i{background:var(--warning)}
+  .warr.exp .days{color:var(--error)} .warr.exp .bar i{background:var(--error)}
+  .warr .date{font-size:10.5px;color:var(--ink-3);font-weight:500}
+
+  /* ---------- right detail panel ---------- */
+  .side{display:flex;flex-direction:column;gap:14px;position:sticky;top:72px}
+  .detail-card{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .dc-head{padding:18px;background:linear-gradient(135deg,#5b5bd6,#7c6cf0);color:#fff;position:relative}
+  .dc-head .row1{display:flex;align-items:center;gap:13px}
+  .dc-head .big-ic{width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:24px;flex:none;border:1px solid rgba(255,255,255,.25)}
+  .dc-head h3{font-size:18px;font-weight:750;letter-spacing:-.3px}
+  .dc-head .modeln{font-size:12.5px;opacity:.92;margin-top:2px}
+  .dc-head .serial{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .dc-head .serial .pc{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);border-radius:7px;padding:4px 9px;font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
+  .dc-body{padding:16px 18px}
+  .dc-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)}
+  .dc-row:last-child{border-bottom:none}
+  .dc-row .k{font-size:12px;color:var(--ink-3);font-weight:550}
+  .dc-row .vv{font-size:13px;font-weight:600;text-align:right}
+  .holder-card{display:flex;align-items:center;gap:11px;background:#fafbfc;border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 12px;margin:12px 0}
+  .holder-card .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:650;font-size:13px;flex:none}
+  .holder-card .nm b{font-size:14px;display:block}
+  .holder-card .nm span{font-size:11.5px;color:var(--ink-3)}
+  .holder-card .since{margin-left:auto;text-align:right;font-size:11px;color:var(--ink-3)}
+  .holder-card .since b{display:block;font-size:13px;color:var(--ink);font-weight:700}
+  .dc-actions{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--line);background:#fafbfc;flex-wrap:wrap}
+  .dc-actions .btn{flex:1;justify-content:center;min-width:0}
+  .btn-return{background:var(--success);color:#fff} .btn-return:hover{background:#15803d}
+  .btn-maint{background:#fff;border:1px solid var(--warning-bd);color:var(--warning)} .btn-maint:hover{background:var(--warning-bg)}
+
+  /* warranty big in detail */
+  .warr-big{margin:14px 0 4px;background:#fafbfc;border:1px solid var(--line);border-radius:var(--r-sm);padding:13px}
+  .warr-big .wb-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .warr-big .wb-top b{font-size:13px}
+  .warr-big .wb-top .badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px}
+  .warr-big .wb-top .badge.ok{background:var(--success-bg);color:var(--success)}
+  .warr-big .wb-top .badge.soon{background:var(--warning-bg);color:var(--warning)}
+  .warr-big .wb-top .badge.exp{background:var(--error-bg);color:var(--error)}
+  .warr-big .bar{height:8px;border-radius:5px;background:var(--line-2);overflow:hidden}
+  .warr-big .bar i{display:block;height:100%;border-radius:5px}
+  .warr-big.ok .bar i{background:var(--success)} .warr-big.soon .bar i{background:var(--warning)} .warr-big.exp .bar i{background:var(--error)}
+  .warr-big .scale{display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+  /* ---------- timeline ---------- */
+  .tl-head{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .tl-head h3{font-size:14px;font-weight:700}
+  .tl-head .cnt{font-size:11px;color:var(--ink-3);background:var(--line);border-radius:9px;padding:1px 8px;font-weight:700}
+  .tl-head .legend{margin-left:auto;display:flex;gap:9px;font-size:10.5px;color:var(--ink-3)}
+  .tl-head .legend span{display:flex;align-items:center;gap:4px}
+  .tl-head .legend i{width:8px;height:8px;border-radius:50%}
+  .timeline{padding:8px 18px 16px;max-height:430px;overflow:auto;position:relative}
+  .tl-item{display:flex;gap:13px;padding:11px 0;position:relative}
+  .tl-item:not(:last-child)::before{content:"";position:absolute;left:16px;top:38px;bottom:-11px;width:2px;background:var(--line-2)}
+  .tl-dot{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:15px;flex:none;z-index:1;border:2px solid #fff}
+  .tl-dot.checkout{background:var(--accent-bg);color:var(--accent)}
+  .tl-dot.return{background:var(--success-bg);color:var(--success)}
+  .tl-dot.assign{background:var(--info-bg);color:var(--info)}
+  .tl-dot.maintenance_in{background:var(--warning-bg);color:var(--warning)}
+  .tl-dot.maintenance_out{background:var(--teal-bg);color:var(--teal)}
+  .tl-dot.retire{background:#f1f3f7;color:var(--ink-3)}
+  .tl-body{flex:1;min-width:0;padding-top:1px}
+  .tl-top{display:flex;align-items:baseline;gap:8px}
+  .tl-top b{font-size:13px;font-weight:650}
+  .tl-top .when{margin-left:auto;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;flex:none}
+  .tl-who{display:flex;align-items:center;gap:7px;margin-top:5px}
+  .tl-who .av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-size:9px;flex:none}
+  .tl-who span{font-size:12px;color:var(--ink-2)}
+  .tl-note{font-size:12px;color:var(--ink-2);margin-top:6px;background:#fafbfc;border:1px solid var(--line);border-radius:7px;padding:7px 9px;line-height:1.45}
+  .tl-held{display:inline-flex;align-items:center;gap:5px;margin-top:7px;font-size:11px;font-weight:650;color:var(--ink-2);background:var(--accent-bg);border-radius:10px;padding:2px 9px}
+
+  /* toast */
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:550;box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+
+  @media(max-width:1180px){
+    .main{grid-template-columns:1fr}
+    .side{position:static}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="mark">⟳</span>AssetLoop <small>lifecycle</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Assets</a>
+    <a href="#">Checkouts</a>
+    <a href="#">Warranties</a>
+    <a href="#">Models</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="gsearch">
+    <span class="mag">⌕</span>
+    <input id="globalSearch" placeholder="Search asset tag, serial, holder…" />
+  </div>
+  <div class="top-right">
+    <span class="chip-sync"><i></i> MDM synced 4m ago</span>
+    <div class="acct">
+      <div class="ava">JM</div>
+      <div class="who"><b>Jordan Mills</b><br><span>IT Asset Manager</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ====== KPI STRIP (JSBlock — fleet aggregates) ====== -->
+<section class="kpis" id="kpis"></section>
+
+<div class="main">
+
+  <!-- ====== LEFT: LIFECYCLE LEDGER (native Table) ====== -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Asset lifecycle ledger</h2>
+      <span class="sub">who has what, right now</span>
+      <span class="cnt" id="ledgerCount">0</span>
+      <div class="ph-right">
+        <button class="btn btn-ghost" id="btnExport">⤓ Export</button>
+        <button class="btn btn-primary" id="btnCheckout">＋ New checkout</button>
+      </div>
+    </div>
+    <div class="facets" id="facets">
+      <span class="facet on" data-f="all">All <span class="n" id="f-all">0</span></span>
+      <span class="facet" data-f="in_use">In use <span class="n" id="f-in_use">0</span></span>
+      <span class="facet" data-f="available">Available <span class="n" id="f-available">0</span></span>
+      <span class="facet" data-f="maintenance">Maintenance <span class="n" id="f-maintenance">0</span></span>
+      <span class="facet" data-f="reserved">Reserved <span class="n" id="f-reserved">0</span></span>
+      <span class="facet" data-f="retired">Retired <span class="n" id="f-retired">0</span></span>
+      <span class="spacer" id="warnHint"></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%">Asset</th>
+          <th style="width:22%">Current holder</th>
+          <th>Status</th>
+          <th>Condition</th>
+          <th style="width:18%">Warranty</th>
+        </tr>
+      </thead>
+      <tbody id="ledgerBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ====== RIGHT: DETAIL + TIMELINE ====== -->
+  <aside class="side">
+    <div class="detail-card">
+      <div class="dc-head" id="dcHead"></div>
+      <div class="dc-body" id="dcBody"></div>
+      <div class="dc-actions" id="dcActions"></div>
+    </div>
+
+    <div class="detail-card">
+      <div class="tl-head">
+        <h3>Circulation timeline</h3>
+        <span class="cnt" id="tlCount">0</span>
+        <div class="legend">
+          <span><i style="background:#5b5bd6"></i>Out</span>
+          <span><i style="background:#16a34a"></i>Return</span>
+          <span><i style="background:#d97706"></i>Service</span>
+        </div>
+      </div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- reference date ----------
+  var TODAY = new Date("2026-06-07T00:00:00");
+  function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+  function parseD(s){ return new Date(s+"T00:00:00"); }
+  function fmtDate(s){ return parseD(s).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
+  function fmtDateShort(s){ return parseD(s).toLocaleDateString("en-US",{month:"short",day:"numeric"}); }
+  function fmtDT(s){
+    var d=new Date(s.replace(" ","T"));
+    return d.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" · "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+  }
+  function relTime(s){
+    var d=new Date(s.replace(" ","T"));
+    var dd=daysBetween(d,TODAY);
+    if(dd<=0) return "today";
+    if(dd===1) return "1d ago";
+    if(dd<30) return dd+"d ago";
+    if(dd<60) return "1mo ago";
+    return Math.round(dd/30)+"mo ago";
+  }
+
+  // ---------- avatar color ----------
+  var AV_COLORS=["#5b5bd6","#0d9488","#d97706","#7c3aed","#2563eb","#dc2626","#16a34a","#db2777","#0284c7","#ca8a04"];
+  function avColor(name){ var s=0; for(var i=0;i<name.length;i++) s+=name.charCodeAt(i); return AV_COLORS[s%AV_COLORS.length]; }
+  function initials(name){ var p=name.split(" "); return (p[0][0]+(p[1]?p[1][0]:"")).toUpperCase(); }
+
+  var CAT_ICON={laptop:"💻",desktop:"🖥️",monitor:"🖵",phone:"📱",tablet:"▭",peripheral:"🖱️",network:"📶"};
+
+  // ---------- EMPLOYEES ----------
+  var EMP={
+    e1:{name:"Priya Nair",      dept:"Engineering", title:"Staff Engineer"},
+    e2:{name:"Marcus Webb",     dept:"Design",      title:"Sr. Product Designer"},
+    e3:{name:"Sofia Alvarez",   dept:"Sales",       title:"Account Executive"},
+    e4:{name:"Daniel Cho",      dept:"Engineering", title:"Backend Engineer"},
+    e5:{name:"Hannah Brooks",   dept:"Finance",     title:"Financial Analyst"},
+    e6:{name:"Liam O'Connor",   dept:"Operations",  title:"Ops Coordinator"},
+    e7:{name:"Aisha Rahman",    dept:"Marketing",   title:"Content Lead"},
+    e8:{name:"Tomás Ferreira",  dept:"Engineering", title:"Frontend Engineer"},
+    e9:{name:"Grace Liu",       dept:"Sales",       title:"Sales Manager"},
+    e10:{name:"Noah Bennett",   dept:"IT",          title:"IT Technician"},
+    jm:{name:"Jordan Mills",    dept:"IT",          title:"IT Asset Manager"}
+  };
+
+  // ---------- MODELS ----------
+  var MODELS={
+    m1:{name:"MacBook Pro 14\" M3",  mk:"Apple",    cat:"laptop"},
+    m2:{name:"MacBook Air 13\" M2",  mk:"Apple",    cat:"laptop"},
+    m3:{name:"ThinkPad X1 Carbon G11",mk:"Lenovo",  cat:"laptop"},
+    m4:{name:"Dell OptiPlex 7010",   mk:"Dell",     cat:"desktop"},
+    m5:{name:"Dell UltraSharp U2723QE",mk:"Dell",   cat:"monitor"},
+    m6:{name:"iPhone 15 Pro",        mk:"Apple",    cat:"phone"},
+    m7:{name:"iPad Pro 11\"",        mk:"Apple",    cat:"tablet"},
+    m8:{name:"Logitech MX Master 3S",mk:"Logitech", cat:"peripheral"},
+    m9:{name:"Ubiquiti UniFi U6-Pro",mk:"Ubiquiti", cat:"network"}
+  };
+
+  // ---------- ASSETS (lifecycle ledger) ----------
+  // warranty_end drives the warranty clock; purchase_date for context.
+  var ASSETS=[
+    {id:"a1", tag:"LT-0142", serial:"C02XK1WPLVDQ", model:"m3", holder:"e1", status:"in_use",      cond:"good", purchase:"2024-02-14", warranty:"2027-02-14", since:"2024-03-02"},
+    {id:"a2", tag:"LT-0188", serial:"FVFZK2ABQ6L4", model:"m1", holder:"e2", status:"in_use",      cond:"new",  purchase:"2025-11-20", warranty:"2028-11-20", since:"2025-12-01"},
+    {id:"a3", tag:"LT-0093", serial:"C02WX7TLMD6T", model:"m2", holder:null, status:"available",   cond:"good", purchase:"2023-06-10", warranty:"2026-06-10", since:null},
+    {id:"a4", tag:"DT-0021", serial:"7K9QW2X",      model:"m4", holder:"e5", status:"in_use",      cond:"fair", purchase:"2022-04-05", warranty:"2025-04-05", since:"2022-04-18"},
+    {id:"a5", tag:"MN-0310", serial:"CN0TZ4P9MON",  model:"m5", holder:"e2", status:"in_use",      cond:"good", purchase:"2024-09-01", warranty:"2027-09-01", since:"2024-09-15"},
+    {id:"a6", tag:"PH-0056", serial:"352099001761481", model:"m6", holder:"e3", status:"in_use",   cond:"good", purchase:"2024-01-08", warranty:"2025-07-08", since:"2024-01-20"},
+    {id:"a7", tag:"LT-0205", serial:"FVFXK8YHQ09Z", model:"m1", holder:null, status:"maintenance", cond:"poor", purchase:"2023-03-22", warranty:"2026-03-22", since:null},
+    {id:"a8", tag:"TB-0017", serial:"DMPXK3QPJK1H", model:"m7", holder:null, status:"available",   cond:"good", purchase:"2024-05-30", warranty:"2027-05-30", since:null},
+    {id:"a9", tag:"LT-0231", serial:"FVFZL9MTPLV7", model:"m3", holder:"e4", status:"in_use",      cond:"good", purchase:"2024-08-12", warranty:"2027-08-12", since:"2024-08-25"},
+    {id:"a10",tag:"PR-0402", serial:"2148LZ09",     model:"m8", holder:"e8", status:"in_use",      cond:"good", purchase:"2024-10-04", warranty:"2026-10-04", since:"2024-10-10"},
+    {id:"a11",tag:"LT-0150", serial:"C02ZK5RPMD6V", model:"m2", holder:null, status:"reserved",    cond:"good", purchase:"2023-09-18", warranty:"2026-09-18", since:null, reservedFor:"e6"},
+    {id:"a12",tag:"NW-0008", serial:"F4E2C7019AB",  model:"m9", holder:null, status:"in_use",      cond:"good", purchase:"2023-11-01", warranty:"2026-11-01", since:"2023-11-10", siteAsset:true},
+    {id:"a13",tag:"LT-0061", serial:"C02XL2WPJGH8", model:"m3", holder:null, status:"retired",     cond:"poor", purchase:"2020-01-15", warranty:"2023-01-15", since:null},
+    {id:"a14",tag:"PH-0071", serial:"353012009881234", model:"m6", holder:"e9", status:"in_use",   cond:"good", purchase:"2024-12-02", warranty:"2026-06-02", since:"2024-12-12"},
+    {id:"a15",tag:"LT-0210", serial:"FVFZM1QTPLW9", model:"m1", holder:null, status:"available",   cond:"new",  purchase:"2026-01-20", warranty:"2029-01-20", since:null},
+    {id:"a16",tag:"MN-0288", serial:"CN0RX2K8MON",  model:"m5", holder:"e7", status:"in_use",      cond:"fair", purchase:"2022-07-19", warranty:"2025-07-19", since:"2022-08-01"},
+    {id:"a17",tag:"DT-0034", serial:"3M2PW7Q",      model:"m4", holder:null, status:"maintenance", cond:"fair", purchase:"2023-02-28", warranty:"2026-02-28", since:null},
+    {id:"a18",tag:"LT-0177", serial:"C02YK9WPLMDX", model:"m2", holder:"e10",status:"in_use",      cond:"good", purchase:"2024-04-11", warranty:"2027-04-11", since:"2024-04-22"}
+  ];
+
+  // ---------- MOVEMENTS (circulation per asset) ----------
+  var MOVES={
+    a1:[
+      {action:"checkout", actor:"e1", at:"2024-03-02 09:14", note:"Onboarding kit issued — Engineering."},
+      {action:"maintenance_in", actor:"e10", at:"2025-04-18 14:30", note:"Battery service, swollen cell replaced."},
+      {action:"maintenance_out",actor:"e10", at:"2025-04-21 11:05", note:"Battery replaced, returned to Priya."}
+    ],
+    a2:[
+      {action:"assign", actor:"jm", at:"2025-11-28 10:00", note:"Provisioned, enrolled in MDM."},
+      {action:"checkout", actor:"e2", at:"2025-12-01 08:45", note:"Design refresh cycle — replaces LT-0061."}
+    ],
+    a3:[
+      {action:"checkout", actor:"e6", at:"2023-07-04 09:00", note:"Loaner for Ops project."},
+      {action:"return", actor:"e6", at:"2026-05-22 16:20", note:"Project ended, wiped & re-imaged.", held:688}
+    ],
+    a4:[
+      {action:"checkout", actor:"e5", at:"2022-04-18 09:30", note:"Finance workstation."}
+    ],
+    a5:[
+      {action:"checkout", actor:"e2", at:"2024-09-15 10:10", note:"Dual-monitor setup, paired with LT-0188."}
+    ],
+    a6:[
+      {action:"checkout", actor:"e3", at:"2024-01-20 11:40", note:"Field sales device."}
+    ],
+    a7:[
+      {action:"checkout", actor:"e4", at:"2023-04-02 09:00", note:"Backend dev machine."},
+      {action:"return", actor:"e4", at:"2026-05-30 17:00", note:"Upgrade swap — heavy fan noise reported.", held:1124},
+      {action:"maintenance_in", actor:"e10", at:"2026-05-31 09:15", note:"Thermal paste + fan assembly RMA. Awaiting parts."}
+    ],
+    a8:[
+      {action:"return", actor:"e7", at:"2026-04-09 15:00", note:"Returned after demo loan, good condition.", held:21}
+    ],
+    a9:[
+      {action:"checkout", actor:"e4", at:"2024-08-25 09:20", note:"Secondary dev laptop."}
+    ],
+    a10:[
+      {action:"checkout", actor:"e8", at:"2024-10-10 13:00", note:"Peripheral request approved."}
+    ],
+    a11:[
+      {action:"assign", actor:"jm", at:"2026-06-05 16:30", note:"Reserved for Liam O'Connor — starts Jun 10."}
+    ],
+    a12:[
+      {action:"assign", actor:"e10", at:"2023-11-10 08:00", note:"Installed in 4F server closet (site asset)."}
+    ],
+    a13:[
+      {action:"checkout", actor:"e2", at:"2020-02-01 09:00", note:"Legacy design machine."},
+      {action:"return", actor:"e2", at:"2025-11-25 10:00", note:"Replaced by LT-0188.", held:2123},
+      {action:"retire", actor:"jm", at:"2025-12-10 11:30", note:"Out of warranty, EOL — flagged for recycling."}
+    ],
+    a14:[
+      {action:"checkout", actor:"e9", at:"2024-12-12 14:20", note:"Sales manager device."}
+    ],
+    a15:[
+      {action:"assign", actor:"jm", at:"2026-01-25 10:00", note:"New stock, ready to deploy."}
+    ],
+    a16:[
+      {action:"checkout", actor:"e7", at:"2022-08-01 09:00", note:"Marketing display."}
+    ],
+    a17:[
+      {action:"checkout", actor:"e6", at:"2023-03-10 09:00", note:"Ops kiosk machine."},
+      {action:"return", actor:"e6", at:"2026-03-15 16:00", note:"Display flicker — sent for service.", held:1101},
+      {action:"maintenance_in", actor:"e10", at:"2026-03-16 09:30", note:"GPU diagnostic in progress."}
+    ],
+    a18:[
+      {action:"checkout", actor:"e10", at:"2024-04-22 09:45", note:"IT bench laptop."}
+    ]
+  };
+
+  var MOVE_LABEL={checkout:"Checked out",return:"Returned",assign:"Assigned",maintenance_in:"Sent to maintenance",maintenance_out:"Back from maintenance",retire:"Retired"};
+  var MOVE_ICON={checkout:"↗",return:"↩",assign:"◎",maintenance_in:"🔧",maintenance_out:"✓",retire:"⊘"};
+
+  // ---------- warranty computation ----------
+  function warrantyInfo(asset){
+    var end=parseD(asset.warranty);
+    var start=parseD(asset.purchase);
+    var totalDays=Math.max(daysBetween(start,end),1);
+    var leftDays=daysBetween(TODAY,end);
+    var elapsed=daysBetween(start,TODAY);
+    var pctElapsed=Math.max(0,Math.min(100,Math.round(elapsed/totalDays*100)));
+    var cls,label;
+    if(leftDays<0){ cls="exp"; label="Expired"; }
+    else if(leftDays<=90){ cls="soon"; label=leftDays+"d left"; }
+    else { cls="ok"; label=leftDays+"d left"; }
+    return {cls:cls,label:label,leftDays:leftDays,pctElapsed:pctElapsed,end:asset.warranty,start:asset.purchase};
+  }
+
+  // ---------- KPI strip (JSBlock — aggregates) ----------
+  function renderKPIs(){
+    var total=ASSETS.length;
+    var inUse=ASSETS.filter(function(a){return a.status==="in_use";}).length;
+    var avail=ASSETS.filter(function(a){return a.status==="available";}).length;
+    var maint=ASSETS.filter(function(a){return a.status==="maintenance";}).length;
+    var expSoon=ASSETS.filter(function(a){var w=warrantyInfo(a);return w.cls==="soon"||w.cls==="exp";}).length;
+    var util=Math.round(inUse/total*100);
+    var cards=[
+      {cls:"ac",ic:"📦",v:total,l:"Total assets",d:'<span class="flat">across 9 models</span>'},
+      {cls:"te",ic:"👤",v:inUse,l:"In use",d:'<span class="up">▲ '+util+'% utilization</span>'},
+      {cls:"su",ic:"✓", v:avail,l:"Available to deploy",d:'<span class="flat">ready in stock</span>'},
+      {cls:"wa",ic:"⏳",v:expSoon,l:"Warranty ≤ 90d / expired",d:'<span class="down">needs action</span>'},
+      {cls:"er",ic:"🔧",v:maint,l:"In maintenance",d:'<span class="flat">out of rotation</span>'}
+    ];
+    document.getElementById("kpis").innerHTML=cards.map(function(c){
+      return '<div class="kpi '+c.cls+'">'+
+        '<div class="ic">'+c.ic+'</div>'+
+        '<div class="v tnum">'+c.v+'</div>'+
+        '<div class="l">'+c.l+'</div>'+
+        '<div class="d">'+c.d+'</div>'+
+      '</div>';
+    }).join("");
+  }
+
+  // ---------- facet counts ----------
+  function renderFacetCounts(){
+    var counts={all:ASSETS.length,in_use:0,available:0,maintenance:0,reserved:0,retired:0};
+    ASSETS.forEach(function(a){ if(counts[a.status]!==undefined) counts[a.status]++; });
+    Object.keys(counts).forEach(function(k){ var el=document.getElementById("f-"+k); if(el) el.textContent=counts[k]; });
+    var expSoon=ASSETS.filter(function(a){var w=warrantyInfo(a);return w.cls==="soon"||w.cls==="exp";}).length;
+    document.getElementById("warnHint").innerHTML='⏳ <b style="color:#d97706">'+expSoon+'</b> assets need warranty attention';
+  }
+
+  // ---------- ledger table (native Table + JS lead/warranty columns) ----------
+  var activeFacet="all", searchTerm="", selectedId="a7";
+
+  function holderCell(asset){
+    if(asset.status==="reserved" && asset.reservedFor){
+      var r=EMP[asset.reservedFor];
+      return '<div class="holder none"><span class="dash">◷</span><span>Reserved · '+r.name+'</span></div>';
+    }
+    if(asset.siteAsset){
+      return '<div class="holder none"><span class="dash">🏢</span><span>Site asset (unassigned)</span></div>';
+    }
+    if(!asset.holder){
+      return '<div class="holder none"><span class="dash">—</span><span>Unassigned</span></div>';
+    }
+    var e=EMP[asset.holder];
+    return '<div class="holder"><span class="av" style="background:'+avColor(e.name)+'">'+initials(e.name)+'</span>'+
+      '<span class="nm"><b>'+e.name+'</b><span>'+e.dept+'</span></span></div>';
+  }
+
+  function statusLabel(s){return {in_use:"In use",available:"Available",maintenance:"Maintenance",reserved:"Reserved",retired:"Retired"}[s];}
+
+  function warrantyCell(asset){
+    var w=warrantyInfo(asset);
+    var widthPct = w.cls==="exp" ? 100 : w.pctElapsed;
+    return '<div class="warr '+w.cls+'">'+
+      '<div class="top"><span class="days">'+w.label+'</span></div>'+
+      '<div class="bar"><i style="width:'+widthPct+'%"></i></div>'+
+      '<div class="date">ends '+fmtDateShort(asset.warranty)+' \''+asset.warranty.slice(2,4)+'</div>'+
+    '</div>';
+  }
+
+  function renderLedger(){
+    var rows=ASSETS.filter(function(a){
+      if(activeFacet!=="all" && a.status!==activeFacet) return false;
+      if(searchTerm){
+        var m=MODELS[a.model];
+        var hold=a.holder?EMP[a.holder].name:"";
+        var blob=(a.tag+" "+a.serial+" "+m.name+" "+m.mk+" "+hold).toLowerCase();
+        if(blob.indexOf(searchTerm)===-1) return false;
+      }
+      return true;
+    });
+    document.getElementById("ledgerCount").textContent=rows.length;
+    var body=document.getElementById("ledgerBody");
+    if(rows.length===0){
+      body.innerHTML='<tr><td colspan="5" style="text-align:center;padding:40px;color:#8b92a5">No assets match this filter.</td></tr>';
+      return;
+    }
+    body.innerHTML=rows.map(function(a){
+      var m=MODELS[a.model];
+      var moves=MOVES[a.id]||[];
+      return '<tr data-id="'+a.id+'" class="'+(a.id===selectedId?"sel":"")+'">'+
+        '<td><div class="asset-lead">'+
+          '<div class="asset-ic '+m.cat+'">'+CAT_ICON[m.cat]+'</div>'+
+          '<div class="asset-meta"><b>'+a.tag+'</b>'+
+            '<span class="tag"><span class="mk">'+m.mk+'</span> '+m.name+'</span></div>'+
+        '</div></td>'+
+        '<td>'+holderCell(a)+'</td>'+
+        '<td><span class="st '+a.status+'"><i></i>'+statusLabel(a.status)+'</span></td>'+
+        '<td><span class="cond '+a.cond+'">'+a.cond.charAt(0).toUpperCase()+a.cond.slice(1)+'</span></td>'+
+        '<td>'+warrantyCell(a)+'</td>'+
+      '</tr>';
+    }).join("");
+
+    Array.prototype.forEach.call(body.querySelectorAll("tr[data-id]"),function(tr){
+      tr.addEventListener("click",function(){ selectAsset(tr.dataset.id); });
+    });
+  }
+
+  // ---------- facets (cross-block filter behavior) ----------
+  document.getElementById("facets").addEventListener("click",function(e){
+    var f=e.target.closest(".facet"); if(!f) return;
+    Array.prototype.forEach.call(document.querySelectorAll(".facet"),function(x){x.classList.remove("on");});
+    f.classList.add("on"); activeFacet=f.dataset.f; renderLedger();
+  });
+
+  // ---------- search (FilterForm push) ----------
+  document.getElementById("globalSearch").addEventListener("input",function(e){
+    searchTerm=e.target.value.trim().toLowerCase(); renderLedger();
+  });
+
+  // ---------- detail panel (native Details) ----------
+  function selectAsset(id){
+    selectedId=id;
+    Array.prototype.forEach.call(document.querySelectorAll("tr[data-id]"),function(tr){
+      tr.classList.toggle("sel",tr.dataset.id===id);
+    });
+    renderDetail(); renderTimeline();
+  }
+
+  function renderDetail(){
+    var a=ASSETS.find(function(x){return x.id===selectedId;});
+    var m=MODELS[a.model];
+    var w=warrantyInfo(a);
+
+    document.getElementById("dcHead").innerHTML=
+      '<div class="row1">'+
+        '<div class="big-ic">'+CAT_ICON[m.cat]+'</div>'+
+        '<div><h3>'+a.tag+'</h3><div class="modeln">'+m.mk+' '+m.name+'</div></div>'+
+      '</div>'+
+      '<div class="serial">'+
+        '<span class="pc">SN '+a.serial+'</span>'+
+        '<span class="pc">'+m.cat.toUpperCase()+'</span>'+
+      '</div>';
+
+    // holder card
+    var holderHTML;
+    if(a.holder){
+      var e=EMP[a.holder];
+      var heldDays = a.since ? daysBetween(parseD(a.since),TODAY) : 0;
+      var heldTxt = heldDays>=365 ? (heldDays/365).toFixed(1)+"y" : (heldDays>=30 ? Math.round(heldDays/30)+"mo" : heldDays+"d");
+      holderHTML='<div class="holder-card">'+
+        '<span class="av" style="background:'+avColor(e.name)+'">'+initials(e.name)+'</span>'+
+        '<div class="nm"><b>'+e.name+'</b><span>'+e.title+' · '+e.dept+'</span></div>'+
+        '<div class="since">held<b>'+heldTxt+'</b></div>'+
+      '</div>';
+    } else if(a.status==="reserved" && a.reservedFor){
+      var r=EMP[a.reservedFor];
+      holderHTML='<div class="holder-card"><span class="av" style="background:'+avColor(r.name)+'">'+initials(r.name)+'</span>'+
+        '<div class="nm"><b>'+r.name+'</b><span>reserved · starts soon</span></div></div>';
+    } else {
+      holderHTML='<div class="holder-card"><span class="av" style="background:#cbd0db">—</span>'+
+        '<div class="nm"><b>Unassigned</b><span>'+(a.siteAsset?"site asset":"in stock")+'</span></div></div>';
+    }
+
+    var widthPct = w.cls==="exp"?100:w.pctElapsed;
+    var warrHTML='<div class="warr-big '+w.cls+'">'+
+      '<div class="wb-top"><b>Warranty</b><span class="badge '+w.cls+'">'+(w.cls==="exp"?"Expired":w.label)+'</span></div>'+
+      '<div class="bar"><i style="width:'+widthPct+'%"></i></div>'+
+      '<div class="scale"><span>'+fmtDate(a.purchase)+'</span><span>'+fmtDate(a.warranty)+'</span></div>'+
+    '</div>';
+
+    document.getElementById("dcBody").innerHTML=
+      holderHTML+
+      '<div class="dc-row"><span class="k">Status</span><span class="vv"><span class="st '+a.status+'"><i></i>'+statusLabel(a.status)+'</span></span></div>'+
+      '<div class="dc-row"><span class="k">Condition</span><span class="vv"><span class="cond '+a.cond+'">'+a.cond.charAt(0).toUpperCase()+a.cond.slice(1)+'</span></span></div>'+
+      '<div class="dc-row"><span class="k">Purchased</span><span class="vv">'+fmtDate(a.purchase)+'</span></div>'+
+      '<div class="dc-row"><span class="k">Movements</span><span class="vv">'+(MOVES[a.id]||[]).length+' events</span></div>'+
+      warrHTML;
+
+    // contextual actions based on lifecycle state
+    var acts=document.getElementById("dcActions");
+    if(a.status==="in_use"){
+      acts.innerHTML='<button class="btn btn-return" data-act="return">↩ Return</button>'+
+                     '<button class="btn btn-maint" data-act="maint">🔧 Maintenance</button>';
+    } else if(a.status==="available"||a.status==="reserved"){
+      acts.innerHTML='<button class="btn btn-primary" data-act="checkout">↗ Check out</button>'+
+                     '<button class="btn btn-maint" data-act="maint">🔧 Maintenance</button>';
+    } else if(a.status==="maintenance"){
+      acts.innerHTML='<button class="btn btn-return" data-act="maintout">✓ Back in service</button>'+
+                     '<button class="btn btn-ghost" data-act="retire">⊘ Retire</button>';
+    } else {
+      acts.innerHTML='<button class="btn btn-ghost" style="flex:1;justify-content:center" data-act="none">Retired — archived</button>';
+    }
+  }
+
+  // contextual action clicks (status transition + write-back behavior)
+  document.getElementById("dcActions").addEventListener("click",function(e){
+    var b=e.target.closest("button[data-act]"); if(!b) return;
+    var a=ASSETS.find(function(x){return x.id===selectedId;});
+    var act=b.dataset.act, now="2026-06-07 10:30";
+    if(act==="return"){
+      var heldDays=a.since?daysBetween(parseD(a.since),TODAY):0;
+      var ret={action:"return",actor:a.holder||"jm",at:now,note:"Returned to IT — condition checked.",held:heldDays};
+      (MOVES[a.id]=MOVES[a.id]||[]).push(ret);
+      a.holder=null; a.since=null; a.status="available";
+      flash("Returned to stock — now available");
+    } else if(act==="checkout"){
+      a.status="in_use"; a.holder="e6"; a.since="2026-06-07";
+      (MOVES[a.id]=MOVES[a.id]||[]).push({action:"checkout",actor:"e6",at:now,note:"Checked out to Liam O'Connor."});
+      flash("Checked out to Liam O'Connor");
+    } else if(act==="maint"){
+      a.status="maintenance"; var prev=a.holder; a.holder=null; a.since=null;
+      (MOVES[a.id]=MOVES[a.id]||[]).push({action:"maintenance_in",actor:"e10",at:now,note:"Sent to IT bench for service."});
+      flash("Sent to maintenance");
+    } else if(act==="maintout"){
+      a.status="available";
+      (MOVES[a.id]=MOVES[a.id]||[]).push({action:"maintenance_out",actor:"e10",at:now,note:"Service complete — back in rotation."});
+      flash("Back in service — available");
+    } else if(act==="retire"){
+      a.status="retired"; a.holder=null; a.since=null;
+      (MOVES[a.id]=MOVES[a.id]||[]).push({action:"retire",actor:"jm",at:now,note:"Decommissioned and flagged for disposal."});
+      flash("Asset retired");
+    } else { return; }
+    renderKPIs(); renderFacetCounts(); renderLedger(); renderDetail(); renderTimeline();
+  });
+
+  // ---------- circulation timeline (native List + JS item) ----------
+  function renderTimeline(){
+    var moves=(MOVES[selectedId]||[]).slice().sort(function(x,y){
+      return new Date(y.at.replace(" ","T"))-new Date(x.at.replace(" ","T"));
+    });
+    document.getElementById("tlCount").textContent=moves.length;
+    var host=document.getElementById("timeline");
+    if(moves.length===0){
+      host.innerHTML='<div style="text-align:center;padding:30px;color:#8b92a5;font-size:13px">No movement history yet.</div>';
+      return;
+    }
+    host.innerHTML=moves.map(function(mv){
+      var actor=EMP[mv.actor]||{name:"System",dept:""};
+      var heldBadge = (mv.action==="return" && mv.held) ?
+        '<div class="tl-held">⏱ held '+(mv.held>=365?(mv.held/365).toFixed(1)+"y":(mv.held>=30?Math.round(mv.held/30)+"mo":mv.held+"d"))+'</div>' : "";
+      return '<div class="tl-item">'+
+        '<div class="tl-dot '+mv.action+'">'+MOVE_ICON[mv.action]+'</div>'+
+        '<div class="tl-body">'+
+          '<div class="tl-top"><b>'+MOVE_LABEL[mv.action]+'</b><span class="when">'+relTime(mv.at)+'</span></div>'+
+          '<div class="tl-who"><span class="av" style="background:'+avColor(actor.name)+'">'+initials(actor.name)+'</span>'+
+            '<span>'+actor.name+' · '+fmtDT(mv.at)+'</span></div>'+
+          (mv.note?'<div class="tl-note">'+mv.note+'</div>':'')+
+          heldBadge+
+        '</div>'+
+      '</div>';
+    }).join("");
+  }
+
+  // ---------- toolbar actions ----------
+  document.getElementById("btnCheckout").onclick=function(){ flash("Opening new checkout form…"); };
+  document.getElementById("btnExport").onclick=function(){ flash("Exporting ledger to CSV…"); };
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- init ----------
+  renderKPIs(); renderFacetCounts(); renderLedger(); renderDetail(); renderTimeline();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — IT Asset Tracker: a lifecycle view — checkout / return and warranty countdown. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/41-it-asset-tracker.html
+</script>
+</body>
+</html>

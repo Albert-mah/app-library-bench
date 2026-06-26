@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Approvio — Approval Center</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Approval Center (Approvio)",
+  "prefix": "apw_",
+  "collections": {
+    "apw_types": {"titleField":"name","fields":{"name":"input","code":"input","icon":"input","color":"select","sla_hours":"integer","is_active":"boolean"}},
+    "apw_users": {"titleField":"name","fields":{"name":"input","email":"input","department":"input","title":"input","avatar_seed":"input"}},
+    "apw_requests": {"titleField":"subject","fields":{"request_no":"input","subject":"input","amount":"number","currency":"select:USD|EUR|GBP|CNY","priority":"select:low|normal|high|urgent","status":"select:pending|approved|rejected|returned|withdrawn","summary":"textarea","submitted_at":"datetime","due_at":"datetime","current_step":"integer","total_steps":"integer","ai_risk":"select:low|medium|high","ai_recommendation":"select:approve|review|reject","ai_note":"textarea"},"relations":{"type":"m2o apw_types (fk type_id)","requester":"m2o apw_users (fk requester_id)","current_approver":"m2o apw_users (fk current_approver_id)"}},
+    "apw_steps": {"titleField":"label","fields":{"label":"input","seq":"integer","decision":"select:pending|approved|rejected|skipped","decided_at":"datetime","comment":"textarea","is_ai":"boolean"},"relations":{"request":"m2o apw_requests (fk request_id)","approver":"m2o apw_users (fk approver_id)"}}
+  },
+  "page": {
+    "name": "Approval Center",
+    "layout": "left = type rail = native List (apw_types) + JS count badge + cross-block filter | center = My Todo = native Table (apw_requests, filter status=pending & current_approver=me) + JS lead column (requester+type+amount) + toolbar JS quick-filter pills + row JSRecordAction (Approve/Reject) | right = Detail = native Details (selected apw_request) + JS step-timeline item + JS AI-advice item",
+    "regions": [
+      {"id":"typerail","block":"native List block (apw_types)","intent":"approval type rail with live pending counts","content":["type icon + name","pending-count JS field badge","SLA chip"],"behaviors":["cross-block filter — clicking a type pushes addFilterGroup(type_id) to apw_requests + refresh"]},
+      {"id":"todo","block":"native Table block (apw_requests, scope status=pending AND current_approver_id=ctx.user.id)","intent":"my approval inbox (the to-do queue)","content":["JSColumn lead cell = requester avatar + subject + request_no + type tag + amount","priority column (tag)","SLA / due column (JS countdown chip)","step progress column (JS x/y dots)","AI risk column (tag)"],"actions":["toolbar JSAction quick-filter pills (All / Urgent / Over-SLA / High-amount / AI-flagged)","row JSRecordAction Approve = UpdateAction status=approved + advance step","row JSRecordAction Reject = UpdateAction status=rejected","row click = ctx.openView(detail) / select into right panel","bulk JSAction Batch approve"]},
+      {"id":"detail","block":"native Details block (apw_requests, single selected record)","intent":"full request detail + signature timeline + AI advice","content":["header: subject, request_no, status pill, amount, requester","JSItem step-timeline = ordered apw_steps with decision/approver/comment (signature trail)","JSItem AI advice card = ai_risk + ai_recommendation + ai_note","action bar: Approve / Reject / Return for edit / Add comment"]}
+    ]
+  },
+  "workflows": [
+    {"name":"apw_route_on_submit","collection":"apw_requests","trigger":"collection event — after create (status set to pending)","nodes":[
+      {"type":"calculation","note":"derive total_steps from apw_types route template; set current_step=1"},
+      {"type":"condition","note":"branch on amount: amount < 1000 → auto-route to single manager step; amount >= 1000 → multi-step (manager → finance → director)"},
+      {"type":"llm","note":"AI risk node — LLM reads subject+summary+amount+requester history, writes ai_risk / ai_recommendation / ai_note back onto apw_requests (suggestion only, never auto-decides)"},
+      {"type":"update","note":"set current_approver_id = first step approver; due_at = submitted_at + type.sla_hours"},
+      {"type":"notification","note":"notify current_approver (the assignee) that a request is waiting"}
+    ]},
+    {"name":"apw_advance_on_decision","collection":"apw_steps","trigger":"collection event — after update (decision changes from pending)","nodes":[
+      {"type":"condition","note":"if decision=rejected → set parent apw_requests.status=rejected, stop chain"},
+      {"type":"condition","note":"if decision=approved AND current_step < total_steps → advance: current_step++, set next step approver as current_approver, notify"},
+      {"type":"condition","note":"if decision=approved AND current_step == total_steps → set apw_requests.status=approved, notify requester"}
+    ]},
+    {"name":"apw_sla_escalation","collection":"apw_requests","trigger":"schedule — every hour","nodes":[
+      {"type":"query","note":"find pending requests where now > due_at"},
+      {"type":"llm","note":"AI escalation node — summarize why it is stuck + suggest the next approver / reminder text"},
+      {"type":"notification","note":"escalate to current_approver's manager + flag the row as over-SLA in the queue"}
+    ]}
+  ],
+  "interactions": ["type rail click cross-filters the To-Do table","quick-filter pills (Urgent / Over-SLA / High-amount / AI-flagged) filter the queue in place","row Approve/Reject writes apw_requests + advances the workflow step","selecting a row loads the right Detail + signature timeline + AI advice","batch approve acts on checked rows","SLA countdown chips recolor as due_at approaches"],
+  "jsKernels": ["queue lead column (avatar + subject + type tag + amount)","SLA countdown chip","step-progress dots","AI risk/recommendation badge","signature step-timeline","quick-filter pill bar"],
+  "notes": "Container/content rule: data containers are NATIVE blocks — List for the type rail, Table for the My-Todo queue, Details for the right panel; reproduce the custom look with JS columns/items/actions nested inside. This is a ⭐ workflow-demo module: the value is the three server-side workflows (route-on-submit with amount-based condition branch + AI risk node, advance-on-decision step machine, hourly SLA escalation with AI summary). AI nodes are LLM suggestion-only — they write ai_* hint fields, a human always clicks Approve/Reject. Do NOT rebuild the queue as a freestanding JSBlock; the approval routing logic lives in workflows, not in the page."
+}
+</script>
+<style>
+  :root{
+    /* Primary: indigo-violet — authoritative, governance/workflow feel, not generic blue */
+    --primary:#5b5bd6; --primary-hover:#4a4ac4; --primary-soft:#eeeefb; --primary-line:#c7c7f0;
+    --ink:#1c1c28; --ink-2:#52525f; --ink-3:#8a8a99; --ink-4:#b4b4c0;
+    --line:#f0f0f4; --line-2:#e6e6ee; --bg:#f5f6f9; --card:#fff;
+    /* node / status accents */
+    --trigger:#f59e0b; --trigger-bg:#fff8eb;
+    --condition:#3b82f6; --condition-bg:#eef5ff;
+    --ai:#8b5cf6; --ai-bg:#f4f0ff;
+    --green:#16a34a; --green-bg:#ecfdf3;
+    --red:#e5484d; --red-bg:#feeceb;
+    --amber:#d97706; --amber-bg:#fff6e6;
+    --r:10px;
+    --shadow:0 1px 2px rgba(20,20,40,.04), 0 6px 18px rgba(20,20,40,.05);
+    --shadow-sm:0 1px 2px rgba(20,20,40,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:13.5px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .tabular{font-variant-numeric:tabular-nums}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:54px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 22px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:9px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:27px;height:27px;border-radius:8px;
+    background:linear-gradient(135deg,var(--primary),#8b8bf0);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 2px 8px rgba(91,91,214,.35);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:8px}
+  .topnav a{padding:6px 12px;border-radius:7px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500}
+  .topnav a.on{background:var(--primary-soft);color:var(--primary)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .gsearch{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--line-2);border-radius:20px;padding:6px 12px;width:220px;color:var(--ink-3);font-size:12.5px}
+  .gsearch input{border:none;background:none;outline:none;font-family:inherit;font-size:12.5px;color:var(--ink);width:100%}
+  .bell{position:relative;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--ink-2);cursor:pointer}
+  .bell:hover{background:var(--line)}
+  .bell .dot{position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:31px;height:31px;border-radius:50%;background:linear-gradient(135deg,#5b5bd6,#9d7bf0);color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- 3-pane workspace ---------- */
+  .workspace{
+    display:grid; grid-template-columns: 248px minmax(0,1fr) 396px;
+    height:calc(100vh - 54px);
+  }
+
+  /* ===== LEFT: type rail (native List) ===== */
+  .rail{background:var(--card);border-right:1px solid var(--line-2);overflow:auto;display:flex;flex-direction:column}
+  .rail-head{padding:18px 18px 12px}
+  .rail-head h2{font-size:14px;font-weight:700}
+  .rail-head p{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .my-pending{margin:0 14px 14px;background:linear-gradient(135deg,var(--primary),#8b8bf0);border-radius:12px;padding:14px 15px;color:#fff;box-shadow:0 4px 14px rgba(91,91,214,.28)}
+  .my-pending .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;opacity:.85;font-weight:600}
+  .my-pending .big{font-size:30px;font-weight:800;line-height:1.1;margin-top:3px}
+  .my-pending .sub{font-size:11.5px;opacity:.9;margin-top:3px}
+  .rail-section{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-4);padding:4px 18px 8px}
+  .type-list{padding:0 10px 14px;display:flex;flex-direction:column;gap:2px}
+  .type-row{display:flex;align-items:center;gap:11px;padding:9px 9px;border-radius:9px;cursor:pointer;transition:.12s;position:relative}
+  .type-row:hover{background:var(--line)}
+  .type-row.on{background:var(--primary-soft)}
+  .type-row.on .t-name{color:var(--primary)}
+  .t-ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:15px;flex:none}
+  .t-name{font-size:13px;font-weight:600;color:var(--ink);flex:1;min-width:0;line-height:1.2}
+  .t-name small{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500;margin-top:1px}
+  .t-count{font-size:11.5px;font-weight:700;color:var(--ink-2);background:var(--line);border-radius:11px;padding:2px 9px;min-width:24px;text-align:center}
+  .type-row.on .t-count{background:#fff;color:var(--primary)}
+  .t-count.zero{color:var(--ink-4);background:transparent}
+  .rail-foot{margin-top:auto;padding:14px 18px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3)}
+  .rail-foot b{color:var(--ink-2)}
+
+  /* ===== CENTER: My Todo queue (native Table) ===== */
+  .queue{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+  .q-top{padding:18px 24px 0;background:var(--bg)}
+  .q-title-row{display:flex;align-items:baseline;gap:11px}
+  .q-title-row h1{font-size:19px;font-weight:700;letter-spacing:-.3px}
+  .q-title-row .ctx{font-size:12.5px;color:var(--ink-3)}
+  .q-title-row .ctx b{color:var(--primary);font-weight:600}
+  .q-sub{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+  .pills{display:flex;gap:7px;margin-top:14px;flex-wrap:wrap}
+  .pill{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:6px 12px;border-radius:18px;border:1px solid var(--line-2);background:#fff;transition:.12s;user-select:none}
+  .pill:hover{border-color:var(--ink-4)}
+  .pill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .pill .n{font-size:11px;font-weight:700;background:var(--line);color:var(--ink-2);border-radius:9px;padding:0 6px}
+  .pill.on .n{background:rgba(255,255,255,.22);color:#fff}
+  .pill.flag.on{background:var(--ai);border-color:var(--ai)}
+  .pill.sla.on{background:var(--red);border-color:var(--red)}
+  .pill.urgent.on{background:var(--amber);border-color:var(--amber)}
+
+  .q-scroll{flex:1;overflow:auto;padding:14px 24px 24px}
+  .q-bulkbar{display:none;align-items:center;gap:12px;background:var(--primary-soft);border:1px solid var(--primary-line);border-radius:10px;padding:9px 14px;margin-bottom:12px;font-size:12.5px;color:var(--primary)}
+  .q-bulkbar.show{display:flex}
+  .q-bulkbar b{font-weight:700}
+  .q-bulkbar .grow{flex:1}
+  .q-bulkbar button{border:none;border-radius:7px;padding:6px 13px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .bbtn-approve{background:var(--green);color:#fff}
+  .bbtn-clear{background:#fff;border:1px solid var(--primary-line);color:var(--primary)}
+
+  .qtable{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow-sm)}
+  .qtable thead th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);text-align:left;padding:11px 14px;border-bottom:1px solid var(--line-2);background:#fafafc;white-space:nowrap}
+  .qtable thead th.c-check{width:38px;padding-left:16px}
+  .qtable thead th.c-right{text-align:right}
+  .qtable tbody tr{cursor:pointer;transition:.1s}
+  .qtable tbody tr:hover{background:#fafaff}
+  .qtable tbody tr.sel{background:var(--primary-soft)}
+  .qtable tbody tr.sel:hover{background:var(--primary-soft)}
+  .qtable tbody td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .qtable tbody tr:last-child td{border-bottom:none}
+  .qtable tbody td.c-check{padding-left:16px}
+  .cbx{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-2);display:inline-grid;place-items:center;cursor:pointer;background:#fff;color:#fff;font-size:11px;font-weight:800}
+  .cbx.on{background:var(--primary);border-color:var(--primary)}
+
+  /* lead cell (JS column) */
+  .lead{display:flex;align-items:center;gap:11px;min-width:0}
+  .lead .ava{width:36px;height:36px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px}
+  .lead .meta{min-width:0}
+  .lead .subj{font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+  .lead .line2{display:flex;align-items:center;gap:8px;margin-top:3px}
+  .lead .rno{font-size:11px;color:var(--ink-3);font-weight:600;font-variant-numeric:tabular-nums}
+  .ttag{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:9px;display:inline-flex;align-items:center;gap:4px}
+  .amt{font-size:13.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .amt small{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500;text-align:right}
+
+  /* priority tag */
+  .prio{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:11px;text-transform:capitalize}
+  .prio.urgent{background:var(--red-bg);color:var(--red)}
+  .prio.high{background:var(--amber-bg);color:var(--amber)}
+  .prio.normal{background:var(--line);color:var(--ink-2)}
+  .prio.low{background:var(--line);color:var(--ink-3)}
+
+  /* sla chip */
+  .sla-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .sla-ok{background:var(--green-bg);color:var(--green)}
+  .sla-warn{background:var(--amber-bg);color:var(--amber)}
+  .sla-over{background:var(--red-bg);color:var(--red)}
+  .sla-chip i{font-style:normal}
+
+  /* step progress dots */
+  .steps{display:flex;align-items:center;gap:4px}
+  .steps .dot{width:9px;height:9px;border-radius:50%;background:var(--line-2)}
+  .steps .dot.done{background:var(--green)}
+  .steps .dot.cur{background:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+  .steps small{font-size:11px;color:var(--ink-3);font-weight:600;margin-left:4px;font-variant-numeric:tabular-nums}
+
+  /* AI risk badge */
+  .risk{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 9px;border-radius:11px}
+  .risk i{font-style:normal;font-size:11px}
+  .risk.low{background:var(--green-bg);color:var(--green)}
+  .risk.medium{background:var(--amber-bg);color:var(--amber)}
+  .risk.high{background:var(--red-bg);color:var(--red)}
+
+  /* row actions */
+  .rowacts{display:flex;gap:6px;justify-content:flex-end;opacity:.25;transition:.12s}
+  .qtable tbody tr:hover .rowacts{opacity:1}
+  .ract{border:none;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:13px;display:grid;place-items:center;transition:.12s}
+  .ract.ok{background:var(--green-bg);color:var(--green)}
+  .ract.ok:hover{background:var(--green);color:#fff}
+  .ract.no{background:var(--red-bg);color:var(--red)}
+  .ract.no:hover{background:var(--red);color:#fff}
+  .q-empty{padding:60px 20px;text-align:center;color:var(--ink-3)}
+  .q-empty .big{font-size:40px;margin-bottom:10px}
+  .q-empty b{display:block;color:var(--ink-2);font-size:15px;margin-bottom:4px}
+
+  /* ===== RIGHT: detail (native Details) ===== */
+  .detail{background:var(--card);border-left:1px solid var(--line-2);overflow:auto;display:flex;flex-direction:column}
+  .d-head{padding:20px 22px 16px;border-bottom:1px solid var(--line)}
+  .d-eyebrow{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .d-status{font-size:11px;font-weight:700;padding:3px 10px;border-radius:11px;text-transform:capitalize}
+  .d-status.pending{background:var(--primary-soft);color:var(--primary)}
+  .d-status.approved{background:var(--green-bg);color:var(--green)}
+  .d-status.rejected{background:var(--red-bg);color:var(--red)}
+  .d-head h2{font-size:17px;font-weight:700;letter-spacing:-.2px;line-height:1.3}
+  .d-rno{font-size:12px;color:var(--ink-3);font-weight:600;margin-top:5px;font-variant-numeric:tabular-nums}
+  .d-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;padding:18px 22px;border-bottom:1px solid var(--line)}
+  .d-field .k{font-size:11px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+  .d-field .v{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .d-field.full{grid-column:1/-1}
+  .d-field.full .v{font-weight:400;color:var(--ink-2);line-height:1.55;font-size:13px}
+  .d-reqr{display:flex;align-items:center;gap:9px}
+  .d-reqr .ava{width:30px;height:30px;border-radius:8px;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+  .d-reqr .nm{line-height:1.2}
+  .d-reqr .nm b{font-size:13px;font-weight:600}
+  .d-reqr .nm span{font-size:11px;color:var(--ink-3)}
+
+  /* AI advice card (JS item) */
+  .ai-card{margin:16px 22px;border:1px solid var(--ai-bg);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,var(--ai-bg),#fff)}
+  .ai-head{display:flex;align-items:center;gap:9px;padding:12px 15px;border-bottom:1px solid var(--ai-bg)}
+  .ai-head .spark{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--ai),#a78bfa);color:#fff;display:grid;place-items:center;font-size:14px}
+  .ai-head b{font-size:13px;font-weight:700;color:var(--ai)}
+  .ai-head .by{margin-left:auto;font-size:10.5px;color:var(--ink-3);font-weight:600}
+  .ai-body{padding:13px 15px}
+  .ai-rec{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .ai-rec .verdict{font-size:13px;font-weight:700;padding:4px 12px;border-radius:9px}
+  .ai-rec .verdict.approve{background:var(--green-bg);color:var(--green)}
+  .ai-rec .verdict.review{background:var(--amber-bg);color:var(--amber)}
+  .ai-rec .verdict.reject{background:var(--red-bg);color:var(--red)}
+  .ai-note{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+  .ai-note .hl{background:#fff;border:1px solid var(--line-2);border-radius:4px;padding:0 4px;font-weight:600;color:var(--ink)}
+  .ai-disclaimer{font-size:10.5px;color:var(--ink-3);margin-top:10px;display:flex;align-items:center;gap:5px}
+
+  /* signature step timeline (JS item) */
+  .tl-wrap{padding:6px 22px 18px}
+  .tl-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-4);padding:10px 0 14px}
+  .tl{position:relative;padding-left:30px}
+  .tl::before{content:"";position:absolute;left:11px;top:6px;bottom:14px;width:2px;background:var(--line-2)}
+  .tl-step{position:relative;padding-bottom:18px}
+  .tl-step:last-child{padding-bottom:0}
+  .tl-node{position:absolute;left:-30px;top:0;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;border:3px solid #fff;box-shadow:0 0 0 1px var(--line-2)}
+  .tl-node.approved{background:var(--green)}
+  .tl-node.rejected{background:var(--red)}
+  .tl-node.pending{background:#fff;color:var(--ink-4);box-shadow:0 0 0 1px var(--line-2)}
+  .tl-node.cur{background:var(--primary);box-shadow:0 0 0 4px var(--primary-soft)}
+  .tl-node.ai{background:var(--ai)}
+  .tl-card{background:#fafafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .tl-card.cur{background:var(--primary-soft);border-color:var(--primary-line)}
+  .tl-row1{display:flex;align-items:center;gap:8px}
+  .tl-who{font-size:13px;font-weight:600;color:var(--ink)}
+  .tl-role{font-size:11px;color:var(--ink-3);font-weight:500}
+  .tl-when{margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:500;font-variant-numeric:tabular-nums}
+  .tl-verdict{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:9px}
+  .tl-verdict.approved{background:var(--green-bg);color:var(--green)}
+  .tl-verdict.rejected{background:var(--red-bg);color:var(--red)}
+  .tl-verdict.pending{background:var(--primary-soft);color:var(--primary)}
+  .tl-comment{font-size:12px;color:var(--ink-2);margin-top:7px;line-height:1.5;padding-top:7px;border-top:1px dashed var(--line-2)}
+  .tl-ai-tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ai);background:var(--ai-bg);padding:1px 6px;border-radius:6px}
+
+  /* action bar */
+  .d-actions{margin-top:auto;padding:16px 22px;border-top:1px solid var(--line-2);background:#fafafc;display:flex;gap:9px;position:sticky;bottom:0}
+  .abtn{flex:1;border:none;border-radius:9px;padding:11px 14px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;transition:.12s;display:flex;align-items:center;justify-content:center;gap:7px}
+  .abtn-approve{background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(22,163,74,.28)}
+  .abtn-approve:hover{background:#15803d}
+  .abtn-reject{background:#fff;border:1.5px solid var(--red);color:var(--red);flex:0 0 auto;padding-left:18px;padding-right:18px}
+  .abtn-reject:hover{background:var(--red);color:#fff}
+  .abtn-return{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2);flex:0 0 auto;width:44px;padding:0}
+  .abtn-return:hover{border-color:var(--ink-4)}
+
+  /* empty detail */
+  .d-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--ink-3);padding:40px;text-align:center}
+  .d-empty .big{font-size:46px;margin-bottom:12px;opacity:.5}
+  .d-empty b{color:var(--ink-2);font-size:15px;display:block;margin-bottom:5px}
+
+  /* toast */
+  .toast{position:fixed;bottom:24px;left:calc(50% - 100px);transform:translateY(20px);opacity:0;background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:80;display:flex;align-items:center;gap:9px;pointer-events:none;max-width:340px}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast .ico{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;flex:none}
+  .toast.ok .ico{background:var(--green);color:#fff}
+  .toast.no .ico{background:var(--red);color:#fff}
+  .toast.info .ico{background:var(--primary);color:#fff}
+
+  @media(max-width:1380px){
+    .workspace{grid-template-columns:220px minmax(0,1fr) 360px}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">✓</span>Approvio <small>approval center</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">My Todo</a>
+    <a href="#">All Requests</a>
+    <a href="#">Workflows</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="gsearch">🔎<input placeholder="Search requests, requesters…"></div>
+    <div class="bell">🔔<span class="dot"></span></div>
+    <div class="acct">
+      <div class="ava">DM</div>
+      <div class="who"><b>Dana Morgan</b><br><span>Director of Operations</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ============ LEFT: TYPE RAIL (native List) ============ -->
+  <aside class="rail">
+    <div class="rail-head">
+      <h2>Approval Center</h2>
+      <p>Everything waiting on you, in one queue.</p>
+    </div>
+    <div class="my-pending">
+      <div class="lbl">My pending</div>
+      <div class="big" id="myPendingBig">0</div>
+      <div class="sub" id="myPendingSub">across all approval types</div>
+    </div>
+    <div class="rail-section">Approval types</div>
+    <div class="type-list" id="typeList"></div>
+    <div class="rail-foot">Avg. decision time <b>4.2h</b> · SLA met <b>91%</b> this month</div>
+  </aside>
+
+  <!-- ============ CENTER: MY TODO QUEUE (native Table) ============ -->
+  <main class="queue">
+    <div class="q-top">
+      <div class="q-title-row">
+        <h1>My Todo</h1>
+        <span class="ctx" id="filterCtx"></span>
+      </div>
+      <div class="q-sub">Pending requests routed to you. Approve, reject, or open for the full trail.</div>
+      <div class="pills" id="pills">
+        <span class="pill on" data-f="all">All <span class="n" id="n-all">0</span></span>
+        <span class="pill urgent" data-f="urgent">🔥 Urgent <span class="n" id="n-urgent">0</span></span>
+        <span class="pill sla" data-f="over">⏰ Over SLA <span class="n" id="n-over">0</span></span>
+        <span class="pill" data-f="amount">💰 High amount <span class="n" id="n-amount">0</span></span>
+        <span class="pill flag" data-f="flag">✨ AI-flagged <span class="n" id="n-flag">0</span></span>
+      </div>
+    </div>
+    <div class="q-scroll">
+      <div class="q-bulkbar" id="bulkbar">
+        <b id="bulkCount">0 selected</b>
+        <span class="grow"></span>
+        <button class="bbtn-clear" id="bulkClear">Clear</button>
+        <button class="bbtn-approve" id="bulkApprove">✓ Approve selected</button>
+      </div>
+      <table class="qtable">
+        <thead>
+          <tr>
+            <th class="c-check"><span class="cbx" id="checkAll"></span></th>
+            <th>Request</th>
+            <th>Priority</th>
+            <th>SLA / Due</th>
+            <th>Progress</th>
+            <th>AI risk</th>
+            <th class="c-right">Action</th>
+          </tr>
+        </thead>
+        <tbody id="qbody"></tbody>
+      </table>
+      <div class="q-empty" id="qempty" style="display:none">
+        <div class="big">🎉</div>
+        <b>Inbox zero</b>
+        Nothing matches this filter — you're all caught up.
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ RIGHT: DETAIL (native Details) ============ -->
+  <aside class="detail" id="detailPane">
+    <div class="d-empty" id="detailEmpty">
+      <div class="big">📋</div>
+      <b>Select a request</b>
+      Pick a row from your queue to see the full request, signature trail, and AI advice.
+    </div>
+    <div id="detailBody" style="display:none;flex:1;display:flex;flex-direction:column;overflow:auto"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"><span class="ico" id="toastIco">✓</span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- approval types (apw_types) ----------
+  var TYPES = {
+    expense:  {name:"Expense claim",   sub:"Finance · SLA 24h", icon:"💳", color:"#5b5bd6", bg:"#eeeefb"},
+    purchase: {name:"Purchase order",  sub:"Procurement · SLA 48h", icon:"🛒", color:"#0891b2", bg:"#e6f7fb"},
+    leave:    {name:"Leave request",   sub:"HR · SLA 8h", icon:"🌴", color:"#16a34a", bg:"#ecfdf3"},
+    contract: {name:"Contract sign-off", sub:"Legal · SLA 72h", icon:"📄", color:"#7c3aed", bg:"#f4f0ff"},
+    travel:   {name:"Travel request",  sub:"Admin · SLA 24h", icon:"✈️", color:"#d97706", bg:"#fff6e6"},
+    access:   {name:"Access / IT",      sub:"IT · SLA 12h", icon:"🔑", color:"#e5484d", bg:"#feeceb"},
+    budget:   {name:"Budget change",    sub:"Finance · SLA 48h", icon:"📊", color:"#db2777", bg:"#fdeef6"}
+  };
+  var TYPE_ORDER = ["expense","purchase","leave","contract","travel","access","budget"];
+
+  function avaColor(seed){
+    var cols=["#5b5bd6","#0891b2","#16a34a","#d97706","#db2777","#7c3aed","#0d9488","#dc2626","#2563eb","#ca8a04"];
+    var h=0; for(var i=0;i<seed.length;i++) h=(h*31+seed.charCodeAt(i))>>>0;
+    return cols[h%cols.length];
+  }
+  function initials(n){ return n.split(" ").map(function(w){return w[0];}).slice(0,2).join("").toUpperCase(); }
+  function money(a,c){ var s={USD:"$",EUR:"€",GBP:"£",CNY:"¥"}[c]||"$"; return s+a.toLocaleString("en-US"); }
+
+  // ---------- requests (apw_requests) — high-density mock ----------
+  // due_h = hours from "now" until due (negative = over SLA)
+  var REQUESTS = [
+    {id:"r1", no:"REQ-2026-0418", type:"expense", subject:"Q2 client dinner — Madrid offsite", requester:"Marcus Vance", role:"Account Lead · Sales", amount:1840, cur:"EUR", prio:"normal", due_h:5.5, step:2, total:3, risk:"low", rec:"approve", aiNote:"Within the per-head dinner policy. Receipts attached and itemized. <span class='hl'>No duplicate</span> against last month's Madrid trip.", summary:"Team dinner for 6 during the EMEA client offsite. Includes the client's two procurement leads. Receipts and attendee list attached.", submitted:"Jun 6, 09:12"},
+    {id:"r2", no:"REQ-2026-0419", type:"purchase", subject:"24× standing desks — new HQ floor 4", requester:"Priya Nandakumar", role:"Facilities Mgr · Ops", amount:38400, cur:"USD", prio:"high", due_h:19, step:1, total:3, risk:"medium", rec:"review", aiNote:"Unit price <span class='hl'>9% above</span> the contracted vendor rate. Suggest confirming the quote is from the approved catalog before approving.", summary:"Bulk order to furnish the new 4th-floor expansion. Vendor: Ergoflow. Net-30 terms. Delivery in 3 weeks.", submitted:"Jun 6, 08:40"},
+    {id:"r3", no:"REQ-2026-0420", type:"leave", subject:"Annual leave — 5 days (Jul 14–18)", requester:"Tomás Ribeiro", role:"Backend Eng · Platform", amount:0, cur:"USD", prio:"low", due_h:2.2, step:1, total:1, risk:"low", rec:"approve", aiNote:"Team coverage is fine for that week — no overlapping leave, no release freeze. Balance: <span class='hl'>11 days</span> remaining.", summary:"Family holiday. Handover doc shared with the on-call rotation. No conflicting deploys scheduled.", submitted:"Jun 6, 11:05"},
+    {id:"r4", no:"REQ-2026-0421", type:"contract", subject:"MSA renewal — Brightline Analytics", requester:"Lena Hoffmann", role:"Legal Counsel", amount:96000, cur:"USD", prio:"urgent", due_h:-3, step:3, total:4, risk:"high", rec:"review", aiNote:"Auto-renew clause changed to <span class='hl'>24 months</span> with a 14% uplift. Liability cap was lowered. Recommend Legal review before sign-off.", summary:"Annual master services agreement renewal. Redlines from vendor attached. Two clauses differ from last year's terms.", submitted:"Jun 4, 16:20"},
+    {id:"r5", no:"REQ-2026-0422", type:"travel", subject:"Conference travel — SaaStr, San Mateo", requester:"Owen Carter", role:"VP Marketing", amount:4250, cur:"USD", prio:"normal", due_h:11, step:2, total:2, risk:"low", rec:"approve", aiNote:"Flights and hotel both within the executive travel band. Booked 6 weeks out — <span class='hl'>early-bird</span> fare.", summary:"3-day conference attendance plus 4 customer meetings booked around it. Itinerary attached.", submitted:"Jun 5, 14:48"},
+    {id:"r6", no:"REQ-2026-0423", type:"access", subject:"Production DB read access — analytics", requester:"Sofia Marchetti", role:"Data Analyst · BI", amount:0, cur:"USD", prio:"high", due_h:-1.5, step:1, total:2, risk:"medium", rec:"review", aiNote:"Requests <span class='hl'>read-only</span> on prod replica. No PII columns in scope per the request. Time-box to 90 days is recommended.", summary:"Needs prod replica access to build the churn dashboard. Manager has signed off on the ticket.", submitted:"Jun 5, 18:02"},
+    {id:"r7", no:"REQ-2026-0424", type:"budget", subject:"Reallocate $20k — events → paid ads", requester:"Owen Carter", role:"VP Marketing", amount:20000, cur:"USD", prio:"normal", due_h:27, step:1, total:2, risk:"low", rec:"approve", aiNote:"Source line item has <span class='hl'>$31k unspent</span>. Move keeps the department within its quarterly cap.", summary:"Shift unused Q2 events budget into the performance-marketing line to chase a strong CPL trend.", submitted:"Jun 6, 10:31"},
+    {id:"r8", no:"REQ-2026-0425", type:"expense", subject:"Software — 12× Figma seats", requester:"Aisha Bello", role:"Design Lead", amount:6480, cur:"USD", prio:"normal", due_h:8, step:1, total:2, risk:"low", rec:"approve", aiNote:"Renewal of existing seats at the <span class='hl'>same rate</span>. Annual plan saves 18% vs monthly.", summary:"Annual renewal of the design team's Figma org seats. No seat-count increase.", submitted:"Jun 6, 07:55"},
+    {id:"r9", no:"REQ-2026-0426", type:"purchase", subject:"Emergency replacement — 3× laptops", requester:"Raj Patel", role:"IT Support", amount:5700, cur:"USD", prio:"urgent", due_h:-4.5, step:1, total:2, risk:"low", rec:"approve", aiNote:"Replacements for <span class='hl'>3 failed devices</span> flagged in the asset tracker. Approved vendor, standard config.", summary:"Three laptops failed hardware checks this week. New hires start Monday and need machines.", submitted:"Jun 4, 13:10"},
+    {id:"r10", no:"REQ-2026-0427", type:"contract", subject:"NDA — Helix Robotics partnership", requester:"Lena Hoffmann", role:"Legal Counsel", amount:0, cur:"USD", prio:"high", due_h:6.5, step:2, total:2, risk:"low", rec:"approve", aiNote:"Standard mutual NDA on our <span class='hl'>approved template</span>. No redlines from the counterparty.", summary:"Mutual NDA ahead of partnership discovery calls with Helix. Standard 2-year term.", submitted:"Jun 6, 09:50"},
+    {id:"r11", no:"REQ-2026-0428", type:"travel", subject:"Site visit — Shenzhen supplier audit", requester:"Priya Nandakumar", role:"Facilities Mgr · Ops", amount:7900, cur:"USD", prio:"high", due_h:34, step:1, total:2, risk:"medium", rec:"review", aiNote:"International travel — <span class='hl'>visa + insurance</span> not yet attached. Cost is above the standard band; confirm necessity.", summary:"On-site quality audit of the new furniture supplier before the HQ bulk order ships.", submitted:"Jun 6, 06:30"},
+    {id:"r12", no:"REQ-2026-0429", type:"budget", subject:"New headcount — 2× Support Engineers", requester:"Dana Morgan", role:"Director of Ops", amount:184000, cur:"USD", prio:"urgent", due_h:-6, step:2, total:4, risk:"high", rec:"review", aiNote:"Annualized cost is <span class='hl'>above the Q3 hiring envelope</span>. Recommend tying approval to the board's headcount sign-off.", summary:"Two support engineering hires to hold SLA as ticket volume grows 40% QoQ. JD and comp band attached.", submitted:"Jun 4, 15:00"}
+  ];
+
+  // signature trail per request (apw_steps)
+  function stepsFor(r){
+    var approvers = {
+      manager:{name:"Hannah Kessler", role:"Line Manager"},
+      finance:{name:"Victor Aoyama", role:"Finance Partner"},
+      legal:{name:"Lena Hoffmann", role:"Legal Counsel"},
+      director:{name:"Dana Morgan", role:"Director (you)"},
+      it:{name:"Raj Patel", role:"IT Lead"}
+    };
+    var route = {
+      expense:[approvers.manager, approvers.finance, approvers.director],
+      purchase:[approvers.manager, approvers.finance, approvers.director],
+      leave:[approvers.manager],
+      contract:[{name:"Auto AI screen", role:"Policy check", ai:true}, approvers.legal, approvers.director, approvers.finance],
+      travel:[approvers.manager, approvers.director],
+      access:[approvers.manager, approvers.it],
+      budget:[{name:"Auto AI screen", role:"Budget check", ai:true}, approvers.finance, approvers.director, {name:"Board sign-off", role:"Exec"}]
+    }[r.type] || [approvers.manager];
+
+    return route.slice(0,r.total).map(function(a,i){
+      var seq=i+1, st;
+      if(seq<r.step) st="approved";
+      else if(seq===r.step) st="cur";
+      else st="pending";
+      var when = st==="approved" ? ["Jun 5, 10:20","Jun 5, 14:05","Jun 6, 08:15"][i%3] : "";
+      var comment = "";
+      if(st==="approved") comment = a.ai ? "Auto-screen passed: matched policy template, no anomalies." : ["Looks good — approved.","Verified against budget. OK to proceed.","Confirmed with the requester. Approved."][i%3];
+      return {seq:seq, who:a.name, role:a.role, ai:!!a.ai, state:st, when:when, comment:comment};
+    });
+  }
+
+  // ---------- state ----------
+  var activeType = "all";   // cross-block filter from rail
+  var activeFilter = "all"; // toolbar quick-filter pill
+  var selectedRow = null;   // detail
+  var checked = {};         // bulk
+  var data = REQUESTS.slice();
+
+  // ---------- helpers ----------
+  function slaInfo(h){
+    if(h<0) return {cls:"sla-over", txt:"Over by "+Math.abs(h).toFixed(1)+"h", icon:"⏰"};
+    if(h<6) return {cls:"sla-warn", txt:"Due in "+h.toFixed(1)+"h", icon:"⏳"};
+    return {cls:"sla-ok", txt:"Due in "+Math.round(h)+"h", icon:"✓"};
+  }
+  function matchesFilter(r){
+    if(activeType!=="all" && r.type!==activeType) return false;
+    switch(activeFilter){
+      case "urgent": return r.prio==="urgent";
+      case "over":   return r.due_h<0;
+      case "amount": return r.amount>=10000;
+      case "flag":   return r.risk!=="low";
+      default: return true;
+    }
+  }
+
+  // ---------- LEFT RAIL ----------
+  function renderRail(){
+    var host=document.getElementById("typeList"); host.innerHTML="";
+    var counts={}; data.forEach(function(r){ counts[r.type]=(counts[r.type]||0)+1; });
+    var total=data.length;
+
+    document.getElementById("myPendingBig").textContent=total;
+    var over=data.filter(function(r){return r.due_h<0;}).length;
+    document.getElementById("myPendingSub").textContent = over>0 ? (over+" over SLA · act now") : "across all approval types";
+
+    // "All" pseudo-row
+    var allRow=document.createElement("div");
+    allRow.className="type-row"+(activeType==="all"?" on":"");
+    allRow.innerHTML='<div class="t-ic" style="background:#f0f0f4">📥</div><div class="t-name">All requests<small>everything routed to me</small></div><div class="t-count'+(total?"":" zero")+'">'+total+'</div>';
+    allRow.onclick=function(){ activeType="all"; selectedRow=null; renderAll(); };
+    host.appendChild(allRow);
+
+    TYPE_ORDER.forEach(function(k){
+      var t=TYPES[k], c=counts[k]||0;
+      var row=document.createElement("div");
+      row.className="type-row"+(activeType===k?" on":"");
+      row.innerHTML=
+        '<div class="t-ic" style="background:'+t.bg+'">'+t.icon+'</div>'+
+        '<div class="t-name">'+t.name+'<small>'+t.sub+'</small></div>'+
+        '<div class="t-count'+(c?"":" zero")+'">'+c+'</div>';
+      row.onclick=function(){ activeType=k; selectedRow=null; renderAll(); };
+      host.appendChild(row);
+    });
+  }
+
+  // ---------- CENTER QUEUE ----------
+  function renderPillCounts(){
+    var base=data.filter(function(r){return activeType==="all"||r.type===activeType;});
+    document.getElementById("n-all").textContent=base.length;
+    document.getElementById("n-urgent").textContent=base.filter(function(r){return r.prio==="urgent";}).length;
+    document.getElementById("n-over").textContent=base.filter(function(r){return r.due_h<0;}).length;
+    document.getElementById("n-amount").textContent=base.filter(function(r){return r.amount>=10000;}).length;
+    document.getElementById("n-flag").textContent=base.filter(function(r){return r.risk!=="low";}).length;
+  }
+
+  function renderQueue(){
+    renderPillCounts();
+    var rows=data.filter(matchesFilter);
+    var body=document.getElementById("qbody"); body.innerHTML="";
+    var empty=document.getElementById("qempty");
+    var ctx=document.getElementById("filterCtx");
+    ctx.innerHTML = activeType==="all" ? '<b>'+rows.length+'</b> awaiting you' : 'in <b>'+TYPES[activeType].name+'</b> · '+rows.length+' item'+(rows.length===1?"":"s");
+
+    if(rows.length===0){ empty.style.display="block"; document.querySelector(".qtable").style.display="none"; renderBulk(); return; }
+    empty.style.display="none"; document.querySelector(".qtable").style.display="";
+
+    rows.forEach(function(r){
+      var t=TYPES[r.type], s=slaInfo(r.due_h);
+      var tr=document.createElement("tr");
+      if(selectedRow===r.id) tr.className="sel";
+
+      // step dots
+      var dots="";
+      for(var i=1;i<=r.total;i++){
+        var c = i<r.step?"done":(i===r.step?"cur":"");
+        dots+='<span class="dot '+c+'"></span>';
+      }
+
+      tr.innerHTML=
+        '<td class="c-check"><span class="cbx'+(checked[r.id]?" on":"")+'" data-chk="'+r.id+'">'+(checked[r.id]?"✓":"")+'</span></td>'+
+        '<td>'+
+          '<div class="lead">'+
+            '<div class="ava" style="background:'+avaColor(r.requester)+'">'+initials(r.requester)+'</div>'+
+            '<div class="meta">'+
+              '<div class="subj" title="'+r.subject+'">'+r.subject+'</div>'+
+              '<div class="line2">'+
+                '<span class="rno">'+r.no+'</span>'+
+                '<span class="ttag" style="background:'+t.bg+';color:'+t.color+'">'+t.icon+' '+t.name.split(" ")[0]+'</span>'+
+                (r.amount>0?'<span class="amt" style="font-size:11.5px;font-weight:700">'+money(r.amount,r.cur)+'</span>':'')+
+              '</div>'+
+            '</div>'+
+          '</div>'+
+        '</td>'+
+        '<td><span class="prio '+r.prio+'">'+r.prio+'</span></td>'+
+        '<td><span class="sla-chip '+s.cls+'"><i>'+s.icon+'</i>'+s.txt+'</span></td>'+
+        '<td><div class="steps">'+dots+'<small>'+r.step+'/'+r.total+'</small></div></td>'+
+        '<td><span class="risk '+r.risk+'"><i>'+(r.risk==="low"?"●":r.risk==="medium"?"◆":"▲")+'</i>'+r.risk+'</span></td>'+
+        '<td class="c-right"><div class="rowacts">'+
+          '<button class="ract ok" data-act="approve" data-id="'+r.id+'" title="Approve">✓</button>'+
+          '<button class="ract no" data-act="reject" data-id="'+r.id+'" title="Reject">✕</button>'+
+        '</div></td>';
+
+      tr.addEventListener("click",function(ev){
+        var chk=ev.target.closest("[data-chk]");
+        if(chk){ ev.stopPropagation(); toggleCheck(r.id); return; }
+        var b=ev.target.closest("button[data-act]");
+        if(b){ ev.stopPropagation(); decide(r.id, b.dataset.act); return; }
+        selectedRow=r.id; renderQueue(); renderDetail();
+      });
+      body.appendChild(tr);
+    });
+    renderBulk();
+    syncCheckAll();
+  }
+
+  // ---------- bulk ----------
+  function toggleCheck(id){ checked[id]=!checked[id]; if(!checked[id]) delete checked[id]; renderQueue(); }
+  function renderBulk(){
+    var n=Object.keys(checked).length;
+    var bar=document.getElementById("bulkbar");
+    bar.classList.toggle("show", n>0);
+    document.getElementById("bulkCount").textContent=n+" selected";
+  }
+  function syncCheckAll(){
+    var rows=data.filter(matchesFilter);
+    var all = rows.length>0 && rows.every(function(r){return checked[r.id];});
+    var el=document.getElementById("checkAll");
+    el.classList.toggle("on", all); el.textContent=all?"✓":"";
+  }
+  document.getElementById("checkAll").addEventListener("click",function(){
+    var rows=data.filter(matchesFilter);
+    var all = rows.length>0 && rows.every(function(r){return checked[r.id];});
+    rows.forEach(function(r){ if(all) delete checked[r.id]; else checked[r.id]=true; });
+    renderQueue();
+  });
+  document.getElementById("bulkClear").onclick=function(){ checked={}; renderQueue(); };
+  document.getElementById("bulkApprove").onclick=function(){
+    var ids=Object.keys(checked);
+    if(!ids.length) return;
+    data=data.filter(function(r){return !checked[r.id];});
+    if(selectedRow && checked[selectedRow]) selectedRow=null;
+    checked={};
+    renderAll();
+    flash("ok", ids.length+" request"+(ids.length>1?"s":"")+" approved — workflow advanced each chain");
+  };
+
+  // ---------- decision (UpdateAction + workflow advance) ----------
+  function decide(id, act){
+    var r=data.filter(function(x){return x.id===id;})[0]; if(!r) return;
+    data=data.filter(function(x){return x.id!==id;});
+    delete checked[id];
+    if(selectedRow===id) selectedRow=null;
+    renderAll();
+    if(act==="approve"){
+      var more = r.step < r.total;
+      flash("ok","Approved · "+(more?("routed to step "+(r.step+1)+" of "+r.total):"request fully approved"));
+    } else {
+      flash("no","Rejected · requester notified, chain stopped");
+    }
+  }
+
+  // ---------- toolbar pills ----------
+  document.getElementById("pills").addEventListener("click",function(e){
+    var p=e.target.closest(".pill"); if(!p) return;
+    document.querySelectorAll(".pill").forEach(function(x){x.classList.remove("on");});
+    p.classList.add("on"); activeFilter=p.dataset.f; selectedRow=null; renderQueue(); renderDetail();
+  });
+
+  // ---------- RIGHT DETAIL (native Details + JS items) ----------
+  function renderDetail(){
+    var empty=document.getElementById("detailEmpty");
+    var body=document.getElementById("detailBody");
+    var r = selectedRow && data.filter(function(x){return x.id===selectedRow;})[0];
+    if(!r){ empty.style.display="flex"; body.style.display="none"; return; }
+    empty.style.display="none"; body.style.display="flex";
+
+    var t=TYPES[r.type], s=slaInfo(r.due_h);
+    var steps=stepsFor(r);
+
+    var tlHtml = steps.map(function(st){
+      var nodeCls = st.ai?"ai":(st.state==="cur"?"cur":st.state);
+      var nodeIco = st.state==="approved"?"✓":(st.state==="rejected"?"✕":(st.ai?"✨":st.seq));
+      var verdict = st.state==="cur"?"pending":st.state;
+      var verdictTxt = st.state==="cur"?"Waiting on you":(st.state==="pending"?"Not started":st.state);
+      return '<div class="tl-step">'+
+        '<div class="tl-node '+nodeCls+'">'+nodeIco+'</div>'+
+        '<div class="tl-card'+(st.state==="cur"?" cur":"")+'">'+
+          '<div class="tl-row1">'+
+            '<span class="tl-who">'+st.who+'</span>'+
+            (st.ai?'<span class="tl-ai-tag">AI node</span>':'')+
+            '<span class="tl-role">· '+st.role+'</span>'+
+            (st.when?'<span class="tl-when">'+st.when+'</span>':'<span class="tl-when"><span class="tl-verdict '+verdict+'">'+verdictTxt+'</span></span>')+
+          '</div>'+
+          (st.comment?'<div class="tl-comment">'+st.comment+'</div>':'')+
+        '</div>'+
+      '</div>';
+    }).join("");
+
+    body.innerHTML=
+      '<div class="d-head">'+
+        '<div class="d-eyebrow">'+
+          '<span class="ttag" style="background:'+t.bg+';color:'+t.color+'">'+t.icon+' '+t.name+'</span>'+
+          '<span class="d-status pending">Pending · step '+r.step+'/'+r.total+'</span>'+
+        '</div>'+
+        '<h2>'+r.subject+'</h2>'+
+        '<div class="d-rno">'+r.no+' · submitted '+r.submitted+'</div>'+
+      '</div>'+
+      '<div class="d-grid">'+
+        '<div class="d-field"><div class="k">Requester</div><div class="v"><div class="d-reqr"><div class="ava" style="background:'+avaColor(r.requester)+'">'+initials(r.requester)+'</div><div class="nm"><b>'+r.requester+'</b><br><span>'+r.role+'</span></div></div></div></div>'+
+        '<div class="d-field"><div class="k">Amount</div><div class="v">'+(r.amount>0?money(r.amount,r.cur):'—')+'</div></div>'+
+        '<div class="d-field"><div class="k">Priority</div><div class="v"><span class="prio '+r.prio+'">'+r.prio+'</span></div></div>'+
+        '<div class="d-field"><div class="k">SLA</div><div class="v"><span class="sla-chip '+s.cls+'"><i>'+s.icon+'</i>'+s.txt+'</span></div></div>'+
+        '<div class="d-field full"><div class="k">Summary</div><div class="v">'+r.summary+'</div></div>'+
+      '</div>'+
+      // AI advice card (JS item)
+      '<div class="ai-card">'+
+        '<div class="ai-head"><span class="spark">✨</span><b>AI advisor</b><span class="by">workflow · risk node</span></div>'+
+        '<div class="ai-body">'+
+          '<div class="ai-rec">'+
+            '<span class="risk '+r.risk+'"><i>'+(r.risk==="low"?"●":r.risk==="medium"?"◆":"▲")+'</i>'+r.risk+' risk</span>'+
+            '<span class="verdict '+r.rec+'">Suggests: '+(r.rec==="approve"?"Approve":r.rec==="review"?"Review first":"Reject")+'</span>'+
+          '</div>'+
+          '<div class="ai-note">'+r.aiNote+'</div>'+
+          '<div class="ai-disclaimer">🛈 Suggestion only — a person always makes the final call.</div>'+
+        '</div>'+
+      '</div>'+
+      // signature trail (JS item)
+      '<div class="tl-wrap">'+
+        '<div class="tl-title">Signature trail</div>'+
+        '<div class="tl">'+tlHtml+'</div>'+
+      '</div>'+
+      // action bar
+      '<div class="d-actions">'+
+        '<button class="abtn abtn-approve" data-d="approve" data-id="'+r.id+'">✓ Approve</button>'+
+        '<button class="abtn abtn-reject" data-d="reject" data-id="'+r.id+'">Reject</button>'+
+        '<button class="abtn abtn-return" data-d="return" data-id="'+r.id+'" title="Return for edit">↩</button>'+
+      '</div>';
+
+    body.querySelectorAll("[data-d]").forEach(function(b){
+      b.onclick=function(){
+        var act=b.dataset.d;
+        if(act==="return"){ flash("info","Returned to requester for edits"); var rid=b.dataset.id; data=data.filter(function(x){return x.id!==rid;}); selectedRow=null; renderAll(); return; }
+        decide(b.dataset.id, act);
+      };
+    });
+  }
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), tT;
+  function flash(kind,msg){
+    toast.className="toast show "+kind;
+    document.getElementById("toastIco").textContent = kind==="no"?"✕":(kind==="info"?"↩":"✓");
+    document.getElementById("toastMsg").textContent=msg;
+    clearTimeout(tT); tT=setTimeout(function(){toast.className="toast";},2400);
+  }
+
+  // ---------- render-all ----------
+  function renderAll(){ renderRail(); renderQueue(); renderDetail(); }
+
+  // ---------- init ----------
+  renderAll();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Approval Center: a multi-type approval queue with a to-do list (workflow-driven). Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/48-approval-center.html
+</script>
+</body>
+</html>

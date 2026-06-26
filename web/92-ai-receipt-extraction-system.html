@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Receipt Extraction System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --panel-2:#f6f7f9;
+    --panel-3:#eef0f3;
+    --line:#e2e5ea;
+    --line-soft:#eceef1;
+    --txt:#1f2937;
+    --txt-dim:#5b6573;
+    --txt-faint:#8a94a3;
+    --accent:#e11d48;
+    --accent-2:#f43f5e;
+    --good:#0f9d6e;
+    --warn:#c08308;
+    --bad:#dc2626;
+    --good-bg:rgba(15,157,110,.10);
+    --warn-bg:rgba(192,131,8,.12);
+    --bad-bg:rgba(220,38,38,.10);
+    --accent-bg:rgba(225,29,72,.09);
+    --shadow:0 12px 36px rgba(31,41,55,.16);
+    --r:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    font-size:14px;
+    line-height:1.45;
+  }
+  ::selection{background:rgba(225,29,72,.18)}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d3d7de;border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:#c0c5ce}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- Layout ---------- */
+  .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background:#ffffff;
+    border-right:1px solid var(--line);
+    padding:22px 16px;
+    display:flex;flex-direction:column;gap:6px;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 6px 18px}
+  .logo{
+    width:38px;height:38px;border-radius:11px;flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;box-shadow:0 6px 16px rgba(225,29,72,.28);
+  }
+  .logo svg{width:21px;height:21px}
+  .brand h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+  .brand .sub{font-size:11px;color:var(--txt-faint);font-weight:500;margin-top:1px}
+  .nav-label{font-size:10.5px;text-transform:uppercase;letter-spacing:1.4px;color:var(--txt-faint);margin:16px 8px 6px;font-weight:700}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;
+    color:var(--txt-dim);cursor:pointer;font-weight:500;font-size:13.5px;
+    transition:.15s;position:relative;
+  }
+  .nav-item svg{width:17px;height:17px;flex:none;opacity:.85}
+  .nav-item:hover{background:var(--panel-2);color:var(--txt)}
+  .nav-item.active{background:var(--accent-bg);color:var(--accent)}
+  .nav-item.active::before{content:"";position:absolute;left:-16px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+  .nav-item .count{margin-left:auto;font-size:11px;background:var(--panel-3);color:var(--txt-dim);padding:1px 7px;border-radius:20px;font-weight:600}
+  .nav-item.active .count{background:rgba(225,29,72,.16);color:var(--accent)}
+  .sidebar .spacer{flex:1}
+  .usage{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:13px}
+  .usage .top{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--txt-dim);font-weight:600}
+  .usage .num{font-size:20px;font-weight:700;margin:7px 0 8px;letter-spacing:.3px}
+  .usage .num b{color:var(--accent);font-weight:700}
+  .bar{height:6px;border-radius:6px;background:var(--panel-3);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  .usage .hint{font-size:10.5px;color:var(--txt-faint);margin-top:8px}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    display:flex;align-items:center;gap:16px;padding:18px 28px;
+    border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.82);backdrop-filter:blur(8px);
+    position:sticky;top:0;z-index:30;
+  }
+  .topbar h2{font-size:18px;font-weight:700}
+  .topbar .crumb{font-size:12px;color:var(--txt-faint);margin-top:2px}
+  .search{
+    margin-left:auto;position:relative;
+  }
+  .search input{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:10px;
+    padding:9px 12px 9px 34px;color:var(--txt);width:260px;font-size:13px;outline:none;transition:.15s;
+  }
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg);width:300px}
+  .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--txt-faint)}
+  .btn{
+    border:1px solid var(--line);background:var(--panel-2);color:var(--txt);
+    padding:9px 15px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:8px;transition:.15s;white-space:nowrap;
+  }
+  .btn svg{width:15px;height:15px}
+  .btn:hover{background:var(--panel-3);border-color:#d3d7de}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;
+    box-shadow:0 6px 16px rgba(225,29,72,.26);
+  }
+  .btn.primary:hover{filter:brightness(1.06)}
+  .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#fb7185,#e11d48);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;flex:none}
+
+  .content{padding:24px 28px 40px;overflow-y:auto}
+
+  /* ---------- Stat cards ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .stat{
+    background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--r);padding:17px 18px;position:relative;overflow:hidden;
+    box-shadow:0 1px 3px rgba(31,41,55,.05);
+  }
+  .stat::after{content:"";position:absolute;right:-20px;top:-20px;width:90px;height:90px;border-radius:50%;opacity:.08;background:var(--accent)}
+  .stat .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;margin-bottom:13px}
+  .stat .ic svg{width:18px;height:18px}
+  .stat .lab{font-size:11.5px;color:var(--txt-dim);font-weight:600;letter-spacing:.2px}
+  .stat .val{font-size:27px;font-weight:700;margin-top:3px;letter-spacing:-.5px}
+  .stat .delta{font-size:11.5px;margin-top:6px;font-weight:600;display:inline-flex;align-items:center;gap:4px}
+  .delta.up{color:var(--good)}.delta.down{color:var(--bad)}.delta.flat{color:var(--txt-faint)}
+  .ic.blue{background:var(--accent-bg);color:var(--accent)}
+  .ic.green{background:var(--good-bg);color:var(--good)}
+  .ic.amber{background:var(--warn-bg);color:var(--warn)}
+  .ic.purple{background:rgba(244,63,94,.12);color:var(--accent-2)}
+
+  /* ---------- Upload / compose strip ---------- */
+  .compose{
+    background:linear-gradient(135deg,rgba(225,29,72,.06),rgba(244,63,94,.04));
+    border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin-bottom:22px;
+    display:flex;align-items:center;gap:18px;
+  }
+  .drop{
+    flex:none;width:120px;height:84px;border:2px dashed #cfd4dc;border-radius:11px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    color:var(--txt-dim);cursor:pointer;transition:.18s;background:rgba(255,255,255,.6);text-align:center;
+  }
+  .drop:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+  .drop svg{width:22px;height:22px}
+  .drop span{font-size:10.5px;font-weight:600;line-height:1.2}
+  .compose .copy{flex:1;min-width:0}
+  .compose .copy h3{font-size:15px;font-weight:700;margin-bottom:4px}
+  .compose .copy p{font-size:12.5px;color:var(--txt-dim);max-width:560px}
+  .compose .copy .tags{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+  .chip{font-size:11px;background:var(--panel-2);border:1px solid var(--line);padding:3px 9px;border-radius:20px;color:var(--txt-dim);font-weight:600}
+  .chip b{color:var(--accent)}
+
+  /* ---------- Split layout ---------- */
+  .split{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
+  @media(max-width:1180px){.split{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 3px rgba(31,41,55,.05)}
+  .card-head{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+  .card-head h3{font-size:14.5px;font-weight:700}
+  .card-head .sub{font-size:11.5px;color:var(--txt-faint);margin-left:2px}
+  .card-head .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  /* tabs */
+  .tabs{display:flex;gap:4px;background:var(--panel-2);padding:3px;border-radius:10px;border:1px solid var(--line)}
+  .tab{padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--txt-dim);cursor:pointer;transition:.15s;white-space:nowrap}
+  .tab:hover{color:var(--txt)}
+  .tab.active{background:#ffffff;color:var(--accent);box-shadow:0 1px 2px rgba(31,41,55,.10)}
+  .tab .n{font-size:10.5px;opacity:.7;margin-left:4px}
+
+  /* queue list */
+  .queue{display:flex;flex-direction:column}
+  .receipt{
+    display:grid;grid-template-columns:42px 1fr auto;gap:13px;align-items:center;
+    padding:13px 18px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:.13s;position:relative;
+  }
+  .receipt:last-child{border-bottom:none}
+  .receipt:hover{background:var(--panel-2)}
+  .receipt.sel{background:var(--accent-bg)}
+  .receipt.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .thumb{
+    width:42px;height:50px;border-radius:7px;flex:none;background:linear-gradient(160deg,#f3f4f6,#e7e9ee);
+    border:1px solid var(--line);display:grid;place-items:center;position:relative;overflow:hidden;
+  }
+  .thumb svg{width:18px;height:18px;color:var(--txt-faint)}
+  .thumb .lines{position:absolute;inset:6px;display:flex;flex-direction:column;gap:3px}
+  .thumb .lines i{height:2px;border-radius:2px;background:#c2c7d0}
+  .thumb .lines i:nth-child(1){width:80%}
+  .thumb .lines i:nth-child(2){width:55%}
+  .thumb .lines i:nth-child(3){width:70%}
+  .thumb .lines i:nth-child(4){width:40%}
+  .r-main{min-width:0}
+  .r-main .vendor{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+  .r-main .meta{font-size:11.5px;color:var(--txt-faint);margin-top:3px;display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .r-main .meta .dot{width:3px;height:3px;border-radius:50%;background:var(--txt-faint)}
+  .r-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .amount{font-size:14.5px;font-weight:700;letter-spacing:-.2px}
+  .cur{font-size:10px;color:var(--txt-faint);font-weight:600;margin-left:3px}
+
+  /* pills */
+  .pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;letter-spacing:.2px;white-space:nowrap}
+  .pill .pdot{width:6px;height:6px;border-radius:50%}
+  .pill.good{background:var(--good-bg);color:var(--good)} .pill.good .pdot{background:var(--good)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.warn .pdot{background:var(--warn)}
+  .pill.bad{background:var(--bad-bg);color:var(--bad)} .pill.bad .pdot{background:var(--bad)}
+  .pill.info{background:var(--accent-bg);color:var(--accent)} .pill.info .pdot{background:var(--accent)}
+  .pill.muted{background:var(--panel-3);color:var(--txt-dim)} .pill.muted .pdot{background:var(--txt-faint)}
+
+  /* confidence badge */
+  .conf{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700}
+  .conf .ring{width:26px;height:26px;flex:none}
+  .conf .pct{font-variant-numeric:tabular-nums}
+
+  /* ---------- Right column ---------- */
+  .side-col{display:flex;flex-direction:column;gap:20px;position:sticky;top:88px}
+
+  /* donut card */
+  .donut-wrap{display:flex;align-items:center;gap:20px;padding:18px}
+  .donut{position:relative;width:128px;height:128px;flex:none}
+  .donut .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .donut .center .big{font-size:25px;font-weight:700;letter-spacing:-.5px}
+  .donut .center .lab{font-size:10px;color:var(--txt-faint);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+  .legend{display:flex;flex-direction:column;gap:11px;flex:1}
+  .legend .row{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .legend .sw{width:11px;height:11px;border-radius:3px;flex:none}
+  .legend .nm{color:var(--txt-dim);font-weight:500}
+  .legend .vv{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+
+  /* category bars */
+  .catlist{padding:6px 18px 16px;display:flex;flex-direction:column;gap:13px}
+  .cat .top{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px}
+  .cat .top .nm{color:var(--txt-dim);font-weight:600;display:flex;align-items:center;gap:8px}
+  .cat .top .nm .em{font-size:14px}
+  .cat .top .vv{font-weight:700;font-variant-numeric:tabular-nums}
+  .cat .track{height:8px;border-radius:8px;background:var(--panel-3);overflow:hidden}
+  .cat .track i{display:block;height:100%;border-radius:8px}
+
+  /* activity feed */
+  .feed{padding:6px 18px 16px;display:flex;flex-direction:column;gap:0}
+  .feed-item{display:grid;grid-template-columns:26px 1fr;gap:12px;padding:11px 0;position:relative}
+  .feed-item:not(:last-child)::after{content:"";position:absolute;left:12.5px;top:32px;bottom:-11px;width:1.5px;background:var(--line)}
+  .feed-ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;z-index:1}
+  .feed-ic svg{width:13px;height:13px}
+  .feed-body .t{font-size:12.5px;line-height:1.4}
+  .feed-body .t b{font-weight:700}
+  .feed-body .time{font-size:11px;color:var(--txt-faint);margin-top:3px}
+
+  /* ---------- Drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(5,8,12,.6);backdrop-filter:blur(2px);opacity:0;visibility:hidden;transition:.22s;z-index:100}
+  .scrim.open{opacity:1;visibility:visible}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:min(760px,94vw);
+    background:var(--bg);border-left:1px solid var(--line);box-shadow:var(--shadow);
+    transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:101;
+    display:flex;flex-direction:column;
+  }
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{display:flex;align-items:center;gap:14px;padding:18px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .drawer-head .vendor-ic{width:42px;height:42px;border-radius:11px;background:var(--accent-bg);display:grid;place-items:center;color:var(--accent);font-weight:800;font-size:16px;flex:none}
+  .drawer-head h3{font-size:16px;font-weight:700}
+  .drawer-head .meta{font-size:12px;color:var(--txt-faint);margin-top:2px}
+  .x{margin-left:auto;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt-dim);cursor:pointer;display:grid;place-items:center;transition:.15s}
+  .x:hover{background:var(--panel-3);color:var(--txt)}
+  .x svg{width:16px;height:16px}
+
+  .drawer-body{flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:0}
+  @media(max-width:680px){.drawer-body{grid-template-columns:1fr}}
+
+  /* receipt preview pane */
+  .preview{padding:22px;border-right:1px solid var(--line-soft);background:#eef0f3}
+  .receipt-doc{
+    background:#fbfaf6;color:#1d2530;border-radius:10px;padding:22px 20px;font-family:"Courier New",monospace;
+    box-shadow:0 14px 34px rgba(31,41,55,.18);max-width:300px;margin:0 auto;position:relative;
+  }
+  .receipt-doc::before,.receipt-doc::after{content:"";position:absolute;left:0;right:0;height:10px;background:radial-gradient(circle at 6px -2px,transparent 5px,#fbfaf6 6px) 0 0/14px 10px repeat-x}
+  .receipt-doc::before{top:-9px}
+  .receipt-doc::after{bottom:-9px;transform:rotate(180deg)}
+  .rd-logo{text-align:center;font-weight:800;font-size:15px;letter-spacing:1px;margin-bottom:3px;font-family:-apple-system,sans-serif}
+  .rd-addr{text-align:center;font-size:10px;color:#6a7280;margin-bottom:12px;line-height:1.5}
+  .rd-sep{border-top:1.5px dashed #c3bba8;margin:10px 0}
+  .rd-line{display:flex;justify-content:space-between;font-size:11.5px;margin:4px 0}
+  .rd-line.hl{background:#fff6cc;margin:4px -6px;padding:3px 6px;border-radius:4px;position:relative}
+  .rd-line.hl::after{content:"AI";position:absolute;right:-26px;top:50%;transform:translateY(-50%);font-family:-apple-system,sans-serif;font-size:8px;font-weight:800;color:#fff;background:var(--accent);padding:1px 4px;border-radius:4px}
+  .rd-total{display:flex;justify-content:space-between;font-size:14px;font-weight:800;margin-top:8px}
+  .rd-foot{text-align:center;font-size:9.5px;color:#8a91a0;margin-top:14px;font-family:-apple-system,sans-serif}
+  .preview .scanline{height:1px;background:rgba(79,156,249,0)}
+
+  /* extracted fields pane */
+  .extract{padding:22px;display:flex;flex-direction:column;gap:18px}
+  .ex-banner{
+    background:linear-gradient(135deg,rgba(225,29,72,.08),rgba(244,63,94,.05));
+    border:1px solid rgba(225,29,72,.20);border-radius:12px;padding:14px 15px;display:flex;gap:12px;align-items:flex-start;
+  }
+  .ex-banner .ai-ic{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;flex:none}
+  .ex-banner .ai-ic svg{width:16px;height:16px}
+  .ex-banner .b-txt{font-size:12px;color:var(--txt-dim);line-height:1.5}
+  .ex-banner .b-txt b{color:var(--txt);font-weight:700}
+
+  .field-group h4{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--txt-faint);font-weight:700;margin:0 0 10px}
+  .field{
+    display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;
+    padding:10px 12px;border:1px solid var(--line-soft);border-radius:10px;margin-bottom:8px;background:var(--panel);transition:.15s;
+  }
+  .field:hover{border-color:var(--line)}
+  .field.low{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.05)}
+  .field .fl{font-size:11px;color:var(--txt-faint);font-weight:600;grid-column:1}
+  .field .fv{font-size:14px;font-weight:600;grid-column:1;grid-row:2}
+  .field .fc{grid-column:2;grid-row:1/3;align-self:center}
+  .field .fv input{
+    background:transparent;border:none;color:var(--txt);font-size:14px;font-weight:600;width:100%;outline:none;
+    border-bottom:1px dashed transparent;padding:1px 0;font-family:inherit;
+  }
+  .field .fv input:focus{border-bottom-color:var(--accent)}
+  .lineitems{border:1px solid var(--line-soft);border-radius:10px;overflow:hidden}
+  .li-row{display:grid;grid-template-columns:1fr 50px 80px;gap:8px;padding:9px 12px;font-size:12.5px;align-items:center}
+  .li-row:not(:last-child){border-bottom:1px solid var(--line-soft)}
+  .li-row.head{background:var(--panel-2);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-faint);font-weight:700}
+  .li-row .q{text-align:center;color:var(--txt-dim)}
+  .li-row .p{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+
+  .drawer-foot{padding:15px 22px;border-top:1px solid var(--line);background:var(--panel);display:flex;gap:10px;align-items:center}
+  .drawer-foot .note{font-size:11.5px;color:var(--txt-faint);margin-right:auto;display:flex;align-items:center;gap:7px}
+  .drawer-foot .note svg{width:14px;height:14px;color:var(--good)}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--txt-faint)}
+  .empty svg{width:46px;height:46px;opacity:.4;margin-bottom:14px}
+  .empty p{font-size:13px}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 18px;
+    box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;
+    opacity:0;visibility:hidden;transition:.25s;z-index:200;
+  }
+  .toast.show{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+  .toast svg{width:17px;height:17px;color:var(--good)}
+
+  .flag{display:inline-flex;width:15px;height:11px;border-radius:2px;overflow:hidden;flex:none;border:1px solid rgba(255,255,255,.1)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+      </div>
+      <div>
+        <h1>ReceiptIQ</h1>
+        <div class="sub">AI Extraction Console</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/></svg>Review Queue<span class="count">8</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Approved<span class="count">214</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Exceptions<span class="count">3</span></div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Spend Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Export Center</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>Settings</div>
+
+    <div class="spacer"></div>
+    <div class="usage">
+      <div class="top"><span>Monthly OCR credits</span><span>72%</span></div>
+      <div class="num"><b>1,442</b> / 2,000</div>
+      <div class="bar"><i style="width:72%"></i></div>
+      <div class="hint">Resets in 8 days · Pro plan</div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h2>Extraction Dashboard</h2>
+        <div class="crumb">Finance Operations · Q2 2026 expense cycle</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search vendor, amount, ID…">
+      </div>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Export</button>
+      <button class="btn primary" id="uploadBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New Receipt</button>
+      <div class="avatar">AC</div>
+    </header>
+
+    <div class="content">
+      <!-- stat cards -->
+      <section class="stats">
+        <div class="stat">
+          <div class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h3"/></svg></div>
+          <div class="lab">Receipts Processed</div>
+          <div class="val">1,442</div>
+          <div class="delta up">▲ 18.2% vs last month</div>
+        </div>
+        <div class="stat">
+          <div class="ic green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div class="lab">Avg. Field Confidence</div>
+          <div class="val">96.4%</div>
+          <div class="delta up">▲ 2.1 pts this week</div>
+        </div>
+        <div class="stat">
+          <div class="ic amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+          <div class="lab">Needs Human Review</div>
+          <div class="val">8</div>
+          <div class="delta flat">— 3 flagged low-confidence</div>
+        </div>
+        <div class="stat">
+          <div class="ic purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg></div>
+          <div class="lab">Total Captured Spend</div>
+          <div class="val">$48,920</div>
+          <div class="delta down">▼ 4.0% under budget</div>
+        </div>
+      </section>
+
+      <!-- compose / upload -->
+      <section class="compose">
+        <div class="drop" id="dropZone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+          <span>Drop or<br>browse</span>
+        </div>
+        <div class="copy">
+          <h3>Upload receipts — AI does the data entry</h3>
+          <p>Drop a photo, scan, or PDF. The extraction engine reads the vendor, date, line items, tax and totals, then routes each receipt to a GL category with a confidence score for every field.</p>
+          <div class="tags">
+            <span class="chip">JPG · PNG · PDF · HEIC</span>
+            <span class="chip"><b>~3s</b> avg. extraction</span>
+            <span class="chip">Multi-currency</span>
+            <span class="chip">Auto GL coding</span>
+          </div>
+        </div>
+        <button class="btn primary" id="runBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3Z"/></svg>
+          Run Extraction
+        </button>
+      </section>
+
+      <!-- split -->
+      <section class="split">
+        <!-- LEFT: review queue -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Review Queue</h3><span class="sub" id="queueCount"></span>
+            <div class="right">
+              <div class="tabs" id="filterTabs">
+                <div class="tab active" data-f="all">All <span class="n" id="n-all"></span></div>
+                <div class="tab" data-f="review">Needs Review <span class="n" id="n-review"></span></div>
+                <div class="tab" data-f="approved">Approved <span class="n" id="n-approved"></span></div>
+                <div class="tab" data-f="exception">Exceptions <span class="n" id="n-exception"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="queue" id="queueList"></div>
+        </div>
+
+        <!-- RIGHT: insights -->
+        <div class="side-col">
+          <div class="card">
+            <div class="card-head"><h3>Extraction Confidence</h3><span class="sub">last 30 days</span></div>
+            <div class="donut-wrap">
+              <div class="donut">
+                <svg viewBox="0 0 42 42" width="128" height="128">
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#eceef1" stroke-width="5"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#0f9d6e" stroke-width="5" stroke-dasharray="71 29" stroke-dashoffset="25" stroke-linecap="round"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#c08308" stroke-width="5" stroke-dasharray="21 79" stroke-dashoffset="-46" stroke-linecap="round"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#e11d48" stroke-width="5" stroke-dasharray="8 92" stroke-dashoffset="-67" stroke-linecap="round"/>
+                </svg>
+                <div class="center"><div class="big">96.4%</div><div class="lab">Auto-pass</div></div>
+              </div>
+              <div class="legend">
+                <div class="row"><span class="sw" style="background:#0f9d6e"></span><span class="nm">High (≥95%)</span><span class="vv">71%</span></div>
+                <div class="row"><span class="sw" style="background:#c08308"></span><span class="nm">Medium</span><span class="vv">21%</span></div>
+                <div class="row"><span class="sw" style="background:#e11d48"></span><span class="nm">Low (review)</span><span class="vv">8%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Spend by Category</h3><span class="sub">auto-coded</span></div>
+            <div class="catlist">
+              <div class="cat"><div class="top"><span class="nm"><span class="em">✈️</span>Travel</span><span class="vv">$14,280</span></div><div class="track"><i style="width:92%;background:linear-gradient(90deg,#e11d48,#f43f5e)"></i></div></div>
+              <div class="cat"><div class="top"><span class="nm"><span class="em">🍽️</span>Meals &amp; Entertainment</span><span class="vv">$9,640</span></div><div class="track"><i style="width:62%;background:linear-gradient(90deg,#f43f5e,#fb7185)"></i></div></div>
+              <div class="cat"><div class="top"><span class="nm"><span class="em">🖥️</span>Software &amp; SaaS</span><span class="vv">$8,910</span></div><div class="track"><i style="width:57%;background:linear-gradient(90deg,#e11d48,#fb7185)"></i></div></div>
+              <div class="cat"><div class="top"><span class="nm"><span class="em">📦</span>Office Supplies</span><span class="vv">$5,120</span></div><div class="track"><i style="width:33%;background:linear-gradient(90deg,#fb7185,#fda4af)"></i></div></div>
+              <div class="cat"><div class="top"><span class="nm"><span class="em">🚕</span>Ground Transport</span><span class="vv">$4,470</span></div><div class="track"><i style="width:29%;background:linear-gradient(90deg,#f43f5e,#fda4af)"></i></div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>AI Activity</h3><span class="sub">live</span></div>
+            <div class="feed">
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--good-bg);color:var(--good)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg></div>
+                <div class="feed-body"><div class="t"><b>Extracted</b> 14 fields from <b>Delta Air Lines</b> at 99% confidence</div><div class="time">2 minutes ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:rgba(244,63,94,.12);color:var(--accent-2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M2 12h4M18 12h4"/></svg></div>
+                <div class="feed-body"><div class="t"><b>Auto-coded</b> Notion Labs to <b>Software &amp; SaaS</b></div><div class="time">9 minutes ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--warn-bg);color:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+                <div class="feed-body"><div class="t"><b>Flagged</b> blurry total on <b>Shell Gas Station</b> for review</div><div class="time">17 minutes ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--accent-bg);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+                <div class="feed-body"><div class="t"><b>Detected</b> possible duplicate of <b>Uber #4471</b></div><div class="time">24 minutes ago</div></div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-ic" style="background:var(--good-bg);color:var(--good)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg></div>
+                <div class="feed-body"><div class="t"><b>Reconciled</b> currency EUR→USD for <b>The Ritz Paris</b></div><div class="time">38 minutes ago</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- ============ DRAWER ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="vendor-ic" id="dVendorIc">DL</div>
+    <div>
+      <h3 id="dVendor">Delta Air Lines</h3>
+      <div class="meta" id="dMeta">Receipt #DL-88231 · captured Jun 18, 2026</div>
+    </div>
+    <button class="x" id="closeDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+
+  <div class="drawer-body">
+    <!-- preview -->
+    <div class="preview">
+      <div class="receipt-doc" id="receiptDoc">
+        <div class="rd-logo" id="rdLogo">DELTA AIR LINES</div>
+        <div class="rd-addr" id="rdAddr">Hartsfield-Jackson Intl<br>Atlanta, GA 30320</div>
+        <div class="rd-sep"></div>
+        <div class="rd-line"><span>Date</span><span id="rdDate">06/18/2026</span></div>
+        <div class="rd-line"><span>Invoice</span><span id="rdInv">DL-88231</span></div>
+        <div class="rd-sep"></div>
+        <div id="rdItems"></div>
+        <div class="rd-sep"></div>
+        <div class="rd-line"><span>Subtotal</span><span id="rdSub">$820.00</span></div>
+        <div class="rd-line hl"><span>Tax (7.0%)</span><span id="rdTax">$57.40</span></div>
+        <div class="rd-total"><span>TOTAL</span><span id="rdTotal">$877.40</span></div>
+        <div class="rd-foot">Thank you for flying with us</div>
+      </div>
+    </div>
+
+    <!-- extracted -->
+    <div class="extract">
+      <div class="ex-banner">
+        <div class="ai-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <div class="b-txt"><b>AI extracted 14 fields in 2.8s.</b> <span id="aiReason">All values match the receipt total and pass the tax check. Routed to <b>Travel</b> with 99% confidence. Review and approve, or edit any field inline.</span></div>
+      </div>
+
+      <div class="field-group">
+        <h4>Header</h4>
+        <div class="field" id="f-vendor">
+          <div class="fl">Vendor</div>
+          <div class="fv"><input value="Delta Air Lines"></div>
+          <div class="fc"></div>
+        </div>
+        <div class="field" id="f-date">
+          <div class="fl">Transaction Date</div>
+          <div class="fv"><input value="Jun 18, 2026"></div>
+          <div class="fc"></div>
+        </div>
+        <div class="field" id="f-cat">
+          <div class="fl">GL Category <span class="pill info" style="margin-left:6px;font-size:9px"><span class="pdot"></span>AI suggested</span></div>
+          <div class="fv"><input value="Travel — Airfare"></div>
+          <div class="fc"></div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h4>Line Items</h4>
+        <div class="lineitems" id="dLineItems"></div>
+      </div>
+
+      <div class="field-group">
+        <h4>Totals</h4>
+        <div class="field" id="f-sub">
+          <div class="fl">Subtotal</div>
+          <div class="fv"><input value="$820.00"></div>
+          <div class="fc"></div>
+        </div>
+        <div class="field" id="f-tax">
+          <div class="fl">Tax</div>
+          <div class="fv"><input value="$57.40"></div>
+          <div class="fc"></div>
+        </div>
+        <div class="field" id="f-total">
+          <div class="fl">Total <span class="pill good" style="margin-left:6px;font-size:9px"><span class="pdot"></span>verified</span></div>
+          <div class="fv"><input value="$877.40"></div>
+          <div class="fc"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-foot">
+    <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Totals reconcile · no duplicates found</div>
+    <button class="btn" id="rejectBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>Reject</button>
+    <button class="btn primary" id="approveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>Approve &amp; Post</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ============ DATA ============ */
+const RECEIPTS = [
+  { id:"DL-88231", vendor:"Delta Air Lines", ic:"DL", addr:"Hartsfield-Jackson Intl<br>Atlanta, GA 30320",
+    cat:"Travel — Airfare", catEmoji:"✈️", date:"Jun 18, 2026", dateRaw:"06/18/2026",
+    amount:877.40, cur:"USD", conf:99, status:"review", fields:14, secs:2.8,
+    sub:820.00, tax:57.40, taxRate:"7.0%",
+    items:[["Main Cabin · ATL→SFO","1","$520.00"],["Seat Upgrade · 14C","1","$180.00"],["Checked Bag","1","$120.00"]],
+    reason:"All values match the receipt total and pass the tax check. Routed to <b>Travel</b> with 99% confidence." },
+
+  { id:"NTN-2207", vendor:"Notion Labs Inc.", ic:"NL", addr:"548 Market St<br>San Francisco, CA 94104",
+    cat:"Software & SaaS", catEmoji:"🖥️", date:"Jun 17, 2026", dateRaw:"06/17/2026",
+    amount:240.00, cur:"USD", conf:98, status:"review", fields:9, secs:1.9,
+    sub:240.00, tax:0.00, taxRate:"0%",
+    items:[["Team Plan · 12 seats","12","$192.00"],["Annual discount","1","-$0.00"],["Add-on storage","1","$48.00"]],
+    reason:"Recurring SaaS vendor recognized. Auto-coded to <b>Software & SaaS</b>; zero tax confirmed for digital service." },
+
+  { id:"SHL-0093", vendor:"Shell Gas Station", ic:"SH", addr:"1820 Lincoln Blvd<br>Santa Monica, CA 90405",
+    cat:"Ground Transport — Fuel", catEmoji:"🚕", date:"Jun 16, 2026", dateRaw:"06/16/2026",
+    amount:64.18, cur:"USD", conf:71, status:"exception", fields:8, secs:3.4,
+    sub:59.43, tax:4.75, taxRate:"8.0%",
+    items:[["Unleaded 87 · 14.2 gal","1","$59.43"],["State fuel tax","1","$4.75"]],
+    reason:"<b>Low confidence on total</b> — image is partially blurred near the printed amount. Please confirm $64.18 against the pump receipt.", low:["total"] },
+
+  { id:"UBR-4471", vendor:"Uber Technologies", ic:"UB", addr:"1455 Market St<br>San Francisco, CA 94103",
+    cat:"Ground Transport", catEmoji:"🚕", date:"Jun 16, 2026", dateRaw:"06/16/2026",
+    amount:38.90, cur:"USD", conf:84, status:"exception", fields:7, secs:2.1,
+    sub:34.45, tax:4.45, taxRate:"—",
+    items:[["UberX · SFO → Downtown","1","$31.20"],["Booking fee","1","$3.25"],["Surge 1.2x","1","$4.45"]],
+    reason:"<b>Possible duplicate</b> of Uber #4470 on the same day for a similar amount. Verify this is a distinct trip before posting.", low:[] },
+
+  { id:"RTZ-5510", vendor:"The Ritz Paris", ic:"RP", addr:"15 Place Vendôme<br>75001 Paris, France",
+    cat:"Travel — Lodging", catEmoji:"✈️", date:"Jun 14, 2026", dateRaw:"14/06/2026",
+    amount:1284.60, cur:"USD", conf:94, status:"review", fields:12, secs:3.0,
+    sub:1166.00, tax:118.60, taxRate:"TVA 10%",
+    items:[["Deluxe Room · 2 nights","2","€980.00"],["Breakfast","2","€56.00"],["City tax","1","€18.40"]],
+    reason:"Converted <b>EUR €1,166 → USD $1,284.60</b> at the transaction-date FX rate. French TVA detected and itemized separately.", low:[] },
+
+  { id:"AMZ-7741", vendor:"Amazon Business", ic:"AB", addr:"410 Terry Ave N<br>Seattle, WA 98109",
+    cat:"Office Supplies", catEmoji:"📦", date:"Jun 13, 2026", dateRaw:"06/13/2026",
+    amount:312.45, cur:"USD", conf:97, status:"approved", fields:11, secs:2.4,
+    sub:289.30, tax:23.15, taxRate:"8.0%",
+    items:[["Standing desk riser","2","$178.00"],["USB-C hub","3","$87.00"],["Cable organizers","1","$24.30"]],
+    reason:"Itemized invoice parsed cleanly. All 11 fields above 95% — auto-approved and posted to GL 6400." },
+
+  { id:"STB-1188", vendor:"Starbucks Coffee", ic:"SB", addr:"2401 Utah Ave S<br>Seattle, WA 98134",
+    cat:"Meals & Entertainment", catEmoji:"🍽️", date:"Jun 12, 2026", dateRaw:"06/12/2026",
+    amount:42.80, cur:"USD", conf:96, status:"approved", fields:6, secs:1.4,
+    sub:39.63, tax:3.17, taxRate:"8.0%",
+    items:[["Catering · coffee box","2","$31.00"],["Assorted pastries","1","$8.63"]],
+    reason:"Small meal receipt under policy threshold. Auto-approved; flagged as client-facing entertainment." },
+
+  { id:"GGL-3320", vendor:"Google Cloud", ic:"GC", addr:"1600 Amphitheatre Pkwy<br>Mountain View, CA",
+    cat:"Software & SaaS", catEmoji:"🖥️", date:"Jun 11, 2026", dateRaw:"06/11/2026",
+    amount:1450.00, cur:"USD", conf:99, status:"review", fields:10, secs:2.0,
+    sub:1450.00, tax:0.00, taxRate:"0%",
+    items:[["Compute Engine","1","$910.00"],["Cloud Storage","1","$340.00"],["BigQuery","1","$200.00"]],
+    reason:"Usage-based cloud invoice. Three service lines extracted; matched to existing vendor profile at 99%." },
+
+  { id:"HTZ-6602", vendor:"Hertz Rent-A-Car", ic:"HZ", addr:"8501 Peña Blvd<br>Denver, CO 80249",
+    cat:"Travel — Ground", catEmoji:"✈️", date:"Jun 10, 2026", dateRaw:"06/10/2026",
+    amount:286.74, cur:"USD", conf:91, status:"review", fields:13, secs:3.1,
+    sub:255.12, tax:31.62, taxRate:"airport surcharge",
+    items:[["Intermediate SUV · 3 days","3","$207.00"],["Airport concession fee","1","$28.12"],["Refuel charge","1","$20.00"]],
+    reason:"Multiple surcharges separated from the base rate. Airport concession fee correctly excluded from sales-tax base." },
+
+  { id:"FDX-9043", vendor:"FedEx Office", ic:"FX", addr:"3875 Airways Blvd<br>Memphis, TN 38116",
+    cat:"Office Supplies", catEmoji:"📦", date:"Jun 9, 2026", dateRaw:"06/09/2026",
+    amount:78.20, cur:"USD", conf:95, status:"approved", fields:7, secs:1.6,
+    sub:72.41, tax:5.79, taxRate:"8.0%",
+    items:[["Color prints · 240 pg","1","$48.00"],["Binding","6","$18.00"],["Shipping label","1","$6.41"]],
+    reason:"Standard print-shop receipt parsed in 1.6s. All fields above threshold; approved automatically." },
+
+  { id:"LDR-2299", vendor:"LinkedIn Premium", ic:"LI", addr:"1000 W Maude Ave<br>Sunnyvale, CA 94085",
+    cat:"Software & SaaS", catEmoji:"🖥️", date:"Jun 8, 2026", dateRaw:"06/08/2026",
+    amount:119.88, cur:"USD", conf:98, status:"approved", fields:6, secs:1.3,
+    sub:119.88, tax:0.00, taxRate:"0%",
+    items:[["Recruiter Lite · annual","1","$119.88"]],
+    reason:"Single-line subscription. Recognized recurring vendor; coded and posted without review." },
+
+  { id:"MRT-4417", vendor:"Marriott Hotels", ic:"MR", addr:"10400 Fernwood Rd<br>Bethesda, MD 20817",
+    cat:"Travel — Lodging", catEmoji:"✈️", date:"Jun 6, 2026", dateRaw:"06/06/2026",
+    amount:642.30, cur:"USD", conf:93, status:"approved", fields:12, secs:2.7,
+    sub:570.00, tax:72.30, taxRate:"occupancy 12.7%",
+    items:[["King Room · 3 nights","3","$507.00"],["Parking","3","$45.00"],["Resort fee","1","$18.00"]],
+    reason:"Occupancy tax separated from room rate. Nightly breakdown reconciled to the printed folio total." },
+
+  { id:"OFC-8810", vendor:"Office Depot", ic:"OD", addr:"6600 N Military Trl<br>Boca Raton, FL 33496",
+    cat:"Office Supplies", catEmoji:"📦", date:"Jun 5, 2026", dateRaw:"06/05/2026",
+    amount:156.40, cur:"USD", conf:96, status:"approved", fields:9, secs:1.8,
+    sub:144.81, tax:11.59, taxRate:"8.0%",
+    items:[["Copy paper · 10 reams","10","$89.90"],["Ink cartridges","2","$42.00"],["Notebooks","4","$12.91"]],
+    reason:"Quantity × unit-price checks passed for all three line items. Auto-approved to GL 6410." }
+];
+
+const FMT = n => "$" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const STATUS_PILL = {
+  review:   {cls:"warn", label:"Needs Review"},
+  approved: {cls:"good", label:"Approved"},
+  exception:{cls:"bad",  label:"Exception"}
+};
+
+/* ============ CONFIDENCE RING (mini SVG) ============ */
+function confRing(pct){
+  const color = pct>=95 ? "#0f9d6e" : pct>=85 ? "#c08308" : "#e11d48";
+  const dash = (pct/100)*100;
+  return `<span class="conf">
+    <svg class="ring" viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#eceef1" stroke-width="4"/>
+      <circle cx="18" cy="18" r="15.915" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"
+        stroke-dasharray="${dash} 100" stroke-dashoffset="25" transform="rotate(-90 18 18)"/>
+    </svg>
+    <span class="pct" style="color:${color}">${pct}%</span>
+  </span>`;
+}
+
+/* ============ RENDER QUEUE ============ */
+let currentFilter = "all";
+let currentSearch = "";
+const queueList = document.getElementById("queueList");
+
+function visibleSet(){
+  return RECEIPTS.filter(r=>{
+    const fOk = currentFilter==="all" || r.status===currentFilter;
+    const s = currentSearch.toLowerCase();
+    const sOk = !s || r.vendor.toLowerCase().includes(s) || r.id.toLowerCase().includes(s)
+              || r.cat.toLowerCase().includes(s) || String(r.amount).includes(s);
+    return fOk && sOk;
+  });
+}
+
+function renderQueue(){
+  const list = visibleSet();
+  document.getElementById("queueCount").textContent = list.length + " receipt" + (list.length!==1?"s":"");
+  if(!list.length){
+    queueList.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <p>No receipts match this view.</p></div>`;
+    return;
+  }
+  queueList.innerHTML = list.map(r=>{
+    const sp = STATUS_PILL[r.status];
+    const cur = r.cur!=="USD" ? `<span class="cur">${r.cur}</span>` : "";
+    return `<div class="receipt" data-id="${r.id}">
+      <div class="thumb"><div class="lines"><i></i><i></i><i></i><i></i></div></div>
+      <div class="r-main">
+        <div class="vendor">${r.vendor} <span class="pill ${sp.cls}" style="font-size:9.5px"><span class="pdot"></span>${sp.label}</span></div>
+        <div class="meta">
+          <span>${r.catEmoji} ${r.cat}</span><span class="dot"></span>
+          <span>${r.date}</span><span class="dot"></span>
+          <span>#${r.id}</span>
+        </div>
+      </div>
+      <div class="r-right">
+        <div class="amount">${FMT(r.amount)}${cur}</div>
+        ${confRing(r.conf)}
+      </div>
+    </div>`;
+  }).join("");
+
+  queueList.querySelectorAll(".receipt").forEach(el=>{
+    el.addEventListener("click",()=>openDrawer(el.dataset.id));
+  });
+}
+
+function updateCounts(){
+  const c = s => RECEIPTS.filter(r=> s==="all"?true:r.status===s).length;
+  document.getElementById("n-all").textContent = c("all");
+  document.getElementById("n-review").textContent = c("review");
+  document.getElementById("n-approved").textContent = c("approved");
+  document.getElementById("n-exception").textContent = c("exception");
+}
+
+/* tabs */
+document.querySelectorAll("#filterTabs .tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll("#filterTabs .tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    currentFilter = t.dataset.f;
+    renderQueue();
+  });
+});
+
+/* search */
+document.getElementById("searchInput").addEventListener("input",e=>{
+  currentSearch = e.target.value;
+  renderQueue();
+});
+
+/* ============ DRAWER ============ */
+const drawer = document.getElementById("drawer");
+const scrim  = document.getElementById("scrim");
+
+function openDrawer(id){
+  const r = RECEIPTS.find(x=>x.id===id);
+  if(!r) return;
+
+  document.querySelectorAll(".receipt").forEach(el=>el.classList.toggle("sel",el.dataset.id===id));
+
+  document.getElementById("dVendorIc").textContent = r.ic;
+  document.getElementById("dVendor").textContent = r.vendor;
+  document.getElementById("dMeta").textContent = `Receipt #${r.id} · captured ${r.date}`;
+  document.getElementById("aiReason").innerHTML = r.reason + " Review and approve, or edit any field inline.";
+
+  // receipt doc
+  document.getElementById("rdLogo").textContent = r.vendor.toUpperCase();
+  document.getElementById("rdAddr").innerHTML = r.addr;
+  document.getElementById("rdDate").textContent = r.dateRaw;
+  document.getElementById("rdInv").textContent = r.id;
+  document.getElementById("rdItems").innerHTML = r.items.map(it=>
+    `<div class="rd-line"><span>${it[0].length>22?it[0].slice(0,21)+"…":it[0]}</span><span>${it[2]}</span></div>`).join("");
+  document.getElementById("rdSub").textContent = FMT(r.sub);
+  document.getElementById("rdTax").textContent = FMT(r.tax);
+  document.querySelector(".rd-line.hl span:first-child").textContent = "Tax ("+r.taxRate+")";
+  document.getElementById("rdTotal").textContent = FMT(r.amount);
+
+  // fields
+  setField("f-vendor", r.vendor, r.conf, r);
+  setField("f-date", r.date, Math.min(99,r.conf+1), r);
+  setField("f-cat", r.cat, Math.max(70,r.conf-4), r, true);
+  setField("f-sub", FMT(r.sub), Math.min(99,r.conf+1), r);
+  setField("f-tax", FMT(r.tax), Math.max(70,r.conf-3), r);
+  setField("f-total", FMT(r.amount), r.conf, r);
+
+  // line items table
+  document.getElementById("dLineItems").innerHTML =
+    `<div class="li-row head"><span>Description</span><span class="q">Qty</span><span class="p">Amount</span></div>` +
+    r.items.map(it=>`<div class="li-row"><span>${it[0]}</span><span class="q">${it[1]}</span><span class="p">${it[2]}</span></div>`).join("");
+
+  // low-confidence highlight on total
+  const isLow = r.conf < 85;
+  document.getElementById("f-total").classList.toggle("low", isLow);
+
+  // footer note
+  const note = document.querySelector(".drawer-foot .note");
+  if(r.status==="exception"){
+    note.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.4"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span style="color:#dc2626">Flagged — confirm before posting</span>`;
+  }else{
+    note.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Totals reconcile · no duplicates found`;
+  }
+
+  drawer.classList.add("open");
+  scrim.classList.add("open");
+}
+
+function setField(elId, val, conf, r, suggested){
+  const el = document.getElementById(elId);
+  el.querySelector("input").value = val;
+  const color = conf>=95 ? "#0f9d6e" : conf>=85 ? "#c08308" : "#e11d48";
+  const lab = conf>=95 ? "high" : conf>=85 ? "med" : "low";
+  el.querySelector(".fc").innerHTML =
+    `<span class="pill ${conf>=95?'good':conf>=85?'warn':'bad'}" style="font-size:9.5px"><span class="pdot"></span>${conf}% ${lab}</span>`;
+  el.classList.toggle("low", conf<85);
+}
+
+function closeDrawer(){
+  drawer.classList.remove("open");
+  scrim.classList.remove("open");
+  document.querySelectorAll(".receipt").forEach(el=>el.classList.remove("sel"));
+}
+document.getElementById("closeDrawer").addEventListener("click",closeDrawer);
+scrim.addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+
+/* ============ ACTIONS ============ */
+function toast(msg){
+  const t = document.getElementById("toast");
+  document.getElementById("toastMsg").textContent = msg;
+  t.classList.add("show");
+  clearTimeout(window.__tt);
+  window.__tt = setTimeout(()=>t.classList.remove("show"),2400);
+}
+document.getElementById("approveBtn").addEventListener("click",()=>{
+  const v = document.getElementById("dVendor").textContent;
+  const r = RECEIPTS.find(x=>x.vendor===v);
+  if(r){ r.status="approved"; updateCounts(); renderQueue(); }
+  toast("Approved — posted to general ledger");
+  closeDrawer();
+});
+document.getElementById("rejectBtn").addEventListener("click",()=>{
+  toast("Receipt sent back to submitter");
+  closeDrawer();
+});
+
+/* upload / run buttons */
+function fakeExtract(){
+  const btn = document.getElementById("runBtn");
+  const old = btn.innerHTML;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>Extracting…`;
+  btn.style.pointerEvents="none";
+  setTimeout(()=>{
+    btn.innerHTML = old; btn.style.pointerEvents="";
+    toast("Extraction complete — 12 fields read at 97% confidence");
+  },1700);
+}
+document.getElementById("runBtn").addEventListener("click",fakeExtract);
+document.getElementById("uploadBtn").addEventListener("click",fakeExtract);
+document.getElementById("dropZone").addEventListener("click",fakeExtract);
+
+const dz = document.getElementById("dropZone");
+["dragover","dragenter"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.style.borderColor="#e11d48";dz.style.color="#e11d48";}));
+["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.style.borderColor="";dz.style.color="";}));
+dz.addEventListener("drop",fakeExtract);
+
+/* spinner keyframe */
+const sty = document.createElement("style");
+sty.textContent = "@keyframes spin{to{transform:rotate(360deg)}}";
+document.head.appendChild(sty);
+
+/* ============ INIT ============ */
+updateCounts();
+renderQueue();
+</script>
+</body>
+</html>

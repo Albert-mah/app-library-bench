@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pulsefeed — Customer Feedback</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Customer Feedback Management (Pulsefeed)",
+  "prefix": "cfb_",
+  "collections": {
+    "cfb_customers": {"titleField":"name","fields":{"name":"input","company":"input","plan":"select:free|pro|business|enterprise","email":"input","avatar_seed":"input"}},
+    "cfb_channels": {"titleField":"name","fields":{"name":"input","kind":"select:in_app|email|survey|app_store|social|support_chat","color":"select"}},
+    "cfb_topics": {"titleField":"name","fields":{"name":"input","color":"select"}},
+    "cfb_feedback": {"titleField":"summary","fields":{"summary":"input","body":"textarea","sentiment":"select:positive|neutral|negative","nps_score":"integer","nps_bucket":"select:promoter|passive|detractor","status":"select:new|triaged|in_review|responded|closed","priority":"select:low|medium|high|urgent","received_at":"datetime","responded":"boolean"},"relations":{"customer":"m2o cfb_customers (fk customer_id)","channel":"m2o cfb_channels (fk channel_id)","topics":"m2m cfb_topics","owner":"m2o users (fk owner_id)"}}
+  },
+  "page": {
+    "name": "Feedback Inbox",
+    "layout": "header NPS strip = JSBlock gauge (no data container) | left facet rail = sentiment + topic JS pills (cross-block filter) | main = native Table (cfb_feedback) with JS rich lead column + JS sentiment column",
+    "regions": [
+      {"id":"nps_gauge","block":"JSBlock — data-less custom visual (semicircle NPS gauge + promoter/passive/detractor split)","intent":"headline NPS score with animated half-circle gauge","computes":"NPS = %promoters - %detractors over cfb_feedback.nps_score","shows":["big NPS number","semicircle gauge arc colored by band","promoter/passive/detractor stacked bar + counts","30-day delta sparkline","4 KPI tiles: total responses, response rate, avg sentiment, open count"],"note":"This is the ONLY freestanding JSBlock — a gauge has no native data container."},
+      {"id":"facets","block":"JSBlock facet rail + JSItemAction pills","intent":"filter the inbox by sentiment band and topic","drives":"cfb_feedback table via addFilterGroup + refresh","content":["sentiment segmented pills (All / Positive / Neutral / Negative)","NPS band pills (Promoters / Passives / Detractors)","topic checklist with counts","status quick-filters"]},
+      {"id":"inbox","block":"native Table (cfb_feedback)","intent":"feedback inbox / triage queue","sort":"received_at desc","columns":["customer = JSColumn (avatar + name + company + plan badge)","feedback = JSColumn (summary bold + body 2-line clamp + channel chip + topic tags)","sentiment = JSColumn (emoji + sentiment pill + NPS score chip colored by band)","status = native select pill","priority = native select pill","owner = m2o avatar","received_at = relative time"],"rowActions":["open detail = ctx.openView(detail uid,{filterByTk})","respond = UpdateAction status=responded","close = UpdateAction status=closed"],"toolbar":["search JSAction","new feedback","export"]}
+    ]
+  },
+  "interactions": ["sentiment + topic + NPS-band facet pills push addFilterGroup to cfb_feedback table then refresh","NPS gauge animates arc on load and recomputes from filtered set","row click opens feedback detail popup bound filterByTk","respond/close are native UpdateAction status transitions","status & priority are native select fields rendered as pills"],
+  "jsKernels": ["semicircle NPS gauge JSBlock (animated arc + band split + KPI tiles)","facet rail JSBlock with sentiment/topic/band pills (cross-block filter)","table rich lead column (customer) + feedback column + sentiment/NPS column JSColumns"],
+  "notes": "Container/content rule: the feedback inbox is a REAL native Table of cfb_feedback (not a JSBlock) — reproduce the rich customer cell, the multi-line feedback cell, and the sentiment/NPS cell as JSColumns inside it. status & priority stay native select fields shown as colored pills. The only freestanding JSBlock is the NPS semicircle gauge (a gauge has no data container) and the facet rail (custom filter UI that drives the table via cross-block filter). Do not rebuild the table as a freestanding JSBlock. respond/close are native UpdateAction transitions, not custom JS."
+}
+</script>
+<style>
+  :root{
+    --cyan:#13a8a8; --cyan-deep:#0d8585; --cyan-soft:#e6fffb; --cyan-line:#87e8de;
+    --ink:#1f2329; --ink-2:#5a626e; --ink-3:#8b94a3; --ink-4:#aeb6c2;
+    --line:#f0f2f5; --line-2:#e7eaef; --bg:#f4f6f9; --card:#fff;
+    --pos:#22c55e; --pos-soft:#f0fdf4; --pos-line:#bbf7d0;
+    --neu:#f59e0b; --neu-soft:#fffbeb; --neu-line:#fde68a;
+    --neg:#ef4444; --neg-soft:#fef2f2; --neg-line:#fecaca;
+    --promoter:#16a34a; --passive:#f59e0b; --detractor:#ef4444;
+    --urgent:#ef4444; --high:#f97316; --med:#3b82f6; --low:#94a3b8;
+    --r:11px;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 22px rgba(16,24,40,.06);
+    --shadow-sm:0 1px 2px rgba(16,24,40,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:13.5px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:54px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 22px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:9px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:27px;height:27px;border-radius:8px;
+    background:linear-gradient(135deg,var(--cyan),#5edcd0);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 2px 8px rgba(19,168,168,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:8px}
+  .topnav a{
+    padding:6px 12px;border-radius:7px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--cyan-soft);color:var(--cyan-deep)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .search-top{
+    display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:8px;padding:6px 11px;width:230px;color:var(--ink-3);font-size:13px;
+  }
+  .search-top input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
+  .acct{display:flex;align-items:center;gap:7px}
+  .acct .ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#13a8a8,#5edcd0);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+  .chip-live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);
+    background:var(--pos-soft);border:1px solid var(--pos-line);padding:4px 9px;border-radius:20px}
+  .chip-live i{width:7px;height:7px;border-radius:50%;background:var(--pos);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* ---------- page shell ---------- */
+  .page{max-width:1440px;margin:0 auto;padding:20px 24px 40px}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+  .page-head h1{font-size:21px;font-weight:700;letter-spacing:-.4px}
+  .page-head p{color:var(--ink-3);font-size:13px;margin-top:3px}
+  .head-actions{display:flex;gap:9px;align-items:center}
+  .seg{display:flex;background:var(--card);border:1px solid var(--line-2);border-radius:9px;padding:3px;gap:2px}
+  .seg button{border:none;background:none;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink-3);
+    padding:5px 11px;border-radius:6px;cursor:pointer}
+  .seg button.on{background:var(--cyan-soft);color:var(--cyan-deep)}
+
+  /* ---------- NPS gauge strip (JSBlock) ---------- */
+  .nps-strip{
+    display:grid;grid-template-columns:300px minmax(0,1fr);gap:0;
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);
+    box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px;
+  }
+  .gauge-cell{
+    padding:22px 24px;border-right:1px solid var(--line-2);
+    background:linear-gradient(160deg,#fbffff,#f3fffe);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+  }
+  .gauge-wrap{position:relative;width:230px;height:130px}
+  .gauge-num{position:absolute;left:0;right:0;bottom:6px;text-align:center}
+  .gauge-num .big{font-size:46px;font-weight:800;letter-spacing:-1.5px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+  .gauge-num .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink-3);margin-top:4px}
+  .gauge-band{margin-top:8px;font-size:12px;font-weight:700;padding:3px 12px;border-radius:14px}
+  .gauge-band.great{background:var(--pos-soft);color:var(--promoter)}
+  .gauge-delta{margin-top:9px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)}
+  .gauge-delta b{color:var(--pos);font-weight:700}
+  .spark{display:inline-block}
+
+  .split-cell{padding:20px 24px;display:flex;flex-direction:column;justify-content:center;gap:16px}
+  .split-bar-wrap{}
+  .split-bar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .split-bar-head h3{font-size:13px;font-weight:700}
+  .split-bar-head span{font-size:12px;color:var(--ink-3)}
+  .split-bar{height:30px;border-radius:8px;overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(16,24,40,.04)}
+  .split-seg{height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;
+    transition:width .9s cubic-bezier(.22,1,.36,1);position:relative;min-width:0}
+  .split-seg.promoter{background:linear-gradient(180deg,#22c55e,#16a34a)}
+  .split-seg.passive{background:linear-gradient(180deg,#fbbf24,#f59e0b)}
+  .split-seg.detractor{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .split-legend{display:flex;gap:20px;margin-top:11px;flex-wrap:wrap}
+  .split-legend .lg{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2)}
+  .split-legend .lg i{width:10px;height:10px;border-radius:3px;flex:none}
+  .split-legend .lg b{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .split-legend .lg.promoter i{background:var(--promoter)}
+  .split-legend .lg.passive i{background:var(--passive)}
+  .split-legend .lg.detractor i{background:var(--detractor)}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--line)}
+  .kpi{padding:14px 18px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+  .kpi:last-child{border-right:none}
+  .kpi .k-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .kpi .k-val{font-size:22px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .kpi .k-sub{font-size:11.5px;color:var(--ink-3)}
+  .kpi .k-sub b{font-weight:700}
+  .kpi .up{color:var(--pos)} .kpi .down{color:var(--neg)}
+
+  /* ---------- main grid: facets + table ---------- */
+  .main{display:grid;grid-template-columns:236px minmax(0,1fr);gap:18px;align-items:start}
+  @media(max-width:1100px){.main{grid-template-columns:1fr}.nps-strip{grid-template-columns:1fr}.gauge-cell{border-right:none;border-bottom:1px solid var(--line-2)}}
+
+  /* facet rail */
+  .facets{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow-sm);
+    position:sticky;top:72px;overflow:hidden}
+  .facet-sec{padding:15px 16px;border-bottom:1px solid var(--line)}
+  .facet-sec:last-child{border-bottom:none}
+  .facet-sec h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-3);margin-bottom:11px}
+  .seg-pills{display:flex;background:var(--bg);border-radius:9px;padding:3px;gap:2px}
+  .seg-pills button{flex:1;border:none;background:none;font-family:inherit;font-size:12px;font-weight:600;color:var(--ink-2);
+    padding:6px 4px;border-radius:6px;cursor:pointer;transition:.13s}
+  .seg-pills button.on{background:#fff;box-shadow:var(--shadow-sm)}
+  .seg-pills button.on[data-s="positive"]{color:var(--pos)}
+  .seg-pills button.on[data-s="neutral"]{color:var(--neu)}
+  .seg-pills button.on[data-s="negative"]{color:var(--neg)}
+  .seg-pills button.on[data-s="all"]{color:var(--cyan-deep)}
+
+  .band-pills{display:flex;flex-direction:column;gap:7px}
+  .band-pill{display:flex;align-items:center;gap:10px;border:1px solid var(--line-2);border-radius:9px;
+    padding:9px 11px;cursor:pointer;transition:.13s;background:#fff}
+  .band-pill:hover{border-color:var(--cyan-line);background:var(--cyan-soft)}
+  .band-pill.on{border-color:var(--cyan);background:var(--cyan-soft);box-shadow:0 0 0 2px rgba(19,168,168,.12)}
+  .band-pill .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .band-pill .dot.promoter{background:var(--promoter)} .band-pill .dot.passive{background:var(--passive)} .band-pill .dot.detractor{background:var(--detractor)}
+  .band-pill .bp-name{font-size:12.5px;font-weight:600;color:var(--ink)}
+  .band-pill .bp-cnt{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-weight:700;font-variant-numeric:tabular-nums}
+
+  .topic-list{display:flex;flex-direction:column;gap:2px}
+  .topic-row{display:flex;align-items:center;gap:9px;padding:6px 7px;border-radius:7px;cursor:pointer;transition:.1s}
+  .topic-row:hover{background:var(--bg)}
+  .topic-row.on{background:var(--cyan-soft)}
+  .topic-row .tdot{width:8px;height:8px;border-radius:2px;flex:none}
+  .topic-row .tname{font-size:12.5px;color:var(--ink-2)}
+  .topic-row.on .tname{color:var(--cyan-deep);font-weight:600}
+  .topic-row .tcnt{margin-left:auto;font-size:11px;color:var(--ink-4);font-weight:600;background:var(--bg);padding:1px 7px;border-radius:9px}
+  .topic-row.on .tcnt{background:#fff;color:var(--cyan-deep)}
+
+  .clear-link{display:block;width:100%;text-align:center;font-size:12px;color:var(--ink-3);background:var(--bg);
+    border:none;border-radius:8px;padding:8px;cursor:pointer;font-family:inherit;font-weight:600}
+  .clear-link:hover{color:var(--cyan-deep);background:var(--cyan-soft)}
+
+  /* table */
+  .inbox{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+  .inbox-toolbar{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .inbox-toolbar h2{font-size:14px;font-weight:700}
+  .inbox-toolbar .count-pill{font-size:11.5px;color:var(--cyan-deep);background:var(--cyan-soft);border-radius:11px;padding:2px 9px;font-weight:700}
+  .tool-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .status-tabs{display:flex;gap:3px}
+  .status-tab{font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:5px 11px;border-radius:7px;border:1px solid transparent}
+  .status-tab.on{background:var(--ink);color:#fff}
+  .status-tab .n{opacity:.7;margin-left:4px;font-variant-numeric:tabular-nums}
+  .btn{border:none;border-radius:8px;padding:8px 13px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:.13s}
+  .btn-primary{background:var(--cyan);color:#fff;box-shadow:0 2px 8px rgba(19,168,168,.3)}
+  .btn-primary:hover{background:var(--cyan-deep)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#d9dde4}
+
+  table.tbl{width:100%;border-collapse:collapse}
+  .tbl thead th{
+    text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);
+    padding:11px 14px;border-bottom:1px solid var(--line-2);background:#fbfcfd;white-space:nowrap;position:sticky;top:0;z-index:2;
+  }
+  .tbl tbody tr{border-bottom:1px solid var(--line);cursor:pointer;transition:.1s}
+  .tbl tbody tr:hover{background:#fafdfd}
+  .tbl tbody tr:last-child{border-bottom:none}
+  .tbl td{padding:13px 14px;vertical-align:top}
+
+  /* customer cell (JSColumn) */
+  .cust{display:flex;align-items:center;gap:10px;min-width:170px}
+  .cust .c-ava{width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px}
+  .cust .c-id{line-height:1.3;min-width:0}
+  .cust .c-id b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+  .cust .c-id .c-co{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .plan-badge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:1px 6px;border-radius:5px}
+  .plan-badge.free{background:#f1f5f9;color:#64748b}
+  .plan-badge.pro{background:#eef2ff;color:#4f46e5}
+  .plan-badge.business{background:#ecfeff;color:#0e7490}
+  .plan-badge.enterprise{background:#fdf4ff;color:#a21caf}
+
+  /* feedback cell (JSColumn) */
+  .fb{max-width:430px}
+  .fb .f-sum{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:3px;line-height:1.35}
+  .fb .f-body{font-size:12.5px;color:var(--ink-2);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:7px}
+  .fb .f-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .chan-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:11px;background:var(--bg);color:var(--ink-2)}
+  .chan-chip .ci{width:14px;height:14px;border-radius:4px;display:grid;place-items:center;color:#fff;font-size:8px;font-weight:800}
+  .topic-tag{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:11px;border:1px solid}
+
+  /* sentiment cell (JSColumn) */
+  .senti{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:118px}
+  .senti-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:13px}
+  .senti-pill.positive{background:var(--pos-soft);color:var(--pos);border:1px solid var(--pos-line)}
+  .senti-pill.neutral{background:var(--neu-soft);color:var(--neu);border:1px solid var(--neu-line)}
+  .senti-pill.negative{background:var(--neg-soft);color:var(--neg);border:1px solid var(--neg-line)}
+  .nps-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--ink-3)}
+  .nps-chip .score{width:26px;height:22px;border-radius:6px;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+  .nps-chip .score.promoter{background:var(--promoter)} .nps-chip .score.passive{background:var(--passive)} .nps-chip .score.detractor{background:var(--detractor)}
+
+  /* status + priority pills (native select) */
+  .st{font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;white-space:nowrap;display:inline-block}
+  .st.new{background:#eff6ff;color:#2563eb}
+  .st.triaged{background:#f5f3ff;color:#7c3aed}
+  .st.in_review{background:#fffbeb;color:#d97706}
+  .st.responded{background:var(--cyan-soft);color:var(--cyan-deep)}
+  .st.closed{background:#f1f5f9;color:#64748b}
+  .prio{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600}
+  .prio .pdot{width:7px;height:7px;border-radius:50%}
+  .prio.urgent{color:var(--urgent)} .prio.urgent .pdot{background:var(--urgent)}
+  .prio.high{color:var(--high)} .prio.high .pdot{background:var(--high)}
+  .prio.medium{color:var(--med)} .prio.medium .pdot{background:var(--med)}
+  .prio.low{color:var(--low)} .prio.low .pdot{background:var(--low)}
+
+  .owner-ava{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;font-size:11px}
+  .time{font-size:12px;color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+  /* row actions */
+  .row-acts{display:flex;gap:4px;opacity:0;transition:.13s}
+  tr:hover .row-acts{opacity:1}
+  .row-acts button{border:none;background:var(--bg);width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--ink-2);display:grid;place-items:center}
+  .row-acts button:hover{background:var(--cyan-soft);color:var(--cyan-deep)}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--ink-3)}
+  .empty .big{font-size:34px;margin-bottom:10px;opacity:.5}
+
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--cyan)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">P</span>Pulsefeed <small>feedback</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Inbox</a>
+    <a href="#">Insights</a>
+    <a href="#">Topics</a>
+    <a href="#">Customers</a>
+    <a href="#">Surveys</a>
+  </nav>
+  <div class="top-right">
+    <div class="search-top">🔎<input id="topSearch" placeholder="Search feedback…"></div>
+    <span class="chip-live"><i></i> 6 channels live</span>
+    <div class="acct">
+      <div class="ava">LM</div>
+      <div class="who"><b>Lena Marsh</b><br><span>Success Lead</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+  <div class="page-head">
+    <div>
+      <h1>Customer Feedback</h1>
+      <p>NPS, sentiment, and the full inbox across every channel.</p>
+    </div>
+    <div class="head-actions">
+      <div class="seg">
+        <button class="on" data-range="30">30 days</button>
+        <button data-range="90">90 days</button>
+        <button data-range="365">12 mo</button>
+      </div>
+      <button class="btn btn-ghost">⇩ Export</button>
+      <button class="btn btn-primary">+ Log feedback</button>
+    </div>
+  </div>
+
+  <!-- ====== NPS GAUGE STRIP (JSBlock) ====== -->
+  <section class="nps-strip">
+    <div class="gauge-cell">
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 230 130" width="230" height="130">
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="50%" stop-color="#f59e0b"/>
+              <stop offset="100%" stop-color="#22c55e"/>
+            </linearGradient>
+          </defs>
+          <path d="M 18 118 A 97 97 0 0 1 212 118" fill="none" stroke="#eef1f4" stroke-width="16" stroke-linecap="round"/>
+          <path id="gaugeArc" d="M 18 118 A 97 97 0 0 1 212 118" fill="none" stroke="url(#gaugeGrad)" stroke-width="16" stroke-linecap="round"/>
+          <circle id="gaugeKnob" cx="0" cy="0" r="9" fill="#fff" stroke="#13a8a8" stroke-width="3"/>
+        </svg>
+        <div class="gauge-num">
+          <div class="big" id="npsBig">0</div>
+          <div class="lbl">NPS Score</div>
+        </div>
+      </div>
+      <div class="gauge-band great" id="npsBand">Great · top quartile</div>
+      <div class="gauge-delta">
+        <span>vs last period</span><b id="npsDelta">▲ +6</b>
+        <svg class="spark" width="56" height="18" viewBox="0 0 56 18"><polyline points="0,14 9,12 18,13 27,9 36,10 45,6 56,3" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+
+    <div>
+      <div class="split-cell">
+        <div class="split-bar-wrap">
+          <div class="split-bar-head">
+            <h3>Response breakdown</h3>
+            <span id="splitTotal">1,284 responses</span>
+          </div>
+          <div class="split-bar" id="splitBar">
+            <div class="split-seg promoter" id="segP" style="width:0%">61%</div>
+            <div class="split-seg passive" id="segN" style="width:0%">22%</div>
+            <div class="split-seg detractor" id="segD" style="width:0%">17%</div>
+          </div>
+          <div class="split-legend">
+            <span class="lg promoter"><i></i> Promoters <b id="lgP">783</b> · 9–10</span>
+            <span class="lg passive"><i></i> Passives <b id="lgN">282</b> · 7–8</span>
+            <span class="lg detractor"><i></i> Detractors <b id="lgD">219</b> · 0–6</span>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi">
+          <span class="k-lbl">📥 Total responses</span>
+          <span class="k-val">1,284</span>
+          <span class="k-sub"><b class="up">▲ 12%</b> vs prev 30d</span>
+        </div>
+        <div class="kpi">
+          <span class="k-lbl">↩ Response rate</span>
+          <span class="k-val">42.8%</span>
+          <span class="k-sub"><b class="up">▲ 3.1pt</b> first reply 2.4h</span>
+        </div>
+        <div class="kpi">
+          <span class="k-lbl">😊 Avg sentiment</span>
+          <span class="k-val">+0.58</span>
+          <span class="k-sub">61% positive · 17% negative</span>
+        </div>
+        <div class="kpi">
+          <span class="k-lbl">🗂 Open in inbox</span>
+          <span class="k-val" id="openKpi">24</span>
+          <span class="k-sub"><b class="down">7 urgent</b> need a reply</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== MAIN: FACETS + TABLE ====== -->
+  <div class="main">
+
+    <!-- facet rail (JSBlock, cross-block filter) -->
+    <aside class="facets">
+      <div class="facet-sec">
+        <h4>Sentiment</h4>
+        <div class="seg-pills" id="sentiPills">
+          <button class="on" data-s="all">All</button>
+          <button data-s="positive">😊</button>
+          <button data-s="neutral">😐</button>
+          <button data-s="negative">😞</button>
+        </div>
+      </div>
+      <div class="facet-sec">
+        <h4>NPS band</h4>
+        <div class="band-pills" id="bandPills">
+          <div class="band-pill" data-b="promoter"><span class="dot promoter"></span><span class="bp-name">Promoters</span><span class="bp-cnt">9</span></div>
+          <div class="band-pill" data-b="passive"><span class="dot passive"></span><span class="bp-name">Passives</span><span class="bp-cnt">4</span></div>
+          <div class="band-pill" data-b="detractor"><span class="dot detractor"></span><span class="bp-name">Detractors</span><span class="bp-cnt">7</span></div>
+        </div>
+      </div>
+      <div class="facet-sec">
+        <h4>Topics</h4>
+        <div class="topic-list" id="topicList"></div>
+      </div>
+      <div class="facet-sec">
+        <button class="clear-link" id="clearFilters">Clear all filters</button>
+      </div>
+    </aside>
+
+    <!-- inbox table (native Table) -->
+    <section class="inbox">
+      <div class="inbox-toolbar">
+        <h2>Feedback inbox</h2>
+        <span class="count-pill" id="inboxCount">0</span>
+        <div class="tool-right">
+          <div class="status-tabs" id="statusTabs">
+            <span class="status-tab on" data-st="all">All</span>
+            <span class="status-tab" data-st="new">New<span class="n" id="stNew">0</span></span>
+            <span class="status-tab" data-st="in_review">In review<span class="n" id="stRev">0</span></span>
+            <span class="status-tab" data-st="responded">Responded<span class="n" id="stResp">0</span></span>
+            <span class="status-tab" data-st="closed">Closed<span class="n" id="stClosed">0</span></span>
+          </div>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Feedback</th>
+              <th>Sentiment</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Owner</th>
+              <th>Received</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- reference data ----------
+  var CHANNELS = {
+    in_app:      {name:"In-app",      glyph:"◉", color:"#13a8a8"},
+    email:       {name:"Email",       glyph:"✉", color:"#6366f1"},
+    survey:      {name:"NPS survey",  glyph:"☷", color:"#0ea5e9"},
+    app_store:   {name:"App Store",   glyph:"★", color:"#f59e0b"},
+    social:      {name:"Social",      glyph:"❡", color:"#ec4899"},
+    support_chat:{name:"Live chat",   glyph:"💬", color:"#22c55e"}
+  };
+  var TOPICS = {
+    onboarding:   {name:"Onboarding",   color:"#6366f1"},
+    performance:  {name:"Performance",  color:"#f59e0b"},
+    pricing:      {name:"Pricing",      color:"#ec4899"},
+    ui_ux:        {name:"UI / UX",      color:"#13a8a8"},
+    reliability:  {name:"Reliability",  color:"#ef4444"},
+    support:      {name:"Support",      color:"#22c55e"},
+    integrations: {name:"Integrations", color:"#0ea5e9"},
+    feature_req:  {name:"Feature request", color:"#a855f7"},
+    billing:      {name:"Billing",      color:"#64748b"},
+    mobile:       {name:"Mobile app",   color:"#f97316"}
+  };
+  function npsBucket(n){ return n>=9 ? "promoter" : (n>=7 ? "passive" : "detractor"); }
+
+  function avaColor(seed){
+    var palette=["#13a8a8","#6366f1","#ec4899","#f59e0b","#0ea5e9","#22c55e","#a855f7","#f97316","#ef4444","#14b8a6"];
+    var h=0; for(var i=0;i<seed.length;i++){ h=(h*31+seed.charCodeAt(i))>>>0; }
+    return palette[h%palette.length];
+  }
+  function initials(name){
+    var p=name.trim().split(/\s+/); return ((p[0]||"")[0]||"")+((p[1]||"")[0]||"");
+  }
+
+  // ---------- feedback records (cfb_feedback) ----------
+  var FB = [
+    {id:1, name:"Marcus Bell", company:"Driftline Labs", plan:"enterprise", channel:"in_app", summary:"Dashboard load times are night and day after the latest release",
+      body:"We were seeing 6–8s loads on the analytics page before, now it's under a second even on our biggest workspace. Whatever you shipped, the whole team noticed.", sentiment:"positive", nps:10, topics:["performance","ui_ux"], status:"responded", priority:"low", owner:"Lena Marsh", received:"2h ago"},
+    {id:2, name:"Priya Raman", company:"Northwind Retail", plan:"business", channel:"survey", summary:"Love the product but the mobile app keeps logging me out",
+      body:"Desktop is flawless. On iOS though I get kicked to the login screen every couple of hours and lose my draft. This is my only real pain point right now.", sentiment:"neutral", nps:7, topics:["mobile","reliability"], status:"in_review", priority:"high", owner:"Theo Ng", received:"4h ago"},
+    {id:3, name:"Owen Hartley", company:"Beacon Freight", plan:"pro", channel:"app_store", summary:"Pricing jumped 40% at renewal with no heads-up",
+      body:"Long-time fan, but the renewal quote blindsided our finance team. A 40% increase without an email or migration path is hard to defend internally. Considering alternatives.", sentiment:"negative", nps:3, topics:["pricing","billing"], status:"new", priority:"urgent", owner:"Lena Marsh", received:"5h ago"},
+    {id:4, name:"Sofia Marchetti", company:"Lumen Health", plan:"enterprise", channel:"email", summary:"The new Salesforce sync saved our ops team an entire day per week",
+      body:"Two-way sync just works now. We retired a brittle Zapier chain and our reps trust the data again. Please keep investing in the integrations layer.", sentiment:"positive", nps:10, topics:["integrations","feature_req"], status:"closed", priority:"low", owner:"Theo Ng", received:"8h ago"},
+    {id:5, name:"Daniel Okafor", company:"Cobalt Studios", plan:"pro", channel:"support_chat", summary:"Onboarding wizard is confusing for non-technical teammates",
+      body:"I set it up fine, but three of my designers got stuck on the workspace-permissions step and gave up. A guided tour or sensible defaults would go a long way.", sentiment:"negative", nps:5, topics:["onboarding","ui_ux"], status:"triaged", priority:"medium", owner:"Lena Marsh", received:"11h ago"},
+    {id:6, name:"Hannah Kessler", company:"Vireo Foods", plan:"business", channel:"in_app", summary:"Exactly the reporting flexibility we needed",
+      body:"Being able to pivot by region and channel in the same view is exactly what we asked for last quarter. Felt genuinely heard. Thank you.", sentiment:"positive", nps:9, topics:["feature_req","ui_ux"], status:"responded", priority:"low", owner:"Theo Ng", received:"14h ago"},
+    {id:7, name:"Liam Foster", company:"Apex Manufacturing", plan:"enterprise", channel:"survey", summary:"Two outages this month — reliability is becoming a board topic",
+      body:"The product is excellent when it's up, but two incidents in 30 days is making our leadership nervous. We need a status page and a real SLA conversation.", sentiment:"negative", nps:4, topics:["reliability","support"], status:"new", priority:"urgent", owner:"Lena Marsh", received:"1d ago"},
+    {id:8, name:"Yuki Tanaka", company:"Sakura Mobility", plan:"business", channel:"app_store", summary:"Best support team I've dealt with in years",
+      body:"Hit a tricky data-import edge case at 11pm and had a working answer in twenty minutes. The chat agent actually understood the problem. Rare these days.", sentiment:"positive", nps:10, topics:["support"], status:"closed", priority:"low", owner:"Theo Ng", received:"1d ago"},
+    {id:9, name:"Grace Whitfield", company:"Meridian Capital", plan:"enterprise", channel:"email", summary:"Need granular role permissions before we can expand seats",
+      body:"We want to roll this out to 200 more people but can't until we can scope what analysts vs admins can see. It's the single blocker on a six-figure expansion.", sentiment:"neutral", nps:8, topics:["feature_req","integrations"], status:"in_review", priority:"high", owner:"Lena Marsh", received:"1d ago"},
+    {id:10, name:"Ravi Desai", company:"Tideway Logistics", plan:"pro", channel:"social", summary:"Shoutout — your changelog is the only one I actually read",
+      body:"Clear, no fluff, ships every Friday. Half the reason we stayed when a competitor undercut you on price. Keep the momentum.", sentiment:"positive", nps:9, topics:["ui_ux","feature_req"], status:"closed", priority:"low", owner:"Theo Ng", received:"2d ago"},
+    {id:11, name:"Elena Petrova", company:"Glasshouse Media", plan:"business", channel:"in_app", summary:"Search results feel slow and the relevance is hit or miss",
+      body:"On a 50k-record table, search takes a few seconds and often buries the row I want under partial matches. It's becoming a daily friction for the team.", sentiment:"neutral", nps:6, topics:["performance","ui_ux"], status:"triaged", priority:"medium", owner:"Lena Marsh", received:"2d ago"},
+    {id:12, name:"Tomás Rivera", company:"Solaris Energy", plan:"pro", channel:"support_chat", summary:"Billing portal showed the wrong invoice total twice",
+      body:"The dashboard said one amount, the PDF invoice said another. Support sorted it out quickly but it shook our confidence a little. Worth a second look.", sentiment:"negative", nps:5, topics:["billing","reliability"], status:"new", priority:"high", owner:"Theo Ng", received:"2d ago"},
+    {id:13, name:"Amara Nwosu", company:"Cedarpoint Co.", plan:"free", channel:"survey", summary:"Generous free tier got us in the door — likely upgrading soon",
+      body:"We've been on free for a month evaluating and it does more than tools we used to pay for. Pitching the Pro upgrade to my manager this week.", sentiment:"positive", nps:9, topics:["pricing","onboarding"], status:"closed", priority:"low", owner:"Lena Marsh", received:"3d ago"},
+    {id:14, name:"Jonas Berg", company:"Fjord Systems", plan:"business", channel:"email", summary:"Webhook deliveries silently dropped for a few hours",
+      body:"Our downstream pipeline went quiet and we only noticed from a customer complaint. Retries and a dead-letter view would have saved us a frantic afternoon.", sentiment:"negative", nps:4, topics:["integrations","reliability"], status:"in_review", priority:"urgent", owner:"Theo Ng", received:"3d ago"},
+    {id:15, name:"Clara Lindqvist", company:"Aurora Travel", plan:"pro", channel:"app_store", summary:"Mobile app finally has offline mode — game changer for field staff",
+      body:"Our coordinators are often on the road with patchy signal. Offline edits that sync later is exactly what we needed. Five stars.", sentiment:"positive", nps:10, topics:["mobile","feature_req"], status:"responded", priority:"low", owner:"Lena Marsh", received:"3d ago"},
+    {id:16, name:"Felix Moreau", company:"Orchard Bank", plan:"enterprise", channel:"in_app", summary:"Audit log is too shallow for our compliance team",
+      body:"We can see that a record changed but not the before/after values or who approved it. Our auditors flagged this last review and we need it resolved.", sentiment:"neutral", nps:7, topics:["feature_req","reliability"], status:"triaged", priority:"high", owner:"Theo Ng", received:"4d ago"},
+    {id:17, name:"Mei Lin", company:"Jade Commerce", plan:"business", channel:"social", summary:"UI refresh is gorgeous but I miss the compact density toggle",
+      body:"The new look is clean, no complaints there. But power users on big monitors lost the compact rows we relied on to scan hundreds of records at once.", sentiment:"neutral", nps:8, topics:["ui_ux"], status:"new", priority:"medium", owner:"Lena Marsh", received:"4d ago"},
+    {id:18, name:"Nathan Cole", company:"Summit Outdoors", plan:"pro", channel:"survey", summary:"Honestly the best tool switch we've made — onboarding was painless",
+      body:"Imported our spreadsheets in an afternoon and the templates matched our workflow almost perfectly. The whole team was productive by day two.", sentiment:"positive", nps:10, topics:["onboarding","ui_ux"], status:"closed", priority:"low", owner:"Theo Ng", received:"5d ago"},
+    {id:19, name:"Isabella Rossi", company:"Verde Agritech", plan:"business", channel:"support_chat", summary:"Filters reset every time I navigate away and come back",
+      body:"I build a complex filtered view, click into a record, and when I go back it's all gone. Saving named views would turn this from annoying into delightful.", sentiment:"negative", nps:6, topics:["ui_ux","feature_req"], status:"in_review", priority:"medium", owner:"Lena Marsh", received:"5d ago"},
+    {id:20, name:"Victor Hsu", company:"Pinnacle Robotics", plan:"enterprise", channel:"email", summary:"API rate limits are too aggressive for our batch jobs",
+      body:"Our nightly sync hits the ceiling and we have to throttle artificially. A higher enterprise tier or burst allowance would unblock a lot of automation for us.", sentiment:"neutral", nps:7, topics:["integrations","performance"], status:"new", priority:"high", owner:"Theo Ng", received:"6d ago"}
+  ];
+
+  // ---------- filter state ----------
+  var state = { senti:"all", band:null, topics:{}, status:"all", search:"" };
+
+  // build the topic facet list from data
+  (function buildTopicList(){
+    var counts={};
+    FB.forEach(function(f){ f.topics.forEach(function(t){ counts[t]=(counts[t]||0)+1; }); });
+    var host=document.getElementById("topicList");
+    Object.keys(TOPICS).filter(function(k){return counts[k];})
+      .sort(function(a,b){return counts[b]-counts[a];})
+      .forEach(function(k){
+        var t=TOPICS[k];
+        var row=document.createElement("div");
+        row.className="topic-row"; row.dataset.t=k;
+        row.innerHTML='<span class="tdot" style="background:'+t.color+'"></span><span class="tname">'+t.name+'</span><span class="tcnt">'+counts[k]+'</span>';
+        row.onclick=function(){
+          state.topics[k]=!state.topics[k];
+          row.classList.toggle("on", state.topics[k]);
+          render();
+        };
+        host.appendChild(row);
+      });
+  })();
+
+  // band facet counts
+  (function bandCounts(){
+    var c={promoter:0,passive:0,detractor:0};
+    FB.forEach(function(f){ c[npsBucket(f.nps)]++; });
+    document.querySelectorAll("#bandPills .band-pill").forEach(function(el){
+      el.querySelector(".bp-cnt").textContent=c[el.dataset.b];
+    });
+  })();
+
+  // ---------- facet wiring (cross-block filter) ----------
+  document.getElementById("sentiPills").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    state.senti=b.dataset.s;
+    document.querySelectorAll("#sentiPills button").forEach(function(x){x.classList.remove("on");});
+    b.classList.add("on"); render();
+  });
+  document.getElementById("bandPills").addEventListener("click",function(e){
+    var p=e.target.closest(".band-pill"); if(!p) return;
+    var b=p.dataset.b;
+    state.band = (state.band===b) ? null : b;
+    document.querySelectorAll("#bandPills .band-pill").forEach(function(x){x.classList.toggle("on", x.dataset.b===state.band);});
+    render();
+  });
+  document.getElementById("statusTabs").addEventListener("click",function(e){
+    var t=e.target.closest(".status-tab"); if(!t) return;
+    state.status=t.dataset.st;
+    document.querySelectorAll(".status-tab").forEach(function(x){x.classList.remove("on");});
+    t.classList.add("on"); render();
+  });
+  document.getElementById("topSearch").addEventListener("input",function(e){
+    state.search=e.target.value.toLowerCase().trim(); render();
+  });
+  document.getElementById("clearFilters").onclick=function(){
+    state={senti:"all",band:null,topics:{},status:"all",search:document.getElementById("topSearch").value.toLowerCase().trim()};
+    document.querySelectorAll("#sentiPills button").forEach(function(x){x.classList.toggle("on",x.dataset.s==="all");});
+    document.querySelectorAll("#bandPills .band-pill").forEach(function(x){x.classList.remove("on");});
+    document.querySelectorAll(".topic-row").forEach(function(x){x.classList.remove("on");});
+    document.querySelectorAll(".status-tab").forEach(function(x){x.classList.toggle("on",x.dataset.st==="all");});
+    render(); flash("Filters cleared");
+  };
+
+  // ---------- range segmented (cosmetic) ----------
+  document.querySelector(".seg").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    document.querySelectorAll(".seg button").forEach(function(x){x.classList.remove("on");});
+    b.classList.add("on"); flash("Showing last "+b.textContent);
+  });
+
+  // ---------- filtering ----------
+  function matches(f){
+    if(state.senti!=="all" && f.sentiment!==state.senti) return false;
+    if(state.band && npsBucket(f.nps)!==state.band) return false;
+    if(state.status!=="all" && f.status!==state.status) return false;
+    var active=Object.keys(state.topics).filter(function(k){return state.topics[k];});
+    if(active.length && !active.some(function(t){return f.topics.indexOf(t)>-1;})) return false;
+    if(state.search){
+      var hay=(f.name+" "+f.company+" "+f.summary+" "+f.body).toLowerCase();
+      if(hay.indexOf(state.search)===-1) return false;
+    }
+    return true;
+  }
+
+  // ---------- render ----------
+  var STATUS_LABEL={new:"New",triaged:"Triaged",in_review:"In review",responded:"Responded",closed:"Closed"};
+  var SENTI={positive:{emoji:"😊",label:"Positive"},neutral:{emoji:"😐",label:"Neutral"},negative:{emoji:"😞",label:"Negative"}};
+
+  function rowHTML(f){
+    var ch=CHANNELS[f.channel];
+    var bucket=npsBucket(f.nps);
+    var s=SENTI[f.sentiment];
+    var topicTags=f.topics.map(function(t){
+      var tp=TOPICS[t];
+      return '<span class="topic-tag" style="color:'+tp.color+';border-color:'+tp.color+'33;background:'+tp.color+'12">'+tp.name+'</span>';
+    }).join("");
+
+    return ''+
+      '<td>'+
+        '<div class="cust">'+
+          '<div class="c-ava" style="background:'+avaColor(f.name)+'">'+initials(f.name)+'</div>'+
+          '<div class="c-id"><b>'+f.name+'</b>'+
+            '<span class="c-co">'+f.company+' <span class="plan-badge '+f.plan+'">'+f.plan+'</span></span>'+
+          '</div>'+
+        '</div>'+
+      '</td>'+
+      '<td>'+
+        '<div class="fb">'+
+          '<div class="f-sum">'+esc(f.summary)+'</div>'+
+          '<div class="f-body">'+esc(f.body)+'</div>'+
+          '<div class="f-meta">'+
+            '<span class="chan-chip"><span class="ci" style="background:'+ch.color+'">'+ch.glyph+'</span>'+ch.name+'</span>'+
+            topicTags+
+          '</div>'+
+        '</div>'+
+      '</td>'+
+      '<td>'+
+        '<div class="senti">'+
+          '<span class="senti-pill '+f.sentiment+'">'+s.emoji+' '+s.label+'</span>'+
+          '<span class="nps-chip"><span class="score '+bucket+'">'+f.nps+'</span>'+bucket.charAt(0).toUpperCase()+bucket.slice(1)+'</span>'+
+        '</div>'+
+      '</td>'+
+      '<td><span class="st '+f.status+'">'+STATUS_LABEL[f.status]+'</span></td>'+
+      '<td><span class="prio '+f.priority+'"><span class="pdot"></span>'+f.priority.charAt(0).toUpperCase()+f.priority.slice(1)+'</span></td>'+
+      '<td><div class="owner-ava" title="'+f.owner+'" style="background:'+avaColor(f.owner)+'">'+initials(f.owner)+'</div></td>'+
+      '<td><span class="time">'+f.received+'</span></td>'+
+      '<td>'+
+        '<div class="row-acts">'+
+          '<button title="Respond" data-act="respond">↩</button>'+
+          '<button title="Close" data-act="close">✓</button>'+
+          '<button title="Open" data-act="open">↗</button>'+
+        '</div>'+
+      '</td>';
+  }
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+  function render(){
+    var list=FB.filter(matches);
+    var host=document.getElementById("rows"); host.innerHTML="";
+
+    document.getElementById("inboxCount").textContent=list.length+" of "+FB.length;
+
+    // status tab counts (respect every filter EXCEPT status)
+    var byStatus={new:0,in_review:0,responded:0,closed:0};
+    FB.forEach(function(f){
+      var save=state.status; state.status="all";
+      var ok=matches(f); state.status=save;
+      if(ok && byStatus[f.status]!==undefined) byStatus[f.status]++;
+    });
+    document.getElementById("stNew").textContent=byStatus.new;
+    document.getElementById("stRev").textContent=byStatus.in_review;
+    document.getElementById("stResp").textContent=byStatus.responded;
+    document.getElementById("stClosed").textContent=byStatus.closed;
+
+    if(list.length===0){
+      host.innerHTML='<tr><td colspan="8"><div class="empty"><div class="big">🗂️</div>No feedback matches these filters.<br>Try clearing a facet on the left.</div></td></tr>';
+      return;
+    }
+
+    list.forEach(function(f){
+      var tr=document.createElement("tr");
+      tr.innerHTML=rowHTML(f);
+      tr.addEventListener("click",function(ev){
+        var b=ev.target.closest("button");
+        if(b){
+          ev.stopPropagation();
+          var act=b.dataset.act;
+          if(act==="respond"){ f.status="responded"; render(); flash("Marked as responded — "+f.name); }
+          else if(act==="close"){ f.status="closed"; render(); flash("Closed — "+f.name); }
+          else if(act==="open"){ flash("Opening feedback from "+f.name+"…"); }
+          return;
+        }
+        flash("Opening feedback from "+f.name+"…");
+      });
+      host.appendChild(tr);
+    });
+
+    // recompute NPS gauge from the FILTERED set
+    updateGauge(list.length ? list : FB);
+  }
+
+  // ---------- NPS gauge (JSBlock kernel) ----------
+  var gaugeArc=document.getElementById("gaugeArc");
+  var gaugeKnob=document.getElementById("gaugeKnob");
+  var ARC_LEN=gaugeArc.getTotalLength();
+  gaugeArc.style.strokeDasharray=ARC_LEN;
+
+  function computeNPS(rows){
+    var p=0,n=0,d=0;
+    rows.forEach(function(f){ var b=npsBucket(f.nps); if(b==="promoter")p++; else if(b==="passive")n++; else d++; });
+    var total=rows.length||1;
+    var nps=Math.round((p/total - d/total)*100);
+    return {nps:nps,p:p,n:n,d:d,total:rows.length,pp:Math.round(p/total*100),pn:Math.round(n/total*100),pd:Math.round(d/total*100)};
+  }
+
+  function updateGauge(rows){
+    var r=computeNPS(rows);
+    // NPS ranges -100..100 → 0..1 along the arc
+    var frac=(r.nps+100)/200;
+    gaugeArc.style.strokeDashoffset=(ARC_LEN*(1-frac)).toFixed(1);
+
+    // knob position along the semicircle (180°..0°)
+    var ang=Math.PI*(1-frac);
+    var cx=115, cy=118, rad=97;
+    gaugeKnob.setAttribute("cx",(cx+rad*Math.cos(ang)).toFixed(1));
+    gaugeKnob.setAttribute("cy",(cy-rad*Math.sin(ang)).toFixed(1));
+
+    animateNum(document.getElementById("npsBig"), r.nps);
+
+    var band=document.getElementById("npsBand");
+    if(r.nps>=50){ band.textContent="Excellent · world-class"; band.style.background="var(--pos-soft)"; band.style.color="var(--promoter)"; }
+    else if(r.nps>=30){ band.textContent="Great · top quartile"; band.style.background="var(--pos-soft)"; band.style.color="var(--promoter)"; }
+    else if(r.nps>=0){ band.textContent="Good · room to grow"; band.style.background="var(--neu-soft)"; band.style.color="var(--neu)"; }
+    else { band.textContent="Needs attention"; band.style.background="var(--neg-soft)"; band.style.color="var(--neg)"; }
+
+    // split bar — only update visible breakdown when a real subset is shown
+    var sb=document.getElementById("segP"), sn=document.getElementById("segN"), sd=document.getElementById("segD");
+    sb.style.width=Math.max(r.pp,0)+"%"; sn.style.width=Math.max(r.pn,0)+"%"; sd.style.width=Math.max(r.pd,0)+"%";
+    sb.textContent=r.pp+"%"; sn.textContent=r.pn>=8?r.pn+"%":""; sd.textContent=r.pd>=8?r.pd+"%":"";
+  }
+
+  function animateNum(el,target){
+    var start=parseInt(el.textContent,10)||0;
+    var t0=performance.now(), dur=700;
+    function step(now){
+      var k=Math.min((now-t0)/dur,1);
+      var eased=1-Math.pow(1-k,3);
+      el.textContent=Math.round(start+(target-start)*eased);
+      if(k<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- init ----------
+  // headline numbers reflect the full demo population (1,284 simulated responses);
+  // the live gauge below recomputes from the filtered table rows.
+  render();
+  // open count KPI
+  document.getElementById("openKpi").textContent=FB.filter(function(f){return f.status==="new"||f.status==="in_review"||f.status==="triaged";}).length;
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Customer Feedback: an NPS half-circle gauge, facets, and a feedback inbox. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/27-customer-feedback.html
+</script>
+</body>
+</html>

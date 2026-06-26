@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calibra — Performance Review Management</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Performance Review Management (Calibra)",
+  "prefix": "prv_",
+  "collections": {
+    "prv_cycles": {"titleField":"name","fields":{"name":"input","period":"select:h1|h2|annual|q1|q2|q3|q4","year":"integer","status":"select:planning|self_review|manager_review|calibration|closed","start_date":"date","due_date":"date","reviewer_count":"integer","completed_count":"integer"}},
+    "prv_competencies": {"titleField":"name","fields":{"name":"input","short_code":"input","category":"select:delivery|leadership|craft|collaboration|growth","weight":"integer","description":"textarea"}},
+    "prv_employees": {"titleField":"name","fields":{"name":"input","title":"input","department":"select:engineering|design|product|sales|marketing|ops","level":"select:l2|l3|l4|l5|l6","manager_name":"input","avatar_initials":"input","tenure_months":"integer"}},
+    "prv_reviews": {"titleField":"summary","fields":{"summary":"input","overall_score":"number","rating":"select:exceptional|exceeds|meets|developing|below","status":"select:not_started|self_done|manager_done|calibrated|shared","self_score":"number","manager_score":"number","prev_score":"number","goal_attainment":"integer","reviewer_note":"textarea"},"relations":{"cycle":"m2o prv_cycles (fk cycle_id)","employee":"m2o prv_employees (fk employee_id)"}},
+    "prv_scores": {"titleField":"label","fields":{"label":"input","value":"number","self_value":"number"},"relations":{"review":"m2o prv_reviews (fk review_id)","competency":"m2o prv_competencies (fk competency_id)"}}
+  },
+  "page": {
+    "name": "Calibration Board",
+    "layout": "cycle-rail = native FilterForm/JS pills (drives matrix) | matrix = native Table (prv_reviews) + JSColumn score-matrix cells + JSColumn rich employee lead | radar = JSBlock (competency radar for the selected review row)",
+    "regions": [
+      {"id":"cycle-rail","block":"FilterForm + JS pill bar (cross-block filter)","collection":"prv_cycles","intent":"pick the active review cycle + show cycle progress","content":["cycle pills (period+year) set the active filter","progress ring = completed_count / reviewer_count","status chip (calibration/manager_review/…)"],"behaviors":["cross-block filter pushes cycle_id to the matrix Table resource + refresh"]},
+      {"id":"matrix","block":"native Table block (prv_reviews) — NOT a freestanding JSBlock","collection":"prv_reviews","intent":"calibration scoring matrix: employees as rows, competencies as score columns","columns":["employee = JSColumn rich lead (avatar + name + title + level + dept)","one JSColumn per competency rendering a heat-tinted score chip (value 1-5)","overall_score = JSColumn big number + delta vs prev_score","rating = JSColumn badge (exceptional/exceeds/meets/developing/below)","goal_attainment = JSColumn mini progress bar"],"behaviors":["row click selects the review → radar JSBlock re-renders for that employee","toolbar JSAction pills: filter by department / rating","summary/footer event-flow row = column averages (calibration distribution)"]},
+      {"id":"radar","block":"JSBlock — competency radar (data-less custom visual bound to the selected matrix row)","intent":"per-employee competency radar: self-score polygon vs manager-score polygon over the competency axes","binds":"reads the selected prv_reviews row + its prv_scores; re-renders on row select","shows":["radar axes = competencies","two overlaid polygons (self vs manager)","legend + overall + rating + goal attainment + reviewer note"]}
+    ]
+  },
+  "interactions": ["cycle pill sets active cycle → filters matrix Table","row click in matrix selects employee → radar JSBlock re-renders","department/rating toolbar pills cross-filter the Table","footer event-flow row shows per-competency calibration averages","score chips heat-tinted by value"],
+  "jsKernels": ["score-matrix heat cell JSColumn","rich employee lead JSColumn","competency radar JSBlock (self vs manager polygons)","calibration footer aggregate (event-flow)"],
+  "notes": "Container/content rule: the scoring matrix is a REAL native Table of prv_reviews (one row per employee in the active cycle); each competency score cell + the employee lead + rating badge + overall delta are JSColumns nested INSIDE the Table, not a freestanding JSBlock. The cycle rail is a native FilterForm (+ JS pill skin) doing cross-block filter to the Table. The radar is the only freestanding JSBlock — it is a data-less custom visual (SVG polygons) bound to the currently selected matrix row. Do not rebuild the matrix as one big JSBlock; the rows are native Table records."
+}
+</script>
+<style>
+  :root{
+    --indigo:#4338ca; --indigo-2:#6366f1; --indigo-soft:#eef2ff; --indigo-line:#c7d2fe;
+    --ink:#0f172a; --ink-2:#475569; --ink-3:#94a3b8;
+    --line:#eef1f6; --line-2:#e2e8f0; --bg:#f4f6fb; --card:#fff;
+    --green:#16a34a; --green-soft:#dcfce7; --gold:#d97706; --gold-soft:#fef3c7;
+    --red:#dc2626; --red-soft:#fee2e2; --teal:#0d9488;
+    --s1:#dc2626; --s2:#ea580c; --s3:#d97706; --s4:#65a30d; --s5:#16a34a;
+    --r:12px;
+    --shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+    --shadow-sm:0 1px 2px rgba(15,23,42,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:13.5px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1440px;margin:0 auto;min-height:100vh;background:var(--bg)}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:58px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:20px; padding:0 26px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:750; font-size:16.5px; letter-spacing:-.3px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--indigo),var(--indigo-2));
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 3px 10px rgba(67,56,202,.35);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:1px;letter-spacing:0}
+  .topnav{display:flex;gap:3px;margin-left:10px}
+  .topnav a{padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500}
+  .topnav a.on{background:var(--indigo-soft);color:var(--indigo)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .chip-cycle{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);
+    background:var(--indigo-soft);border:1px solid var(--indigo-line);padding:5px 11px;border-radius:20px;font-weight:600}
+  .chip-cycle i{width:7px;height:7px;border-radius:50%;background:var(--indigo-2);animation:pulse 1.9s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .acct{display:flex;align-items:center;gap:9px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0d9488,#14b8a6);
+    color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- cycle rail ---------- */
+  .cycle-rail{
+    background:var(--card);border-bottom:1px solid var(--line-2);
+    padding:16px 26px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;position:sticky;top:58px;z-index:30;
+  }
+  .rail-title{display:flex;flex-direction:column;gap:2px;padding-right:22px;border-right:1px solid var(--line-2)}
+  .rail-title h1{font-size:18px;font-weight:750;letter-spacing:-.4px}
+  .rail-title p{font-size:12px;color:var(--ink-3)}
+  .cycle-pills{display:flex;gap:8px;flex-wrap:wrap}
+  .cyc{
+    display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;
+    border:1.5px solid var(--line-2);background:#fff;border-radius:11px;padding:7px 13px 7px 9px;transition:.14s;
+  }
+  .cyc:hover{border-color:var(--indigo-line);background:var(--indigo-soft)}
+  .cyc.on{border-color:var(--indigo);background:var(--indigo-soft);box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+  .cyc .ring{width:34px;height:34px;flex:none}
+  .cyc .ring circle{fill:none;stroke-width:3.5}
+  .cyc .ring .bg{stroke:var(--line-2)}
+  .cyc .ring .fg{stroke:var(--indigo-2);stroke-linecap:round}
+  .cyc.on .ring .fg{stroke:var(--indigo)}
+  .cyc .ring text{font-size:10px;font-weight:800;fill:var(--ink-2)}
+  .cyc .meta{line-height:1.25}
+  .cyc .meta b{font-size:13px;font-weight:700;display:block}
+  .cyc .meta span{font-size:11px;color:var(--ink-3)}
+  .cyc .st{font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;text-transform:uppercase;letter-spacing:.4px;margin-top:3px;display:inline-block}
+  .st.calibration{background:var(--indigo-soft);color:var(--indigo)}
+  .st.manager_review{background:var(--gold-soft);color:var(--gold)}
+  .st.self_review{background:#e0f2fe;color:#0369a1}
+  .st.closed{background:var(--line);color:var(--ink-3)}
+  .st.planning{background:#f3e8ff;color:#7e22ce}
+  .rail-spacer{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .rail-btn{border:1.5px solid var(--line-2);background:#fff;color:var(--ink-2);border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .rail-btn:hover{border-color:var(--indigo-line);color:var(--indigo)}
+  .rail-btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo);box-shadow:0 2px 8px rgba(67,56,202,.28)}
+  .rail-btn.primary:hover{background:#3730a3;color:#fff}
+
+  /* ---------- layout ---------- */
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:20px;padding:20px 26px 32px;align-items:start}
+  @media(max-width:1180px){.grid{grid-template-columns:1fr}}
+
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+  .panel-head h2{font-size:14.5px;font-weight:700}
+  .panel-head .sub{font-size:11.5px;color:var(--ink-3);font-weight:500}
+  .panel-head .badge-n{font-size:11px;color:#fff;background:var(--indigo);border-radius:11px;padding:1px 9px;font-weight:700}
+  .panel-head .ph-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+
+  /* toolbar pills */
+  .tbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:11px 18px;border-bottom:1px solid var(--line);background:#fafbfd}
+  .tbar .lbl{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px;margin-right:2px}
+  .tf{font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:4px 11px;border-radius:14px;border:1px solid var(--line-2);background:#fff;transition:.12s}
+  .tf:hover{border-color:var(--indigo-line)}
+  .tf.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tf.r-on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+  .tbar .grow{margin-left:auto;font-size:11.5px;color:var(--ink-3)}
+
+  /* ---------- matrix table ---------- */
+  .mtx-scroll{overflow-x:auto}
+  table.mtx{width:100%;border-collapse:collapse;font-size:12.5px;min-width:880px}
+  table.mtx thead th{
+    position:sticky;top:0;background:#f8fafc;z-index:2;text-align:center;
+    font-size:10.5px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px;
+    padding:11px 8px;border-bottom:1.5px solid var(--line-2);white-space:nowrap;
+  }
+  table.mtx thead th.lead{text-align:left;padding-left:18px;min-width:236px}
+  table.mtx thead th .cat{display:block;font-size:9px;font-weight:600;color:var(--indigo-2);margin-top:1px;letter-spacing:.3px}
+  table.mtx tbody tr{border-bottom:1px solid var(--line);cursor:pointer;transition:.1s}
+  table.mtx tbody tr:hover{background:#f8faff}
+  table.mtx tbody tr.sel{background:var(--indigo-soft);box-shadow:inset 3px 0 0 var(--indigo)}
+  table.mtx td{padding:11px 8px;text-align:center;vertical-align:middle}
+  table.mtx td.lead{text-align:left;padding-left:18px}
+
+  /* employee lead cell */
+  .emp{display:flex;align-items:center;gap:11px}
+  .emp .av{width:38px;height:38px;border-radius:10px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;letter-spacing:.3px}
+  .emp .info{line-height:1.3;min-width:0}
+  .emp .info b{font-size:13px;font-weight:650;display:flex;align-items:center;gap:6px}
+  .emp .info .lvl{font-size:9.5px;font-weight:700;color:var(--indigo);background:var(--indigo-soft);padding:1px 6px;border-radius:6px;letter-spacing:.3px}
+  .emp .info span{font-size:11px;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+  .emp .info .dept{font-size:10px;color:var(--ink-3);display:inline-flex;align-items:center;gap:4px;margin-top:1px}
+  .emp .info .dept i{width:6px;height:6px;border-radius:50%;display:inline-block}
+
+  /* score chip */
+  .sc{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;font-weight:800;font-size:13.5px;color:#fff;position:relative}
+  .sc small{position:absolute;bottom:-13px;font-size:9px;font-weight:600;color:var(--ink-3)}
+  .sc.lv1{background:var(--s1)} .sc.lv2{background:var(--s2)} .sc.lv3{background:var(--s3)}
+  .sc.lv4{background:var(--s4)} .sc.lv5{background:var(--s5)}
+  td.scorecell{padding-bottom:18px}
+
+  /* overall cell */
+  .ov{display:flex;flex-direction:column;align-items:center;gap:2px}
+  .ov b{font-size:18px;font-weight:800;letter-spacing:-.5px;line-height:1}
+  .ov .delta{font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;gap:2px}
+  .ov .delta.up{color:var(--green)} .ov .delta.dn{color:var(--red)} .ov .delta.fl{color:var(--ink-3)}
+
+  /* rating badge */
+  .rb{font-size:10.5px;font-weight:750;padding:4px 10px;border-radius:9px;letter-spacing:.2px;white-space:nowrap;display:inline-block}
+  .rb.exceptional{background:#ede9fe;color:#6d28d9}
+  .rb.exceeds{background:var(--green-soft);color:#15803d}
+  .rb.meets{background:#e0f2fe;color:#0369a1}
+  .rb.developing{background:var(--gold-soft);color:#b45309}
+  .rb.below{background:var(--red-soft);color:#b91c1c}
+
+  /* goal bar */
+  .goal{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .goal .bar{width:62px;height:6px;border-radius:4px;background:var(--line-2);overflow:hidden}
+  .goal .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--indigo-2),var(--indigo))}
+  .goal span{font-size:11px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
+
+  /* footer aggregate row */
+  table.mtx tfoot td{
+    background:#f8fafc;border-top:1.5px solid var(--line-2);padding:11px 8px;text-align:center;font-weight:700;
+    position:sticky;bottom:0;
+  }
+  table.mtx tfoot td.lead{text-align:left;padding-left:18px;font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px}
+  .avg{display:inline-grid;place-items:center;width:30px;height:24px;border-radius:7px;font-weight:800;font-size:12.5px;background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2)}
+
+  /* ---------- radar panel ---------- */
+  .radar-panel{position:sticky;top:152px}
+  .rp-emp{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fafbff,#fff)}
+  .rp-emp .av{width:46px;height:46px;border-radius:12px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:16px}
+  .rp-emp .info b{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .rp-emp .info b .lvl{font-size:10px;font-weight:700;color:var(--indigo);background:var(--indigo-soft);padding:1px 7px;border-radius:6px}
+  .rp-emp .info span{font-size:12px;color:var(--ink-3)}
+  .rp-emp .rb{margin-left:auto}
+
+  .radar-wrap{padding:18px 18px 10px;display:grid;place-items:center}
+  .radar-svg{width:340px;height:300px;max-width:100%}
+  .radar-svg .grid-line{stroke:var(--line-2);stroke-width:1;fill:none}
+  .radar-svg .axis{stroke:var(--line-2);stroke-width:1}
+  .radar-svg .ax-label{font-size:10px;font-weight:700;fill:var(--ink-2)}
+  .radar-svg .ax-cat{font-size:8px;font-weight:600;fill:var(--ink-3)}
+  .radar-svg .poly-mgr{fill:rgba(67,56,202,.16);stroke:var(--indigo);stroke-width:2;stroke-linejoin:round}
+  .radar-svg .poly-self{fill:rgba(13,148,136,.10);stroke:var(--teal);stroke-width:1.6;stroke-dasharray:4 3;stroke-linejoin:round}
+  .radar-svg .dot-mgr{fill:var(--indigo)} .radar-svg .dot-self{fill:var(--teal)}
+  .radar-svg .ring-num{font-size:7px;fill:var(--ink-3)}
+
+  .radar-legend{display:flex;justify-content:center;gap:18px;padding:0 18px 14px}
+  .radar-legend span{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2);font-weight:600}
+  .radar-legend i{width:18px;height:3px;border-radius:2px}
+  .radar-legend i.mgr{background:var(--indigo)}
+  .radar-legend i.self{background:var(--teal)}
+
+  .rp-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-2);border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
+  .rp-stat{background:#fff;padding:13px 12px;text-align:center}
+  .rp-stat .k{font-size:10px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px}
+  .rp-stat .v{font-size:20px;font-weight:800;letter-spacing:-.5px;margin-top:3px}
+  .rp-stat .v small{font-size:11px;font-weight:600;color:var(--ink-3)}
+
+  .rp-breakdown{padding:14px 18px;border-bottom:1px solid var(--line)}
+  .rp-breakdown h3{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:11px}
+  .brk-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .brk-row .nm{font-size:12px;font-weight:600;color:var(--ink-2);width:88px;flex:none}
+  .brk-row .track{flex:1;height:7px;border-radius:4px;background:var(--line);position:relative;overflow:hidden}
+  .brk-row .track .self{position:absolute;left:0;top:0;height:100%;background:rgba(13,148,136,.35);border-radius:4px}
+  .brk-row .track .mgr{position:absolute;left:0;top:0;height:100%;background:var(--indigo);border-radius:4px}
+  .brk-row .vals{font-size:11px;font-weight:700;color:var(--ink-2);width:62px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+  .brk-row .vals .s{color:var(--teal);font-weight:600}
+
+  .rp-note{padding:14px 18px}
+  .rp-note h3{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .rp-note p{font-size:12.5px;color:var(--ink-2);line-height:1.6;background:var(--indigo-soft);border-left:3px solid var(--indigo);border-radius:0 8px 8px 0;padding:11px 13px}
+  .rp-actions{display:flex;gap:9px;padding:0 18px 18px}
+  .rp-actions .btn{flex:1;border-radius:9px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer;border:none}
+  .rp-actions .btn.primary{background:var(--indigo);color:#fff;box-shadow:0 2px 8px rgba(67,56,202,.28)}
+  .rp-actions .btn.primary:hover{background:#3730a3}
+  .rp-actions .btn.ghost{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2)}
+  .rp-actions .btn.ghost:hover{border-color:var(--indigo-line);color:var(--indigo)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--indigo-2)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">C</span>Calibra <small>performance</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Calibration</a>
+    <a href="#">My Reviews</a>
+    <a href="#">Goals</a>
+    <a href="#">Competencies</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <span class="chip-cycle"><i></i> <span id="cycleTag">H1 2026 · Calibration</span></span>
+    <div class="acct">
+      <div class="ava">RK</div>
+      <div class="who"><b>Rachel Kim</b><br><span>People Operations</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ CYCLE RAIL (FilterForm + pills, cross-block filter) ============ -->
+<div class="cycle-rail">
+  <div class="rail-title">
+    <h1>Calibration Board</h1>
+    <p>Review cycle · scoring matrix</p>
+  </div>
+  <div class="cycle-pills" id="cyclePills"></div>
+  <div class="rail-spacer">
+    <button class="rail-btn">⤓ Export</button>
+    <button class="rail-btn primary">＋ Open review</button>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- ============ LEFT: SCORING MATRIX (native Table + JSColumns) ============ -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Scoring matrix</h2>
+      <span class="badge-n" id="rowCount">0</span>
+      <span class="sub" id="matrixSub">competencies × employees</span>
+    </div>
+    <div class="tbar">
+      <span class="lbl">Dept</span>
+      <span class="tf on" data-d="all">All</span>
+      <span class="tf" data-d="engineering">Engineering</span>
+      <span class="tf" data-d="design">Design</span>
+      <span class="tf" data-d="product">Product</span>
+      <span class="tf" data-d="marketing">Marketing</span>
+      <span class="lbl" style="margin-left:8px">Rating</span>
+      <span class="tf r-all on" data-r="all">All</span>
+      <span class="tf" data-r="exceptional">Exceptional</span>
+      <span class="tf" data-r="exceeds">Exceeds</span>
+      <span class="tf" data-r="meets">Meets</span>
+      <span class="tf" data-r="developing">Developing</span>
+      <span class="grow" id="filterCount"></span>
+    </div>
+    <div class="mtx-scroll">
+      <table class="mtx" id="mtx">
+        <thead id="mtxHead"></thead>
+        <tbody id="mtxBody"></tbody>
+        <tfoot id="mtxFoot"></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ RIGHT: COMPETENCY RADAR (JSBlock, bound to selected row) ============ -->
+  <aside class="panel radar-panel">
+    <div class="panel-head">
+      <h2>Competency radar</h2>
+      <span class="sub">self vs manager</span>
+    </div>
+    <div class="rp-emp" id="rpEmp"></div>
+    <div class="radar-wrap"><svg class="radar-svg" id="radar" viewBox="0 0 340 300"></svg></div>
+    <div class="radar-legend">
+      <span><i class="mgr"></i> Manager score</span>
+      <span><i class="self"></i> Self score</span>
+    </div>
+    <div class="rp-stats" id="rpStats"></div>
+    <div class="rp-breakdown">
+      <h3>Per-competency breakdown</h3>
+      <div id="rpBreakdown"></div>
+    </div>
+    <div class="rp-note">
+      <h3>📝 Reviewer note</h3>
+      <p id="rpNote"></p>
+    </div>
+    <div class="rp-actions">
+      <button class="btn primary" id="calBtn">Mark calibrated</button>
+      <button class="btn ghost">Open full review</button>
+    </div>
+  </aside>
+</div>
+
+</div>
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- competency axes ----------
+  var COMPS = [
+    {code:"DEL", name:"Delivery",      cat:"delivery",      weight:25},
+    {code:"CFT", name:"Craft",         cat:"craft",         weight:25},
+    {code:"COL", name:"Collaboration", cat:"collaboration", weight:20},
+    {code:"LDR", name:"Leadership",    cat:"leadership",     weight:15},
+    {code:"GRW", name:"Growth",        cat:"growth",        weight:15}
+  ];
+
+  // ---------- cycles ----------
+  var CYCLES = [
+    {id:"h1-26", name:"H1 2026", period:"H1 · 2026",  status:"calibration",    done:38, total:42, tag:"H1 2026 · Calibration"},
+    {id:"h2-25", name:"H2 2025", period:"H2 · 2025",  status:"closed",         done:44, total:44, tag:"H2 2025 · Closed"},
+    {id:"q1-26", name:"Q1 2026", period:"Q1 · 2026",  status:"manager_review", done:21, total:42, tag:"Q1 2026 · Manager review"},
+    {id:"h1-25", name:"H1 2025", period:"H1 · 2025",  status:"closed",         done:40, total:40, tag:"H1 2025 · Closed"}
+  ];
+  var STATUS_LABEL = {calibration:"Calibration",closed:"Closed",manager_review:"Manager review",self_review:"Self review",planning:"Planning"};
+
+  // ---------- review rows (per employee, per active cycle) ----------
+  // scores[] aligns to COMPS order: {m:managerScore, s:selfScore}
+  var REVIEWS = {
+    "h1-26":[
+      {name:"Maya Lindqvist", title:"Staff Engineer",        dept:"engineering", lvl:"L6", mgr:"D. Osei",   ini:"ML", goal:96, rating:"exceptional", prev:4.3, status:"calibrated",
+        scores:[{m:5,s:5},{m:5,s:4},{m:4,s:5},{m:5,s:4},{m:4,s:4}], note:"Carried the platform migration end-to-end and mentored two L4s through it. Calibrated up — impact clearly above level. Promotion case to commit."},
+      {name:"Theo Ramsay",    title:"Senior Product Designer", dept:"design",     lvl:"L5", mgr:"A. Pereira", ini:"TR", goal:88, rating:"exceeds", prev:3.9, status:"manager_done",
+        scores:[{m:4,s:5},{m:5,s:5},{m:4,s:4},{m:4,s:3},{m:5,s:4}], note:"Craft is the standout — design system v3 raised the bar org-wide. Slight self/manager gap on leadership; coach toward driving cross-team rituals."},
+      {name:"Priya Anand",    title:"Product Manager",         dept:"product",    lvl:"L5", mgr:"R. Kim",     ini:"PA", goal:82, rating:"exceeds", prev:3.7, status:"manager_done",
+        scores:[{m:5,s:4},{m:4,s:4},{m:5,s:5},{m:4,s:4},{m:3,s:4}], note:"Delivery and collaboration both strong; shipped the billing revamp a sprint early. Growth dipped vs self — agreed on a stretch goal for next cycle."},
+      {name:"Jonas Weber",    title:"Backend Engineer",        dept:"engineering", lvl:"L4", mgr:"D. Osei",   ini:"JW", goal:74, rating:"meets", prev:3.4, status:"calibrated",
+        scores:[{m:4,s:4},{m:4,s:5},{m:3,s:3},{m:3,s:3},{m:4,s:4}], note:"Solid, dependable execution. Self-rated craft a touch high; pairing reviews helped close the calibration gap. On track for L5 in two cycles."},
+      {name:"Ava Castellano", title:"Marketing Lead",          dept:"marketing",  lvl:"L5", mgr:"R. Kim",     ini:"AC", goal:91, rating:"exceeds", prev:4.0, status:"manager_done",
+        scores:[{m:5,s:5},{m:4,s:4},{m:5,s:5},{m:5,s:4},{m:4,s:5}], note:"Owned the rebrand launch and the leadership signal was unmistakable. Manager rated leadership above self — encourage her to claim that scope formally."},
+      {name:"Noah Fitzgerald",title:"Frontend Engineer",       dept:"engineering", lvl:"L4", mgr:"D. Osei",   ini:"NF", goal:67, rating:"developing", prev:3.5, status:"self_done",
+        scores:[{m:3,s:4},{m:3,s:4},{m:4,s:4},{m:2,s:3},{m:4,s:4}], note:"Notable self/manager divergence on delivery and craft. Velocity slipped mid-cycle after the team reorg; 30-day focus plan agreed, support in place."},
+      {name:"Sofia Moreau",   title:"Senior PM",               dept:"product",    lvl:"L5", mgr:"R. Kim",     ini:"SM", goal:85, rating:"exceeds", prev:3.8, status:"manager_done",
+        scores:[{m:4,s:4},{m:4,s:4},{m:5,s:5},{m:4,s:5},{m:4,s:4}], note:"Quietly excellent at stakeholder alignment — the discovery program she stood up is now a template. Leadership self-rated higher; agree the trajectory is there."},
+      {name:"Liam O'Brien",   title:"Design Manager",          dept:"design",     lvl:"L6", mgr:"A. Pereira", ini:"LO", goal:79, rating:"meets", prev:3.6, status:"calibrated",
+        scores:[{m:4,s:5},{m:4,s:4},{m:4,s:4},{m:5,s:5},{m:3,s:4}], note:"Strong people leadership this half; two reports promoted. Growth flagged as the gap — leaning operational over strategic. Calibrated to meets, clear path up."},
+      {name:"Hana Yoshida",   title:"Data Engineer",           dept:"engineering", lvl:"L4", mgr:"D. Osei",   ini:"HY", goal:71, rating:"meets", prev:3.3, status:"self_done",
+        scores:[{m:4,s:4},{m:4,s:4},{m:3,s:4},{m:3,s:2},{m:4,s:5}], note:"Reliable pipeline work and a great learning curve on the warehouse rewrite. Collaboration is the next stretch — pull her into more cross-functional design reviews."},
+      {name:"Marco Bianchi",  title:"Growth Marketer",         dept:"marketing",  lvl:"L4", mgr:"R. Kim",     ini:"MB", goal:62, rating:"developing", prev:3.2, status:"self_done",
+        scores:[{m:3,s:4},{m:3,s:3},{m:4,s:4},{m:2,s:3},{m:3,s:4}], note:"Creative experiments landed unevenly this cycle. Leadership and delivery are the focus; paired with Ava as a mentor and given two clear owned channels."}
+    ]
+  };
+
+  var state = {cycle:"h1-26", dept:"all", rating:"all", selIdx:0};
+
+  var els = {
+    cyclePills:document.getElementById("cyclePills"),
+    head:document.getElementById("mtxHead"),
+    body:document.getElementById("mtxBody"),
+    foot:document.getElementById("mtxFoot"),
+    rowCount:document.getElementById("rowCount"),
+    filterCount:document.getElementById("filterCount"),
+    cycleTag:document.getElementById("cycleTag")
+  };
+
+  var DEPT_COLOR = {engineering:"#4338ca",design:"#db2777",product:"#0d9488",marketing:"#ea580c",sales:"#0369a1",ops:"#65a30d"};
+  var AV_GRAD = {
+    engineering:"linear-gradient(135deg,#4338ca,#6366f1)",
+    design:"linear-gradient(135deg,#db2777,#f472b6)",
+    product:"linear-gradient(135deg,#0d9488,#2dd4bf)",
+    marketing:"linear-gradient(135deg,#ea580c,#fb923c)"
+  };
+
+  function overall(r){
+    var num=0,den=0;
+    r.scores.forEach(function(sc,i){ num+=sc.m*COMPS[i].weight; den+=COMPS[i].weight; });
+    return num/den;
+  }
+  function lvClass(v){ return "lv"+Math.max(1,Math.min(5,Math.round(v))); }
+
+  // ---------- cycle rail ----------
+  function renderCycles(){
+    els.cyclePills.innerHTML="";
+    CYCLES.forEach(function(c){
+      var pct=Math.round(c.done/c.total*100);
+      var R=14, CIRC=2*Math.PI*R, off=CIRC*(1-c.done/c.total);
+      var el=document.createElement("div");
+      el.className="cyc"+(c.id===state.cycle?" on":"");
+      el.innerHTML=
+        '<svg class="ring" viewBox="0 0 34 34">'+
+          '<circle class="bg" cx="17" cy="17" r="'+R+'"/>'+
+          '<circle class="fg" cx="17" cy="17" r="'+R+'" stroke-dasharray="'+CIRC.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 17 17)"/>'+
+          '<text x="17" y="20.5" text-anchor="middle">'+pct+'</text>'+
+        '</svg>'+
+        '<div class="meta"><b>'+c.name+'</b><span>'+c.done+'/'+c.total+' reviews</span>'+
+        '<span class="st '+c.status+'">'+STATUS_LABEL[c.status]+'</span></div>';
+      el.onclick=function(){
+        state.cycle=c.id; state.selIdx=0;
+        els.cycleTag.textContent=c.tag;
+        renderCycles(); renderMatrix();
+        flash("Cycle: "+c.name+" — "+STATUS_LABEL[c.status]);
+      };
+      els.cyclePills.appendChild(el);
+    });
+  }
+
+  // ---------- matrix table ----------
+  function filteredRows(){
+    var rows=REVIEWS[state.cycle]||[];
+    return rows.filter(function(r){
+      return (state.dept==="all"||r.dept===state.dept) && (state.rating==="all"||r.rating===state.rating);
+    });
+  }
+
+  function renderHead(){
+    var h='<tr><th class="lead">Employee</th>';
+    COMPS.forEach(function(c){ h+='<th>'+c.name+'<span class="cat">w'+c.weight+'%</span></th>'; });
+    h+='<th>Overall</th><th>Rating</th><th>Goals</th></tr>';
+    els.head.innerHTML=h;
+  }
+
+  function renderMatrix(){
+    renderHead();
+    var rows=filteredRows();
+    els.rowCount.textContent=rows.length;
+    els.filterCount.textContent=rows.length+" of "+(REVIEWS[state.cycle]||[]).length+" employees";
+    if(state.selIdx>=rows.length) state.selIdx=0;
+
+    els.body.innerHTML="";
+    rows.forEach(function(r,idx){
+      var ov=overall(r), delta=ov-r.prev;
+      var dCls=delta>0.05?"up":(delta<-0.05?"dn":"fl");
+      var dTxt=(delta>0?"▲ +":delta<0?"▼ ":"– ")+Math.abs(delta).toFixed(1);
+      var tr=document.createElement("tr");
+      tr.className=(idx===state.selIdx?"sel":"");
+      var cells='<td class="lead"><div class="emp">'+
+          '<div class="av" style="background:'+AV_GRAD[r.dept]+'">'+r.ini+'</div>'+
+          '<div class="info"><b>'+r.name+' <span class="lvl">'+r.lvl+'</span></b>'+
+          '<span>'+r.title+'</span>'+
+          '<span class="dept"><i style="background:'+DEPT_COLOR[r.dept]+'"></i>'+cap(r.dept)+' · '+r.mgr+'</span></div>'+
+        '</div></td>';
+      r.scores.forEach(function(sc){
+        cells+='<td class="scorecell"><span class="sc '+lvClass(sc.m)+'">'+sc.m+'<small>self '+sc.s+'</small></span></td>';
+      });
+      cells+='<td><div class="ov"><b>'+ov.toFixed(1)+'</b><span class="delta '+dCls+'">'+dTxt+'</span></div></td>';
+      cells+='<td><span class="rb '+r.rating+'">'+cap(r.rating)+'</span></td>';
+      cells+='<td><div class="goal"><div class="bar"><i style="width:'+r.goal+'%"></i></div><span>'+r.goal+'%</span></div></td>';
+      tr.innerHTML=cells;
+      tr.onclick=function(){ state.selIdx=idx; renderMatrix(); renderRadar(); };
+      els.body.appendChild(tr);
+    });
+
+    // footer: per-competency calibration averages (event-flow aggregate)
+    if(rows.length){
+      var f='<tr><td class="lead">Cycle average</td>';
+      COMPS.forEach(function(c,i){
+        var s=0; rows.forEach(function(r){s+=r.scores[i].m;});
+        f+='<td><span class="avg">'+(s/rows.length).toFixed(1)+'</span></td>';
+      });
+      var ovAvg=0; rows.forEach(function(r){ovAvg+=overall(r);});
+      f+='<td><span class="avg" style="border-color:var(--indigo-line);color:var(--indigo)">'+(ovAvg/rows.length).toFixed(1)+'</span></td>';
+      f+='<td colspan="2"></td></tr>';
+      els.foot.innerHTML=f;
+    } else {
+      els.body.innerHTML='<tr><td colspan="'+(COMPS.length+4)+'" style="padding:40px;text-align:center;color:var(--ink-3)">No employees match this filter.</td></tr>';
+      els.foot.innerHTML="";
+    }
+    renderRadar();
+  }
+
+  // ---------- toolbar filters (cross-block) ----------
+  document.querySelector(".tbar").addEventListener("click",function(e){
+    var f=e.target.closest(".tf"); if(!f) return;
+    if(f.dataset.d!==undefined){
+      document.querySelectorAll(".tf[data-d]").forEach(function(x){x.classList.remove("on");});
+      f.classList.add("on"); state.dept=f.dataset.d;
+    } else if(f.dataset.r!==undefined){
+      document.querySelectorAll(".tf[data-r]").forEach(function(x){x.classList.remove("on");});
+      f.classList.add("on"); state.rating=f.dataset.r;
+    }
+    state.selIdx=0; renderMatrix();
+  });
+
+  // ---------- radar (JSBlock bound to selected row) ----------
+  function renderRadar(){
+    var rows=filteredRows();
+    var r=rows[state.selIdx];
+    var svg=document.getElementById("radar");
+    var empEl=document.getElementById("rpEmp");
+    if(!r){ svg.innerHTML=""; empEl.innerHTML='<div class="info"><b>No selection</b><span>Pick a row in the matrix</span></div>';
+      document.getElementById("rpStats").innerHTML=""; document.getElementById("rpBreakdown").innerHTML=""; document.getElementById("rpNote").textContent=""; return; }
+
+    empEl.innerHTML=
+      '<div class="av" style="background:'+AV_GRAD[r.dept]+'">'+r.ini+'</div>'+
+      '<div class="info"><b>'+r.name+' <span class="lvl">'+r.lvl+'</span></b><span>'+r.title+' · '+cap(r.dept)+'</span></div>'+
+      '<span class="rb '+r.rating+'">'+cap(r.rating)+'</span>';
+
+    // radar geometry
+    var cx=170, cy=148, rad=104, n=COMPS.length;
+    var s='';
+    // rings
+    for(var ring=1;ring<=5;ring++){
+      var rr=rad*ring/5, pts=[];
+      for(var i=0;i<n;i++){
+        var a=-Math.PI/2 + i*2*Math.PI/n;
+        pts.push((cx+rr*Math.cos(a)).toFixed(1)+','+(cy+rr*Math.sin(a)).toFixed(1));
+      }
+      s+='<polygon class="grid-line" points="'+pts.join(' ')+'"/>';
+    }
+    // axes + labels
+    for(var i=0;i<n;i++){
+      var a=-Math.PI/2 + i*2*Math.PI/n;
+      var ex=cx+rad*Math.cos(a), ey=cy+rad*Math.sin(a);
+      s+='<line class="axis" x1="'+cx+'" y1="'+cy+'" x2="'+ex.toFixed(1)+'" y2="'+ey.toFixed(1)+'"/>';
+      var lx=cx+(rad+20)*Math.cos(a), ly=cy+(rad+20)*Math.sin(a);
+      var anchor=Math.abs(Math.cos(a))<0.3?"middle":(Math.cos(a)>0?"start":"end");
+      s+='<text class="ax-label" x="'+lx.toFixed(1)+'" y="'+(ly+3).toFixed(1)+'" text-anchor="'+anchor+'">'+COMPS[i].name+'</text>';
+      s+='<text class="ax-cat" x="'+lx.toFixed(1)+'" y="'+(ly+13).toFixed(1)+'" text-anchor="'+anchor+'">w'+COMPS[i].weight+'%</text>';
+    }
+    // ring numbers along top axis
+    for(var ring=1;ring<=5;ring++){
+      var rr=rad*ring/5;
+      s+='<text class="ring-num" x="'+(cx+3)+'" y="'+(cy-rr+3).toFixed(1)+'">'+ring+'</text>';
+    }
+    // polygons
+    function poly(key,cls){
+      var pts=[];
+      for(var i=0;i<n;i++){
+        var a=-Math.PI/2 + i*2*Math.PI/n;
+        var v=r.scores[i][key]/5;
+        pts.push((cx+rad*v*Math.cos(a)).toFixed(1)+','+(cy+rad*v*Math.sin(a)).toFixed(1));
+      }
+      var p='<polygon class="'+cls+'" points="'+pts.join(' ')+'"/>';
+      pts.forEach(function(pt){ var c=pt.split(','); p+='<circle class="'+(cls==="poly-mgr"?"dot-mgr":"dot-self")+'" cx="'+c[0]+'" cy="'+c[1]+'" r="3"/>'; });
+      return p;
+    }
+    s+=poly("s","poly-self");
+    s+=poly("m","poly-mgr");
+    svg.innerHTML=s;
+
+    // stats
+    var ov=overall(r);
+    var selfOv=0,den=0; r.scores.forEach(function(sc,i){selfOv+=sc.s*COMPS[i].weight;den+=COMPS[i].weight;}); selfOv/=den;
+    document.getElementById("rpStats").innerHTML=
+      '<div class="rp-stat"><div class="k">Overall</div><div class="v">'+ov.toFixed(1)+'<small>/5</small></div></div>'+
+      '<div class="rp-stat"><div class="k">Self avg</div><div class="v" style="color:var(--teal)">'+selfOv.toFixed(1)+'<small>/5</small></div></div>'+
+      '<div class="rp-stat"><div class="k">Goals</div><div class="v" style="color:var(--indigo)">'+r.goal+'<small>%</small></div></div>';
+
+    // breakdown bars
+    var bd='';
+    r.scores.forEach(function(sc,i){
+      bd+='<div class="brk-row"><span class="nm">'+COMPS[i].name+'</span>'+
+        '<div class="track"><span class="self" style="width:'+(sc.s/5*100)+'%"></span><span class="mgr" style="width:'+(sc.m/5*100)+'%"></span></div>'+
+        '<span class="vals">'+sc.m+'.0 <span class="s">('+sc.s+'.0)</span></span></div>';
+    });
+    document.getElementById("rpBreakdown").innerHTML=bd;
+    document.getElementById("rpNote").textContent=r.note;
+  }
+
+  document.getElementById("calBtn").onclick=function(){
+    var r=filteredRows()[state.selIdx];
+    if(r){ flash(r.name+" marked calibrated"); }
+  };
+
+  function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- init ----------
+  renderCycles();
+  renderMatrix();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Performance Review: a calibration matrix and radar comparisons. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/49-performance-review.html
+</script>
+</body>
+</html>

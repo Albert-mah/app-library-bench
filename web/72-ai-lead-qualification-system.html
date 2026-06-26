@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Lead Qualification System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-soft: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f1f2f6;
+    --line: #e4e6ec;
+    --line-soft: #eceef3;
+    --text: #1f2937;
+    --muted: #5b6473;
+    --muted-2: #8a93a3;
+    --accent: #7c3aed;
+    --accent-2: #6d28d9;
+    --hot: #e11d48;
+    --warm: #d97706;
+    --cool: #059669;
+    --cold: #64748b;
+    --shadow: 0 14px 34px rgba(31,41,55,.10);
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Layout shell ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    grid-template-rows: 60px 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(14px);
+    z-index: 20;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 11px;
+    font-weight: 700; letter-spacing: .2px; font-size: 15px;
+    min-width: 210px;
+  }
+  .brand .logo {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    box-shadow: 0 6px 16px rgba(124,58,237,.30);
+  }
+  .brand .logo svg { width: 17px; height: 17px; }
+  .brand small { display:block; font-weight: 500; font-size: 11px; color: var(--muted); letter-spacing:.3px;}
+
+  .search {
+    flex: 1; max-width: 460px; position: relative;
+  }
+  .search input {
+    width: 100%; height: 38px; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--line);
+    color: var(--text); padding: 0 14px 0 38px; font-size: 13px;
+    outline: none; transition: border .15s, box-shadow .15s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,58,237,.16); }
+  .search input::placeholder { color: var(--muted-2); }
+  .search svg { position: absolute; left: 12px; top: 11px; width: 16px; height: 16px; color: var(--muted-2); }
+
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .pill-btn {
+    height: 36px; padding: 0 14px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--text); font-size: 13px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 8px; transition: all .15s;
+  }
+  .pill-btn:hover { border-color: var(--accent); background: var(--panel-2); }
+  .pill-btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none; color: #fff; box-shadow: 0 8px 20px rgba(124,58,237,.28);
+  }
+  .pill-btn.primary:hover { filter: brightness(1.05); }
+  .pill-btn.primary svg { stroke: #fff; }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    border-right: 1px solid var(--line);
+    background: var(--bg-soft);
+    padding: 16px 12px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted-2); margin: 14px 10px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 10px; cursor: pointer;
+    color: var(--muted); font-weight: 600; font-size: 13px; transition: all .14s;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; }
+  .nav-item:hover { background: var(--panel-2); color: var(--text); }
+  .nav-item.active { background: rgba(124,58,237,.10); color: var(--accent); }
+  .nav-item.active svg { stroke: var(--accent); }
+  .nav-item .count {
+    margin-left: auto; font-size: 11px; font-weight: 700;
+    background: var(--panel-2); color: var(--muted); padding: 1px 8px; border-radius: 20px;
+  }
+  .nav-item.active .count { background: rgba(124,58,237,.16); color: var(--accent); }
+
+  .sidebar-stat {
+    margin-top: auto; padding: 14px; border-radius: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+  }
+  .sidebar-stat h4 { margin: 0 0 2px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .sidebar-stat .big { font-size: 26px; font-weight: 800; letter-spacing: -.5px; }
+  .sidebar-stat .big span { font-size: 13px; color: var(--cool); font-weight: 700; }
+  .mini-bars { display: flex; align-items: flex-end; gap: 4px; height: 34px; margin-top: 10px; }
+  .mini-bars i { flex: 1; background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-radius: 3px; opacity: .85; }
+
+  /* ---------- Main ---------- */
+  .main { overflow: hidden; display: flex; flex-direction: column; }
+
+  .stats-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    padding: 18px 22px 6px;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 15px 16px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .stat-card .ic {
+    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 9px;
+  }
+  .stat-card .ic svg { width: 18px; height: 18px; }
+  .stat-card .label { color: var(--muted); font-size: 12px; font-weight: 600; }
+  .stat-card .value { font-size: 25px; font-weight: 800; letter-spacing: -.5px; margin-top: 1px; }
+  .stat-card .delta { font-size: 11.5px; font-weight: 700; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; }
+  .delta.up { color: var(--cool); }
+  .delta.down { color: var(--hot); }
+  .spark { position: absolute; right: 14px; bottom: 12px; width: 78px; height: 34px; opacity: .9; }
+
+  .work {
+    flex: 1; display: grid; grid-template-columns: 1fr 0px;
+    gap: 0; overflow: hidden; transition: grid-template-columns .28s cubic-bezier(.4,0,.2,1);
+    padding: 8px 22px 0;
+  }
+  .work.open { grid-template-columns: 1fr 420px; gap: 18px; }
+
+  .list-wrap { display: flex; flex-direction: column; min-width: 0; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 2px 14px; flex-wrap: wrap;
+  }
+  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line-soft); padding: 4px; border-radius: 12px; }
+  .tab {
+    padding: 7px 14px; border-radius: 9px; cursor: pointer; font-size: 12.5px; font-weight: 700;
+    color: var(--muted); transition: all .14s; display:flex; align-items:center; gap:7px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: #fff; color: var(--accent); box-shadow: 0 1px 4px rgba(31,41,55,.10); }
+  .tab .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .seg { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+  .chip {
+    padding: 7px 12px; border-radius: 9px; cursor: pointer; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--line); background: var(--panel); color: var(--muted); transition: all .14s;
+  }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+  .chip.active { background: rgba(124,58,237,.10); color: var(--accent); border-color: rgba(124,58,237,.40); }
+
+  .list { overflow-y: auto; padding-right: 6px; padding-bottom: 22px; }
+  .list::-webkit-scrollbar, .sidebar::-webkit-scrollbar, .drawer-body::-webkit-scrollbar { width: 9px; }
+  .list::-webkit-scrollbar-thumb, .sidebar::-webkit-scrollbar-thumb, .drawer-body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+
+  /* ---------- Lead card ---------- */
+  .lead {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 14px; align-items: center;
+    padding: 14px 16px; margin-bottom: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; cursor: pointer;
+    transition: transform .14s, border-color .14s, box-shadow .14s;
+    position: relative;
+  }
+  .lead::before {
+    content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 4px;
+    background: var(--cold); opacity: .9;
+  }
+  .lead.t-hot::before { background: var(--hot); }
+  .lead.t-warm::before { background: var(--warm); }
+  .lead.t-qualified::before { background: var(--cool); }
+  .lead.t-cold::before { background: var(--cold); }
+  .lead:hover { transform: translateY(-2px); border-color: rgba(124,58,237,.40); box-shadow: var(--shadow); }
+  .lead.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124,58,237,.25); }
+
+  .score-ring { width: 56px; height: 56px; position: relative; }
+  .score-ring .num { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 800; font-size: 16px; }
+  .score-ring .num small { font-size: 9px; color: var(--muted); font-weight: 600; }
+
+  .lead-main { min-width: 0; }
+  .lead-name { font-weight: 700; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+  .lead-co { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .lead-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .tag {
+    font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 7px;
+    background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .tag svg { width: 12px; height: 12px; }
+  .ai-flag {
+    background: rgba(124,58,237,.10); color: var(--accent); border-color: rgba(124,58,237,.32);
+  }
+
+  .lead-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .badge {
+    font-size: 10.5px; font-weight: 800; padding: 4px 10px; border-radius: 8px; letter-spacing: .3px;
+    text-transform: uppercase;
+  }
+  .badge.hot { background: rgba(225,29,72,.12); color: #be123c; }
+  .badge.warm { background: rgba(217,119,6,.13); color: #b45309; }
+  .badge.qualified { background: rgba(5,150,105,.12); color: #047857; }
+  .badge.cold { background: rgba(100,116,139,.14); color: #475569; }
+  .lead-time { font-size: 11px; color: var(--muted-2); }
+  .route { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .route svg { width: 13px; height: 13px; color: var(--accent); }
+
+  .empty {
+    text-align: center; padding: 70px 20px; color: var(--muted);
+  }
+  .empty svg { width: 54px; height: 54px; opacity: .35; margin-bottom: 14px; }
+  .empty h3 { margin: 0 0 6px; color: var(--text); font-weight: 700; }
+
+  /* ---------- Drawer ---------- */
+  .drawer {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; display: flex; flex-direction: column;
+    opacity: 0; transform: translateX(16px); pointer-events: none;
+    transition: opacity .25s, transform .25s;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+  .work.open .drawer { opacity: 1; transform: none; pointer-events: auto; }
+
+  .drawer-head {
+    padding: 18px 18px 16px; border-bottom: 1px solid var(--line-soft);
+    background: linear-gradient(180deg, rgba(124,58,237,.06), transparent);
+    position: relative;
+  }
+  .drawer-close {
+    position: absolute; top: 14px; right: 14px; width: 28px; height: 28px;
+    border-radius: 8px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--muted); cursor: pointer; display: grid; place-items: center;
+  }
+  .drawer-close:hover { color: var(--text); border-color: var(--accent); }
+  .dh-name { font-size: 18px; font-weight: 800; }
+  .dh-co { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .dh-score {
+    display: flex; align-items: center; gap: 14px; margin-top: 16px;
+  }
+  .big-ring { width: 78px; height: 78px; position: relative; flex: none; }
+  .big-ring .num { position: absolute; inset: 0; display: grid; place-items: center; flex-direction: column; }
+  .big-ring .num b { font-size: 24px; font-weight: 800; line-height: 1; }
+  .big-ring .num small { font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: .5px; }
+  .dh-verdict { flex: 1; }
+  .dh-verdict .v-badge { font-size: 12px; font-weight: 800; padding: 5px 12px; border-radius: 9px; text-transform: uppercase; letter-spacing: .4px; }
+  .dh-verdict p { margin: 9px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+  .drawer-body { overflow-y: auto; padding: 16px 18px 22px; flex: 1; }
+
+  .sect-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--muted-2); font-weight: 800; margin: 18px 0 11px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sect-title:first-child { margin-top: 0; }
+  .sect-title svg { width: 14px; height: 14px; color: var(--accent-2); }
+
+  /* score factors */
+  .factor { margin-bottom: 13px; }
+  .factor-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; margin-bottom: 6px; }
+  .factor-top .nm { font-weight: 600; }
+  .factor-top .pts { font-weight: 800; }
+  .factor-top .pts.pos { color: var(--cool); }
+  .factor-top .pts.neg { color: var(--hot); }
+  .bar { height: 7px; border-radius: 6px; background: var(--panel-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  .bar.neg i { background: linear-gradient(90deg, #ff5c7a, #ff8a5c); }
+  .factor-note { font-size: 11px; color: var(--muted-2); margin-top: 5px; }
+
+  /* extracted fields */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .xfield {
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 11px; padding: 10px 11px;
+  }
+  .xfield .k { font-size: 10.5px; color: var(--muted-2); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+  .xfield .v { font-size: 13px; font-weight: 700; margin-top: 3px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .conf { font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; flex: none; }
+  .conf.high { background: rgba(5,150,105,.13); color: #047857; }
+  .conf.med { background: rgba(217,119,6,.14); color: #b45309; }
+  .conf.low { background: rgba(225,29,72,.12); color: #be123c; }
+
+  /* activity feed */
+  .feed { position: relative; padding-left: 6px; }
+  .feed-item { display: flex; gap: 11px; padding-bottom: 15px; position: relative; }
+  .feed-item:not(:last-child)::before {
+    content: ""; position: absolute; left: 11px; top: 24px; bottom: -2px; width: 2px; background: var(--line);
+  }
+  .feed-dot {
+    width: 24px; height: 24px; border-radius: 8px; flex: none; display: grid; place-items: center;
+    background: var(--panel-2); border: 1px solid var(--line); z-index: 1;
+  }
+  .feed-dot svg { width: 13px; height: 13px; }
+  .feed-dot.ai { background: rgba(124,58,237,.10); border-color: rgba(124,58,237,.35); color: var(--accent); }
+  .feed-body { font-size: 12.5px; }
+  .feed-body .t { font-weight: 700; }
+  .feed-body .t b { color: var(--accent); font-weight: 700; }
+  .feed-body .when { font-size: 11px; color: var(--muted-2); margin-top: 2px; }
+
+  /* drawer actions */
+  .drawer-foot {
+    padding: 13px 18px; border-top: 1px solid var(--line-soft);
+    display: flex; gap: 9px; background: var(--panel-2);
+  }
+  .drawer-foot button {
+    flex: 1; height: 40px; border-radius: 11px; font-weight: 700; font-size: 13px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text); transition: all .14s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  }
+  .drawer-foot button:hover { border-color: var(--accent); }
+  .drawer-foot button.go {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #fff;
+    box-shadow: 0 6px 16px rgba(124,58,237,.28);
+  }
+  .drawer-foot button.go svg { stroke: #fff; }
+  .drawer-foot button svg { width: 15px; height: 15px; }
+
+  /* AI reanalyze box */
+  .reanalyze {
+    margin: 4px 0 2px; padding: 13px; border-radius: 13px;
+    background: linear-gradient(135deg, rgba(124,58,237,.08), rgba(124,58,237,.04));
+    border: 1px solid rgba(124,58,237,.24);
+  }
+  .reanalyze .ra-top { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 13px; }
+  .reanalyze .ra-top svg { width: 16px; height: 16px; color: var(--accent); }
+  .reanalyze p { margin: 7px 0 11px; font-size: 11.5px; color: var(--muted); }
+  .reanalyze button {
+    width: 100%; height: 36px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 12.5px;
+    border: none; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .reanalyze button:hover { filter: brightness(1.08); }
+  .reanalyze button.busy { opacity: .8; cursor: progress; }
+  .spin { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: sp .7s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2); border: 1px solid var(--accent); color: var(--text);
+    padding: 12px 20px; border-radius: 12px; font-weight: 600; font-size: 13px;
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .3s; z-index: 60;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 17px; height: 17px; color: var(--cool); }
+
+  @media (max-width: 1180px) {
+    .work.open { grid-template-columns: 1fr 360px; }
+    .stats-row { grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M5 12H2"/><path d="M22 12h-3"/><circle cx="12" cy="12" r="5"/></svg>
+      </div>
+      <div>AI Lead Qualification
+        <small>Inbound triage &amp; scoring</small>
+      </div>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchBox" type="text" placeholder="Search leads, companies, owners…" />
+    </div>
+    <div class="top-actions">
+      <button class="pill-btn" id="bulkScore">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m6 9 6-6 6 6"/></svg>
+        Re-score queue
+      </button>
+      <button class="pill-btn primary" id="newLead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New lead
+      </button>
+      <div class="avatar">AM</div>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="nav-label">Inbox</div>
+    <div class="nav-item active" data-tab="all"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg> All leads <span class="count" id="cAll">24</span></div>
+    <div class="nav-item" data-tab="unreviewed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2 2"/></svg> Needs review <span class="count" id="cUn">7</span></div>
+    <div class="nav-item" data-tab="qualified"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> Qualified <span class="count" id="cQ">9</span></div>
+    <div class="nav-item" data-tab="cold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h20"/><path d="M12 2v20"/><path d="m4.9 4.9 14.2 14.2"/><path d="m19.1 4.9-14.2 14.2"/></svg> Nurture / Cold <span class="count" id="cC">6</span></div>
+
+    <div class="nav-label">Routing</div>
+    <div class="nav-item" data-tab="enterprise"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg> Enterprise AE</div>
+    <div class="nav-item" data-tab="smb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg> SMB team</div>
+
+    <div class="sidebar-stat">
+      <h4>Avg. fit score this week</h4>
+      <div class="big">68<span> +6.4</span></div>
+      <div class="mini-bars" id="miniBars"></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="stats-row" id="statsRow"></div>
+
+    <div class="work" id="work">
+      <div class="list-wrap">
+        <div class="toolbar">
+          <div class="tabs" id="bandTabs">
+            <div class="tab active" data-band="all">All <span class="count" style="margin-left:2px">24</span></div>
+            <div class="tab" data-band="hot"><span class="dot" style="background:var(--hot)"></span>Hot</div>
+            <div class="tab" data-band="warm"><span class="dot" style="background:var(--warm)"></span>Warm</div>
+            <div class="tab" data-band="qualified"><span class="dot" style="background:var(--cool)"></span>Qualified</div>
+            <div class="tab" data-band="cold"><span class="dot" style="background:var(--cold)"></span>Cold</div>
+          </div>
+          <div class="seg" id="sortSeg">
+            <div class="chip active" data-sort="score">Top score</div>
+            <div class="chip" data-sort="recent">Most recent</div>
+            <div class="chip" data-sort="value">Deal value</div>
+          </div>
+        </div>
+        <div class="list" id="list"></div>
+      </div>
+
+      <!-- Drawer -->
+      <section class="drawer" id="drawer">
+        <div class="drawer-head">
+          <button class="drawer-close" id="drawerClose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+          <div class="dh-name" id="dName"></div>
+          <div class="dh-co" id="dCo"></div>
+          <div class="dh-score">
+            <div class="big-ring" id="dRing"></div>
+            <div class="dh-verdict">
+              <span class="v-badge" id="dVerdict"></span>
+              <p id="dBlurb"></p>
+            </div>
+          </div>
+        </div>
+        <div class="drawer-body" id="drawerBody"></div>
+        <div class="drawer-foot">
+          <button id="snoozeBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            Nurture
+          </button>
+          <button class="go" id="routeBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span id="routeLabel">Route to AE</span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+/* ---------------- Seed data ---------------- */
+const LEADS = [
+  { id:1, name:"Marcus Whitfield", title:"VP Engineering", company:"Vantyx Robotics", source:"Demo request", score:94, band:"hot", value:148000, owner:"Enterprise AE", when:"6m ago", reviewed:false,
+    industry:"Industrial Automation", size:"850 employees", region:"North America", intent:"High", email:"m.whitfield@vantyx.io",
+    blurb:"Strong enterprise fit. Decision-maker title, requested a live demo, and budget signal is explicit. Recommend immediate hand-off to Enterprise AE.",
+    factors:[
+      {n:"Job title seniority",p:24,note:"VP-level decision maker",neg:false},
+      {n:"Company size",p:21,note:"850 employees · target segment",neg:false},
+      {n:"Buying intent signals",p:22,note:"\"need this live by Q3\" in form notes",neg:false},
+      {n:"Budget mention",p:18,note:"Explicit $150K ceiling stated",neg:false},
+      {n:"Free-mail domain",p:-3,note:"Corporate domain — no penalty",neg:false} ],
+    fields:[
+      {k:"Budget",v:"$150K / yr",c:"high"},{k:"Timeline",v:"Q3 2026",c:"high"},
+      {k:"Seats",v:"~120",c:"med"},{k:"Use case",v:"Fleet QA",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>94 / Hot</b> and tagged Enterprise",when:"6m ago"},
+      {ai:true,t:"AI extracted budget & timeline from form notes",when:"6m ago"},
+      {ai:false,t:"Lead submitted \"Request a demo\" form",when:"6m ago"} ] },
+
+  { id:2, name:"Priya Nandakumar", title:"Head of Operations", company:"Lumora Health", source:"Webinar", score:88, band:"hot", value:96000, owner:"Enterprise AE", when:"22m ago", reviewed:false,
+    industry:"Healthcare SaaS", size:"420 employees", region:"EMEA", intent:"High", email:"priya@lumorahealth.com",
+    blurb:"Attended the scaling webinar and engaged with 3 follow-up emails. High intent, mid-market size. A strong Enterprise candidate.",
+    factors:[
+      {n:"Engagement depth",p:23,note:"Opened 3 emails, 2 page visits",neg:false},
+      {n:"Job title seniority",p:20,note:"Head of Operations",neg:false},
+      {n:"Company size",p:19,note:"420 employees",neg:false},
+      {n:"Buying intent signals",p:18,note:"Viewed pricing page twice",neg:false},
+      {n:"Region fit",p:8,note:"EMEA — supported",neg:false} ],
+    fields:[
+      {k:"Budget",v:"Not stated",c:"low"},{k:"Timeline",v:"Q4 2026",c:"med"},
+      {k:"Seats",v:"~60",c:"med"},{k:"Use case",v:"Ops analytics",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>88 / Hot</b>",when:"22m ago"},
+      {ai:true,t:"AI matched attendee to webinar registration",when:"24m ago"},
+      {ai:false,t:"Attended \"Scaling Ops\" webinar",when:"2h ago"} ] },
+
+  { id:3, name:"Daniel O'Connor", title:"CTO", company:"NorthPeak Capital", source:"Inbound call", score:91, band:"hot", value:210000, owner:"Enterprise AE", when:"40m ago", reviewed:true,
+    industry:"FinTech", size:"1,200 employees", region:"North America", intent:"High", email:"doconnor@northpeak.co",
+    blurb:"Founder-level technical buyer at a large fintech. Largest potential deal in the queue. Compliance needs noted — loop in solutions eng.",
+    factors:[
+      {n:"Job title seniority",p:25,note:"CTO / founder",neg:false},
+      {n:"Deal value potential",p:24,note:"Est. $210K — top of band",neg:false},
+      {n:"Company size",p:22,note:"1,200 employees",neg:false},
+      {n:"Buying intent signals",p:16,note:"Requested security whitepaper",neg:false},
+      {n:"Compliance complexity",p:-6,note:"SOC2 + region constraints",neg:true} ],
+    fields:[
+      {k:"Budget",v:"$200K+",c:"high"},{k:"Timeline",v:"ASAP",c:"high"},
+      {k:"Seats",v:"~200",c:"med"},{k:"Use case",v:"Risk modeling",c:"med"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>91 / Hot</b> · flagged top deal value",when:"40m ago"},
+      {ai:false,t:"Inbound call logged by SDR",when:"41m ago"} ] },
+
+  { id:4, name:"Sofia Almeida", title:"Marketing Manager", company:"BrightLane Media", source:"Content download", score:72, band:"warm", value:38000, owner:"SMB team", when:"1h ago", reviewed:false,
+    industry:"Media & Advertising", size:"140 employees", region:"LATAM", intent:"Medium", email:"sofia@brightlane.com",
+    blurb:"Mid-funnel marketing contact. Downloaded the ROI guide and fits SMB profile. Good warm lead for nurture-to-demo sequence.",
+    factors:[
+      {n:"Content engagement",p:18,note:"Downloaded ROI guide",neg:false},
+      {n:"Company size",p:14,note:"140 employees · SMB",neg:false},
+      {n:"Job title seniority",p:12,note:"Manager level",neg:false},
+      {n:"Buying intent signals",p:9,note:"Single visit, no pricing view",neg:false},
+      {n:"Region fit",p:-2,note:"LATAM — limited support",neg:true} ],
+    fields:[
+      {k:"Budget",v:"Unknown",c:"low"},{k:"Timeline",v:"Exploring",c:"low"},
+      {k:"Seats",v:"~15",c:"med"},{k:"Use case",v:"Campaign mgmt",c:"med"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>72 / Warm</b> · routed to SMB",when:"1h ago"},
+      {ai:false,t:"Downloaded \"Marketing ROI\" guide",when:"1h ago"} ] },
+
+  { id:5, name:"Hiroshi Tanaka", title:"Director of IT", company:"Keystone Logistics", source:"Demo request", score:81, band:"qualified", value:74000, owner:"Enterprise AE", when:"2h ago", reviewed:true,
+    industry:"Logistics", size:"600 employees", region:"APAC", intent:"High", email:"h.tanaka@keystone-log.jp",
+    blurb:"Qualified mid-market lead with clear use case and an IT-director sponsor. Timeline is defined. Ready for discovery call.",
+    factors:[
+      {n:"Buying intent signals",p:20,note:"Booked a demo slot",neg:false},
+      {n:"Job title seniority",p:18,note:"Director of IT",neg:false},
+      {n:"Company size",p:17,note:"600 employees",neg:false},
+      {n:"Use-case clarity",p:16,note:"Detailed requirements in notes",neg:false},
+      {n:"Region fit",p:10,note:"APAC — supported",neg:false} ],
+    fields:[
+      {k:"Budget",v:"$70-80K",c:"med"},{k:"Timeline",v:"Q3 2026",c:"high"},
+      {k:"Seats",v:"~45",c:"high"},{k:"Use case",v:"Route opt.",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>81 / Qualified</b>",when:"2h ago"},
+      {ai:true,t:"AI summarized requirements from form",when:"2h ago"},
+      {ai:false,t:"Booked demo via calendar link",when:"2h ago"} ] },
+
+  { id:6, name:"Elena Vasquez", title:"COO", company:"Mendel Biolabs", source:"Referral", score:86, band:"qualified", value:132000, owner:"Enterprise AE", when:"3h ago", reviewed:true,
+    industry:"Biotech", size:"310 employees", region:"North America", intent:"High", email:"elena@mendelbio.com",
+    blurb:"Warm referral from an existing customer. Executive sponsor and a defined budget make this a high-confidence qualified lead.",
+    factors:[
+      {n:"Referral source",p:22,note:"From existing customer (Acme)",neg:false},
+      {n:"Job title seniority",p:21,note:"COO",neg:false},
+      {n:"Budget mention",p:17,note:"$130K approved",neg:false},
+      {n:"Company size",p:16,note:"310 employees",neg:false},
+      {n:"Use-case clarity",p:10,note:"Clear lab-ops need",neg:false} ],
+    fields:[
+      {k:"Budget",v:"$130K",c:"high"},{k:"Timeline",v:"Q3 2026",c:"high"},
+      {k:"Seats",v:"~80",c:"med"},{k:"Use case",v:"Lab ops",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>86 / Qualified</b> · referral boost",when:"3h ago"},
+      {ai:false,t:"Referred by Acme Corp account team",when:"3h ago"} ] },
+
+  { id:7, name:"Tom Becker", title:"Freelance Consultant", company:"Self-employed", source:"Newsletter", score:34, band:"cold", value:4000, owner:"SMB team", when:"4h ago", reviewed:true,
+    industry:"Consulting", size:"1 employee", region:"North America", intent:"Low", email:"tombeckerconsult@gmail.com",
+    blurb:"Solo consultant on a free-mail domain with no buying signals. Below SMB threshold. Recommend newsletter nurture only.",
+    factors:[
+      {n:"Newsletter signup",p:6,note:"Low-intent top-of-funnel",neg:false},
+      {n:"Company size",p:-12,note:"1 employee — below threshold",neg:true},
+      {n:"Free-mail domain",p:-8,note:"gmail.com",neg:true},
+      {n:"Buying intent signals",p:-4,note:"No product engagement",neg:true},
+      {n:"Job title fit",p:-2,note:"Non-buying role",neg:true} ],
+    fields:[
+      {k:"Budget",v:"None",c:"high"},{k:"Timeline",v:"None",c:"high"},
+      {k:"Seats",v:"1",c:"high"},{k:"Use case",v:"Unclear",c:"low"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>34 / Cold</b> · nurture only",when:"4h ago"},
+      {ai:false,t:"Subscribed to newsletter",when:"4h ago"} ] },
+
+  { id:8, name:"Aisha Bello", title:"Product Lead", company:"Cobalt Studios", source:"Demo request", score:69, band:"warm", value:42000, owner:"SMB team", when:"5h ago", reviewed:false,
+    industry:"Gaming", size:"95 employees", region:"EMEA", intent:"Medium", email:"aisha@cobaltstudios.gg",
+    blurb:"Engaged product lead at a small studio. Requested a demo but budget is unconfirmed. Good warm fit for SMB nurture sequence.",
+    factors:[
+      {n:"Buying intent signals",p:17,note:"Requested demo",neg:false},
+      {n:"Job title seniority",p:14,note:"Product Lead",neg:false},
+      {n:"Engagement depth",p:13,note:"Viewed 2 case studies",neg:false},
+      {n:"Company size",p:11,note:"95 employees · SMB",neg:false},
+      {n:"Budget mention",p:-6,note:"No budget signal",neg:true} ],
+    fields:[
+      {k:"Budget",v:"Unconfirmed",c:"low"},{k:"Timeline",v:"Q4 2026",c:"med"},
+      {k:"Seats",v:"~12",c:"med"},{k:"Use case",v:"Playtest QA",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>69 / Warm</b>",when:"5h ago"},
+      {ai:false,t:"Requested a product demo",when:"5h ago"} ] },
+
+  { id:9, name:"Gregory Lin", title:"Procurement Manager", company:"Harbor Freight Co.", source:"Webinar", score:58, band:"warm", value:28000, owner:"SMB team", when:"6h ago", reviewed:true,
+    industry:"Retail", size:"260 employees", region:"North America", intent:"Medium", email:"g.lin@harborfreight.com",
+    blurb:"Procurement contact — not a primary economic buyer but useful coach. Medium intent. Worth a light-touch follow-up.",
+    factors:[
+      {n:"Engagement depth",p:15,note:"Attended webinar",neg:false},
+      {n:"Company size",p:14,note:"260 employees",neg:false},
+      {n:"Job title fit",p:6,note:"Procurement — influencer",neg:false},
+      {n:"Buying intent signals",p:7,note:"No pricing view",neg:false},
+      {n:"Use-case clarity",p:-4,note:"Use case not stated",neg:true} ],
+    fields:[
+      {k:"Budget",v:"Unknown",c:"low"},{k:"Timeline",v:"Researching",c:"low"},
+      {k:"Seats",v:"~30",c:"low"},{k:"Use case",v:"TBD",c:"low"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>58 / Warm</b>",when:"6h ago"},
+      {ai:false,t:"Attended \"Scaling Ops\" webinar",when:"6h ago"} ] },
+
+  { id:10, name:"Naomi Park", title:"Head of Growth", company:"Flockwise", source:"Demo request", score:79, band:"qualified", value:64000, owner:"Enterprise AE", when:"8h ago", reviewed:true,
+    industry:"MarTech", size:"180 employees", region:"North America", intent:"High", email:"naomi@flockwise.io",
+    blurb:"Growth leader with strong product engagement and an explicit Q3 timeline. Solid qualified lead — schedule discovery.",
+    factors:[
+      {n:"Buying intent signals",p:20,note:"Demo + pricing page",neg:false},
+      {n:"Job title seniority",p:17,note:"Head of Growth",neg:false},
+      {n:"Engagement depth",p:16,note:"4 sessions this week",neg:false},
+      {n:"Company size",p:13,note:"180 employees",neg:false},
+      {n:"Budget mention",p:13,note:"Range hinted in chat",neg:false} ],
+    fields:[
+      {k:"Budget",v:"~$65K",c:"med"},{k:"Timeline",v:"Q3 2026",c:"high"},
+      {k:"Seats",v:"~25",c:"high"},{k:"Use case",v:"Attribution",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>79 / Qualified</b>",when:"8h ago"},
+      {ai:false,t:"Requested a product demo",when:"8h ago"} ] },
+
+  { id:11, name:"Carlos Mendez", title:"Student", company:"State University", source:"Content download", score:21, band:"cold", value:0, owner:"SMB team", when:"10h ago", reviewed:true,
+    industry:"Education", size:"N/A", region:"LATAM", intent:"Low", email:"cmendez@stateuni.edu",
+    blurb:"Academic .edu contact with no commercial intent. Not a fit for the sales pipeline. Suppress from outreach.",
+    factors:[
+      {n:"Content engagement",p:5,note:"Downloaded one PDF",neg:false},
+      {n:"Job title fit",p:-14,note:"Student — non-buyer",neg:true},
+      {n:"Company fit",p:-10,note:".edu / academic",neg:true},
+      {n:"Buying intent signals",p:-6,note:"No commercial signals",neg:true} ],
+    fields:[
+      {k:"Budget",v:"None",c:"high"},{k:"Timeline",v:"None",c:"high"},
+      {k:"Seats",v:"N/A",c:"high"},{k:"Use case",v:"Research",c:"med"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>21 / Cold</b> · suppressed",when:"10h ago"},
+      {ai:false,t:"Downloaded whitepaper",when:"10h ago"} ] },
+
+  { id:12, name:"Rachel Goldstein", title:"VP Sales", company:"Apex Manufacturing", source:"Referral", score:90, band:"hot", value:175000, owner:"Enterprise AE", when:"11h ago", reviewed:false,
+    industry:"Manufacturing", size:"2,400 employees", region:"North America", intent:"High", email:"rachel@apexmfg.com",
+    blurb:"Senior buyer at a large manufacturer via warm referral. Big deal potential with a clear sponsor. Prioritize for outreach today.",
+    factors:[
+      {n:"Job title seniority",p:24,note:"VP Sales",neg:false},
+      {n:"Deal value potential",p:23,note:"Est. $175K",neg:false},
+      {n:"Referral source",p:20,note:"From partner channel",neg:false},
+      {n:"Company size",p:21,note:"2,400 employees",neg:false},
+      {n:"Buying intent signals",p:2,note:"Early stage — no demo yet",neg:false} ],
+    fields:[
+      {k:"Budget",v:"$170K+",c:"med"},{k:"Timeline",v:"Q4 2026",c:"med"},
+      {k:"Seats",v:"~150",c:"med"},{k:"Use case",v:"Sales enablement",c:"med"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>90 / Hot</b> · referral + size boost",when:"11h ago"},
+      {ai:false,t:"Referred via partner channel",when:"11h ago"} ] },
+
+  { id:13, name:"Owen Murphy", title:"Operations Analyst", company:"Cedar Grove Foods", source:"Newsletter", score:46, band:"cold", value:12000, owner:"SMB team", when:"13h ago", reviewed:true,
+    industry:"Food & Beverage", size:"320 employees", region:"North America", intent:"Low", email:"o.murphy@cedargrove.com",
+    blurb:"Analyst-level contact at a mid-size firm but with minimal engagement. Low intent for now — keep on the nurture track.",
+    factors:[
+      {n:"Company size",p:14,note:"320 employees",neg:false},
+      {n:"Newsletter signup",p:6,note:"Low-intent",neg:false},
+      {n:"Job title fit",p:-3,note:"Analyst — influencer",neg:true},
+      {n:"Buying intent signals",p:-7,note:"No engagement",neg:true} ],
+    fields:[
+      {k:"Budget",v:"Unknown",c:"low"},{k:"Timeline",v:"None",c:"med"},
+      {k:"Seats",v:"~20",c:"low"},{k:"Use case",v:"TBD",c:"low"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>46 / Cold</b>",when:"13h ago"},
+      {ai:false,t:"Subscribed to newsletter",when:"13h ago"} ] },
+
+  { id:14, name:"Yuki Sato", title:"Engineering Manager", company:"Crestline Systems", source:"Demo request", score:77, band:"qualified", value:58000, owner:"Enterprise AE", when:"1d ago", reviewed:true,
+    industry:"Enterprise Software", size:"540 employees", region:"APAC", intent:"High", email:"yuki@crestline.sys",
+    blurb:"Technical evaluator with a defined integration use case. Qualified — pair with solutions engineering for the demo.",
+    factors:[
+      {n:"Buying intent signals",p:19,note:"Requested technical demo",neg:false},
+      {n:"Use-case clarity",p:17,note:"API integration spec attached",neg:false},
+      {n:"Job title seniority",p:14,note:"Engineering Manager",neg:false},
+      {n:"Company size",p:16,note:"540 employees",neg:false},
+      {n:"Budget mention",p:-9,note:"Budget not yet confirmed",neg:true} ],
+    fields:[
+      {k:"Budget",v:"Unconfirmed",c:"low"},{k:"Timeline",v:"Q3 2026",c:"med"},
+      {k:"Seats",v:"~40",c:"med"},{k:"Use case",v:"API integration",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>77 / Qualified</b>",when:"1d ago"},
+      {ai:true,t:"AI parsed integration spec attachment",when:"1d ago"},
+      {ai:false,t:"Requested a technical demo",when:"1d ago"} ] },
+
+  { id:15, name:"Bianca Rossi", title:"Founder & CEO", company:"Verde Organics", source:"Inbound call", score:83, band:"qualified", value:88000, owner:"Enterprise AE", when:"1d ago", reviewed:true,
+    industry:"Consumer Goods", size:"210 employees", region:"EMEA", intent:"High", email:"bianca@verdeorganics.eu",
+    blurb:"Founder-led inbound with strong intent and a clear initiative. Qualified — schedule discovery within 48 hours.",
+    factors:[
+      {n:"Job title seniority",p:22,note:"Founder & CEO",neg:false},
+      {n:"Buying intent signals",p:18,note:"Inbound call, urgent",neg:false},
+      {n:"Company size",p:15,note:"210 employees",neg:false},
+      {n:"Use-case clarity",p:14,note:"Sustainability reporting",neg:false},
+      {n:"Region fit",p:8,note:"EMEA — supported",neg:false} ],
+    fields:[
+      {k:"Budget",v:"~$90K",c:"med"},{k:"Timeline",v:"Q3 2026",c:"high"},
+      {k:"Seats",v:"~35",c:"med"},{k:"Use case",v:"ESG reporting",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>83 / Qualified</b>",when:"1d ago"},
+      {ai:false,t:"Inbound call logged",when:"1d ago"} ] },
+
+  { id:16, name:"Devon Clarke", title:"IT Support", company:"Maple Ridge School", source:"Content download", score:29, band:"cold", value:0, owner:"SMB team", when:"1d ago", reviewed:true,
+    industry:"Education", size:"60 employees", region:"North America", intent:"Low", email:"dclarke@mapleridge.edu",
+    blurb:"K-12 education contact in a support role. Outside our ICP and no commercial signals. Suppress from active outreach.",
+    factors:[
+      {n:"Content engagement",p:5,note:"One download",neg:false},
+      {n:"Company fit",p:-11,note:"K-12 education",neg:true},
+      {n:"Job title fit",p:-8,note:"Support role",neg:true},
+      {n:"Buying intent signals",p:-5,note:"None",neg:true} ],
+    fields:[
+      {k:"Budget",v:"None",c:"high"},{k:"Timeline",v:"None",c:"high"},
+      {k:"Seats",v:"N/A",c:"med"},{k:"Use case",v:"Unclear",c:"low"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>29 / Cold</b> · suppressed",when:"1d ago"},
+      {ai:false,t:"Downloaded resource",when:"1d ago"} ] },
+
+  { id:17, name:"Sandra Koch", title:"Director of Finance", company:"Helix Insurance", source:"Webinar", score:75, band:"qualified", value:71000, owner:"Enterprise AE", when:"2d ago", reviewed:true,
+    industry:"Insurance", size:"780 employees", region:"EMEA", intent:"Medium", email:"s.koch@helixins.de",
+    blurb:"Finance leader who can sponsor budget. Engaged via webinar and follow-up. Qualified — discovery to confirm use case.",
+    factors:[
+      {n:"Job title seniority",p:19,note:"Director of Finance",neg:false},
+      {n:"Company size",p:18,note:"780 employees",neg:false},
+      {n:"Engagement depth",p:15,note:"Webinar + 2 emails",neg:false},
+      {n:"Budget authority",p:13,note:"Finance sponsor",neg:false},
+      {n:"Buying intent signals",p:-3,note:"No demo yet",neg:true} ],
+    fields:[
+      {k:"Budget",v:"$70K",c:"med"},{k:"Timeline",v:"Q4 2026",c:"med"},
+      {k:"Seats",v:"~50",c:"med"},{k:"Use case",v:"Claims ops",c:"med"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>75 / Qualified</b>",when:"2d ago"},
+      {ai:false,t:"Attended finance webinar",when:"2d ago"} ] },
+
+  { id:18, name:"Felix Andersson", title:"Head of Data", company:"Glaciar Analytics", source:"Referral", score:84, band:"qualified", value:102000, owner:"Enterprise AE", when:"2d ago", reviewed:true,
+    industry:"Data & Analytics", size:"360 employees", region:"EMEA", intent:"High", email:"felix@glaciar.io",
+    blurb:"Data leader referred by a current account. Technical fit is strong and budget is sponsored. Qualified for discovery.",
+    factors:[
+      {n:"Referral source",p:21,note:"From existing customer",neg:false},
+      {n:"Job title seniority",p:19,note:"Head of Data",neg:false},
+      {n:"Use-case clarity",p:18,note:"Detailed data pipeline need",neg:false},
+      {n:"Company size",p:16,note:"360 employees",neg:false},
+      {n:"Buying intent signals",p:10,note:"Engaged with docs",neg:false} ],
+    fields:[
+      {k:"Budget",v:"$100K",c:"high"},{k:"Timeline",v:"Q3 2026",c:"med"},
+      {k:"Seats",v:"~70",c:"med"},{k:"Use case",v:"Data pipeline",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>84 / Qualified</b> · referral boost",when:"2d ago"},
+      {ai:false,t:"Referred by existing account",when:"2d ago"} ] },
+
+  { id:19, name:"Monica Reyes", title:"Brand Manager", company:"Solara Cosmetics", source:"Newsletter", score:52, band:"warm", value:22000, owner:"SMB team", when:"3d ago", reviewed:true,
+    industry:"Beauty", size:"120 employees", region:"LATAM", intent:"Low", email:"monica@solara.beauty",
+    blurb:"Brand-side contact with light engagement. Possible future fit. Keep nurturing with relevant case studies.",
+    factors:[
+      {n:"Company size",p:12,note:"120 employees",neg:false},
+      {n:"Engagement depth",p:10,note:"Newsletter + 1 visit",neg:false},
+      {n:"Job title fit",p:5,note:"Marketing influencer",neg:false},
+      {n:"Buying intent signals",p:-6,note:"No product interest yet",neg:true} ],
+    fields:[
+      {k:"Budget",v:"Unknown",c:"low"},{k:"Timeline",v:"Exploring",c:"low"},
+      {k:"Seats",v:"~10",c:"low"},{k:"Use case",v:"TBD",c:"low"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>52 / Warm</b>",when:"3d ago"},
+      {ai:false,t:"Subscribed to newsletter",when:"3d ago"} ] },
+
+  { id:20, name:"James Holloway", title:"Chief Information Officer", company:"Atlas Freight Group", source:"Demo request", score:89, band:"hot", value:165000, owner:"Enterprise AE", when:"3d ago", reviewed:true,
+    industry:"Transportation", size:"3,100 employees", region:"North America", intent:"High", email:"jholloway@atlasfreight.com",
+    blurb:"CIO at a very large logistics group with a booked demo and explicit modernization mandate. High-value enterprise priority.",
+    factors:[
+      {n:"Job title seniority",p:25,note:"CIO",neg:false},
+      {n:"Company size",p:23,note:"3,100 employees",neg:false},
+      {n:"Deal value potential",p:22,note:"Est. $165K",neg:false},
+      {n:"Buying intent signals",p:17,note:"Booked demo, mandate stated",neg:false},
+      {n:"Compliance complexity",p:-4,note:"Multi-region rollout",neg:true} ],
+    fields:[
+      {k:"Budget",v:"$160K+",c:"high"},{k:"Timeline",v:"Q3 2026",c:"high"},
+      {k:"Seats",v:"~250",c:"med"},{k:"Use case",v:"Fleet modernization",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>89 / Hot</b>",when:"3d ago"},
+      {ai:false,t:"Booked enterprise demo",when:"3d ago"} ] },
+
+  { id:21, name:"Lara Petrova", title:"Operations Lead", company:"Nimbus Travel", source:"Content download", score:63, band:"warm", value:34000, owner:"SMB team", when:"3d ago", reviewed:true,
+    industry:"Travel", size:"160 employees", region:"EMEA", intent:"Medium", email:"lara@nimbustravel.com",
+    blurb:"Operations lead at a small travel firm with growing engagement. Promising warm lead — advance with a tailored demo offer.",
+    factors:[
+      {n:"Engagement depth",p:16,note:"3 content pieces",neg:false},
+      {n:"Job title fit",p:13,note:"Operations Lead",neg:false},
+      {n:"Company size",p:12,note:"160 employees",neg:false},
+      {n:"Buying intent signals",p:8,note:"Viewed pricing once",neg:false},
+      {n:"Region fit",p:6,note:"EMEA",neg:false} ],
+    fields:[
+      {k:"Budget",v:"Unknown",c:"low"},{k:"Timeline",v:"Q4 2026",c:"low"},
+      {k:"Seats",v:"~18",c:"med"},{k:"Use case",v:"Ops dashboard",c:"med"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>63 / Warm</b>",when:"3d ago"},
+      {ai:false,t:"Downloaded ops checklist",when:"3d ago"} ] },
+
+  { id:22, name:"Nathan Brooks", title:"Procurement Lead", company:"Ironclad Defense", source:"Inbound call", score:67, band:"warm", value:54000, owner:"Enterprise AE", when:"4d ago", reviewed:true,
+    industry:"Defense", size:"1,800 employees", region:"North America", intent:"Medium", email:"n.brooks@ironclad.gov",
+    blurb:"Large account but a procurement-only contact and strict compliance constraints. Warm — needs an economic-buyer intro.",
+    factors:[
+      {n:"Company size",p:20,note:"1,800 employees",neg:false},
+      {n:"Buying intent signals",p:12,note:"Inbound inquiry",neg:false},
+      {n:"Job title fit",p:4,note:"Procurement — influencer",neg:false},
+      {n:"Compliance complexity",p:-10,note:"Gov / security clearance",neg:true},
+      {n:"Use-case clarity",p:-2,note:"Vague requirements",neg:true} ],
+    fields:[
+      {k:"Budget",v:"TBD",c:"low"},{k:"Timeline",v:"Slow cycle",c:"med"},
+      {k:"Seats",v:"~90",c:"low"},{k:"Use case",v:"Asset tracking",c:"low"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>67 / Warm</b> · compliance flag",when:"4d ago"},
+      {ai:false,t:"Inbound call logged",when:"4d ago"} ] },
+
+  { id:23, name:"Grace Lim", title:"VP Customer Success", company:"Pulse Telecom", source:"Webinar", score:80, band:"qualified", value:79000, owner:"Enterprise AE", when:"4d ago", reviewed:true,
+    industry:"Telecom", size:"920 employees", region:"APAC", intent:"High", email:"grace.lim@pulsetel.sg",
+    blurb:"Senior CS leader with cross-functional buy-in and a defined Q3 initiative. Qualified — solid expansion-style deal.",
+    factors:[
+      {n:"Job title seniority",p:21,note:"VP Customer Success",neg:false},
+      {n:"Company size",p:19,note:"920 employees",neg:false},
+      {n:"Buying intent signals",p:15,note:"Webinar + demo request",neg:false},
+      {n:"Use-case clarity",p:15,note:"CS automation defined",neg:false},
+      {n:"Region fit",p:10,note:"APAC — supported",neg:false} ],
+    fields:[
+      {k:"Budget",v:"$80K",c:"med"},{k:"Timeline",v:"Q3 2026",c:"high"},
+      {k:"Seats",v:"~60",c:"med"},{k:"Use case",v:"CS automation",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>80 / Qualified</b>",when:"4d ago"},
+      {ai:false,t:"Attended webinar, requested demo",when:"4d ago"} ] },
+
+  { id:24, name:"Victor Nguyen", title:"Intern", company:"Quartz Ventures", source:"Newsletter", score:18, band:"cold", value:0, owner:"SMB team", when:"5d ago", reviewed:true,
+    industry:"Venture Capital", size:"40 employees", region:"North America", intent:"Low", email:"vnguyen.intern@gmail.com",
+    blurb:"Intern on a free-mail domain with no buying authority or intent. Not a sales fit. Suppress from outreach.",
+    factors:[
+      {n:"Newsletter signup",p:5,note:"Low-intent",neg:false},
+      {n:"Job title fit",p:-13,note:"Intern — non-buyer",neg:true},
+      {n:"Free-mail domain",p:-7,note:"gmail.com",neg:true},
+      {n:"Buying intent signals",p:-6,note:"None",neg:true} ],
+    fields:[
+      {k:"Budget",v:"None",c:"high"},{k:"Timeline",v:"None",c:"high"},
+      {k:"Seats",v:"N/A",c:"high"},{k:"Use case",v:"None",c:"high"} ],
+    feed:[
+      {ai:true,t:"AI scored lead <b>18 / Cold</b> · suppressed",when:"5d ago"},
+      {ai:false,t:"Subscribed to newsletter",when:"5d ago"} ] }
+];
+
+/* ---------------- State ---------------- */
+let state = { tab:"all", band:"all", sort:"score", search:"", selected:null };
+const BAND_LABEL = { hot:"Hot lead", warm:"Warm lead", qualified:"Qualified", cold:"Cold / nurture" };
+const BAND_COLOR = { hot:"var(--hot)", warm:"var(--warm)", qualified:"var(--cool)", cold:"var(--cold)" };
+
+/* ---------------- Helpers ---------------- */
+function scoreColor(s){ if(s>=85) return "var(--hot)"; if(s>=70) return "var(--warm)"; if(s>=55) return "var(--cool)"; return "var(--cold)"; }
+function money(n){ return n>=1000 ? "$"+(n/1000).toFixed(0)+"K" : "$"+n; }
+function ring(size, score, stroke){
+  const r = (size/2) - stroke/2 - 1;
+  const c = 2*Math.PI*r;
+  const off = c*(1 - score/100);
+  const col = scoreColor(score);
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(31,41,55,.09)" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${stroke}"
+      stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
+      transform="rotate(-90 ${size/2} ${size/2})"/>
+  </svg>`;
+}
+
+/* ---------------- Stats cards ---------------- */
+function spark(points, color){
+  const w=78,h=34, max=Math.max(...points), min=Math.min(...points);
+  const pts = points.map((p,i)=>{
+    const x=(i/(points.length-1))*w;
+    const y=h-2-((p-min)/((max-min)||1))*(h-4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+function renderStats(){
+  const hot = LEADS.filter(l=>l.band==="hot").length;
+  const qualified = LEADS.filter(l=>l.band==="qualified"||l.band==="hot").length;
+  const pipeline = LEADS.filter(l=>l.band!=="cold").reduce((a,l)=>a+l.value,0);
+  const avg = Math.round(LEADS.reduce((a,l)=>a+l.score,0)/LEADS.length);
+  const cards = [
+    {label:"Leads scored today", value:LEADS.length, delta:"+18% vs. yesterday", up:true, ic:"#7c3aed", bg:"rgba(124,58,237,.12)", sp:[14,17,16,20,19,22,24], svg:'<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>'},
+    {label:"Hot leads in queue", value:hot, delta:"+2 this hour", up:true, ic:"#e11d48", bg:"rgba(225,29,72,.12)", sp:[2,3,3,4,5,5,6], svg:'<path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1.5 1-3 1-3"/><path d="M12 22a6 6 0 0 0 6-6c0-2-1-4-2-5"/>'},
+    {label:"Qualified pipeline", value:money(pipeline), delta:"+$84K added", up:true, ic:"#059669", bg:"rgba(5,150,105,.12)", sp:[40,45,52,55,60,66,72], svg:'<path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'},
+    {label:"Avg. fit score", value:avg, delta:"-2 vs. last week", up:false, ic:"#d97706", bg:"rgba(217,119,6,.13)", sp:[70,68,72,69,71,66,68], svg:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'}
+  ];
+  document.getElementById("statsRow").innerHTML = cards.map(c=>`
+    <div class="stat-card">
+      <div class="ic" style="background:${c.bg};color:${c.ic}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${c.svg}</svg></div>
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="delta ${c.up?"up":"down"}">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${c.up?'<path d="M7 17 17 7"/><path d="M8 7h9v9"/>':'<path d="M7 7 17 17"/><path d="M17 8v9H8"/>'}</svg>
+        ${c.delta}
+      </div>
+      ${spark(c.sp, c.ic)}
+    </div>`).join("");
+}
+
+/* ---------------- Mini bars in sidebar ---------------- */
+function renderMiniBars(){
+  const vals=[40,55,48,62,58,70,68];
+  document.getElementById("miniBars").innerHTML = vals.map(v=>`<i style="height:${v}%"></i>`).join("");
+}
+
+/* ---------------- Filtering ---------------- */
+function applyFilters(){
+  let rows = LEADS.slice();
+  if(state.tab==="unreviewed") rows = rows.filter(l=>!l.reviewed);
+  else if(state.tab==="qualified") rows = rows.filter(l=>l.band==="qualified"||l.band==="hot");
+  else if(state.tab==="cold") rows = rows.filter(l=>l.band==="cold");
+  else if(state.tab==="enterprise") rows = rows.filter(l=>l.owner==="Enterprise AE");
+  else if(state.tab==="smb") rows = rows.filter(l=>l.owner==="SMB team");
+
+  if(state.band!=="all") rows = rows.filter(l=>l.band===state.band);
+
+  if(state.search.trim()){
+    const q=state.search.toLowerCase();
+    rows = rows.filter(l=>(l.name+" "+l.company+" "+l.owner+" "+l.industry+" "+l.title).toLowerCase().includes(q));
+  }
+  if(state.sort==="score") rows.sort((a,b)=>b.score-a.score);
+  else if(state.sort==="value") rows.sort((a,b)=>b.value-a.value);
+  else rows.sort((a,b)=>a.id-b.id);
+  return rows;
+}
+
+/* ---------------- Render list ---------------- */
+function renderList(){
+  const rows = applyFilters();
+  const el = document.getElementById("list");
+  if(rows.length===0){
+    el.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <h3>No leads match</h3>
+      <div>Try a different band, tab, or search term.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = rows.map(l=>{
+    const aiFlag = !l.reviewed ? `<span class="tag ai-flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>AI · new</span>` : "";
+    return `
+    <div class="lead t-${l.band} ${state.selected===l.id?"selected":""}" data-id="${l.id}">
+      <div class="score-ring">${ring(56,l.score,5)}<div class="num" style="color:${scoreColor(l.score)}">${l.score}<small>fit</small></div></div>
+      <div class="lead-main">
+        <div class="lead-name">${l.name} ${aiFlag}</div>
+        <div class="lead-co">${l.title} · ${l.company}</div>
+        <div class="lead-meta">
+          <span class="tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/></svg>${l.industry}</span>
+          <span class="tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="3"/><path d="M3 21v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1"/></svg>${l.size}</span>
+          <span class="tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 9h16"/></svg>${l.source}</span>
+        </div>
+      </div>
+      <div class="lead-right">
+        <span class="badge ${l.band}">${l.band}</span>
+        <div class="lead-time">${l.when}</div>
+        <div class="route"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>${l.owner} · ${money(l.value)}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  el.querySelectorAll(".lead").forEach(node=>{
+    node.addEventListener("click",()=>openDrawer(+node.dataset.id));
+  });
+}
+
+/* ---------------- Drawer ---------------- */
+function openDrawer(id){
+  const l = LEADS.find(x=>x.id===id);
+  if(!l) return;
+  state.selected = id;
+  l.reviewed = true;
+  document.getElementById("work").classList.add("open");
+  document.getElementById("dName").textContent = l.name;
+  document.getElementById("dCo").textContent = `${l.title} · ${l.company} · ${l.email}`;
+  document.getElementById("dRing").innerHTML = ring(78,l.score,7) + `<div class="num"><b style="color:${scoreColor(l.score)}">${l.score}</b><small>FIT SCORE</small></div>`;
+
+  const vb = document.getElementById("dVerdict");
+  vb.textContent = BAND_LABEL[l.band];
+  vb.style.background = `color-mix(in srgb, ${BAND_COLOR[l.band]} 18%, transparent)`;
+  vb.style.color = BAND_COLOR[l.band];
+  document.getElementById("dBlurb").textContent = l.blurb;
+
+  const maxAbs = Math.max(...l.factors.map(f=>Math.abs(f.p)));
+  const factorsHTML = l.factors.map(f=>{
+    const pct = Math.round(Math.abs(f.p)/maxAbs*100);
+    return `<div class="factor">
+      <div class="factor-top"><span class="nm">${f.n}</span><span class="pts ${f.p>=0?"pos":"neg"}">${f.p>=0?"+":""}${f.p}</span></div>
+      <div class="bar ${f.p<0?"neg":""}"><i style="width:${pct}%"></i></div>
+      <div class="factor-note">${f.note}</div>
+    </div>`;
+  }).join("");
+
+  const fieldsHTML = l.fields.map(f=>`
+    <div class="xfield">
+      <div class="k">${f.k}</div>
+      <div class="v">${f.v}<span class="conf ${f.c}">${f.c==="high"?"98%":f.c==="med"?"74%":"41%"}</span></div>
+    </div>`).join("");
+
+  const feedHTML = l.feed.map(ev=>`
+    <div class="feed-item">
+      <div class="feed-dot ${ev.ai?"ai":""}">
+        ${ev.ai
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>'}
+      </div>
+      <div class="feed-body"><div class="t">${ev.t}</div><div class="when">${ev.when}</div></div>
+    </div>`).join("");
+
+  document.getElementById("drawerBody").innerHTML = `
+    <div class="reanalyze">
+      <div class="ra-top">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>
+        AI qualification summary
+      </div>
+      <p>Model weighs firmographics, role seniority, engagement signals and stated budget. Add notes or re-run after enrichment.</p>
+      <button id="reRun" data-id="${l.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        Re-analyze this lead
+      </button>
+    </div>
+
+    <div class="sect-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="9" width="3" height="9"/><rect x="13" y="5" width="3" height="13"/></svg>Why this score</div>
+    ${factorsHTML}
+
+    <div class="sect-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>AI-extracted fields</div>
+    <div class="field-grid">${fieldsHTML}</div>
+
+    <div class="sect-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>Activity</div>
+    <div class="feed">${feedHTML}</div>
+  `;
+
+  // route label
+  document.getElementById("routeLabel").textContent = l.owner==="Enterprise AE" ? "Route to Enterprise AE" : "Route to SMB team";
+
+  // hook re-analyze
+  document.getElementById("reRun").addEventListener("click", reAnalyze);
+  document.getElementById("routeBtn").onclick = ()=>{ toast(`Routed ${l.name} to ${l.owner}`); };
+  document.getElementById("snoozeBtn").onclick = ()=>{ toast(`${l.name} moved to nurture track`); };
+
+  renderList();
+  renderCounts();
+}
+
+function closeDrawer(){
+  document.getElementById("work").classList.remove("open");
+  state.selected = null;
+  renderList();
+}
+
+/* ---------------- Re-analyze simulation ---------------- */
+function reAnalyze(e){
+  const btn = e.currentTarget;
+  const id = +btn.dataset.id;
+  const l = LEADS.find(x=>x.id===id);
+  if(!l || btn.classList.contains("busy")) return;
+  btn.classList.add("busy");
+  btn.innerHTML = `<span class="spin"></span>Analyzing signals…`;
+  setTimeout(()=>{
+    // nudge score within band-ish, keep clamped
+    const delta = Math.floor(Math.random()*9)-4;
+    l.score = Math.max(8, Math.min(99, l.score+delta));
+    l.reviewed = true;
+    l.feed.unshift({ai:true, t:`AI re-analyzed lead · score updated to <b>${l.score}</b>`, when:"just now"});
+    openDrawer(id);
+    toast(`Re-analyzed ${l.name} · new fit score ${l.score}`);
+  }, 1300);
+}
+
+/* ---------------- Toast ---------------- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById("toast");
+  document.getElementById("toastMsg").textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+
+/* ---------------- Counts ---------------- */
+function renderCounts(){
+  document.getElementById("cAll").textContent = LEADS.length;
+  document.getElementById("cUn").textContent = LEADS.filter(l=>!l.reviewed).length;
+  document.getElementById("cQ").textContent = LEADS.filter(l=>l.band==="qualified"||l.band==="hot").length;
+  document.getElementById("cC").textContent = LEADS.filter(l=>l.band==="cold").length;
+  // band tab "all" count
+  const allTab = document.querySelector('.tab[data-band="all"] .count');
+  if(allTab) allTab.textContent = applyFilters.allCount = LEADS.length;
+}
+
+/* ---------------- Bulk re-score ---------------- */
+function bulkScore(){
+  const btn = document.getElementById("bulkScore");
+  if(btn.dataset.busy) return;
+  btn.dataset.busy = "1";
+  const original = btn.innerHTML;
+  btn.innerHTML = `<span class="spin"></span>Scoring…`;
+  const unrev = LEADS.filter(l=>!l.reviewed);
+  setTimeout(()=>{
+    unrev.forEach(l=>{ l.reviewed=true; });
+    btn.innerHTML = original;
+    delete btn.dataset.busy;
+    renderList(); renderCounts();
+    toast(`Re-scored ${unrev.length||LEADS.length} leads in the queue`);
+  }, 1400);
+}
+
+/* ---------------- Wire up ---------------- */
+function init(){
+  renderStats();
+  renderMiniBars();
+  renderCounts();
+  renderList();
+
+  // sidebar tabs
+  document.querySelectorAll(".nav-item").forEach(n=>{
+    n.addEventListener("click",()=>{
+      document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active"));
+      n.classList.add("active");
+      state.tab = n.dataset.tab;
+      renderList();
+    });
+  });
+
+  // band tabs
+  document.querySelectorAll("#bandTabs .tab").forEach(t=>{
+    t.addEventListener("click",()=>{
+      document.querySelectorAll("#bandTabs .tab").forEach(x=>x.classList.remove("active"));
+      t.classList.add("active");
+      state.band = t.dataset.band;
+      renderList();
+    });
+  });
+
+  // sort chips
+  document.querySelectorAll("#sortSeg .chip").forEach(c=>{
+    c.addEventListener("click",()=>{
+      document.querySelectorAll("#sortSeg .chip").forEach(x=>x.classList.remove("active"));
+      c.classList.add("active");
+      state.sort = c.dataset.sort;
+      renderList();
+    });
+  });
+
+  // search
+  document.getElementById("searchBox").addEventListener("input",e=>{
+    state.search = e.target.value;
+    renderList();
+  });
+
+  document.getElementById("drawerClose").addEventListener("click", closeDrawer);
+  document.getElementById("bulkScore").addEventListener("click", bulkScore);
+  document.getElementById("newLead").addEventListener("click", ()=>toast("Lead capture form — AI will score on submit"));
+
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+}
+init();
+</script>
+</body>
+</html>

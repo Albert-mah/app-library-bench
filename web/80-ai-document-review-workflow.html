@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Document Review Workflow</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-soft: #f0f2f5;
+    --panel: #ffffff;
+    --panel-2: #eef0f4;
+    --line: #e3e6ec;
+    --line-soft: #eceef2;
+    --text: #1f2937;
+    --text-dim: #5b6678;
+    --text-faint: #8a93a4;
+    --accent: #c026d3;
+    --accent-soft: rgba(192,38,211,0.10);
+    --accent-2: #e879f9;
+    --green: #16a34a;
+    --green-bg: rgba(22,163,74,0.11);
+    --amber: #d97706;
+    --amber-bg: rgba(217,119,6,0.12);
+    --red: #dc2626;
+    --red-bg: rgba(220,38,38,0.10);
+    --violet: #9333ea;
+    --violet-bg: rgba(147,51,234,0.11);
+    --radius: 13px;
+    --shadow: 0 18px 50px rgba(31,41,55,0.16);
+    font-synthesis: none;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 12% -8%, rgba(192,38,211,0.05), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #cdd2db; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #b4bbc7; background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- Layout shell ---------- */
+  .app { display: grid; grid-template-columns: 234px 1fr; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    padding: 20px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 18px; }
+  .brand .mark {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--violet));
+    display: grid; place-items: center; box-shadow: 0 6px 18px rgba(192,38,211,0.3);
+    flex-shrink: 0;
+  }
+  .brand .mark svg { width: 19px; height: 19px; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: -0.2px; }
+  .brand .sub { font-size: 11px; color: var(--text-faint); margin-top: -2px; }
+
+  .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-faint); padding: 14px 8px 6px; font-weight: 600; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 9px; color: var(--text-dim);
+    cursor: pointer; font-weight: 500; font-size: 13.5px; position: relative;
+    transition: background 0.13s, color 0.13s;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: 0.85; }
+  .nav-item:hover { background: var(--panel-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: -16px; top: 8px; bottom: 8px; width: 3px;
+    background: var(--accent); border-radius: 0 3px 3px 0;
+  }
+  .nav-item .count {
+    margin-left: auto; font-size: 11px; background: var(--panel-2);
+    color: var(--text-dim); border-radius: 20px; padding: 1px 8px; font-weight: 600;
+  }
+  .nav-item.active .count { background: rgba(192,38,211,0.16); color: var(--accent); }
+
+  .sidebar-foot { margin-top: auto; border-top: 1px solid var(--line-soft); padding-top: 14px; }
+  .quota { padding: 4px 8px; }
+  .quota .qlabel { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-dim); margin-bottom: 7px; }
+  .quota .qbar { height: 6px; border-radius: 6px; background: var(--panel-2); overflow: hidden; }
+  .quota .qfill { height: 100%; width: 68%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 6px; }
+  .quota .qnote { font-size: 10.5px; color: var(--text-faint); margin-top: 7px; }
+
+  /* ---------- Main ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 26px; border-bottom: 1px solid var(--line);
+    background: rgba(255,255,255,0.82); backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .page-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .page-title .zh { color: var(--text-faint); font-weight: 500; font-size: 13px; margin-left: 8px; }
+  .search {
+    margin-left: auto; position: relative; width: 320px; max-width: 36vw;
+  }
+  .search input {
+    width: 100%; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 12px 9px 36px; color: var(--text);
+    font-size: 13.5px; outline: none; transition: border 0.13s, box-shadow 0.13s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-faint); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    padding: 9px 14px; border-radius: 9px; font-size: 13.5px; font-weight: 600;
+    transition: background 0.13s, border 0.13s, transform 0.06s;
+  }
+  .btn:hover { background: var(--panel-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 16px; height: 16px; }
+  .btn.primary {
+    background: linear-gradient(135deg, var(--accent), #a21caf); border-color: transparent; color: #fff;
+    box-shadow: 0 5px 16px rgba(192,38,211,0.32);
+  }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--violet));
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
+  }
+
+  .content { padding: 22px 26px 40px; }
+
+  /* ---------- KPI strip ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,0.04), 0 6px 18px rgba(31,41,55,0.05);
+  }
+  .kpi .ktop { display: flex; align-items: center; gap: 9px; color: var(--text-dim); font-size: 12.5px; font-weight: 600; }
+  .kpi .kicon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+  .kpi .kicon svg { width: 15px; height: 15px; }
+  .kpi .kval { font-size: 27px; font-weight: 750; letter-spacing: -0.8px; margin-top: 10px; }
+  .kpi .kdelta { font-size: 12px; margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+  .kpi .spark { position: absolute; right: 14px; bottom: 12px; opacity: 0.85; }
+  .up { color: var(--green); } .down { color: var(--red); }
+
+  /* ---------- Toolbar ---------- */
+  .review-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 4px; }
+  .tab {
+    padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 8px;
+    transition: background 0.12s, color 0.12s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--accent-soft); color: var(--accent); }
+  .tab .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .tab .tcount { font-size: 11px; background: var(--panel-2); border-radius: 20px; padding: 0 7px; font-weight: 700; color: var(--text-dim); }
+  .seg { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .chip {
+    border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
+    padding: 7px 12px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; font-weight: 600;
+    display: flex; align-items: center; gap: 7px; transition: border 0.12s, color 0.12s;
+  }
+  .chip:hover { color: var(--text); border-color: #c9cfda; }
+  .chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .chip svg { width: 14px; height: 14px; }
+
+  /* ---------- Split board ---------- */
+  .board { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .queue {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,0.04), 0 6px 18px rgba(31,41,55,0.05);
+  }
+  .qhead {
+    display: grid; grid-template-columns: 2.4fr 1.1fr 1.3fr 1.1fr 0.9fr 34px;
+    gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-faint); font-weight: 700;
+    background: var(--bg-soft);
+  }
+  .row {
+    display: grid; grid-template-columns: 2.4fr 1.1fr 1.3fr 1.1fr 0.9fr 34px;
+    gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line-soft);
+    align-items: center; cursor: pointer; transition: background 0.1s;
+  }
+  .row:last-child { border-bottom: none; }
+  .row:hover { background: var(--panel-2); }
+  .row.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+  .doc-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .ftype {
+    width: 38px; height: 44px; border-radius: 7px; flex-shrink: 0; position: relative;
+    display: grid; place-items: end center; padding-bottom: 5px;
+    font-size: 8.5px; font-weight: 800; color: #fff; letter-spacing: 0.3px;
+  }
+  .ftype.pdf { background: linear-gradient(160deg,#ef4444,#b91c1c); }
+  .ftype.docx { background: linear-gradient(160deg,#c026d3,#86198f); }
+  .ftype.xlsx { background: linear-gradient(160deg,#16a34a,#15803d); }
+  .ftype.png  { background: linear-gradient(160deg,#9333ea,#6b21a8); }
+  .ftype::before { content:""; position:absolute; top:0; right:0; border-width:0 11px 11px 0; border-style:solid; border-color: rgba(0,0,0,0.28) transparent; }
+  .doc-meta { min-width: 0; }
+  .doc-name { font-weight: 650; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+  .doctype-pill {
+    font-size: 11px; font-weight: 650; padding: 3px 9px; border-radius: 20px;
+    background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--line); white-space: nowrap;
+  }
+
+  .score-wrap { display: flex; align-items: center; gap: 9px; }
+  .gauge { position: relative; width: 34px; height: 34px; flex-shrink: 0; }
+  .gauge .num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; font-weight: 800; }
+  .score-meta { font-size: 11px; color: var(--text-faint); }
+  .score-meta b { display: block; font-size: 12.5px; font-weight: 700; }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700;
+    padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .status .sd { width: 6px; height: 6px; border-radius: 50%; }
+  .s-approve { background: var(--green-bg); color: var(--green); }
+  .s-approve .sd { background: var(--green); }
+  .s-review { background: var(--amber-bg); color: var(--amber); }
+  .s-review .sd { background: var(--amber); }
+  .s-reject { background: var(--red-bg); color: var(--red); }
+  .s-reject .sd { background: var(--red); }
+  .s-pending { background: var(--violet-bg); color: var(--violet); }
+  .s-pending .sd { background: var(--violet); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  .risk-bar { display: flex; gap: 3px; align-items: center; }
+  .risk-bar .seg-b { width: 7px; height: 18px; border-radius: 2px; background: var(--panel-2); }
+  .assignee { display: flex; align-items: center; gap: 8px; }
+  .mini-av { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .chev { color: var(--text-faint); display: grid; place-items: center; }
+  .chev svg { width: 17px; height: 17px; }
+
+  .empty {
+    padding: 60px 20px; text-align: center; color: var(--text-faint);
+  }
+  .empty svg { width: 42px; height: 42px; opacity: 0.5; margin-bottom: 12px; }
+  .empty h4 { color: var(--text-dim); margin: 0 0 4px; font-size: 15px; }
+
+  /* ---------- Drawer ---------- */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(31,41,55,0.34); backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none; transition: opacity 0.22s; z-index: 50;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 540px; max-width: 94vw;
+    background: var(--bg-soft); border-left: 1px solid var(--line);
+    box-shadow: var(--shadow); transform: translateX(102%); transition: transform 0.28s cubic-bezier(.4,.0,.2,1);
+    z-index: 60; display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .dr-head {
+    padding: 18px 22px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; gap: 14px;
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg-soft) 100%);
+  }
+  .dr-head .doc-name { font-size: 16px; white-space: normal; }
+  .dr-close {
+    margin-left: auto; width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    border: 1px solid var(--line); background: var(--panel); display: grid; place-items: center; cursor: pointer; color: var(--text-dim);
+  }
+  .dr-close:hover { background: var(--panel-2); color: var(--text); }
+  .dr-body { overflow-y: auto; flex: 1; padding: 20px 22px 30px; }
+
+  .ai-banner {
+    background: linear-gradient(135deg, rgba(192,38,211,0.08), rgba(147,51,234,0.06));
+    border: 1px solid rgba(192,38,211,0.22); border-radius: 12px; padding: 15px 16px; margin-bottom: 20px;
+    position: relative; overflow: hidden;
+  }
+  .ai-banner .ab-top { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+  .ai-badge {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent);
+    background: rgba(192,38,211,0.14); padding: 3px 9px; border-radius: 6px;
+  }
+  .ai-badge svg { width: 13px; height: 13px; }
+  .ab-verdict { font-size: 16px; font-weight: 750; letter-spacing: -0.2px; }
+  .ab-reason { font-size: 13px; color: var(--text-dim); margin-top: 7px; line-height: 1.6; }
+  .ab-conf { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
+  .ab-conf .cbar { flex: 1; height: 7px; background: rgba(31,41,55,0.08); border-radius: 6px; overflow: hidden; }
+  .ab-conf .cfill { height: 100%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); border-radius: 6px; }
+  .ab-conf .cval { font-size: 12px; font-weight: 700; color: var(--accent); }
+
+  .sec-title { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-faint); font-weight: 700; margin: 22px 0 12px; display: flex; align-items: center; gap: 8px; }
+  .sec-title .ln { flex: 1; height: 1px; background: var(--line); }
+
+  .fields { display: grid; gap: 9px; }
+  .field-row {
+    display: grid; grid-template-columns: 130px 1fr auto; gap: 12px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 9px; padding: 10px 13px;
+  }
+  .field-row .fk { font-size: 12px; color: var(--text-faint); font-weight: 600; }
+  .field-row .fv { font-size: 13.5px; font-weight: 600; word-break: break-word; }
+  .conf-badge { font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+  .c-hi { background: var(--green-bg); color: var(--green); }
+  .c-mid { background: var(--amber-bg); color: var(--amber); }
+  .c-lo { background: var(--red-bg); color: var(--red); }
+
+  .flags { display: grid; gap: 9px; }
+  .flag {
+    display: flex; gap: 11px; padding: 12px 13px; border-radius: 9px;
+    background: var(--panel); border: 1px solid var(--line-soft); border-left: 3px solid var(--amber);
+  }
+  .flag.err { border-left-color: var(--red); }
+  .flag.ok  { border-left-color: var(--green); }
+  .flag .fi { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; }
+  .flag .fi svg { width: 16px; height: 16px; }
+  .flag .ftext { font-size: 12.5px; line-height: 1.55; }
+  .flag .ftext b { display: block; font-size: 13px; margin-bottom: 1px; }
+  .flag .ftext .loc { color: var(--text-faint); font-size: 11px; margin-top: 3px; }
+
+  .feed { display: grid; gap: 0; position: relative; padding-left: 6px; }
+  .feed::before { content:""; position:absolute; left: 11px; top: 6px; bottom: 14px; width: 2px; background: var(--line); }
+  .fevent { display: flex; gap: 13px; padding: 7px 0; position: relative; }
+  .fevent .fnode { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; border: 2px solid var(--bg-soft); z-index: 1; }
+  .fevent .fcontent { font-size: 12.5px; }
+  .fevent .fcontent b { font-weight: 700; }
+  .fevent .ftime { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+
+  .dr-foot {
+    border-top: 1px solid var(--line); padding: 14px 22px; display: flex; gap: 10px;
+    background: var(--panel);
+  }
+  .dr-foot .btn { flex: 1; justify-content: center; }
+  .btn.ok { background: var(--green-bg); color: var(--green); border-color: rgba(54,211,153,0.3); }
+  .btn.ok:hover { background: rgba(54,211,153,0.2); }
+  .btn.no { background: var(--red-bg); color: var(--red); border-color: rgba(245,106,121,0.3); }
+  .btn.no:hover { background: rgba(245,106,121,0.2); }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px;
+    padding: 13px 18px; display: flex; align-items: center; gap: 11px; box-shadow: var(--shadow);
+    opacity: 0; pointer-events: none; transition: opacity 0.22s, transform 0.22s; z-index: 80; font-weight: 600; font-size: 13.5px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast .ti { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+
+  /* Donut chart */
+  .charts-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: 0 1px 2px rgba(31,41,55,0.04), 0 6px 18px rgba(31,41,55,0.05); }
+  .card h3 { margin: 0 0 4px; font-size: 14.5px; font-weight: 700; }
+  .card .csub { font-size: 12px; color: var(--text-faint); margin-bottom: 16px; }
+  .bars { display: grid; gap: 13px; }
+  .barline { display: grid; grid-template-columns: 130px 1fr 42px; gap: 12px; align-items: center; }
+  .barline .blk { font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
+  .barline .btrack { height: 9px; background: var(--panel-2); border-radius: 6px; overflow: hidden; }
+  .barline .bfill { height: 100%; border-radius: 6px; }
+  .barline .bval { font-size: 12.5px; font-weight: 700; text-align: right; }
+  .donut-wrap { display: flex; align-items: center; gap: 20px; }
+  .legend { display: grid; gap: 11px; }
+  .legend .lg { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .legend .lg .sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+  .legend .lg .lv { margin-left: auto; font-weight: 700; color: var(--text); }
+  .legend .lg .lk { color: var(--text-dim); }
+
+  @media (max-width: 1100px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .kpis { grid-template-columns: repeat(2,1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 3h8l4 4v14H6V3z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v4h4" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 13l2 2 4-4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div class="name">Verifai</div>
+        <div class="sub">Document Review</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/></svg>Review Queue<span class="count">18</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M4 4h16v6H4zM4 14h16v6H4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>My Tasks<span class="count">5</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/></svg>Approved<span class="count">204</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Rejected<span class="count">31</span></div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3M20 16v-7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Compliance</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 00-2-1.2L16 2H8l-.5 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 003 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1c.6.5 1.3.9 2 1.2L8 22h8l.5-2.6c.7-.3 1.4-.7 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" stroke="currentColor" stroke-width="1.3"/></svg>AI Settings</div>
+
+    <div class="sidebar-foot">
+      <div class="quota">
+        <div class="qlabel"><span>AI review credits</span><span>3,420 / 5,000</span></div>
+        <div class="qbar"><div class="qfill"></div></div>
+        <div class="qnote">Resets in 8 days &middot; Pro plan</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div class="page-title">AI Document Review Workflow<span class="zh">AI 文档审核工作流</span></div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input id="search" type="text" placeholder="Search documents, parties, amounts…" />
+      </div>
+      <button class="btn primary" id="uploadBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V5m0 0l-4 4m4-4l4 4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>Upload &amp; Analyze</button>
+      <div class="avatar">DM</div>
+    </header>
+
+    <div class="content">
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="ktop"><span class="kicon" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none"><path d="M6 3h8l4 4v14H6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 13l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Documents in queue</div>
+          <div class="kval">18</div>
+          <div class="kdelta down"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 17V9M17 17H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>12% vs last week</div>
+          <svg class="spark" width="62" height="26" viewBox="0 0 62 26"><polyline points="0,18 10,14 20,16 30,9 40,12 50,6 62,8" fill="none" stroke="#c026d3" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="ktop"><span class="kicon" style="background:var(--green-bg);color:var(--green)"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M8 12l3 3 5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Auto-approved by AI</div>
+          <div class="kval">72%</div>
+          <div class="kdelta up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M17 7v8M17 7H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>6.4% this month</div>
+          <svg class="spark" width="62" height="26" viewBox="0 0 62 26"><polyline points="0,20 10,17 20,18 30,12 40,13 50,8 62,5" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="ktop"><span class="kicon" style="background:var(--amber-bg);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>Flagged for review</div>
+          <div class="kval">5</div>
+          <div class="kdelta" style="color:var(--text-faint)">Needs human decision</div>
+          <svg class="spark" width="62" height="26" viewBox="0 0 62 26"><polyline points="0,10 10,14 20,9 30,15 40,11 50,16 62,12" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="ktop"><span class="kicon" style="background:var(--violet-bg);color:var(--violet)"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Avg. review time</div>
+          <div class="kval">1.8<span style="font-size:15px;color:var(--text-dim)"> min</span></div>
+          <div class="kdelta up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 17V9M17 17H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>down from 14 min</div>
+          <svg class="spark" width="62" height="26" viewBox="0 0 62 26"><polyline points="0,5 10,9 20,8 30,13 40,12 50,17 62,20" fill="none" stroke="#9333ea" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-row">
+        <div class="card">
+          <h3>Review decisions by document type</h3>
+          <div class="csub">How the AI routes each category over the last 30 days</div>
+          <div class="bars">
+            <div class="barline"><span class="blk">Contracts</span><div class="btrack"><div class="bfill" style="width:82%;background:linear-gradient(90deg,#c026d3,#e879f9)"></div></div><span class="bval">82</span></div>
+            <div class="barline"><span class="blk">Invoices</span><div class="btrack"><div class="bfill" style="width:94%;background:linear-gradient(90deg,#16a34a,#4ade80)"></div></div><span class="bval">61</span></div>
+            <div class="barline"><span class="blk">NDAs</span><div class="btrack"><div class="bfill" style="width:55%;background:linear-gradient(90deg,#9333ea,#c084fc)"></div></div><span class="bval">28</span></div>
+            <div class="barline"><span class="blk">Policy docs</span><div class="btrack"><div class="bfill" style="width:38%;background:linear-gradient(90deg,#d97706,#fbbf24)"></div></div><span class="bval">19</span></div>
+            <div class="barline"><span class="blk">Statements</span><div class="btrack"><div class="bfill" style="width:30%;background:linear-gradient(90deg,#dc2626,#f87171)"></div></div><span class="bval">14</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Outcome split</h3>
+          <div class="csub">All 247 reviews this cycle</div>
+          <div class="donut-wrap">
+            <svg width="124" height="124" viewBox="0 0 42 42">
+              <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#eceef2" stroke-width="6"/>
+              <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#c026d3" stroke-width="6" stroke-dasharray="58 42" stroke-dashoffset="25" stroke-linecap="round"/>
+              <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#d97706" stroke-width="6" stroke-dasharray="26 74" stroke-dashoffset="-33" stroke-linecap="round"/>
+              <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="13 87" stroke-dashoffset="-59" stroke-linecap="round"/>
+              <text x="21" y="20" text-anchor="middle" fill="#1f2937" font-size="7" font-weight="700">247</text>
+              <text x="21" y="26" text-anchor="middle" fill="#8a93a4" font-size="3.4">reviews</text>
+            </svg>
+            <div class="legend">
+              <div class="lg"><span class="sw" style="background:#c026d3"></span><span class="lk">Auto-approved</span><span class="lv">143</span></div>
+              <div class="lg"><span class="sw" style="background:#d97706"></span><span class="lk">Human review</span><span class="lv">72</span></div>
+              <div class="lg"><span class="sw" style="background:#dc2626"></span><span class="lk">Rejected</span><span class="lv">32</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review head -->
+      <div class="review-head">
+        <div class="tabs" id="tabs">
+          <div class="tab active" data-tab="all">All<span class="tcount">18</span></div>
+          <div class="tab" data-tab="pending"><span class="dot" style="background:var(--violet)"></span>Analyzing<span class="tcount">2</span></div>
+          <div class="tab" data-tab="review"><span class="dot" style="background:var(--amber)"></span>Needs Review<span class="tcount">5</span></div>
+          <div class="tab" data-tab="approve"><span class="dot" style="background:var(--green)"></span>Approved<span class="tcount">8</span></div>
+          <div class="tab" data-tab="reject"><span class="dot" style="background:var(--red)"></span>Rejected<span class="tcount">3</span></div>
+        </div>
+        <div class="seg">
+          <div class="chip" id="riskChip"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.6"/></svg>High risk only</div>
+          <div class="chip"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>Sort: AI score</div>
+        </div>
+      </div>
+
+      <!-- Queue -->
+      <div class="board">
+        <div class="queue">
+          <div class="qhead">
+            <div>Document</div>
+            <div>Type</div>
+            <div>AI Score</div>
+            <div>Status</div>
+            <div>Reviewer</div>
+            <div></div>
+          </div>
+          <div id="rows"></div>
+          <div class="empty" id="emptyState" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.7"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <h4>No documents match</h4>
+            <div>Try clearing the filter or searching a different term.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div class="ftype docx" id="drFtype">DOCX</div>
+    <div style="min-width:0">
+      <div class="doc-name" id="drName">—</div>
+      <div class="doc-sub" id="drSub">—</div>
+    </div>
+    <div class="dr-close" id="drClose"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot">
+    <button class="btn no" id="rejectBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Reject</button>
+    <button class="btn" id="reqBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Request changes</button>
+    <button class="btn ok" id="approveBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>Approve</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><span class="ti"></span><span id="toastMsg"></span></div>
+
+<script>
+const PEOPLE = {
+  DM: {n:"Dana Mercer", c:"#d97706"},
+  RK: {n:"Raj Kapoor", c:"#c026d3"},
+  EL: {n:"Elena Voss", c:"#0d9488"},
+  TN: {n:"Theo Nakamura", c:"#9333ea"},
+  AI: {n:"AI Reviewer", c:"#16a34a"},
+  PR: {n:"Priya Anand", c:"#dc2626"},
+};
+
+const DOCS = [
+  {
+    id:1, name:"MSA — Northwind Logistics 2026.docx", type:"Contract", ext:"docx",
+    party:"Northwind Logistics Ltd.", uploaded:"2026-06-22 09:14", pages:14, words:"6,210",
+    score:91, status:"approve", reviewer:"AI", risk:1,
+    verdict:"Recommend approve", confidence:94,
+    reason:"All standard clauses present and within policy. Liability cap, governing law (Delaware), and payment terms match the approved MSA template. No unusual indemnity or auto-renewal language detected.",
+    fields:[
+      {k:"Counterparty", v:"Northwind Logistics Ltd.", c:"hi"},
+      {k:"Contract value", v:"$248,000 / year", c:"hi"},
+      {k:"Effective date", v:"2026-07-01", c:"hi"},
+      {k:"Term", v:"24 months", c:"hi"},
+      {k:"Governing law", v:"Delaware, USA", c:"hi"},
+      {k:"Auto-renewal", v:"None", c:"mid"},
+    ],
+    flags:[
+      {t:"ok", title:"Liability cap within policy", d:"Capped at 12 months of fees — matches standard.", loc:"Section 9.2, p.8"},
+      {t:"ok", title:"Payment terms standard", d:"Net-30, no early-payment penalty.", loc:"Section 4.1, p.3"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> extracted 18 fields &amp; classified as Contract", time:"2 min ago"},
+      {c:"#c026d3", t:"<b>AI Reviewer</b> ran 24 policy checks — 24 passed", time:"2 min ago"},
+      {c:"#16a34a", t:"<b>AI Reviewer</b> recommended <b>approve</b> at 94% confidence", time:"1 min ago"},
+    ],
+  },
+  {
+    id:2, name:"Invoice #INV-20418 — Atlas Cloud.pdf", type:"Invoice", ext:"pdf",
+    party:"Atlas Cloud Services", uploaded:"2026-06-22 11:02", pages:2, words:"410",
+    score:58, status:"review", reviewer:"RK", risk:3,
+    verdict:"Needs human review", confidence:71,
+    reason:"Invoice total ($14,820) exceeds the matched purchase order by $1,320. Tax line appears to be calculated at 9.5% but the billing region uses 8.25%. Recommend verifying PO reference and tax jurisdiction before approval.",
+    fields:[
+      {k:"Vendor", v:"Atlas Cloud Services", c:"hi"},
+      {k:"Invoice total", v:"$14,820.00", c:"hi"},
+      {k:"PO match", v:"PO-9981 (−$1,320)", c:"lo"},
+      {k:"Tax rate", v:"9.5% (expected 8.25%)", c:"lo"},
+      {k:"Due date", v:"2026-07-15", c:"hi"},
+      {k:"Line items", v:"6 items", c:"mid"},
+    ],
+    flags:[
+      {t:"err", title:"Amount exceeds purchase order", d:"Invoice is $1,320 over the linked PO-9981.", loc:"Total, p.1"},
+      {t:"", title:"Tax rate mismatch", d:"9.5% billed; jurisdiction rate is 8.25%.", loc:"Tax line, p.1"},
+      {t:"ok", title:"Vendor on approved list", d:"Atlas Cloud is an active approved vendor.", loc:"Header"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> matched invoice to <b>PO-9981</b>", time:"18 min ago"},
+      {c:"#d97706", t:"<b>AI Reviewer</b> flagged 2 discrepancies", time:"17 min ago"},
+      {c:"#c026d3", t:"Routed to <b>Raj Kapoor</b> for review", time:"16 min ago"},
+    ],
+  },
+  {
+    id:3, name:"NDA — Brightside Ventures.pdf", type:"NDA", ext:"pdf",
+    party:"Brightside Ventures", uploaded:"2026-06-21 16:40", pages:6, words:"2,140",
+    score:88, status:"approve", reviewer:"AI", risk:1,
+    verdict:"Recommend approve", confidence:90,
+    reason:"Mutual NDA matches the standard template. Confidentiality term of 3 years and carve-outs for publicly available information are all present and compliant.",
+    fields:[
+      {k:"Counterparty", v:"Brightside Ventures", c:"hi"},
+      {k:"Type", v:"Mutual NDA", c:"hi"},
+      {k:"Term", v:"3 years", c:"hi"},
+      {k:"Governing law", v:"New York, USA", c:"hi"},
+      {k:"Signatories", v:"2 of 2 present", c:"hi"},
+    ],
+    flags:[
+      {t:"ok", title:"Standard mutual template", d:"No one-sided obligations detected.", loc:"Full document"},
+      {t:"ok", title:"Both signature blocks present", d:"Signed by both parties.", loc:"p.6"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> classified as NDA (mutual)", time:"1 hr ago"},
+      {c:"#16a34a", t:"<b>AI Reviewer</b> recommended <b>approve</b> at 90%", time:"1 hr ago"},
+    ],
+  },
+  {
+    id:4, name:"Vendor Agreement — Helix Supply.docx", type:"Contract", ext:"docx",
+    party:"Helix Supply Co.", uploaded:"2026-06-22 08:05", pages:22, words:"9,820",
+    score:34, status:"reject", reviewer:"EL", risk:4,
+    verdict:"Recommend reject", confidence:86,
+    reason:"Contains an uncapped indemnity clause and a unilateral 5-year auto-renewal that violates procurement policy. Governing law is set to a non-approved jurisdiction. Three high-risk terms detected.",
+    fields:[
+      {k:"Counterparty", v:"Helix Supply Co.", c:"hi"},
+      {k:"Contract value", v:"$512,000 / year", c:"hi"},
+      {k:"Auto-renewal", v:"5 years, unilateral", c:"lo"},
+      {k:"Indemnity", v:"Uncapped", c:"lo"},
+      {k:"Governing law", v:"Cayman Islands", c:"lo"},
+    ],
+    flags:[
+      {t:"err", title:"Uncapped indemnity", d:"No liability cap — exceeds risk policy.", loc:"Section 11.4, p.14"},
+      {t:"err", title:"Unilateral auto-renewal", d:"5-year renewal with no opt-out window.", loc:"Section 3.2, p.4"},
+      {t:"err", title:"Non-approved jurisdiction", d:"Governing law not on approved list.", loc:"Section 18, p.20"},
+    ],
+    feed:[
+      {c:"#dc2626", t:"<b>AI Reviewer</b> detected 3 high-risk clauses", time:"4 hr ago"},
+      {c:"#dc2626", t:"<b>AI Reviewer</b> recommended <b>reject</b> at 86%", time:"4 hr ago"},
+      {c:"#0d9488", t:"<b>Elena Voss</b> confirmed rejection", time:"3 hr ago"},
+    ],
+  },
+  {
+    id:5, name:"Q2 Bank Statement — Operating.pdf", type:"Statement", ext:"pdf",
+    party:"Meridian Bank", uploaded:"2026-06-22 10:48", pages:9, words:"3,200",
+    score:79, status:"approve", reviewer:"AI", risk:2,
+    verdict:"Recommend approve", confidence:83,
+    reason:"Statement totals reconcile with the ledger within tolerance. One unmatched transaction of $480 noted but below the materiality threshold.",
+    fields:[
+      {k:"Account", v:"Operating ••4421", c:"hi"},
+      {k:"Period", v:"Apr–Jun 2026", c:"hi"},
+      {k:"Closing balance", v:"$1,284,902.11", c:"hi"},
+      {k:"Unmatched txns", v:"1 ($480)", c:"mid"},
+    ],
+    flags:[
+      {t:"ok", title:"Reconciles with ledger", d:"Within $500 tolerance band.", loc:"Summary, p.1"},
+      {t:"", title:"1 unmatched transaction", d:"$480 debit below materiality.", loc:"p.5"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> reconciled against ledger", time:"3 hr ago"},
+      {c:"#16a34a", t:"Recommended <b>approve</b> at 83%", time:"3 hr ago"},
+    ],
+  },
+  {
+    id:6, name:"Employment Offer — T. Nakamura.docx", type:"Policy", ext:"docx",
+    party:"Internal HR", uploaded:"2026-06-22 12:30", pages:4, words:"1,480",
+    score:0, status:"pending", reviewer:"AI", risk:0,
+    verdict:"Analyzing…", confidence:0,
+    reason:"The AI is extracting fields and running policy checks on this document. Results will appear here shortly.",
+    fields:[],
+    flags:[],
+    feed:[
+      {c:"#9333ea", t:"<b>AI Reviewer</b> started analysis", time:"just now"},
+      {c:"#c026d3", t:"Extracting fields &amp; classifying…", time:"just now"},
+    ],
+  },
+  {
+    id:7, name:"Invoice #INV-20422 — Lumen Print.pdf", type:"Invoice", ext:"pdf",
+    party:"Lumen Print Works", uploaded:"2026-06-22 07:50", pages:1, words:"260",
+    score:84, status:"approve", reviewer:"AI", risk:1,
+    verdict:"Recommend approve", confidence:88,
+    reason:"Invoice matches PO-9974 exactly, tax computed correctly, and vendor is on the approved list. Clean for auto-approval.",
+    fields:[
+      {k:"Vendor", v:"Lumen Print Works", c:"hi"},
+      {k:"Invoice total", v:"$2,140.00", c:"hi"},
+      {k:"PO match", v:"PO-9974 (exact)", c:"hi"},
+      {k:"Tax rate", v:"8.25% (correct)", c:"hi"},
+    ],
+    flags:[
+      {t:"ok", title:"Exact PO match", d:"Amount and line items match PO-9974.", loc:"p.1"},
+      {t:"ok", title:"Tax correct", d:"Jurisdiction rate applied.", loc:"p.1"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> matched to PO-9974 exactly", time:"5 hr ago"},
+      {c:"#16a34a", t:"Recommended <b>approve</b> at 88%", time:"5 hr ago"},
+    ],
+  },
+  {
+    id:8, name:"SOW — Pixel Forge Design.pdf", type:"Contract", ext:"pdf",
+    party:"Pixel Forge Studio", uploaded:"2026-06-21 14:22", pages:11, words:"4,310",
+    score:64, status:"review", reviewer:"TN", risk:3,
+    verdict:"Needs human review", confidence:69,
+    reason:"Statement of Work references deliverable milestones not found in the master agreement, and the payment schedule is front-loaded (60% upfront). Recommend confirming milestone alignment.",
+    fields:[
+      {k:"Counterparty", v:"Pixel Forge Studio", c:"hi"},
+      {k:"Project value", v:"$96,500", c:"hi"},
+      {k:"Payment schedule", v:"60% upfront", c:"lo"},
+      {k:"Milestones", v:"4 (2 unmatched)", c:"mid"},
+    ],
+    flags:[
+      {t:"", title:"Front-loaded payment", d:"60% due before first deliverable.", loc:"Section 5, p.6"},
+      {t:"", title:"Unmatched milestones", d:"2 milestones not in master agreement.", loc:"Exhibit A, p.9"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> classified as SOW", time:"1 day ago"},
+      {c:"#d97706", t:"Flagged payment schedule", time:"1 day ago"},
+      {c:"#9333ea", t:"Routed to <b>Theo Nakamura</b>", time:"1 day ago"},
+    ],
+  },
+  {
+    id:9, name:"Insurance Cert — Fleet 2026.png", type:"Policy", ext:"png",
+    party:"Sentinel Insurance", uploaded:"2026-06-22 09:55", pages:1, words:"180",
+    score:76, status:"review", reviewer:"PR", risk:2,
+    verdict:"Needs human review", confidence:74,
+    reason:"Certificate is a scanned image. OCR confidence on the coverage amount and expiry date is moderate. Recommend a quick human check of the extracted expiry date.",
+    fields:[
+      {k:"Insurer", v:"Sentinel Insurance", c:"hi"},
+      {k:"Coverage", v:"$2,000,000", c:"mid"},
+      {k:"Expiry date", v:"2027-03-31", c:"lo"},
+      {k:"Source", v:"Scanned image (OCR)", c:"mid"},
+    ],
+    flags:[
+      {t:"", title:"Low OCR confidence on date", d:"Expiry date read at 61% confidence.", loc:"Image region"},
+      {t:"ok", title:"Coverage meets minimum", d:"$2M exceeds $1M requirement.", loc:"Body"},
+    ],
+    feed:[
+      {c:"#9333ea", t:"<b>AI Reviewer</b> ran OCR on scanned cert", time:"2 hr ago"},
+      {c:"#d97706", t:"Low-confidence field flagged", time:"2 hr ago"},
+      {c:"#dc2626", t:"Routed to <b>Priya Anand</b>", time:"2 hr ago"},
+    ],
+  },
+  {
+    id:10, name:"Reseller Agreement — Cobalt Inc.docx", type:"Contract", ext:"docx",
+    party:"Cobalt Incorporated", uploaded:"2026-06-20 13:10", pages:18, words:"7,640",
+    score:93, status:"approve", reviewer:"AI", risk:1,
+    verdict:"Recommend approve", confidence:95,
+    reason:"All clauses align with the approved reseller template. Territory, margin split, and termination terms are standard. Highest-confidence approval in this batch.",
+    fields:[
+      {k:"Counterparty", v:"Cobalt Incorporated", c:"hi"},
+      {k:"Territory", v:"North America", c:"hi"},
+      {k:"Margin split", v:"30% reseller", c:"hi"},
+      {k:"Term", v:"36 months", c:"hi"},
+    ],
+    flags:[
+      {t:"ok", title:"Matches reseller template", d:"No deviations from approved language.", loc:"Full document"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> recommended approve at 95%", time:"2 days ago"},
+    ],
+  },
+  {
+    id:11, name:"Invoice #INV-20419 — Forge Metals.pdf", type:"Invoice", ext:"pdf",
+    party:"Forge Metals LLC", uploaded:"2026-06-21 18:30", pages:3, words:"520",
+    score:28, status:"reject", reviewer:"RK", risk:4,
+    verdict:"Recommend reject", confidence:81,
+    reason:"Vendor is not on the approved vendor list and the bank account on the invoice differs from the vendor's record. Possible payment-redirection risk. Flagged for fraud review.",
+    fields:[
+      {k:"Vendor", v:"Forge Metals LLC", c:"lo"},
+      {k:"Invoice total", v:"$31,400.00", c:"hi"},
+      {k:"Bank account", v:"Changed vs record", c:"lo"},
+      {k:"Approved vendor", v:"No", c:"lo"},
+    ],
+    flags:[
+      {t:"err", title:"Bank account mismatch", d:"Differs from vendor master record.", loc:"Payment block, p.1"},
+      {t:"err", title:"Unapproved vendor", d:"Not on the approved vendor list.", loc:"Header"},
+    ],
+    feed:[
+      {c:"#dc2626", t:"<b>AI Reviewer</b> detected payment-redirection risk", time:"1 day ago"},
+      {c:"#dc2626", t:"Escalated to fraud review", time:"1 day ago"},
+      {c:"#c026d3", t:"<b>Raj Kapoor</b> rejected", time:"22 hr ago"},
+    ],
+  },
+  {
+    id:12, name:"Data Processing Addendum — Vault.pdf", type:"Policy", ext:"pdf",
+    party:"Vault Security", uploaded:"2026-06-22 06:15", pages:8, words:"3,010",
+    score:71, status:"review", reviewer:"EL", risk:2,
+    verdict:"Needs human review", confidence:72,
+    reason:"DPA references a sub-processor list that should be reviewed by legal. GDPR clauses are present but cross-border transfer mechanism (SCCs) language is older than the current standard.",
+    fields:[
+      {k:"Counterparty", v:"Vault Security", c:"hi"},
+      {k:"Regulation", v:"GDPR + CCPA", c:"hi"},
+      {k:"Transfer mechanism", v:"SCCs (2021 ver.)", c:"mid"},
+      {k:"Sub-processors", v:"7 listed", c:"mid"},
+    ],
+    flags:[
+      {t:"", title:"Older SCC version", d:"References 2021 SCCs, not current.", loc:"Annex II, p.6"},
+      {t:"ok", title:"GDPR clauses present", d:"All required articles covered.", loc:"Section 3"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> classified as DPA", time:"6 hr ago"},
+      {c:"#d97706", t:"Flagged SCC version for legal", time:"6 hr ago"},
+      {c:"#0d9488", t:"Routed to <b>Elena Voss</b>", time:"6 hr ago"},
+    ],
+  },
+  {
+    id:13, name:"Lease Amendment — Suite 1200.docx", type:"Contract", ext:"docx",
+    party:"Harbor Point Realty", uploaded:"2026-06-21 11:05", pages:5, words:"1,920",
+    score:86, status:"approve", reviewer:"AI", risk:1,
+    verdict:"Recommend approve", confidence:89,
+    reason:"Amendment extends the term by 12 months with a 3% rent escalation, both within policy. No new obligations introduced beyond the original lease.",
+    fields:[
+      {k:"Landlord", v:"Harbor Point Realty", c:"hi"},
+      {k:"Extension", v:"12 months", c:"hi"},
+      {k:"Rent escalation", v:"3% / year", c:"hi"},
+      {k:"New obligations", v:"None", c:"hi"},
+    ],
+    flags:[
+      {t:"ok", title:"Escalation within policy", d:"3% under the 5% cap.", loc:"Section 2"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> recommended approve at 89%", time:"1 day ago"},
+    ],
+  },
+  {
+    id:14, name:"Purchase Order — Ridge Hardware.xlsx", type:"Invoice", ext:"xlsx",
+    party:"Ridge Hardware", uploaded:"2026-06-22 13:40", pages:1, words:"340",
+    score:0, status:"pending", reviewer:"AI", risk:0,
+    verdict:"Analyzing…", confidence:0,
+    reason:"The AI is parsing the spreadsheet and matching line items against open purchase orders. Results will appear here shortly.",
+    fields:[],
+    flags:[],
+    feed:[
+      {c:"#9333ea", t:"<b>AI Reviewer</b> started analysis", time:"just now"},
+      {c:"#c026d3", t:"Parsing 14 line items…", time:"just now"},
+    ],
+  },
+  {
+    id:15, name:"Service Renewal — Quartz CRM.pdf", type:"Contract", ext:"pdf",
+    party:"Quartz CRM Inc.", uploaded:"2026-06-20 09:20", pages:7, words:"2,680",
+    score:81, status:"approve", reviewer:"AI", risk:2,
+    verdict:"Recommend approve", confidence:85,
+    reason:"Renewal keeps pricing flat with no scope changes. A minor SLA wording change was detected but does not weaken service commitments.",
+    fields:[
+      {k:"Counterparty", v:"Quartz CRM Inc.", c:"hi"},
+      {k:"Renewal value", v:"$58,000 / year", c:"hi"},
+      {k:"Price change", v:"Flat (0%)", c:"hi"},
+      {k:"SLA change", v:"Minor wording", c:"mid"},
+    ],
+    flags:[
+      {t:"ok", title:"Flat pricing", d:"No increase on renewal.", loc:"Section 4"},
+      {t:"", title:"Minor SLA wording change", d:"No reduction in commitments.", loc:"Section 7"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> recommended approve at 85%", time:"2 days ago"},
+    ],
+  },
+  {
+    id:16, name:"Invoice #INV-20425 — Beacon Media.pdf", type:"Invoice", ext:"pdf",
+    party:"Beacon Media Group", uploaded:"2026-06-22 14:10", pages:2, words:"390",
+    score:69, status:"review", reviewer:"DM", risk:2,
+    verdict:"Needs human review", confidence:70,
+    reason:"Invoice has no linked purchase order and includes a 'rush fee' line item not seen in prior invoices from this vendor. Recommend confirming the rush fee was authorized.",
+    fields:[
+      {k:"Vendor", v:"Beacon Media Group", c:"hi"},
+      {k:"Invoice total", v:"$8,750.00", c:"hi"},
+      {k:"PO match", v:"No PO linked", c:"lo"},
+      {k:"Unusual line", v:"Rush fee $1,200", c:"mid"},
+    ],
+    flags:[
+      {t:"", title:"No purchase order", d:"Invoice not linked to any PO.", loc:"Header"},
+      {t:"", title:"New 'rush fee' line", d:"$1,200 fee not in prior invoices.", loc:"Line 4, p.1"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> classified as Invoice", time:"30 min ago"},
+      {c:"#d97706", t:"Flagged missing PO &amp; rush fee", time:"29 min ago"},
+      {c:"#d97706", t:"Routed to <b>Dana Mercer</b>", time:"28 min ago"},
+    ],
+  },
+  {
+    id:17, name:"Partnership MoU — Summit Labs.docx", type:"Contract", ext:"docx",
+    party:"Summit Labs", uploaded:"2026-06-19 15:45", pages:9, words:"3,420",
+    score:90, status:"approve", reviewer:"AI", risk:1,
+    verdict:"Recommend approve", confidence:92,
+    reason:"Non-binding MoU with clear scope and no financial commitments. All standard mutual cooperation language present and compliant.",
+    fields:[
+      {k:"Counterparty", v:"Summit Labs", c:"hi"},
+      {k:"Binding", v:"Non-binding", c:"hi"},
+      {k:"Financial commitment", v:"None", c:"hi"},
+      {k:"Term", v:"12 months", c:"hi"},
+    ],
+    flags:[
+      {t:"ok", title:"Non-binding, low risk", d:"No financial or legal obligations.", loc:"Section 1"},
+    ],
+    feed:[
+      {c:"#16a34a", t:"<b>AI Reviewer</b> recommended approve at 92%", time:"3 days ago"},
+    ],
+  },
+  {
+    id:18, name:"Refund Authorization — Acct 7732.pdf", type:"Statement", ext:"pdf",
+    party:"Customer Ops", uploaded:"2026-06-21 17:20", pages:1, words:"150",
+    score:41, status:"reject", reviewer:"DM", risk:3,
+    verdict:"Recommend reject", confidence:78,
+    reason:"Refund amount ($4,200) exceeds the agent's $2,000 authorization limit and lacks a required manager signature. Sent back for proper authorization.",
+    fields:[
+      {k:"Account", v:"Acct ••7732", c:"hi"},
+      {k:"Refund amount", v:"$4,200.00", c:"hi"},
+      {k:"Auth limit", v:"$2,000 exceeded", c:"lo"},
+      {k:"Manager sign-off", v:"Missing", c:"lo"},
+    ],
+    flags:[
+      {t:"err", title:"Exceeds authorization limit", d:"$4,200 over the $2,000 agent cap.", loc:"Amount field"},
+      {t:"err", title:"Missing manager signature", d:"Required approval not present.", loc:"Signature block"},
+    ],
+    feed:[
+      {c:"#dc2626", t:"<b>AI Reviewer</b> flagged over-limit refund", time:"20 hr ago"},
+      {c:"#dc2626", t:"Recommended <b>reject</b> at 78%", time:"20 hr ago"},
+      {c:"#d97706", t:"<b>Dana Mercer</b> rejected", time:"19 hr ago"},
+    ],
+  },
+];
+
+const STATUS_MAP = {
+  approve: {cls:"s-approve", label:"Approved"},
+  review:  {cls:"s-review",  label:"Needs Review"},
+  reject:  {cls:"s-reject",  label:"Rejected"},
+  pending: {cls:"s-pending", label:"Analyzing"},
+};
+const RISK_COLOR = ["#16a34a","#16a34a","#d97706","#d97706","#dc2626"];
+
+let state = { tab:"all", search:"", highRisk:false, selId:null };
+
+function scoreColor(s){ if(s>=80) return "#16a34a"; if(s>=55) return "#d97706"; return "#dc2626"; }
+function confClass(c){ return c==="hi" ? "c-hi" : c==="mid" ? "c-mid" : "c-lo"; }
+
+function gaugeSVG(score){
+  if(score===0){
+    return '<svg width="34" height="34" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#e8eaef" stroke-width="3.5"/><circle cx="18" cy="18" r="15" fill="none" stroke="#9333ea" stroke-width="3.5" stroke-dasharray="20 74" stroke-linecap="round" transform="rotate(-90 18 18)"><animateTransform attributeName="transform" type="rotate" from="-90 18 18" to="270 18 18" dur="1.1s" repeatCount="indefinite"/></circle></svg>';
+  }
+  const col = scoreColor(score);
+  const circ = 2*Math.PI*15;
+  const dash = (score/100)*circ;
+  return `<svg width="34" height="34" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#e8eaef" stroke-width="3.5"/><circle cx="18" cy="18" r="15" fill="none" stroke="${col}" stroke-width="3.5" stroke-dasharray="${dash} ${circ-dash}" stroke-linecap="round" transform="rotate(-90 18 18)"/></svg>`;
+}
+
+function riskBars(level){
+  let html = '';
+  for(let i=1;i<=4;i++){
+    const on = i<=level;
+    const col = on ? RISK_COLOR[level] : "#e3e6ec";
+    html += `<span class="seg-b" style="background:${col}"></span>`;
+  }
+  return `<div class="risk-bar" title="Risk level ${level}/4">${html}</div>`;
+}
+
+function filtered(){
+  return DOCS.filter(d=>{
+    if(state.tab!=="all" && d.status!==state.tab) return false;
+    if(state.highRisk && d.risk < 3) return false;
+    if(state.search){
+      const q = state.search.toLowerCase();
+      if(!(d.name.toLowerCase().includes(q) || d.party.toLowerCase().includes(q) || d.type.toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
+}
+
+function renderRows(){
+  const rows = filtered();
+  const c = document.getElementById('rows');
+  const empty = document.getElementById('emptyState');
+  if(rows.length===0){ c.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  c.innerHTML = rows.map(d=>{
+    const st = STATUS_MAP[d.status];
+    const rev = PEOPLE[d.reviewer];
+    const init = d.reviewer==="AI" ? "AI" : d.reviewer;
+    const scoreDisp = d.score===0 ? '<span class="score-meta">Running…</span>'
+      : `<div class="score-meta"><b>${d.score}</b>${d.confidence}% conf.</div>`;
+    const gaugeNum = d.score===0 ? '' : `<span class="num">${d.score}</span>`;
+    return `<div class="row ${state.selId===d.id?'sel':''}" data-id="${d.id}">
+      <div class="doc-cell">
+        <div class="ftype ${d.ext}">${d.ext.toUpperCase()}</div>
+        <div class="doc-meta">
+          <div class="doc-name">${d.name}</div>
+          <div class="doc-sub">${d.party} &middot; ${d.pages} pg</div>
+        </div>
+      </div>
+      <div><span class="doctype-pill">${d.type}</span></div>
+      <div class="score-wrap"><div class="gauge">${gaugeSVG(d.score)}${gaugeNum}</div>${scoreDisp}</div>
+      <div><span class="status ${st.cls}"><span class="sd"></span>${st.label}</span></div>
+      <div class="assignee"><span class="mini-av" style="background:${rev.c}">${init}</span></div>
+      <div class="chev"><svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    </div>`;
+  }).join('');
+  c.querySelectorAll('.row').forEach(r=>{
+    r.addEventListener('click', ()=> openDrawer(parseInt(r.dataset.id)));
+  });
+}
+
+function openDrawer(id){
+  const d = DOCS.find(x=>x.id===id);
+  if(!d) return;
+  state.selId = id;
+  renderRows();
+  const ftype = document.getElementById('drFtype');
+  ftype.className = 'ftype '+d.ext;
+  ftype.textContent = d.ext.toUpperCase();
+  document.getElementById('drName').textContent = d.name;
+  document.getElementById('drSub').textContent = `${d.party} · ${d.pages} pages · ${d.words} words · uploaded ${d.uploaded}`;
+
+  const verdictColor = d.status==='approve' ? '#16a34a' : d.status==='reject' ? '#dc2626' : d.status==='pending' ? '#9333ea' : '#d97706';
+  let body = '';
+
+  // AI banner
+  body += `<div class="ai-banner">
+    <div class="ab-top">
+      <span class="ai-badge"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8L12 3z" fill="currentColor"/></svg>AI Analysis</span>
+      <span class="ab-verdict" style="color:${verdictColor}">${d.verdict}</span>
+    </div>
+    <div class="ab-reason">${d.reason}</div>`;
+  if(d.confidence>0){
+    body += `<div class="ab-conf"><div class="cbar"><div class="cfill" style="width:${d.confidence}%"></div></div><span class="cval">${d.confidence}% confidence</span></div>`;
+  }
+  body += `</div>`;
+
+  // Extracted fields
+  if(d.fields.length){
+    body += `<div class="sec-title"><span>Extracted fields</span><span class="ln"></span><span style="color:var(--text-faint);text-transform:none;letter-spacing:0;font-weight:600">${d.fields.length} fields</span></div>`;
+    body += `<div class="fields">`;
+    d.fields.forEach(f=>{
+      const cl = confClass(f.c);
+      const lbl = f.c==="hi" ? "High" : f.c==="mid" ? "Med" : "Low";
+      body += `<div class="field-row"><span class="fk">${f.k}</span><span class="fv">${f.v}</span><span class="conf-badge ${cl}">${lbl}</span></div>`;
+    });
+    body += `</div>`;
+  } else {
+    body += `<div class="sec-title"><span>Extracted fields</span><span class="ln"></span></div>
+    <div class="empty" style="padding:26px 10px"><div style="color:var(--text-faint);font-size:13px">Field extraction in progress…</div></div>`;
+  }
+
+  // Flags
+  if(d.flags.length){
+    body += `<div class="sec-title"><span>Policy checks &amp; flags</span><span class="ln"></span></div>`;
+    body += `<div class="flags">`;
+    d.flags.forEach(f=>{
+      const cls = f.t==="err"?"err":f.t==="ok"?"ok":"";
+      const col = f.t==="err"?"#dc2626":f.t==="ok"?"#16a34a":"#d97706";
+      const icon = f.t==="ok"
+        ? '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="'+col+'" stroke-width="1.7"/><path d="M8 12l3 3 5-6" stroke="'+col+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : f.t==="err"
+        ? '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="'+col+'" stroke-width="1.7"/><path d="M9 9l6 6M15 9l-6 6" stroke="'+col+'" stroke-width="1.8" stroke-linecap="round"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01" stroke="'+col+'" stroke-width="2" stroke-linecap="round"/><path d="M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="'+col+'" stroke-width="1.5"/></svg>';
+      body += `<div class="flag ${cls}"><div class="fi">${icon}</div><div class="ftext"><b>${f.title}</b>${f.d}<div class="loc">${f.loc}</div></div></div>`;
+    });
+    body += `</div>`;
+  }
+
+  // Activity feed
+  body += `<div class="sec-title"><span>AI activity</span><span class="ln"></span></div>`;
+  body += `<div class="feed">`;
+  d.feed.forEach(e=>{
+    body += `<div class="fevent"><span class="fnode" style="background:${e.c}"></span><div class="fcontent">${e.t}<div class="ftime">${e.time}</div></div></div>`;
+  });
+  body += `</div>`;
+
+  document.getElementById('drBody').innerHTML = body;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('scrim').classList.add('open');
+}
+
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('scrim').classList.remove('open');
+  state.selId = null;
+  renderRows();
+}
+
+function showToast(msg, color){
+  const t = document.getElementById('toast');
+  const ti = t.querySelector('.ti');
+  ti.style.background = color || 'var(--green-bg)';
+  ti.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-11" stroke="'+(color==='var(--red-bg)'?'#dc2626':color==='var(--amber-bg)'?'#d97706':color==='var(--violet-bg)'?'#9333ea':'#16a34a')+'" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(()=> t.classList.remove('show'), 2600);
+}
+
+function setTab(tab){
+  state.tab = tab;
+  document.querySelectorAll('#tabs .tab').forEach(t=> t.classList.toggle('active', t.dataset.tab===tab));
+  renderRows();
+}
+
+// Wire up
+document.querySelectorAll('#tabs .tab').forEach(t=>{
+  t.addEventListener('click', ()=> setTab(t.dataset.tab));
+});
+document.getElementById('search').addEventListener('input', e=>{
+  state.search = e.target.value.trim();
+  renderRows();
+});
+document.getElementById('riskChip').addEventListener('click', function(){
+  state.highRisk = !state.highRisk;
+  this.classList.toggle('on', state.highRisk);
+  renderRows();
+});
+document.getElementById('drClose').addEventListener('click', closeDrawer);
+document.getElementById('scrim').addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+document.getElementById('approveBtn').addEventListener('click', ()=>{
+  if(state.selId){
+    const d = DOCS.find(x=>x.id===state.selId);
+    showToast(`Approved "${d.name.split(' — ')[0]}" — decision logged`, 'var(--green-bg)');
+    closeDrawer();
+  }
+});
+document.getElementById('rejectBtn').addEventListener('click', ()=>{
+  if(state.selId){
+    const d = DOCS.find(x=>x.id===state.selId);
+    showToast(`Rejected "${d.name.split(' — ')[0]}" — sender notified`, 'var(--red-bg)');
+    closeDrawer();
+  }
+});
+document.getElementById('reqBtn').addEventListener('click', ()=>{
+  showToast('Change request sent back to the document owner', 'var(--amber-bg)');
+  closeDrawer();
+});
+document.getElementById('uploadBtn').addEventListener('click', ()=>{
+  showToast('Document queued — AI analysis started', 'var(--violet-bg)');
+});
+
+renderRows();
+</script>
+</body>
+</html>

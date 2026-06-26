@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>People Directory</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary:       #1677ff;
+    --primary-light: #e8f4ff;
+    --primary-dark:  #0958d9;
+    --bg:            #f0f2f5;
+    --surface:       #ffffff;
+    --border:        #e8eaed;
+    --text-primary:  #0a0d14;
+    --text-secondary:#6b7280;
+    --text-tertiary: #9ca3af;
+    --radius:        8px;
+    --shadow-card:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-hover:  0 8px 24px rgba(0,0,0,.10);
+    --shadow-panel:  0 12px 40px rgba(0,0,0,.13);
+
+    /* dept palette */
+    --c-eng:   #1677ff; --c-eng-bg:   #e8f4ff;
+    --c-prod:  #722ed1; --c-prod-bg:  #f5edff;
+    --c-design:#eb2f96; --c-design-bg:#fff0f6;
+    --c-sales: #fa8c16; --c-sales-bg: #fff7e6;
+    --c-mkt:   #13c2c2; --c-mkt-bg:   #e6fffb;
+    --c-ops:   #52c41a; --c-ops-bg:   #f6ffed;
+    --c-hr:    #f5222d; --c-hr-bg:    #fff1f0;
+    --c-fin:   #fa541c; --c-fin-bg:   #fff2e8;
+    --c-data:  #2f54eb; --c-data-bg:  #f0f5ff;
+    --c-legal: #8c8c8c; --c-legal-bg: #f5f5f5;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5714;
+  }
+
+  /* ── TOP NAV ── */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    height: 56px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 16px; color: var(--text-primary);
+    letter-spacing: -.3px; flex-shrink: 0;
+  }
+  .nav-logo svg { color: var(--primary); }
+  .nav-spacer { flex: 1; }
+  .nav-stat {
+    font-size: 13px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .nav-stat strong { color: var(--text-primary); font-weight: 600; }
+
+  /* ── HERO SEARCH ── */
+  .hero {
+    background: linear-gradient(135deg, #1677ff 0%, #0958d9 60%, #4338ca 100%);
+    padding: 40px 28px 32px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+  }
+  .hero-inner { position: relative; max-width: 1200px; margin: 0 auto; }
+  .hero h1 {
+    color: #fff; font-size: 26px; font-weight: 700;
+    letter-spacing: -.5px; margin-bottom: 6px;
+  }
+  .hero p { color: rgba(255,255,255,.75); font-size: 14px; margin-bottom: 22px; }
+
+  .search-wrap {
+    display: flex; gap: 10px; max-width: 680px;
+  }
+  .search-box {
+    flex: 1;
+    background: rgba(255,255,255,.15);
+    border: 1.5px solid rgba(255,255,255,.35);
+    border-radius: 10px;
+    display: flex; align-items: center;
+    padding: 0 14px; gap: 10px;
+    backdrop-filter: blur(6px);
+    transition: all .2s;
+  }
+  .search-box:focus-within {
+    background: rgba(255,255,255,.25);
+    border-color: rgba(255,255,255,.7);
+    box-shadow: 0 0 0 3px rgba(255,255,255,.15);
+  }
+  .search-box svg { color: rgba(255,255,255,.7); flex-shrink: 0; }
+  .search-box input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: #fff; font-size: 15px; padding: 11px 0;
+  }
+  .search-box input::placeholder { color: rgba(255,255,255,.55); }
+  .search-clear {
+    cursor: pointer; color: rgba(255,255,255,.6);
+    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; transition: background .15s;
+    display: none;
+  }
+  .search-clear:hover { background: rgba(255,255,255,.2); }
+  .search-clear.visible { display: flex; }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 28px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .toolbar-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%; }
+
+  .filter-label { font-size: 12px; color: var(--text-tertiary); font-weight: 500; text-transform: uppercase; letter-spacing: .4px; flex-shrink: 0; }
+
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+  .chip {
+    padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+    border: 1.5px solid transparent;
+    background: var(--bg); color: var(--text-secondary);
+  }
+  .chip:hover { background: #e8f4ff; color: var(--primary); border-color: var(--primary-light); }
+  .chip.active { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+  .chip.dept-chip { border-color: transparent; }
+
+  .view-toggle {
+    display: flex; gap: 2px;
+    background: var(--bg); border-radius: var(--radius);
+    padding: 3px; flex-shrink: 0;
+  }
+  .view-btn {
+    padding: 5px 10px; border-radius: 6px; border: none;
+    cursor: pointer; display: flex; align-items: center; gap: 5px;
+    font-size: 13px; font-weight: 500; transition: all .15s;
+    background: transparent; color: var(--text-secondary);
+  }
+  .view-btn.active { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-card); }
+
+  .sort-select {
+    padding: 5px 10px; border-radius: var(--radius); border: 1px solid var(--border);
+    font-size: 13px; color: var(--text-secondary); background: var(--surface);
+    cursor: pointer; outline: none;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    max-width: 1200px; margin: 0 auto;
+    padding: 24px 28px;
+    display: flex; gap: 24px; align-items: flex-start;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 200px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .sidebar-section-title {
+    font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: .6px;
+    padding: 8px 10px 4px;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 6px;
+    cursor: pointer; transition: background .12s; font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .sidebar-item:hover { background: var(--border); color: var(--text-primary); }
+  .sidebar-item.active { background: var(--primary-light); color: var(--primary); font-weight: 500; }
+  .sidebar-item .dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .sidebar-count {
+    margin-left: auto; font-size: 11px; background: var(--bg);
+    padding: 1px 6px; border-radius: 10px; font-weight: 600;
+    color: var(--text-tertiary);
+  }
+  .sidebar-item.active .sidebar-count { background: #cfe1ff; color: var(--primary); }
+
+  /* ── CONTENT ── */
+  .content { flex: 1; min-width: 0; }
+
+  .result-meta {
+    font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .result-meta strong { color: var(--text-primary); }
+
+  /* ── CARD GRID ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .emp-card {
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    padding: 20px;
+    cursor: pointer;
+    transition: all .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .emp-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 12px 12px 0 0;
+    background: var(--dept-color, var(--primary));
+    opacity: 0; transition: opacity .2s;
+  }
+  .emp-card:hover {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+  }
+  .emp-card:hover::before { opacity: 1; }
+  .emp-card.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(22,119,255,.12);
+  }
+
+  .card-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .avatar {
+    width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; color: #fff;
+    background: var(--dept-color, var(--primary));
+    position: relative;
+  }
+  .avatar-online::after {
+    content: ''; position: absolute; bottom: 1px; right: 1px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #52c41a; border: 2px solid var(--surface);
+  }
+  .card-info { flex: 1; min-width: 0; }
+  .card-name { font-weight: 600; font-size: 15px; color: var(--text-primary); line-height: 1.3; }
+  .card-title { font-size: 12px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .card-dept-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+    letter-spacing: .1px;
+    background: var(--dept-bg, #e8f4ff);
+    color: var(--dept-color, var(--primary));
+  }
+
+  .card-meta { margin: 10px 0 12px; display: flex; flex-direction: column; gap: 5px; }
+  .card-meta-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .card-meta-row svg { flex-shrink: 0; color: var(--text-tertiary); }
+
+  .card-actions {
+    display: flex; gap: 8px; margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .card-btn {
+    flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg); cursor: pointer; font-size: 12px; font-weight: 500;
+    color: var(--text-secondary); display: flex; align-items: center; justify-content: center; gap: 4px;
+    transition: all .15s;
+  }
+  .card-btn:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+  .card-btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .card-btn.primary:hover { background: var(--primary-dark); }
+
+  /* ── DETAIL PANEL ── */
+  .detail-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.25);
+    z-index: 200; opacity: 0; pointer-events: none;
+    transition: opacity .2s;
+  }
+  .detail-backdrop.open { opacity: 1; pointer-events: all; }
+
+  .detail-panel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 400px; background: var(--surface);
+    z-index: 201; transform: translateX(100%);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+    box-shadow: var(--shadow-panel);
+  }
+  .detail-panel.open { transform: translateX(0); }
+
+  .dp-header {
+    padding: 24px 24px 0;
+    background: linear-gradient(180deg, #f0f5ff 0%, var(--surface) 100%);
+    flex-shrink: 0;
+  }
+  .dp-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--bg); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); transition: all .15s;
+  }
+  .dp-close:hover { background: var(--border); color: var(--text-primary); }
+
+  .dp-avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 28px; color: #fff;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  }
+  .dp-name { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+  .dp-title { font-size: 14px; color: var(--text-secondary); margin: 4px 0 12px; }
+  .dp-badges { display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 20px; }
+  .dp-badge {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500;
+  }
+
+  .dp-body { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+  .dp-section-title {
+    font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px;
+  }
+
+  .dp-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dp-info-item { }
+  .dp-info-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 2px; }
+  .dp-info-value { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+
+  .dp-contact-list { display: flex; flex-direction: column; gap: 8px; }
+  .dp-contact-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 8px; background: var(--bg);
+    font-size: 13px; color: var(--text-primary);
+  }
+  .dp-contact-row svg { color: var(--primary); flex-shrink: 0; }
+
+  .dp-reports { display: flex; flex-direction: column; gap: 8px; }
+  .dp-report-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+    cursor: pointer; transition: all .15s;
+  }
+  .dp-report-card:hover { border-color: var(--primary); background: var(--primary-light); }
+  .dp-report-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px; color: #fff;
+  }
+  .dp-report-name { font-size: 13px; font-weight: 600; }
+  .dp-report-title { font-size: 11px; color: var(--text-secondary); }
+  .dp-report-arrow { margin-left: auto; color: var(--text-tertiary); }
+
+  .skills-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  .skill-tag {
+    padding: 3px 10px; border-radius: 4px; font-size: 12px;
+    background: var(--bg); color: var(--text-secondary);
+    border: 1px solid var(--border); font-weight: 500;
+  }
+
+  .dp-footer {
+    padding: 16px 24px; border-top: 1px solid var(--border); flex-shrink: 0;
+    display: flex; gap: 10px;
+  }
+  .dp-action-btn {
+    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    cursor: pointer; font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all .15s; background: var(--surface); color: var(--text-secondary);
+  }
+  .dp-action-btn:hover { background: var(--bg); }
+  .dp-action-btn.blue { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .dp-action-btn.blue:hover { background: var(--primary-dark); }
+
+  /* ── ORG TREE VIEW ── */
+  #org-view { display: none; }
+  #org-view.visible { display: block; }
+  #grid-view.hidden { display: none; }
+
+  .org-container {
+    background: var(--surface); border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 28px;
+    overflow-x: auto;
+  }
+  .org-tree { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+  .org-node {
+    display: flex; flex-direction: column; align-items: center;
+    cursor: pointer;
+  }
+  .org-card {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px;
+    min-width: 200px; max-width: 240px;
+    transition: all .2s; white-space: nowrap;
+    box-shadow: var(--shadow-card);
+  }
+  .org-card:hover, .org-card.selected {
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(22,119,255,.15);
+  }
+  .org-card.selected { background: var(--primary-light); }
+  .org-avatar-sm {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: #fff;
+  }
+  .org-name { font-size: 13px; font-weight: 600; }
+  .org-title { font-size: 11px; color: var(--text-secondary); }
+
+  .org-children {
+    display: flex; align-items: flex-start; gap: 24px;
+    position: relative; margin-top: 0;
+  }
+  .org-children::before {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 2px; height: 20px; background: var(--border);
+  }
+  .org-children-row { position: relative; padding-top: 20px; }
+  .org-children-row::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: var(--border);
+  }
+  .org-child-wrap {
+    position: relative; padding-top: 20px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .org-child-wrap::before {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 2px; height: 20px; background: var(--border);
+  }
+  .org-connector {
+    width: 2px; height: 20px; background: var(--border);
+  }
+
+  .dept-group-view { display: flex; flex-direction: column; gap: 24px; }
+  .dept-group {
+    background: var(--surface); border-radius: 12px; border: 1px solid var(--border); overflow: hidden;
+  }
+  .dept-group-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    cursor: pointer; user-select: none;
+  }
+  .dept-group-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .dept-group-name { font-size: 15px; font-weight: 600; }
+  .dept-group-count { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
+  .dept-group-toggle { color: var(--text-tertiary); transition: transform .2s; }
+  .dept-group-toggle.open { transform: rotate(90deg); }
+  .dept-group-body {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1px; background: var(--border);
+  }
+  .dept-member {
+    background: var(--surface); padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; transition: background .15s;
+  }
+  .dept-member:hover { background: var(--primary-light); }
+  .dept-member-av {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px; color: #fff;
+  }
+  .dept-member-name { font-size: 13px; font-weight: 500; }
+  .dept-member-title { font-size: 11px; color: var(--text-secondary); }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center; padding: 60px 20px;
+    color: var(--text-secondary);
+  }
+  .empty-state svg { color: var(--text-tertiary); margin-bottom: 16px; }
+  .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .emp-card { animation: fadeIn .2s ease both; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 860px) {
+    .sidebar { display: none; }
+    .detail-panel { width: 100%; }
+    .nav-stat { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+    People Directory
+  </div>
+  <div class="nav-spacer"></div>
+  <div class="nav-stat" id="nav-stat">
+    <strong id="stat-active">—</strong>&nbsp;online now &nbsp;·&nbsp;
+    <strong id="stat-total">—</strong>&nbsp;total employees
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <h1>Find Your Colleagues</h1>
+    <p>Search across all departments, roles, and locations in one place.</p>
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search by name, title, skill, or location…" autocomplete="off">
+        <span class="search-clear" id="search-clear">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="toolbar-inner">
+    <span class="filter-label">Dept</span>
+    <div class="chip-group" id="dept-chips">
+      <div class="chip dept-chip active" data-dept="all">All</div>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-grid" onclick="setView('grid')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Cards
+      </button>
+      <button class="view-btn" id="btn-org" onclick="setView('org')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="8" height="5" rx="1"/><rect x="14" y="2" width="8" height="5" rx="1"/><rect x="8" y="16" width="8" height="5" rx="1"/><line x1="18" y1="7" x2="18" y2="12"/><line x1="6" y1="7" x2="6" y2="12"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+        Org
+      </button>
+      <button class="view-btn" id="btn-dept" onclick="setView('dept')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.5" fill="currentColor"/><circle cx="3" cy="12" r="1.5" fill="currentColor"/><circle cx="3" cy="18" r="1.5" fill="currentColor"/></svg>
+        Depts
+      </button>
+    </div>
+    <select class="sort-select" id="sort-select" onchange="renderGrid()">
+      <option value="name">Sort: A–Z</option>
+      <option value="dept">Sort: Department</option>
+      <option value="tenure">Sort: Tenure</option>
+    </select>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section-title">Location</div>
+    <div class="sidebar-item active" data-location="all" onclick="filterLocation(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      All Offices
+      <span class="sidebar-count" id="loc-all-count">0</span>
+    </div>
+    <div class="sidebar-item" data-location="San Francisco" onclick="filterLocation(this)">
+      <span class="dot" style="background:#1677ff"></span>
+      San Francisco
+      <span class="sidebar-count" id="loc-sf-count">0</span>
+    </div>
+    <div class="sidebar-item" data-location="New York" onclick="filterLocation(this)">
+      <span class="dot" style="background:#722ed1"></span>
+      New York
+      <span class="sidebar-count" id="loc-ny-count">0</span>
+    </div>
+    <div class="sidebar-item" data-location="London" onclick="filterLocation(this)">
+      <span class="dot" style="background:#eb2f96"></span>
+      London
+      <span class="sidebar-count" id="loc-lon-count">0</span>
+    </div>
+    <div class="sidebar-item" data-location="Singapore" onclick="filterLocation(this)">
+      <span class="dot" style="background:#fa8c16"></span>
+      Singapore
+      <span class="sidebar-count" id="loc-sg-count">0</span>
+    </div>
+    <div class="sidebar-item" data-location="Remote" onclick="filterLocation(this)">
+      <span class="dot" style="background:#52c41a"></span>
+      Remote
+      <span class="sidebar-count" id="loc-remote-count">0</span>
+    </div>
+
+    <div class="sidebar-section-title" style="margin-top:8px">Employment</div>
+    <div class="sidebar-item active-only" data-employment="all" onclick="filterEmployment(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      All
+    </div>
+    <div class="sidebar-item" data-employment="Full-time" onclick="filterEmployment(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      Full-time
+    </div>
+    <div class="sidebar-item" data-employment="Part-time" onclick="filterEmployment(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Part-time
+    </div>
+    <div class="sidebar-item" data-employment="Contractor" onclick="filterEmployment(this)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Contractor
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <div class="content">
+    <div class="result-meta" id="result-meta"></div>
+
+    <!-- GRID VIEW -->
+    <div id="grid-view">
+      <div class="card-grid" id="card-grid"></div>
+      <div class="empty-state" id="empty-state" style="display:none">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <h3>No people found</h3>
+        <p>Try adjusting your search or filters.</p>
+      </div>
+    </div>
+
+    <!-- ORG VIEW -->
+    <div id="org-view">
+      <div class="org-container">
+        <div id="org-tree-root"></div>
+      </div>
+    </div>
+
+    <!-- DEPT VIEW -->
+    <div id="dept-view" style="display:none">
+      <div class="dept-group-view" id="dept-groups"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL BACKDROP -->
+<div class="detail-backdrop" id="detail-backdrop" onclick="closeDetail()"></div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel" id="detail-panel">
+  <div class="dp-header" id="dp-header" style="position:relative">
+    <button class="dp-close" onclick="closeDetail()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div id="dp-avatar" class="dp-avatar"></div>
+    <div id="dp-name" class="dp-name"></div>
+    <div id="dp-title" class="dp-title"></div>
+    <div id="dp-badges" class="dp-badges"></div>
+  </div>
+  <div class="dp-body" id="dp-body"></div>
+  <div class="dp-footer" id="dp-footer"></div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────────
+const DEPTS = {
+  'Engineering':   { color: 'var(--c-eng)',    bg: 'var(--c-eng-bg)'    },
+  'Product':       { color: 'var(--c-prod)',   bg: 'var(--c-prod-bg)'   },
+  'Design':        { color: 'var(--c-design)', bg: 'var(--c-design-bg)' },
+  'Sales':         { color: 'var(--c-sales)',  bg: 'var(--c-sales-bg)'  },
+  'Marketing':     { color: 'var(--c-mkt)',    bg: 'var(--c-mkt-bg)'    },
+  'Operations':    { color: 'var(--c-ops)',    bg: 'var(--c-ops-bg)'    },
+  'HR':            { color: 'var(--c-hr)',     bg: 'var(--c-hr-bg)'     },
+  'Finance':       { color: 'var(--c-fin)',    bg: 'var(--c-fin-bg)'    },
+  'Data':          { color: 'var(--c-data)',   bg: 'var(--c-data-bg)'   },
+  'Legal':         { color: 'var(--c-legal)',  bg: 'var(--c-legal-bg)'  },
+};
+
+const employees = [
+  // Leadership
+  { id:1,  name:'Alexandra Chen',    title:'Chief Executive Officer',           dept:'Product',     loc:'San Francisco', employment:'Full-time', email:'alex.chen@corp.com',    phone:'+1 415 555 0101', joined:'2018-03-01', managerId:null,  online:true,  skills:['Strategy','Product Vision','Leadership','Fundraising'] },
+  { id:2,  name:'Marcus Okafor',     title:'Chief Technology Officer',          dept:'Engineering', loc:'San Francisco', employment:'Full-time', email:'m.okafor@corp.com',     phone:'+1 415 555 0102', joined:'2018-06-15', managerId:1,    online:true,  skills:['System Design','Distributed Systems','Go','Kubernetes'] },
+  { id:3,  name:'Priya Mehta',       title:'Chief Product Officer',             dept:'Product',     loc:'San Francisco', employment:'Full-time', email:'p.mehta@corp.com',      phone:'+1 415 555 0103', joined:'2019-01-10', managerId:1,    online:true,  skills:['Product Strategy','OKRs','Roadmapping','User Research'] },
+  { id:4,  name:'Daniel Rivera',     title:'Chief Revenue Officer',             dept:'Sales',       loc:'New York',      employment:'Full-time', email:'d.rivera@corp.com',     phone:'+1 212 555 0104', joined:'2019-08-01', managerId:1,    online:false, skills:['Enterprise Sales','Pipeline Management','GTM','Negotiation'] },
+  { id:5,  name:'Sofia Lindqvist',   title:'VP of Engineering',                 dept:'Engineering', loc:'San Francisco', employment:'Full-time', email:'s.lindqvist@corp.com',  phone:'+1 415 555 0105', joined:'2020-02-20', managerId:2,    online:true,  skills:['TypeScript','React','Node.js','Team Leadership'] },
+  { id:6,  name:'James Whitfield',   title:'VP of Design',                      dept:'Design',      loc:'San Francisco', employment:'Full-time', email:'j.whitfield@corp.com',  phone:'+1 415 555 0106', joined:'2020-05-11', managerId:3,    online:false, skills:['Design Systems','Figma','User Research','Prototyping'] },
+  { id:7,  name:'Aiko Tanaka',       title:'VP of Marketing',                   dept:'Marketing',   loc:'New York',      employment:'Full-time', email:'a.tanaka@corp.com',     phone:'+1 212 555 0107', joined:'2021-01-05', managerId:1,    online:true,  skills:['Brand Strategy','Content','SEO','Demand Gen'] },
+  { id:8,  name:'Leon Baptiste',     title:'VP of Finance',                     dept:'Finance',     loc:'New York',      employment:'Full-time', email:'l.baptiste@corp.com',   phone:'+1 212 555 0108', joined:'2019-11-18', managerId:1,    online:false, skills:['FP&A','GAAP','Financial Modeling','Treasury'] },
+  { id:9,  name:'Rachel Kim',        title:'Head of HR',                        dept:'HR',          loc:'San Francisco', employment:'Full-time', email:'r.kim@corp.com',        phone:'+1 415 555 0109', joined:'2020-07-01', managerId:1,    online:true,  skills:['Recruiting','Culture','HRIS','People Analytics'] },
+  { id:10, name:'Ethan Brooks',      title:'Head of Legal',                     dept:'Legal',       loc:'New York',      employment:'Full-time', email:'e.brooks@corp.com',     phone:'+1 212 555 0110', joined:'2021-03-15', managerId:1,    online:false, skills:['Contract Law','IP','Compliance','Privacy'] },
+
+  // Engineering
+  { id:11, name:'Yusuf Al-Rashid',   title:'Staff Software Engineer',           dept:'Engineering', loc:'San Francisco', employment:'Full-time', email:'y.alrashid@corp.com',   phone:'+1 415 555 0111', joined:'2020-09-01', managerId:5,    online:true,  skills:['Rust','C++','Compilers','Performance'] },
+  { id:12, name:'Nina Patel',        title:'Senior Software Engineer',          dept:'Engineering', loc:'London',        employment:'Full-time', email:'n.patel@corp.com',      phone:'+44 20 7555 0112', joined:'2021-04-12', managerId:5,    online:true,  skills:['Python','FastAPI','PostgreSQL','Redis'] },
+  { id:13, name:'Carlos Espinoza',   title:'Senior Software Engineer',          dept:'Engineering', loc:'Remote',        employment:'Full-time', email:'c.espinoza@corp.com',   phone:'+1 512 555 0113', joined:'2021-07-19', managerId:5,    online:false, skills:['Go','gRPC','Kafka','Docker'] },
+  { id:14, name:'Mei-Ling Zhou',     title:'Software Engineer II',              dept:'Engineering', loc:'Singapore',     employment:'Full-time', email:'ml.zhou@corp.com',      phone:'+65 6555 0114',   joined:'2022-02-07', managerId:5,    online:true,  skills:['React','TypeScript','GraphQL','Testing'] },
+  { id:15, name:'Oliver Müller',     title:'Software Engineer II',              dept:'Engineering', loc:'London',        employment:'Full-time', email:'o.muller@corp.com',     phone:'+44 20 7555 0115', joined:'2022-06-14', managerId:5,    online:false, skills:['Kotlin','Android','iOS','Swift'] },
+  { id:16, name:'Jasmine Torres',    title:'Junior Software Engineer',          dept:'Engineering', loc:'San Francisco', employment:'Full-time', email:'j.torres@corp.com',     phone:'+1 415 555 0116', joined:'2023-08-28', managerId:5,    online:true,  skills:['JavaScript','Vue','CSS','Git'] },
+  { id:17, name:'Ravi Krishnamurthy','title':'Platform Engineer',              dept:'Engineering', loc:'Singapore',     employment:'Full-time', email:'r.krishna@corp.com',    phone:'+65 6555 0117',   joined:'2021-11-30', managerId:2,    online:true,  skills:['Terraform','AWS','Kubernetes','CI/CD'] },
+  { id:18, name:'Fatima Al-Zahra',   title:'Security Engineer',                 dept:'Engineering', loc:'Remote',        employment:'Full-time', email:'f.alzahra@corp.com',    phone:'+1 202 555 0118', joined:'2022-03-22', managerId:2,    online:false, skills:['Penetration Testing','SIEM','Zero Trust','Python'] },
+
+  // Product
+  { id:19, name:'Ben Nakamura',      title:'Senior Product Manager',            dept:'Product',     loc:'San Francisco', employment:'Full-time', email:'b.nakamura@corp.com',   phone:'+1 415 555 0119', joined:'2021-05-03', managerId:3,    online:true,  skills:['PRDs','A/B Testing','SQL','User Interviews'] },
+  { id:20, name:'Claire Dubois',     title:'Product Manager',                   dept:'Product',     loc:'London',        employment:'Full-time', email:'c.dubois@corp.com',     phone:'+44 20 7555 0120', joined:'2022-01-17', managerId:3,    online:true,  skills:['Roadmapping','Data Analysis','Jira','Figma'] },
+  { id:21, name:'Tom Adeyemi',       title:'Associate Product Manager',         dept:'Product',     loc:'San Francisco', employment:'Full-time', email:'t.adeyemi@corp.com',    phone:'+1 415 555 0121', joined:'2023-07-10', managerId:19,   online:false, skills:['Competitive Analysis','Wireframing','SQL'] },
+
+  // Design
+  { id:22, name:'Ingrid Haugen',     title:'Lead Product Designer',             dept:'Design',      loc:'San Francisco', employment:'Full-time', email:'i.haugen@corp.com',     phone:'+1 415 555 0122', joined:'2021-02-08', managerId:6,    online:true,  skills:['Figma','Design Systems','UX Research','Framer'] },
+  { id:23, name:'Miguel Santos',     title:'Product Designer',                  dept:'Design',      loc:'Remote',        employment:'Full-time', email:'m.santos@corp.com',     phone:'+1 310 555 0123', joined:'2022-04-04', managerId:6,    online:true,  skills:['Illustration','Motion Design','Figma','Prototyping'] },
+  { id:24, name:'Zoe Harrison',      title:'UX Researcher',                     dept:'Design',      loc:'New York',      employment:'Full-time', email:'z.harrison@corp.com',   phone:'+1 212 555 0124', joined:'2022-09-26', managerId:6,    online:false, skills:['Usability Testing','Interviews','Survey Design','Dovetail'] },
+
+  // Sales
+  { id:25, name:'Patrick O\'Brien',  title:'Enterprise Account Executive',      dept:'Sales',       loc:'New York',      employment:'Full-time', email:'p.obrien@corp.com',     phone:'+1 212 555 0125', joined:'2021-06-21', managerId:4,    online:true,  skills:['Enterprise Sales','Salesforce','Demos','Negotiation'] },
+  { id:26, name:'Hannah Bergström',  title:'Sales Development Rep',             dept:'Sales',       loc:'London',        employment:'Full-time', email:'h.bergstrom@corp.com',  phone:'+44 20 7555 0126', joined:'2023-01-09', managerId:4,    online:false, skills:['Prospecting','Outreach','HubSpot','LinkedIn Sales Nav'] },
+  { id:27, name:'Kevin Osei',        title:'Solutions Engineer',                dept:'Sales',       loc:'New York',      employment:'Full-time', email:'k.osei@corp.com',       phone:'+1 212 555 0127', joined:'2022-08-15', managerId:4,    online:true,  skills:['Technical Demos','Integration','Python','APIs'] },
+
+  // Marketing
+  { id:28, name:'Lily Andersen',     title:'Content Marketing Manager',         dept:'Marketing',   loc:'Remote',        employment:'Full-time', email:'l.andersen@corp.com',   phone:'+1 503 555 0128', joined:'2022-05-16', managerId:7,    online:true,  skills:['Content Strategy','SEO','Copywriting','HubSpot'] },
+  { id:29, name:'Sam Ito',           title:'Performance Marketing Manager',     dept:'Marketing',   loc:'New York',      employment:'Full-time', email:'s.ito@corp.com',        phone:'+1 212 555 0129', joined:'2022-10-03', managerId:7,    online:false, skills:['Google Ads','Meta Ads','Analytics','Attribution'] },
+  { id:30, name:'Diana Novak',       title:'Brand Designer',                    dept:'Marketing',   loc:'Remote',        employment:'Contractor', email:'d.novak@corp.com',     phone:'+1 720 555 0130', joined:'2023-03-20', managerId:7,    online:true,  skills:['Brand Identity','Canva','Adobe Suite','Social Media'] },
+
+  // Operations
+  { id:31, name:'Alejandro Fuentes', title:'Head of Operations',                dept:'Operations',  loc:'San Francisco', employment:'Full-time', email:'a.fuentes@corp.com',    phone:'+1 415 555 0131', joined:'2020-11-02', managerId:1,    online:true,  skills:['Process Optimization','Vendor Management','Ops Strategy'] },
+  { id:32, name:'Wendy Johansson',   title:'Office Manager',                    dept:'Operations',  loc:'San Francisco', employment:'Full-time', email:'w.johansson@corp.com',  phone:'+1 415 555 0132', joined:'2021-08-23', managerId:31,   online:true,  skills:['Facilities','Events','Administration','Vendor Mgmt'] },
+  { id:33, name:'Tariq Hussain',     title:'IT Support Specialist',             dept:'Operations',  loc:'New York',      employment:'Full-time', email:'t.hussain@corp.com',    phone:'+1 212 555 0133', joined:'2022-11-07', managerId:31,   online:false, skills:['Helpdesk','macOS','Networking','Okta'] },
+
+  // HR
+  { id:34, name:'Angela Park',       title:'Senior HR Business Partner',        dept:'HR',          loc:'San Francisco', employment:'Full-time', email:'a.park@corp.com',       phone:'+1 415 555 0134', joined:'2021-09-14', managerId:9,    online:true,  skills:['HRBP','Performance Reviews','Compensation','Workday'] },
+  { id:35, name:'Chris Okonkwo',     title:'Talent Acquisition Lead',           dept:'HR',          loc:'New York',      employment:'Full-time', email:'c.okonkwo@corp.com',    phone:'+1 212 555 0135', joined:'2022-06-27', managerId:9,    online:false, skills:['Technical Recruiting','Sourcing','Greenhouse','LinkedIn'] },
+
+  // Finance
+  { id:36, name:'Sandra Nguyen',     title:'Senior Financial Analyst',          dept:'Finance',     loc:'New York',      employment:'Full-time', email:'s.nguyen@corp.com',     phone:'+1 212 555 0136', joined:'2022-02-14', managerId:8,    online:true,  skills:['Excel','Financial Modeling','Budgeting','NetSuite'] },
+  { id:37, name:'Robert Zimmerman',  title:'Accounting Manager',                dept:'Finance',     loc:'Remote',        employment:'Full-time', email:'r.zimmerman@corp.com',  phone:'+1 312 555 0137', joined:'2021-10-18', managerId:8,    online:false, skills:['GAAP','QuickBooks','Reconciliation','Tax'] },
+
+  // Data
+  { id:38, name:'Grace Liu',         title:'Head of Data Science',              dept:'Data',        loc:'San Francisco', employment:'Full-time', email:'g.liu@corp.com',        phone:'+1 415 555 0138', joined:'2021-12-06', managerId:2,    online:true,  skills:['Python','ML','dbt','Snowflake','Statistics'] },
+  { id:39, name:'Jack Moreau',       title:'Data Engineer',                     dept:'Data',        loc:'Remote',        employment:'Full-time', email:'j.moreau@corp.com',     phone:'+1 604 555 0139', joined:'2022-07-11', managerId:38,   online:true,  skills:['Spark','Airflow','dbt','Databricks','SQL'] },
+  { id:40, name:'Isla MacLeod',      title:'Data Analyst',                      dept:'Data',        loc:'London',        employment:'Part-time', email:'i.macleod@corp.com',    phone:'+44 20 7555 0140', joined:'2023-05-15', managerId:38,   online:false, skills:['SQL','Tableau','Python','Looker'] },
+
+  // Legal
+  { id:41, name:'Victor Sanz',       title:'Senior Counsel',                    dept:'Legal',       loc:'New York',      employment:'Full-time', email:'v.sanz@corp.com',       phone:'+1 212 555 0141', joined:'2022-04-25', managerId:10,   online:true,  skills:['Contract Review','M&A','Corporate Law','GDPR'] },
+  { id:42, name:'Natasha Volkov',    title:'Privacy & Compliance Manager',      dept:'Legal',       loc:'London',        employment:'Full-time', email:'n.volkov@corp.com',     phone:'+44 20 7555 0142', joined:'2022-08-08', managerId:10,   online:false, skills:['GDPR','CCPA','Privacy Engineering','ISO 27001'] },
+];
+
+// ─────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────
+let currentView = 'grid';
+let selectedDept = 'all';
+let selectedLocation = 'all';
+let selectedEmployment = 'all';
+let searchQuery = '';
+let selectedId = null;
+
+// ─────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────
+function initials(name) {
+  return name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
+}
+function deptColor(dept) {
+  return DEPTS[dept] ? DEPTS[dept].color : 'var(--primary)';
+}
+function deptBg(dept) {
+  return DEPTS[dept] ? DEPTS[dept].bg : 'var(--primary-light)';
+}
+function tenureYears(joined) {
+  const ms = Date.now() - new Date(joined).getTime();
+  const yrs = ms / (1000 * 60 * 60 * 24 * 365.25);
+  if (yrs < 1) return `${Math.round(yrs * 12)}mo tenure`;
+  return `${yrs.toFixed(1)}yr tenure`;
+}
+function formatDate(str) {
+  return new Date(str).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+}
+
+function getFiltered() {
+  let list = [...employees];
+  if (selectedDept !== 'all') list = list.filter(e => e.dept === selectedDept);
+  if (selectedLocation !== 'all') list = list.filter(e => e.loc === selectedLocation);
+  if (selectedEmployment !== 'all') list = list.filter(e => e.employment === selectedEmployment);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      e.title.toLowerCase().includes(q) ||
+      e.dept.toLowerCase().includes(q) ||
+      e.loc.toLowerCase().includes(q) ||
+      (e.skills && e.skills.some(s => s.toLowerCase().includes(q)))
+    );
+  }
+  const sort = document.getElementById('sort-select').value;
+  if (sort === 'name') list.sort((a,b) => a.name.localeCompare(b.name));
+  else if (sort === 'dept') list.sort((a,b) => a.dept.localeCompare(b.dept) || a.name.localeCompare(b.name));
+  else if (sort === 'tenure') list.sort((a,b) => new Date(a.joined) - new Date(b.joined));
+  return list;
+}
+
+// ─────────────────────────────────────────────────
+// ICONS (inline SVG strings)
+// ─────────────────────────────────────────────────
+const icon = {
+  mail:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,14 22,4"/></svg>`,
+  phone:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+  loc:      `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  calendar: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  user:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  chevron:  `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>`,
+  msg:      `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  star:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+  building: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`,
+};
+
+// ─────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────
+function init() {
+  // Dept chips
+  const chipGroup = document.getElementById('dept-chips');
+  Object.keys(DEPTS).forEach(dept => {
+    const count = employees.filter(e => e.dept === dept).length;
+    const chip = document.createElement('div');
+    chip.className = 'chip dept-chip';
+    chip.dataset.dept = dept;
+    chip.innerHTML = `${dept} <span style="opacity:.6;font-size:11px">${count}</span>`;
+    chip.style.setProperty('--dept-c', DEPTS[dept].color);
+    chip.addEventListener('click', () => filterDept(dept));
+    chipGroup.appendChild(chip);
+  });
+
+  // Location counts
+  const locMap = {'all':employees.length,'San Francisco':0,'New York':0,'London':0,'Singapore':0,'Remote':0};
+  employees.forEach(e => { if(locMap[e.loc] !== undefined) locMap[e.loc]++; });
+  document.getElementById('loc-all-count').textContent = locMap['all'];
+  document.getElementById('loc-sf-count').textContent = locMap['San Francisco'];
+  document.getElementById('loc-ny-count').textContent = locMap['New York'];
+  document.getElementById('loc-lon-count').textContent = locMap['London'];
+  document.getElementById('loc-sg-count').textContent = locMap['Singapore'];
+  document.getElementById('loc-remote-count').textContent = locMap['Remote'];
+
+  // Nav stat
+  document.getElementById('stat-active').textContent = employees.filter(e=>e.online).length;
+  document.getElementById('stat-total').textContent = employees.length;
+
+  // Search
+  const inp = document.getElementById('search-input');
+  const clr = document.getElementById('search-clear');
+  inp.addEventListener('input', () => {
+    searchQuery = inp.value.trim();
+    clr.classList.toggle('visible', searchQuery.length > 0);
+    renderGrid();
+  });
+  clr.addEventListener('click', () => {
+    inp.value = ''; searchQuery = '';
+    clr.classList.remove('visible');
+    renderGrid();
+  });
+
+  renderGrid();
+  renderDeptGroups();
+}
+
+// ─────────────────────────────────────────────────
+// FILTER HANDLERS
+// ─────────────────────────────────────────────────
+function filterDept(dept) {
+  selectedDept = dept;
+  document.querySelectorAll('.dept-chip').forEach(c => c.classList.toggle('active', c.dataset.dept === dept));
+  renderGrid(); renderDeptGroups();
+}
+function filterLocation(el) {
+  selectedLocation = el.dataset.location;
+  document.querySelectorAll('[data-location]').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderGrid();
+}
+function filterEmployment(el) {
+  selectedEmployment = el.dataset.employment;
+  document.querySelectorAll('[data-employment]').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderGrid();
+}
+
+// ─────────────────────────────────────────────────
+// VIEW SWITCH
+// ─────────────────────────────────────────────────
+function setView(v) {
+  currentView = v;
+  document.getElementById('grid-view').classList.toggle('hidden', v !== 'grid');
+  document.getElementById('org-view').classList.toggle('visible', v === 'org');
+  document.getElementById('dept-view').style.display = v === 'dept' ? 'block' : 'none';
+  ['grid','org','dept'].forEach(name => {
+    document.getElementById('btn-'+name).classList.toggle('active', v === name);
+  });
+  if (v === 'org') renderOrgTree();
+  if (v === 'dept') renderDeptGroups();
+}
+
+// ─────────────────────────────────────────────────
+// CARD GRID
+// ─────────────────────────────────────────────────
+function renderGrid() {
+  const list = getFiltered();
+  const grid = document.getElementById('card-grid');
+  const empty = document.getElementById('empty-state');
+  const meta = document.getElementById('result-meta');
+
+  meta.innerHTML = `Showing <strong>${list.length}</strong> of ${employees.length} employees`;
+
+  if (list.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.innerHTML = list.map((e, i) => cardHTML(e, i)).join('');
+}
+
+function cardHTML(e, idx) {
+  const dc = deptColor(e.dept);
+  const db = deptBg(e.dept);
+  return `
+  <div class="emp-card ${selectedId === e.id ? 'selected' : ''}"
+       style="--dept-color:${dc}; animation-delay:${Math.min(idx*20,200)}ms"
+       onclick="openDetail(${e.id})">
+    <div class="card-top">
+      <div class="avatar ${e.online ? 'avatar-online' : ''}" style="background:${dc}">${initials(e.name)}</div>
+      <div class="card-info">
+        <div class="card-name">${e.name}</div>
+        <div class="card-title">${e.title}</div>
+      </div>
+    </div>
+    <span class="card-dept-tag" style="background:${db};color:${dc}">${e.dept}</span>
+    <div class="card-meta">
+      <div class="card-meta-row">${icon.loc} ${e.loc}</div>
+      <div class="card-meta-row">${icon.calendar} ${tenureYears(e.joined)}</div>
+      <div class="card-meta-row">${icon.mail} ${e.email}</div>
+    </div>
+    <div class="card-actions">
+      <button class="card-btn" onclick="event.stopPropagation(); window.location='mailto:${e.email}'">${icon.mail} Email</button>
+      <button class="card-btn primary" onclick="event.stopPropagation(); openDetail(${e.id})">${icon.user} Profile</button>
+    </div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────────────
+// DETAIL PANEL
+// ─────────────────────────────────────────────────
+function openDetail(id) {
+  selectedId = id;
+  const e = employees.find(x => x.id === id);
+  if (!e) return;
+
+  // Update selected card style
+  document.querySelectorAll('.emp-card').forEach(c => c.classList.remove('selected'));
+  event && event.currentTarget && event.currentTarget.classList && event.currentTarget.classList.add('selected');
+
+  const dc = deptColor(e.dept);
+  const db = deptBg(e.dept);
+
+  // Avatar
+  const av = document.getElementById('dp-avatar');
+  av.style.background = dc;
+  av.textContent = initials(e.name);
+
+  document.getElementById('dp-name').textContent = e.name;
+  document.getElementById('dp-title').textContent = e.title;
+
+  // Badges
+  const badges = document.getElementById('dp-badges');
+  badges.innerHTML = `
+    <span class="dp-badge" style="background:${db};color:${dc}">${e.dept}</span>
+    <span class="dp-badge" style="background:#f6ffed;color:#52c41a">${e.online ? '● Online' : '○ Away'}</span>
+    <span class="dp-badge" style="background:#f5f5f5;color:#8c8c8c">${e.employment}</span>
+  `;
+
+  // Body
+  const manager = e.managerId ? employees.find(x => x.id === e.managerId) : null;
+  const reports = employees.filter(x => x.managerId === e.id);
+
+  let body = '';
+
+  // Contact info
+  body += `<div>
+    <div class="dp-section-title">Contact</div>
+    <div class="dp-contact-list">
+      <div class="dp-contact-row">${icon.mail} ${e.email}</div>
+      <div class="dp-contact-row">${icon.phone} ${e.phone}</div>
+      <div class="dp-contact-row">${icon.loc} ${e.loc}</div>
+    </div>
+  </div>`;
+
+  // Details grid
+  body += `<div>
+    <div class="dp-section-title">Details</div>
+    <div class="dp-info-grid">
+      <div class="dp-info-item"><div class="dp-info-label">Department</div><div class="dp-info-value">${e.dept}</div></div>
+      <div class="dp-info-item"><div class="dp-info-label">Employment</div><div class="dp-info-value">${e.employment}</div></div>
+      <div class="dp-info-item"><div class="dp-info-label">Office</div><div class="dp-info-value">${e.loc}</div></div>
+      <div class="dp-info-item"><div class="dp-info-label">Joined</div><div class="dp-info-value">${formatDate(e.joined)}</div></div>
+    </div>
+  </div>`;
+
+  // Manager
+  if (manager) {
+    body += `<div>
+      <div class="dp-section-title">Reports To</div>
+      <div class="dp-report-card" onclick="openDetail(${manager.id})">
+        <div class="dp-report-avatar" style="background:${deptColor(manager.dept)}">${initials(manager.name)}</div>
+        <div>
+          <div class="dp-report-name">${manager.name}</div>
+          <div class="dp-report-title">${manager.title}</div>
+        </div>
+        <span class="dp-report-arrow">${icon.chevron}</span>
+      </div>
+    </div>`;
+  }
+
+  // Direct reports
+  if (reports.length > 0) {
+    body += `<div>
+      <div class="dp-section-title">Direct Reports (${reports.length})</div>
+      <div class="dp-reports">
+        ${reports.map(r => `
+          <div class="dp-report-card" onclick="openDetail(${r.id})">
+            <div class="dp-report-avatar" style="background:${deptColor(r.dept)}">${initials(r.name)}</div>
+            <div>
+              <div class="dp-report-name">${r.name}</div>
+              <div class="dp-report-title">${r.title}</div>
+            </div>
+            <span class="dp-report-arrow">${icon.chevron}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Skills
+  if (e.skills && e.skills.length) {
+    body += `<div>
+      <div class="dp-section-title">Skills & Expertise</div>
+      <div class="skills-wrap">
+        ${e.skills.map(s => `<span class="skill-tag">${s}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('dp-body').innerHTML = body;
+  document.getElementById('dp-footer').innerHTML = `
+    <button class="dp-action-btn" onclick="window.location='mailto:${e.email}'">${icon.mail} Send Email</button>
+    <button class="dp-action-btn blue" onclick="window.location='tel:${e.phone}'">${icon.phone} Call</button>
+  `;
+
+  document.getElementById('detail-backdrop').classList.add('open');
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  selectedId = null;
+  document.querySelectorAll('.emp-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('detail-backdrop').classList.remove('open');
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+// ─────────────────────────────────────────────────
+// ORG TREE
+// ─────────────────────────────────────────────────
+function renderOrgTree() {
+  const root = document.getElementById('org-tree-root');
+  const ceo = employees.find(e => e.managerId === null);
+  if (!ceo) return;
+
+  function buildNode(emp, depth) {
+    const dc = deptColor(emp.dept);
+    const reports = employees.filter(e => e.managerId === emp.id);
+    const hasKids = reports.length > 0;
+
+    let html = `<div class="org-child-wrap" style="${depth===0?'padding-top:0':''}">`;
+    if (depth > 0) html = `<div class="org-child-wrap">`;
+
+    html += `
+      <div class="org-card ${selectedId === emp.id ? 'selected' : ''}" onclick="openDetail(${emp.id})" style="cursor:pointer">
+        <div class="org-avatar-sm" style="background:${dc}">${initials(emp.name)}</div>
+        <div>
+          <div class="org-name">${emp.name}</div>
+          <div class="org-title">${emp.title}</div>
+        </div>
+      </div>`;
+
+    if (hasKids && depth < 2) {
+      html += `<div class="org-connector"></div>`;
+      html += `<div class="org-children">`;
+      html += `<div class="org-children-row" style="display:flex;gap:16px;position:relative;padding-top:0">`;
+      reports.forEach(r => { html += buildNode(r, depth + 1); });
+      html += `</div>`;
+      html += `</div>`;
+    } else if (hasKids) {
+      html += `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;text-align:center">+${reports.length} reports</div>`;
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
+  // Build tree: CEO at top, then direct reports as a row
+  const dc = deptColor(ceo.dept);
+  const ceoReports = employees.filter(e => e.managerId === ceo.id);
+
+  let html = `<div style="display:flex;flex-direction:column;align-items:center;gap:0;min-width:900px">`;
+  // CEO
+  html += `
+    <div class="org-card ${selectedId === ceo.id ? 'selected' : ''}" onclick="openDetail(${ceo.id})"
+         style="margin-bottom:0;min-width:220px;cursor:pointer">
+      <div class="org-avatar-sm" style="background:${dc}">${initials(ceo.name)}</div>
+      <div>
+        <div class="org-name">${ceo.name}</div>
+        <div class="org-title">${ceo.title}</div>
+      </div>
+    </div>
+    <div class="org-connector"></div>
+  `;
+  // L2 row
+  html += `<div style="display:flex;gap:20px;position:relative;padding-top:0">`;
+  // top horizontal line
+  html += `<div style="position:absolute;top:0;left:10%;right:10%;height:2px;background:var(--border)"></div>`;
+
+  ceoReports.forEach(e => {
+    const ec = deptColor(e.dept);
+    const l3 = employees.filter(r => r.managerId === e.id);
+    html += `<div style="display:flex;flex-direction:column;align-items:center;padding-top:20px;position:relative">`;
+    html += `<div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:2px;height:20px;background:var(--border)"></div>`;
+    html += `
+      <div class="org-card ${selectedId === e.id ? 'selected' : ''}" onclick="openDetail(${e.id})"
+           style="min-width:190px;cursor:pointer">
+        <div class="org-avatar-sm" style="background:${ec}">${initials(e.name)}</div>
+        <div>
+          <div class="org-name">${e.name}</div>
+          <div class="org-title" style="max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.title}</div>
+        </div>
+      </div>`;
+    if (l3.length > 0) {
+      html += `<div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;background:var(--bg);padding:2px 8px;border-radius:10px">+${l3.length} reports</div>`;
+    }
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  html += `</div>`;
+
+  root.innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────
+// DEPT GROUP VIEW
+// ─────────────────────────────────────────────────
+function renderDeptGroups() {
+  const container = document.getElementById('dept-groups');
+  const groups = {};
+  employees.forEach(e => {
+    if (!groups[e.dept]) groups[e.dept] = [];
+    groups[e.dept].push(e);
+  });
+
+  container.innerHTML = Object.entries(groups).map(([dept, members]) => {
+    const dc = deptColor(dept);
+    return `
+    <div class="dept-group">
+      <div class="dept-group-header" onclick="toggleDeptGroup(this)">
+        <span class="dept-group-dot" style="background:${dc}"></span>
+        <span class="dept-group-name">${dept}</span>
+        <span class="dept-group-count">${members.length} members</span>
+        <span class="dept-group-toggle open">${icon.chevron}</span>
+      </div>
+      <div class="dept-group-body">
+        ${members.map(e => `
+          <div class="dept-member" onclick="openDetail(${e.id})">
+            <div class="dept-member-av" style="background:${dc}">${initials(e.name)}</div>
+            <div>
+              <div class="dept-member-name">${e.name}</div>
+              <div class="dept-member-title">${e.title}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDeptGroup(header) {
+  const body = header.nextElementSibling;
+  const toggle = header.querySelector('.dept-group-toggle');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'grid';
+  toggle.classList.toggle('open', !isOpen);
+}
+
+// ─────────────────────────────────────────────────
+// KEYBOARD
+// ─────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDetail();
+  if (e.key === '/' && !e.ctrlKey && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    document.getElementById('search-input').focus();
+  }
+});
+
+// ─────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────
+init();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Employee Directory: a search hero, multi-select facets, and avatar cards. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/19-employee-directory.html
+</script>
+</body>
+</html>

@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HelpDesk — Support Inbox</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 13px;
+    color: #1d1d1f;
+    background: #f0f2f5;
+  }
+
+  /* ── Antd Color Tokens ── */
+  :root {
+    --primary:       #0066ff;   /* slightly richer blue for support/trust */
+    --primary-soft:  #e8f0fe;
+    --primary-hover: #0052cc;
+    --green:         #52c41a;
+    --green-soft:    #f6ffed;
+    --orange:        #fa8c16;
+    --orange-soft:   #fff7e6;
+    --red:           #f5222d;
+    --red-soft:      #fff1f0;
+    --yellow:        #fadb14;
+    --purple:        #722ed1;
+    --purple-soft:   #f9f0ff;
+    --cyan:          #13c2c2;
+    --cyan-soft:     #e6fffb;
+
+    --text-primary:   #1d1d1f;
+    --text-secondary: #595959;
+    --text-tertiary:  #8c8c8c;
+    --text-disabled:  #bfbfbf;
+    --border:         #e8e8e8;
+    --border-hover:   #d9d9d9;
+    --bg-container:   #ffffff;
+    --bg-layout:      #f0f2f5;
+    --bg-hover:       #f5f5f5;
+    --bg-selected:    #e8f0fe;
+
+    --radius-sm:  4px;
+    --radius:     8px;
+    --radius-lg:  12px;
+    --shadow-sm:  0 1px 4px rgba(0,0,0,.06);
+    --shadow:     0 2px 12px rgba(0,0,0,.08);
+    --shadow-lg:  0 4px 24px rgba(0,0,0,.12);
+  }
+
+  /* ── App Shell ── */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg-layout);
+  }
+
+  /* ── Top Nav ── */
+  .topnav {
+    height: 52px;
+    background: var(--bg-container);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .topnav-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--primary);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .topnav-logo svg { width: 22px; height: 22px; }
+
+  .topnav-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 8px;
+  }
+  .topnav-tab {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 13px;
+    transition: background .15s, color .15s;
+    white-space: nowrap;
+  }
+  .topnav-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .topnav-tab.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+
+  .topnav-search {
+    flex: 1;
+    max-width: 400px;
+    margin-left: 8px;
+    position: relative;
+  }
+  .topnav-search input {
+    width: 100%;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0 12px 0 34px;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-layout);
+    outline: none;
+    transition: border .2s, box-shadow .2s;
+  }
+  .topnav-search input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0,102,255,.12);
+    background: #fff;
+  }
+  .topnav-search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-tertiary);
+  }
+  .topnav-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .icon-btn {
+    width: 32px; height: 32px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-secondary);
+    transition: background .15s, color .15s;
+    position: relative;
+  }
+  .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .notif-dot {
+    position: absolute; top: 4px; right: 4px;
+    width: 7px; height: 7px;
+    background: var(--red); border-radius: 50%;
+    border: 2px solid #fff;
+  }
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .avatar.sm { width: 24px; height: 24px; font-size: 10px; }
+  .avatar.lg { width: 36px; height: 36px; font-size: 14px; }
+  .avatar.xl { width: 44px; height: 44px; font-size: 17px; }
+
+  /* ── Context Bar (below topnav, inside inbox) ── */
+  .context-bar {
+    height: 44px;
+    background: var(--bg-container);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .context-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+  .context-count {
+    background: var(--bg-layout);
+    color: var(--text-secondary);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .context-spacer { flex: 1; }
+  .btn {
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-container);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: border .15s, color .15s, background .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.primary {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+  .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+  .btn.sm { height: 24px; padding: 0 9px; font-size: 11px; }
+
+  /* ── Three-column Layout ── */
+  .inbox-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  /* ── Left Column: Ticket List ── */
+  .col-left {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--bg-container);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .col-left-filters {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .filter-chip {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    background: var(--bg-container);
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+  .filter-chip.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+  .filter-chip.urgent.active { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+  .filter-chip.warn.active { background: var(--orange-soft); border-color: var(--orange); color: var(--orange); }
+
+  .ticket-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .ticket-list::-webkit-scrollbar { width: 5px; }
+  .ticket-list::-webkit-scrollbar-track { background: transparent; }
+  .ticket-list::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+
+  .ticket-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .12s;
+    position: relative;
+  }
+  .ticket-item:hover { background: var(--bg-hover); }
+  .ticket-item.selected {
+    background: var(--bg-selected);
+    border-left-color: var(--primary);
+  }
+  .ticket-item + .ticket-item { border-top: 1px solid #f5f5f5; }
+
+  .ticket-item-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .ticket-chan-icon {
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .ticket-chan-icon svg { width: 11px; height: 11px; }
+  .chan-email { background: #fff3e0; color: #e65100; }
+  .chan-chat  { background: #e8f5e9; color: #2e7d32; }
+  .chan-web   { background: #e3f2fd; color: #1565c0; }
+  .chan-phone { background: #fce4ec; color: #880e4f; }
+
+  .ticket-subject {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .unread-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+  }
+  .ticket-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+  }
+  .ticket-customer {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .ticket-time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .ticket-preview {
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    margin-bottom: 5px;
+  }
+  .ticket-tags {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    height: 16px;
+    padding: 0 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    display: inline-flex; align-items: center;
+    white-space: nowrap;
+  }
+  .tag-status-open     { background: var(--primary-soft); color: var(--primary); }
+  .tag-status-pending  { background: var(--orange-soft);  color: var(--orange); }
+  .tag-status-resolved { background: var(--green-soft);   color: var(--green); }
+  .tag-status-closed   { background: #f5f5f5;             color: var(--text-tertiary); }
+  .tag-pri-urgent  { background: var(--red-soft);    color: var(--red); }
+  .tag-pri-high    { background: var(--orange-soft); color: var(--orange); }
+  .tag-pri-normal  { background: #f5f5f5;             color: var(--text-secondary); }
+  .tag-pri-low     { background: #f5f5f5;             color: var(--text-disabled); }
+  .sla-badge {
+    margin-left: auto;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    display: inline-flex; align-items: center;
+  }
+  .sla-ok      { background: var(--green-soft);  color: var(--green); }
+  .sla-warn    { background: var(--orange-soft); color: var(--orange); }
+  .sla-breach  { background: var(--red-soft);    color: var(--red); }
+  .sla-na      { background: #f5f5f5;            color: var(--text-disabled); }
+
+  /* ── Middle Column: Conversation Thread ── */
+  .col-mid {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #f8f9fb;
+    min-width: 0;
+  }
+
+  .thread-header {
+    background: var(--bg-container);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+  .thread-header-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .thread-title {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+  }
+  .thread-id {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 1px;
+  }
+  .thread-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .thread-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .meta-pill {
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 11px;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--bg-layout);
+    color: var(--text-secondary);
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: border .15s, color .15s;
+  }
+  .meta-pill:hover { border-color: var(--primary); color: var(--primary); }
+  .meta-pill .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Conversation Messages ── */
+  .thread-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .thread-messages::-webkit-scrollbar { width: 5px; }
+  .thread-messages::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+
+  .msg-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+  }
+  .msg-group.from-customer { flex-direction: row; }
+  .msg-group.from-agent    { flex-direction: row-reverse; }
+
+  .msg-avatar-wrap { flex-shrink: 0; }
+
+  .msg-body-wrap {
+    display: flex;
+    flex-direction: column;
+    max-width: 72%;
+    gap: 3px;
+  }
+  .msg-group.from-agent .msg-body-wrap { align-items: flex-end; }
+
+  .msg-sender-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+  .msg-group.from-agent .msg-sender-line { flex-direction: row-reverse; }
+  .msg-sender-name { font-weight: 600; color: var(--text-secondary); }
+
+  .msg-bubble {
+    padding: 10px 14px;
+    border-radius: var(--radius-lg);
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+    box-shadow: var(--shadow-sm);
+  }
+  .msg-group.from-customer .msg-bubble {
+    background: var(--bg-container);
+    color: var(--text-primary);
+    border-bottom-left-radius: 3px;
+  }
+  .msg-group.from-agent .msg-bubble {
+    background: var(--primary);
+    color: #fff;
+    border-bottom-right-radius: 3px;
+  }
+
+  .msg-note-group {
+    margin-bottom: 14px;
+  }
+  .msg-note-label {
+    font-size: 11px;
+    color: var(--orange);
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .msg-note-label::before,
+  .msg-note-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #ffe7ba;
+  }
+  .msg-note-bubble {
+    background: #fffbe6;
+    border: 1px solid #ffe58f;
+    border-radius: var(--radius);
+    padding: 9px 14px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #7c5700;
+    margin: 0 32px;
+  }
+  .msg-note-meta {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-align: right;
+    margin: 3px 32px 0;
+  }
+
+  .thread-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 16px;
+    font-size: 11px;
+    color: var(--text-disabled);
+  }
+  .thread-divider::before, .thread-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Reply Box ── */
+  .reply-box {
+    background: var(--bg-container);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+  .reply-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 10px;
+  }
+  .reply-tab {
+    height: 26px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    transition: background .12s, color .12s;
+  }
+  .reply-tab:hover { background: var(--bg-hover); color: var(--text-secondary); }
+  .reply-tab.active { background: var(--primary-soft); color: var(--primary); }
+  .reply-tab.note.active { background: #fffbe6; color: var(--orange); }
+
+  .reply-textarea {
+    width: 100%;
+    min-height: 80px;
+    max-height: 180px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text-primary);
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    line-height: 1.5;
+    transition: border .15s, box-shadow .15s;
+  }
+  .reply-textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0,102,255,.1);
+  }
+  .reply-textarea::placeholder { color: var(--text-disabled); }
+
+  .reply-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .quick-replies {
+    display: flex;
+    gap: 5px;
+    flex: 1;
+    overflow: hidden;
+  }
+  .quick-reply-chip {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 12px;
+    background: var(--bg-layout);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .15s;
+    display: inline-flex; align-items: center;
+  }
+  .quick-reply-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+  .reply-send-row { display: flex; align-items: center; gap: 6px; }
+
+  /* ── Right Column: Customer Sidebar ── */
+  .col-right {
+    width: 256px;
+    flex-shrink: 0;
+    background: var(--bg-container);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .col-right::-webkit-scrollbar { width: 5px; }
+  .col-right::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+
+  .sidebar-section {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .sidebar-section:last-child { border-bottom: none; }
+
+  .sidebar-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-section-title a {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--primary);
+    cursor: pointer;
+  }
+
+  .contact-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .contact-info { flex: 1; min-width: 0; }
+  .contact-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .contact-company {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .contact-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .contact-detail-row svg { color: var(--text-tertiary); flex-shrink: 0; }
+  .contact-detail-val { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  .kv-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .kv-key   { color: var(--text-tertiary); }
+  .kv-val   { color: var(--text-primary); font-weight: 500; text-align: right; max-width: 140px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  .ticket-history-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 6px 0;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background .12s;
+  }
+  .ticket-history-item:hover { background: var(--bg-hover); margin: 0 -4px; padding: 6px 4px; }
+  .ticket-history-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+  .history-subject {
+    font-size: 12px;
+    color: var(--text-primary);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+    flex: 1;
+  }
+  .history-date { font-size: 11px; color: var(--text-disabled); white-space: nowrap; }
+
+  .tags-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 6px;
+  }
+  .tag-label {
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    background: #f5f5f5;
+    color: var(--text-secondary);
+    display: inline-flex; align-items: center;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all .15s;
+  }
+  .tag-label:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+  .tag-add {
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    background: transparent;
+    color: var(--text-tertiary);
+    display: inline-flex; align-items: center; gap: 3px;
+    cursor: pointer;
+    border: 1px dashed var(--border-hover);
+    transition: all .15s;
+  }
+  .tag-add:hover { border-color: var(--primary); color: var(--primary); }
+
+  .order-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 11px;
+    margin-bottom: 7px;
+    cursor: pointer;
+    transition: border .15s, box-shadow .15s;
+  }
+  .order-card:hover { border-color: var(--primary); box-shadow: var(--shadow-sm); }
+  .order-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .order-id { font-size: 12px; font-weight: 700; color: var(--primary); }
+  .order-status-badge {
+    height: 17px;
+    padding: 0 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    display: inline-flex; align-items: center;
+  }
+  .order-shipped   { background: var(--cyan-soft);   color: var(--cyan); }
+  .order-delivered { background: var(--green-soft);  color: var(--green); }
+  .order-pending   { background: var(--orange-soft); color: var(--orange); }
+  .order-cancelled { background: #f5f5f5;            color: var(--text-tertiary); }
+  .order-items { font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; }
+  .order-total { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-top: 3px; }
+
+  /* ── Assignee row ── */
+  .assignee-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border .15s;
+    margin-bottom: 6px;
+  }
+  .assignee-row:hover { border-color: var(--primary); }
+  .assignee-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .assignee-role { font-size: 11px; color: var(--text-tertiary); margin-left: auto; }
+
+  /* ── CSAT chip ── */
+  .csat-wrap {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+  .csat-face {
+    font-size: 18px;
+    cursor: pointer;
+    opacity: .5;
+    transition: opacity .15s, transform .15s;
+    line-height: 1;
+  }
+  .csat-face:hover, .csat-face.sel { opacity: 1; transform: scale(1.15); }
+
+  /* ── Utility ── */
+  .flex-row { display: flex; align-items: center; }
+  .gap4 { gap: 4px; }
+  .gap6 { gap: 6px; }
+  .gap8 { gap: 8px; }
+  .grow { flex: 1; }
+  .ellipsis { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  /* Scrollbar polish for Firefox */
+  .ticket-list, .thread-messages, .col-right {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ TOP NAV ══ -->
+  <nav class="topnav">
+    <a class="topnav-logo" href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      HelpDesk
+    </a>
+
+    <div class="topnav-tabs">
+      <div class="topnav-tab active">Inbox</div>
+      <div class="topnav-tab">All Tickets</div>
+      <div class="topnav-tab">Reports</div>
+      <div class="topnav-tab">Contacts</div>
+    </div>
+
+    <div class="topnav-search">
+      <span class="topnav-search-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+      </span>
+      <input type="text" placeholder="Search tickets, customers, orders…" />
+    </div>
+
+    <div class="topnav-actions">
+      <div class="icon-btn" title="Notifications">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="notif-dot"></span>
+      </div>
+      <div class="icon-btn" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </div>
+      <div class="avatar" style="background:#2e7d32;" title="Maya Chen — Support Lead">MC</div>
+    </div>
+  </nav>
+
+  <!-- ══ CONTEXT BAR ══ -->
+  <div class="context-bar">
+    <span class="context-label">My Queue</span>
+    <span class="context-count">14 open</span>
+    <div class="context-spacer"></div>
+    <button class="btn" onclick="">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      Sort: Oldest first
+    </button>
+    <button class="btn">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></svg>
+      Filter
+    </button>
+    <button class="btn primary">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Ticket
+    </button>
+  </div>
+
+  <!-- ══ INBOX BODY ══ -->
+  <div class="inbox-body">
+
+    <!-- ── LEFT: Ticket List ── -->
+    <div class="col-left">
+      <div class="col-left-filters">
+        <div class="filter-row">
+          <div class="filter-chip active" onclick="setFilter(this,'all')">All</div>
+          <div class="filter-chip" onclick="setFilter(this,'open')">Open</div>
+          <div class="filter-chip" onclick="setFilter(this,'pending')">Pending</div>
+          <div class="filter-chip" onclick="setFilter(this,'resolved')">Resolved</div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-chip urgent" onclick="toggleFilter(this)">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="12"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>
+            Urgent
+          </div>
+          <div class="filter-chip warn" onclick="toggleFilter(this)">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            SLA Breach
+          </div>
+          <div class="filter-chip" onclick="toggleFilter(this)">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Unassigned
+          </div>
+        </div>
+      </div>
+
+      <div class="ticket-list" id="ticketList">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+
+    <!-- ── MIDDLE: Conversation Thread ── -->
+    <div class="col-mid">
+      <div class="thread-header" id="threadHeader">
+        <!-- rendered by JS -->
+      </div>
+      <div class="thread-messages" id="threadMessages">
+        <!-- rendered by JS -->
+      </div>
+      <div class="reply-box">
+        <div class="reply-tabs">
+          <div class="reply-tab active" id="replyTabReply"   onclick="switchReplyTab('reply')">Reply</div>
+          <div class="reply-tab note"  id="replyTabNote"    onclick="switchReplyTab('note')">Internal Note</div>
+          <div class="reply-tab"      id="replyTabForward"  onclick="switchReplyTab('forward')">Forward</div>
+        </div>
+        <textarea class="reply-textarea" id="replyTextarea" placeholder="Type your reply… (Ctrl+Enter to send)"></textarea>
+        <div class="reply-footer">
+          <div class="quick-replies">
+            <div class="quick-reply-chip" onclick="insertQuickReply('Thanks for reaching out! Let me look into that for you.')">👋 Greeting</div>
+            <div class="quick-reply-chip" onclick="insertQuickReply('Could you please provide your order number so I can assist you faster?')">📦 Order #</div>
+            <div class="quick-reply-chip" onclick="insertQuickReply('Your refund has been processed and should appear within 3–5 business days.')">💰 Refund</div>
+            <div class="quick-reply-chip" onclick="insertQuickReply('We\'re sorry for the inconvenience. Our team is looking into this urgently.')">🔧 Escalate</div>
+          </div>
+          <div class="reply-send-row">
+            <button class="btn">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              Attach
+            </button>
+            <button class="btn primary" onclick="sendReply()">Send Reply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Customer Sidebar ── -->
+    <div class="col-right" id="sidebarRight">
+      <!-- rendered by JS -->
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════
+   Mock Data
+══════════════════════════════════════════ */
+const AGENTS = [
+  { id: 'a1', name: 'Maya Chen',    initials: 'MC', color: '#2e7d32' },
+  { id: 'a2', name: 'Tom Harward',  initials: 'TH', color: '#1565c0' },
+  { id: 'a3', name: 'Priya Nair',   initials: 'PN', color: '#6a1b9a' },
+  { id: 'a4', name: 'Sam Okafor',   initials: 'SO', color: '#c62828' },
+];
+
+const TICKETS = [
+  {
+    id: 'TKT-4821',
+    subject: 'Order delayed — tracking shows no movement for 5 days',
+    channel: 'email',
+    status: 'open',
+    priority: 'urgent',
+    unread: true,
+    sla: { label: '1h 12m', state: 'breach' },
+    customer: { name: 'Jennifer Alvarez', initials: 'JA', color: '#e65100', company: 'Alvarez Design Studio', email: 'j.alvarez@alvstudio.com', phone: '+1 415 220 8841', locale: 'San Francisco, US', since: 'Jun 2022', ltv: '$4,280' },
+    assignee: AGENTS[0],
+    tags: ['shipping', 'order-issue'],
+    preview: 'Hi, I placed order #ORD-88210 six days ago and the tracking…',
+    thread: [
+      { type: 'customer', time: 'Mon 9:14 AM', text: "Hi, I placed order #ORD-88210 six days ago and the tracking page hasn't updated in 5 days. It just says 'In Transit' with no movement. This was a birthday gift and I'm really worried it won't arrive in time. Can you please investigate?" },
+      { type: 'agent', time: 'Mon 10:02 AM', agentId: 'a2', text: "Hi Jennifer! I completely understand how stressful this must be, especially with an upcoming occasion. I've just pulled up your shipment and I can see it last scanned in Memphis, TN on June 28. I'm escalating this to our carrier liaison team right now — you should have an update within 2 hours." },
+      { type: 'note', time: 'Mon 10:04 AM', agentId: 'a2', text: 'Carrier ticket opened: REF-CN-29114. Memphis hub confirmed package is held for customs re-clearance (mis-labelled item). ETA to customer: +2 business days. May need to offer $15 store credit proactively.' },
+      { type: 'customer', time: 'Mon 11:47 AM', text: "Thank you! I just got the carrier update email too. Fingers crossed it clears by tomorrow. Will I get a notification when it ships out again?" },
+      { type: 'agent', time: 'Mon 12:05 PM', agentId: 'a1', text: "Absolutely, Jennifer! We've enabled real-time SMS alerts on your order — you'll receive a text the moment it's re-scanned and moving. As a token of our apology for this inconvenience, I've also added a $15 store credit to your account. Again, I'm so sorry for the trouble!" },
+    ],
+    orders: [
+      { id: 'ORD-88210', status: 'shipped',   items: '1× Artisan Ceramic Mug Set',       total: '$68.00' },
+      { id: 'ORD-81045', status: 'delivered', items: '3× Linen Throw Pillow',              total: '$154.00' },
+    ],
+    ticketHistory: [
+      { id: 'TKT-4101', subject: 'Wrong size delivered — return label request', status: 'resolved', date: 'Apr 2024' },
+      { id: 'TKT-3774', subject: 'Promo code not applying at checkout',          status: 'resolved', date: 'Dec 2023' },
+    ],
+  },
+  {
+    id: 'TKT-4820',
+    subject: 'Refund not received after 10 business days',
+    channel: 'chat',
+    status: 'open',
+    priority: 'high',
+    unread: true,
+    sla: { label: '3h 40m', state: 'warn' },
+    customer: { name: 'Marcus Webb', initials: 'MW', color: '#1565c0', company: 'Webb & Associates', email: 'm.webb@webbassoc.io', phone: '+44 7700 900123', locale: 'London, UK', since: 'Feb 2021', ltv: '$12,640' },
+    assignee: AGENTS[2],
+    tags: ['refund', 'billing', 'vip'],
+    preview: 'I returned my laptop stand three weeks ago and still no refund…',
+    thread: [
+      { type: 'customer', time: '8:30 AM', text: "I returned my laptop stand three weeks ago (return tracking shows delivered on June 5) and I still haven't received my refund. Your website says 5–7 business days. This is completely unacceptable — I've been a customer for years." },
+      { type: 'agent', time: '8:52 AM', agentId: 'a3', text: "Hi Marcus, I sincerely apologise for this delay. I can confirm we received your return on June 5 — it's sitting in our refund queue with a processing hold. I'm removing the hold right now and manually triggering the refund. You should see $189.99 on your Visa ending 4827 within 1–2 business days." },
+      { type: 'customer', time: '9:01 AM', text: "Thank you for sorting that. I'll keep an eye on my statement." },
+    ],
+    orders: [
+      { id: 'ORD-79340', status: 'cancelled', items: '1× ErgoRise Laptop Stand Pro',    total: '$189.99' },
+      { id: 'ORD-75209', status: 'delivered', items: '2× USB-C Hub, 1× Monitor Light',  total: '$247.50' },
+      { id: 'ORD-68001', status: 'delivered', items: '1× Standing Desk Mat',             total: '$89.00' },
+    ],
+    ticketHistory: [
+      { id: 'TKT-4201', subject: 'Order arrived damaged — replacement needed', status: 'resolved', date: 'Nov 2023' },
+    ],
+  },
+  {
+    id: 'TKT-4818',
+    subject: 'Cannot log in — two-factor authentication not working',
+    channel: 'web',
+    status: 'open',
+    priority: 'high',
+    unread: false,
+    sla: { label: '5h 20m', state: 'ok' },
+    customer: { name: 'Fatima Al-Hassan', initials: 'FA', color: '#6a1b9a', company: 'Al-Hassan Consulting', email: 'fatima@alhassan.co', phone: '+971 50 444 7823', locale: 'Dubai, UAE', since: 'Aug 2023', ltv: '$3,910' },
+    assignee: AGENTS[1],
+    tags: ['account', 'login', '2fa'],
+    preview: "The authenticator app stopped generating codes after I changed my phone…",
+    thread: [
+      { type: 'customer', time: 'Yesterday 3:20 PM', text: "I recently switched to a new iPhone and restored from backup. Now my authenticator app generates codes but they all say 'Invalid code' when I try to log in. I can't access my account at all." },
+      { type: 'agent', time: 'Yesterday 3:41 PM', agentId: 'a2', text: "Hi Fatima! This is a very common issue after a device migration — the TOTP seed can sometimes not transfer correctly during backups. I can reset your 2FA so you can re-enroll. I'll send a verification link to your registered email fatima@alhassan.co right now. Could you confirm you still have access to that inbox?" },
+      { type: 'customer', time: 'Yesterday 4:05 PM', text: "Yes, I have access to that email. I just checked and didn't receive anything yet." },
+      { type: 'agent', time: 'Yesterday 4:10 PM', agentId: 'a2', text: "Apologies for the delay — I've just resent it. Please check your spam folder as well. The link expires in 30 minutes." },
+      { type: 'note', time: 'Yesterday 4:11 PM', agentId: 'a2', text: 'Sent 2FA reset link via admin panel (token ID: 2FA-RST-8821). Customer last replied at 4:05 PM. If no confirmation in 24h, follow up and escalate to Account Security team.' },
+    ],
+    orders: [
+      { id: 'ORD-85021', status: 'pending', items: '2× Ergonomic Office Chair', total: '$698.00' },
+    ],
+    ticketHistory: [],
+  },
+  {
+    id: 'TKT-4815',
+    subject: 'Bulk invoice request — Q2 purchase history',
+    channel: 'email',
+    status: 'pending',
+    priority: 'normal',
+    unread: false,
+    sla: { label: '', state: 'na' },
+    customer: { name: 'Derek Lim', initials: 'DL', color: '#00796b', company: 'Lim Procurement Ltd', email: 'derek@limpro.sg', phone: '+65 9123 4567', locale: 'Singapore', since: 'Jan 2020', ltv: '$31,440' },
+    assignee: AGENTS[0],
+    tags: ['billing', 'enterprise', 'invoice'],
+    preview: 'Hi, our finance team requires consolidated invoices for all Q2 orders…',
+    thread: [
+      { type: 'customer', time: 'Jun 28', text: "Hi, our finance team requires consolidated invoices for all orders placed in Q2 (April–June). We have approximately 34 orders. Could you generate a single consolidated PDF, or ZIP of individual PDFs? We need this for our annual audit." },
+      { type: 'agent', time: 'Jun 28', agentId: 'a1', text: "Hi Derek! Happy to help. I've queued a bulk invoice export for all 34 Q2 orders on your account. This can take up to 30 minutes to generate — I'll reply here with the secure download link once it's ready. Expected delivery: within the hour." },
+      { type: 'customer', time: 'Jun 28', text: "Perfect, thank you. Could you also include the GST breakdown per invoice?" },
+      { type: 'note', time: 'Jun 28', agentId: 'a1', text: "Customer needs GST breakdown included. The standard export doesn't include that — raised internal request with the billing eng team (BIL-INT-441) to add GST column. May take 1 business day. Pending their response." },
+    ],
+    orders: [
+      { id: 'ORD-86100', status: 'delivered', items: '12× Office Supplies Bundle',     total: '$1,240.00' },
+      { id: 'ORD-84920', status: 'delivered', items: '5× Ergonomic Keyboard + Mouse',  total: '$875.00' },
+    ],
+    ticketHistory: [
+      { id: 'TKT-4401', subject: 'Annual contract renewal — pricing negotiation', status: 'resolved', date: 'Jan 2024' },
+      { id: 'TKT-4110', subject: 'Bulk discount request for Q1',                   status: 'resolved', date: 'Mar 2024' },
+    ],
+  },
+  {
+    id: 'TKT-4812',
+    subject: 'Product arrived with missing parts — Nexus 5-shelf unit',
+    channel: 'phone',
+    status: 'open',
+    priority: 'high',
+    unread: true,
+    sla: { label: '2h 05m', state: 'warn' },
+    customer: { name: 'Claire Fontaine', initials: 'CF', color: '#880e4f', company: '', email: 'claire.fontaine@gmail.com', phone: '+33 6 12 34 56 78', locale: 'Paris, FR', since: 'Oct 2023', ltv: '$760' },
+    assignee: null,
+    tags: ['product-defect', 'replacement'],
+    preview: 'Called in to report Nexus 5-shelf shelving unit missing all mounting hardware…',
+    thread: [
+      { type: 'customer', time: 'Today 7:44 AM', text: "I just received my Nexus 5-shelf shelving unit and opened the box — there's absolutely no mounting hardware included. No screws, brackets, nothing. The instruction manual references a 'Hardware Pack A' but it's not in the box. I can't assemble it at all." },
+    ],
+    orders: [
+      { id: 'ORD-87901', status: 'delivered', items: '1× Nexus 5-shelf Unit (Walnut)',  total: '$319.00' },
+    ],
+    ticketHistory: [],
+  },
+  {
+    id: 'TKT-4809',
+    subject: 'Subscription auto-renew charge without prior notice',
+    channel: 'web',
+    status: 'open',
+    priority: 'normal',
+    unread: false,
+    sla: { label: '8h 30m', state: 'ok' },
+    customer: { name: 'Noah Petersen', initials: 'NP', color: '#37474f', company: '', email: 'noahp@fastmail.net', phone: '+1 503 771 9102', locale: 'Portland, US', since: 'Nov 2022', ltv: '$920' },
+    assignee: AGENTS[3],
+    tags: ['billing', 'subscription'],
+    preview: 'I was charged $79 for an annual subscription renewal but never received…',
+    thread: [
+      { type: 'customer', time: 'Yesterday', text: "I was charged $79 for an annual subscription renewal but never received a reminder email. I would have cancelled if I'd known. Can I get a refund?" },
+      { type: 'agent', time: 'Yesterday', agentId: 'a4', text: "Hi Noah, I can see the renewal processed on June 27 and our system shows a reminder was sent on June 20 to noahp@fastmail.net. It's possible it went to spam. That said, I want to make sure you're taken care of — I can offer you a full refund and cancel the subscription, or apply a 30% loyalty discount if you'd like to keep it. What would you prefer?" },
+      { type: 'customer', time: 'Yesterday', text: "Let me think about it. Can I have until tomorrow to decide?" },
+    ],
+    orders: [],
+    ticketHistory: [
+      { id: 'TKT-3900', subject: 'Subscription upgrade from monthly to annual', status: 'resolved', date: 'Jun 2023' },
+    ],
+  },
+  {
+    id: 'TKT-4803',
+    subject: 'Feature request: dark mode for mobile app',
+    channel: 'email',
+    status: 'pending',
+    priority: 'low',
+    unread: false,
+    sla: { label: '', state: 'na' },
+    customer: { name: 'Ayaan Khan', initials: 'AK', color: '#1b5e20', company: 'Freelance', email: 'ayaankhan.dev@gmail.com', phone: '+92 300 1234567', locale: 'Karachi, PK', since: 'Mar 2024', ltv: '$210' },
+    assignee: AGENTS[2],
+    tags: ['feature-request', 'mobile'],
+    preview: 'Would love to see dark mode on the iOS app — eyes get tired in the evening…',
+    thread: [
+      { type: 'customer', time: 'Jun 25', text: "Hi! Would love to see dark mode on the iOS app — eyes get tired browsing at night. Is this on the roadmap?" },
+      { type: 'agent', time: 'Jun 25', agentId: 'a3', text: "Hi Ayaan! Great feedback — you're not alone in requesting this. Dark mode for the mobile app is actually on our Q3 roadmap and we're targeting a beta release in August. I've added your vote to the feature tracker (FTR-4412). We'll notify you when it's available for beta testing — would you be interested in joining our beta program?" },
+      { type: 'customer', time: 'Jun 26', text: "Yes, absolutely sign me up for the beta! That's great news." },
+    ],
+    orders: [],
+    ticketHistory: [],
+  },
+  {
+    id: 'TKT-4797',
+    subject: 'Discount code applied but not reflected in order total',
+    channel: 'chat',
+    status: 'resolved',
+    priority: 'normal',
+    unread: false,
+    sla: { label: '✓ Met', state: 'ok' },
+    customer: { name: 'Sophie Müller', initials: 'SM', color: '#e65100', company: '', email: 'sophie.m@protonmail.com', phone: '+49 89 1234 5678', locale: 'Munich, DE', since: 'Sep 2023', ltv: '$1,560' },
+    assignee: AGENTS[0],
+    tags: ['billing', 'promo'],
+    preview: 'Used SUMMER20 at checkout but my order summary shows full price…',
+    thread: [
+      { type: 'customer', time: 'Jun 24', text: "I used SUMMER20 at checkout but my order confirmation email shows the full price of $240. The discount wasn't applied." },
+      { type: 'agent', time: 'Jun 24', agentId: 'a1', text: "Hi Sophie! I can see the coupon was technically applied but there was a glitch in our checkout flow that prevented it from deducting. I've just manually processed the $48 discount (20% of $240) — you'll see a partial refund to your PayPal within 24 hours." },
+      { type: 'customer', time: 'Jun 24', text: "Oh wow, that was fast! Thank you so much, Maya." },
+    ],
+    orders: [
+      { id: 'ORD-86740', status: 'delivered', items: '1× Scandinavian Desk Organiser Set', total: '$192.00' },
+    ],
+    ticketHistory: [],
+  },
+];
+
+/* ══════════════════════════════════════════
+   State
+══════════════════════════════════════════ */
+let selectedTicketId = TICKETS[0].id;
+let activeReplyTab = 'reply';
+
+function getTicket(id) { return TICKETS.find(t => t.id === id); }
+function getAgent(id)  { return AGENTS.find(a => a.id === id); }
+
+/* ══════════════════════════════════════════
+   SVG helpers
+══════════════════════════════════════════ */
+const ICONS = {
+  email: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+  chat:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  web:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+  phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.24h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.06 6.06l1.73-1.73a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+};
+
+/* ══════════════════════════════════════════
+   Ticket List Render
+══════════════════════════════════════════ */
+function renderTicketList() {
+  const container = document.getElementById('ticketList');
+  container.innerHTML = TICKETS.map(t => {
+    const selected = t.id === selectedTicketId ? ' selected' : '';
+    const chanClass = 'chan-' + t.channel;
+    const statusClass = 'tag-status-' + t.status;
+    const priClass = 'tag-pri-' + t.priority;
+    const slaClass = 'sla-' + t.sla.state;
+    const unread = t.unread ? '<span class="unread-dot"></span>' : '';
+
+    // assignee initials mini
+    const assigneeHtml = t.assignee
+      ? `<div class="avatar sm" style="background:${t.assignee.color}" title="${t.assignee.name}">${t.assignee.initials}</div>`
+      : `<div class="avatar sm" style="background:#d9d9d9;color:#8c8c8c" title="Unassigned">–</div>`;
+
+    return `<div class="ticket-item${selected}" onclick="selectTicket('${t.id}')">
+  <div class="ticket-item-top">
+    <span class="ticket-chan-icon ${chanClass}">${ICONS[t.channel]}</span>
+    <span class="ticket-subject">${t.subject}</span>
+    ${unread}
+  </div>
+  <div class="ticket-meta">
+    <span class="ticket-customer">${t.customer.name}${t.customer.company ? ' · ' + t.customer.company : ''}</span>
+    <span class="ticket-time">${t.sla.state !== 'na' ? '⏱ ' + t.sla.label : t.sla.label}</span>
+  </div>
+  <div class="ticket-preview">${t.preview}</div>
+  <div class="ticket-tags">
+    <span class="tag ${statusClass}">${capitalize(t.status)}</span>
+    <span class="tag ${priClass}">${capitalize(t.priority)}</span>
+    ${assigneeHtml}
+    ${t.sla.state !== 'na' ? `<span class="sla-badge ${slaClass}">${t.sla.state === 'ok' ? '✓ SLA' : t.sla.state === 'breach' ? '🔴 BREACH' : '⚠ SLA'}</span>` : ''}
+  </div>
+</div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════
+   Thread Header Render
+══════════════════════════════════════════ */
+function renderThreadHeader(ticket) {
+  const chanClass = 'chan-' + ticket.channel;
+  const statusClass = 'tag-status-' + ticket.status;
+  const priClass = 'tag-pri-' + ticket.priority;
+  const slaClass = 'sla-' + ticket.sla.state;
+
+  const assigneeHtml = ticket.assignee
+    ? `<div class="assignee-row">
+        <div class="avatar sm" style="background:${ticket.assignee.color}">${ticket.assignee.initials}</div>
+        <span class="assignee-name">${ticket.assignee.name}</span>
+        <span class="assignee-role">Assignee</span>
+       </div>`
+    : `<div class="assignee-row" style="border-style:dashed">
+        <div class="avatar sm" style="background:#d9d9d9;color:#8c8c8c">–</div>
+        <span class="assignee-name" style="color:var(--text-tertiary)">Unassigned</span>
+        <span class="assignee-role">→ Assign</span>
+       </div>`;
+
+  document.getElementById('threadHeader').innerHTML = `
+<div class="thread-header-top">
+  <div>
+    <div class="thread-title">${ticket.subject}</div>
+    <div class="thread-id">${ticket.id} · via ${capitalize(ticket.channel)} · Opened ${ticket.thread[0].time}</div>
+  </div>
+  <div class="thread-actions">
+    <button class="btn sm">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      Merge
+    </button>
+    <button class="btn sm">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Assign
+    </button>
+    <button class="btn sm" style="background:var(--green-soft);color:var(--green);border-color:var(--green)" onclick="resolveTicket('${ticket.id}')">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Resolve
+    </button>
+    <div class="icon-btn" title="More options" style="width:28px;height:28px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>
+    </div>
+  </div>
+</div>
+<div class="thread-meta-row">
+  <div class="meta-pill">
+    <span class="dot" style="background:${ticket.status === 'open' ? 'var(--primary)' : ticket.status === 'pending' ? 'var(--orange)' : ticket.status === 'resolved' ? 'var(--green)' : '#bfbfbf'}"></span>
+    ${capitalize(ticket.status)}
+  </div>
+  <div class="meta-pill">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    ${capitalize(ticket.priority)} priority
+  </div>
+  ${ticket.sla.state !== 'na' ? `<div class="meta-pill" style="${ticket.sla.state === 'breach' ? 'color:var(--red);border-color:var(--red);background:var(--red-soft)' : ticket.sla.state === 'warn' ? 'color:var(--orange);border-color:var(--orange);background:var(--orange-soft)' : ''}">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    ${ticket.sla.state === 'breach' ? 'SLA Breached · ' + ticket.sla.label + ' overdue' : ticket.sla.state === 'warn' ? ticket.sla.label + ' remaining' : ticket.sla.label + ' remaining'}
+  </div>` : ''}
+  <div class="meta-pill">
+    <span class="ticket-chan-icon ${chanClass}" style="width:12px;height:12px;background:transparent;padding:0">${ICONS[ticket.channel]}</span>
+    ${capitalize(ticket.channel)}
+  </div>
+</div>`;
+}
+
+/* ══════════════════════════════════════════
+   Thread Messages Render
+══════════════════════════════════════════ */
+function renderThreadMessages(ticket) {
+  const container = document.getElementById('threadMessages');
+  let html = '';
+
+  ticket.thread.forEach((msg, idx) => {
+    if (msg.type === 'note') {
+      const agent = getAgent(msg.agentId);
+      html += `<div class="msg-note-group">
+  <div class="msg-note-label">🔒 Internal Note</div>
+  <div class="msg-note-bubble">${msg.text}</div>
+  <div class="msg-note-meta">${agent ? agent.name : 'Agent'} · ${msg.time}</div>
+</div>`;
+    } else if (msg.type === 'customer') {
+      const c = ticket.customer;
+      html += `<div class="msg-group from-customer">
+  <div class="msg-avatar-wrap">
+    <div class="avatar" style="background:${c.color};width:34px;height:34px;font-size:13px">${c.initials}</div>
+  </div>
+  <div class="msg-body-wrap">
+    <div class="msg-sender-line"><span class="msg-sender-name">${c.name}</span> <span>${msg.time}</span></div>
+    <div class="msg-bubble">${msg.text}</div>
+  </div>
+</div>`;
+    } else if (msg.type === 'agent') {
+      const agent = getAgent(msg.agentId);
+      html += `<div class="msg-group from-agent">
+  <div class="msg-avatar-wrap">
+    <div class="avatar" style="background:${agent ? agent.color : '#1565c0'};width:34px;height:34px;font-size:13px">${agent ? agent.initials : '??'}</div>
+  </div>
+  <div class="msg-body-wrap">
+    <div class="msg-sender-line"><span class="msg-sender-name">${agent ? agent.name : 'Agent'}</span> <span>${msg.time}</span></div>
+    <div class="msg-bubble">${msg.text}</div>
+  </div>
+</div>`;
+    }
+
+    // Add a divider before the last message if it's from today
+    if (idx === ticket.thread.length - 2 && ticket.thread.length > 2) {
+      // subtle separator
+    }
+  });
+
+  if (ticket.thread.length === 1) {
+    html += `<div class="thread-divider">No replies yet — be the first to respond</div>`;
+  }
+
+  container.innerHTML = html;
+  container.scrollTop = container.scrollHeight;
+}
+
+/* ══════════════════════════════════════════
+   Sidebar Render
+══════════════════════════════════════════ */
+function renderSidebar(ticket) {
+  const c = ticket.customer;
+  const sidebar = document.getElementById('sidebarRight');
+
+  // Contact section
+  let contactHtml = `<div class="sidebar-section">
+  <div class="sidebar-section-title">Contact <a>View profile →</a></div>
+  <div class="contact-card">
+    <div class="avatar xl" style="background:${c.color}">${c.initials}</div>
+    <div class="contact-info">
+      <div class="contact-name">${c.name}</div>
+      <div class="contact-company">${c.company || 'Individual'}</div>
+    </div>
+  </div>
+  <div class="contact-detail-row">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+    <span class="contact-detail-val" style="color:var(--primary)">${c.email}</span>
+  </div>
+  <div class="contact-detail-row">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.24h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.06 6.06l1.73-1.73a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    <span class="contact-detail-val">${c.phone}</span>
+  </div>
+  <div class="contact-detail-row">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    <span class="contact-detail-val">${c.locale}</span>
+  </div>
+</div>`;
+
+  // Stats section
+  let statsHtml = `<div class="sidebar-section">
+  <div class="sidebar-section-title">Account</div>
+  <div class="kv-row"><span class="kv-key">Customer since</span><span class="kv-val">${c.since}</span></div>
+  <div class="kv-row"><span class="kv-key">Lifetime value</span><span class="kv-val" style="color:var(--green);font-weight:700">${c.ltv}</span></div>
+  <div class="kv-row"><span class="kv-key">Total tickets</span><span class="kv-val">${ticket.ticketHistory.length + 1}</span></div>
+  <div class="kv-row"><span class="kv-key">Satisfaction</span>
+    <div class="csat-wrap">
+      <span class="csat-face sel" title="Happy">😊</span>
+      <span class="csat-face" title="Neutral">😐</span>
+      <span class="csat-face" title="Unhappy">😞</span>
+    </div>
+  </div>
+</div>`;
+
+  // Tags section
+  let tagsHtml = `<div class="sidebar-section">
+  <div class="sidebar-section-title">Tags</div>
+  <div class="tags-wrap">
+    ${ticket.tags.map(t => `<span class="tag-label">${t}</span>`).join('')}
+    <span class="tag-add">+ Add tag</span>
+  </div>
+</div>`;
+
+  // Orders section
+  let ordersHtml = '';
+  if (ticket.orders.length > 0) {
+    const statusMap = { shipped: 'order-shipped', delivered: 'order-delivered', pending: 'order-pending', cancelled: 'order-cancelled' };
+    ordersHtml = `<div class="sidebar-section">
+  <div class="sidebar-section-title">Orders <a>View all →</a></div>
+  ${ticket.orders.map(o => `<div class="order-card">
+    <div class="order-card-top">
+      <span class="order-id">${o.id}</span>
+      <span class="order-status-badge ${statusMap[o.status] || ''}">${capitalize(o.status)}</span>
+    </div>
+    <div class="order-items">${o.items}</div>
+    <div class="order-total">${o.total}</div>
+  </div>`).join('')}
+</div>`;
+  }
+
+  // Ticket history section
+  let historyHtml = '';
+  if (ticket.ticketHistory.length > 0) {
+    const dotColors = { resolved: 'var(--green)', open: 'var(--primary)', pending: 'var(--orange)', closed: '#bfbfbf' };
+    historyHtml = `<div class="sidebar-section">
+  <div class="sidebar-section-title">Previous Tickets</div>
+  ${ticket.ticketHistory.map(h => `<div class="ticket-history-item">
+    <div class="ticket-history-dot" style="background:${dotColors[h.status] || 'var(--primary)'}"></div>
+    <div style="flex:1;min-width:0">
+      <div class="history-subject">${h.subject}</div>
+      <div style="font-size:10px;color:var(--text-disabled);margin-top:1px">${capitalize(h.status)} · ${h.date}</div>
+    </div>
+  </div>`).join('')}
+</div>`;
+  } else {
+    historyHtml = `<div class="sidebar-section">
+  <div class="sidebar-section-title">Previous Tickets</div>
+  <div style="font-size:12px;color:var(--text-disabled);padding:4px 0">No previous tickets.</div>
+</div>`;
+  }
+
+  sidebar.innerHTML = contactHtml + statsHtml + tagsHtml + ordersHtml + historyHtml;
+}
+
+/* ══════════════════════════════════════════
+   Interactions
+══════════════════════════════════════════ */
+function selectTicket(id) {
+  selectedTicketId = id;
+  // Mark as read
+  const t = getTicket(id);
+  if (t) t.unread = false;
+  renderTicketList();
+  renderThreadHeader(t);
+  renderThreadMessages(t);
+  renderSidebar(t);
+}
+
+function setFilter(el, val) {
+  document.querySelectorAll('.col-left-filters .filter-row:first-child .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function toggleFilter(el) {
+  el.classList.toggle('active');
+}
+
+function switchReplyTab(tab) {
+  activeReplyTab = tab;
+  ['Reply', 'Note', 'Forward'].forEach(t => {
+    document.getElementById('replyTab' + t).classList.remove('active');
+  });
+  document.getElementById('replyTab' + capitalize(tab === 'note' ? 'Note' : tab === 'forward' ? 'Forward' : 'Reply')).classList.add('active');
+
+  const ta = document.getElementById('replyTextarea');
+  if (tab === 'note') {
+    ta.placeholder = 'Add an internal note (not visible to customer)…';
+    ta.style.background = '#fffbe6';
+    ta.style.borderColor = '#ffe58f';
+  } else if (tab === 'forward') {
+    ta.placeholder = 'Forward to email address…';
+    ta.style.background = '';
+    ta.style.borderColor = '';
+  } else {
+    ta.placeholder = 'Type your reply… (Ctrl+Enter to send)';
+    ta.style.background = '';
+    ta.style.borderColor = '';
+  }
+}
+
+function insertQuickReply(text) {
+  const ta = document.getElementById('replyTextarea');
+  ta.value = text;
+  ta.focus();
+}
+
+function sendReply() {
+  const ta = document.getElementById('replyTextarea');
+  const text = ta.value.trim();
+  if (!text) return;
+  const ticket = getTicket(selectedTicketId);
+  if (!ticket) return;
+
+  if (activeReplyTab === 'note') {
+    ticket.thread.push({ type: 'note', time: 'Just now', agentId: 'a1', text });
+  } else {
+    ticket.thread.push({ type: 'agent', time: 'Just now', agentId: 'a1', text });
+  }
+  ta.value = '';
+  renderThreadMessages(ticket);
+}
+
+function resolveTicket(id) {
+  const ticket = getTicket(id);
+  if (ticket) {
+    ticket.status = 'resolved';
+    renderTicketList();
+    renderThreadHeader(ticket);
+  }
+}
+
+function capitalize(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    sendReply();
+  }
+});
+
+/* ══════════════════════════════════════════
+   Init
+══════════════════════════════════════════ */
+(function init() {
+  renderTicketList();
+  const t = getTicket(selectedTicketId);
+  renderThreadHeader(t);
+  renderThreadMessages(t);
+  renderSidebar(t);
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Support Inbox: a three-pane inbox — queue, conversation, and customer panel. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/12-support-ticket-software.html
+</script>
+</body>
+</html>

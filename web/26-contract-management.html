@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clausewise — Contract Lifecycle &amp; Approvals</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Contract Management Workflow (Clausewise)",
+  "prefix": "ctr_",
+  "archetype": "pipeline-board + approval-timeline + expiry-reminders (workflow-showcase HR/Admin module)",
+  "collections": {
+    "ctr_parties": {"titleField":"name","fields":{"name":"input","party_type":"select:vendor|customer|partner|landlord|contractor|other","contact_name":"input","contact_email":"input","country":"input"}},
+    "ctr_owners": {"titleField":"name","fields":{"name":"input","email":"input","department":"select:legal|hr|procurement|finance|sales|it","initials":"input"}},
+    "ctr_tags": {"titleField":"name","fields":{"name":"input","color":"select"}},
+    "ctr_contracts": {"titleField":"title","fields":{"title":"input","contract_no":"input","contract_type":"select:nda|msa|sow|employment|lease|saas_subscription|service|partnership","stage":"select:draft|internal_review|legal_approval|counterparty|signing|active|expiring|renewed|terminated","value_amount":"number","currency":"select:USD|EUR|GBP|JPY|CNY","start_date":"date","end_date":"date","auto_renew":"boolean","notice_days":"integer","risk_level":"select:low|medium|high","priority":"select:low|normal|high|urgent","summary":"textarea"},"relations":{"party":"m2o ctr_parties (fk party_id)","owner":"m2o ctr_owners (fk owner_id)","tags":"m2m ctr_tags"}},
+    "ctr_approvals": {"titleField":"step_name","fields":{"step_name":"input","step_order":"integer","role":"select:legal|finance|department_head|cfo|ceo","decision":"select:pending|approved|rejected|changes_requested|skipped","decided_at":"datetime","comment":"textarea"},"relations":{"contract":"m2o ctr_contracts (fk contract_id)","approver":"m2o ctr_owners (fk approver_id)"}},
+    "ctr_events": {"titleField":"label","fields":{"label":"input","event_type":"select:created|stage_changed|comment|approval|signed|reminder_sent|renewed|file_uploaded","detail":"textarea","at":"datetime"},"relations":{"contract":"m2o ctr_contracts (fk contract_id)","actor":"m2o ctr_owners (fk actor_id)"}}
+  },
+  "page": {
+    "name": "Contract Lifecycle",
+    "layout": "KPI strip (event-flow summary) | LEFT: stage pipeline = native Kanban over ctr_contracts grouped by stage + JS card field | RIGHT inspector: top = expiry-reminder rail (List of ctr_contracts where end_date within notice window + JS item) ; bottom = approval timeline (List of ctr_approvals for selected contract + JS item, vertical step timeline)",
+    "regions": [
+      {"id":"kpis","block":"strip of stat tiles (event-flow summary over ctr_contracts, NOT a JSBlock)","intent":"portfolio health at a glance","content":["active contracts count","in approval (stage in internal_review|legal_approval) count","expiring <=30d count","total contract value sum"],"behavior":"declarative event-flow aggregate (no code)"},
+      {"id":"pipeline","block":"native Kanban (ctr_contracts) grouped by stage + JS card field","intent":"contract stage pipeline board","group":"by stage (draft -> internal_review -> legal_approval -> counterparty -> signing -> active -> expiring)","card":["contract_type badge","title + contract_no","party name + party_type icon","value_amount + currency","owner avatar","risk_level pill","priority flag","end_date / days-to-expiry chip"],"behavior":"native drag between columns = stage transition (fires the stage-changed workflow)"},
+      {"id":"reminders","block":"List + JS item card (ctr_contracts filtered end_date within notice window)","intent":"upcoming expiry / renewal reminders rail","sort":"end_date asc","card":["urgency color left-border (red <7d / amber <30d / blue <90d)","title + party","days-to-expiry countdown","auto_renew badge","notice_days note","Renew / Start renewal action"]},
+      {"id":"timeline","block":"List + JS item (ctr_approvals for the selected contract) rendered as a vertical step timeline","collection":"ctr_approvals","intent":"approval timeline for the selected contract","sort":"step_order asc","group":"none (single contract)","item":["step_order node (done/active/pending dot)","step_name + role","approver avatar + name","decision pill (approved/pending/rejected/changes_requested)","decided_at timestamp","comment 2-line clamp"],"actions":["Approve / Reject / Request changes on the active step (writes ctr_approvals.decision + advances stage)"]}
+    ]
+  },
+  "workflows": [
+    {
+      "name": "contract-stage-router",
+      "type": "collection-event (ctr_contracts, after-update on stage)",
+      "trigger": "stage field changes (Kanban drag or action)",
+      "purpose": "central router that fans out on the new stage",
+      "branches": [
+        "stage == internal_review OR legal_approval -> create ctr_approvals rows from the contract_type's required approver matrix (NDA = legal only; MSA/SOW = legal + finance; >100k value adds CFO; >500k adds CEO)",
+        "stage == signing -> notify owner + counterparty contact_email that the doc is ready for signature",
+        "stage == active -> stamp start_date if empty, schedule the expiry watcher",
+        "stage == terminated -> close any pending ctr_approvals as skipped"
+      ],
+      "ai_node": "llm node summarizes the diff between previous and new stage into a human ctr_events.label/detail (audit-friendly natural-language event line)"
+    },
+    {
+      "name": "approval-step-advance",
+      "type": "collection-event (ctr_approvals, after-update on decision)",
+      "trigger": "an approval step decision changes from pending",
+      "purpose": "drive the multi-step approval timeline",
+      "branches": [
+        "decision == approved AND more pending steps remain -> activate next step_order, notify that approver",
+        "decision == approved AND it was the last step -> move parent contract stage to counterparty (or signing)",
+        "decision == rejected -> move parent contract stage back to draft + notify owner",
+        "decision == changes_requested -> keep stage, notify owner with the comment"
+      ],
+      "ai_node": "llm node drafts a polite notification body (to approver / to owner) from the step comment + contract summary"
+    },
+    {
+      "name": "expiry-reminder-scheduler",
+      "type": "schedule (daily 07:00)",
+      "trigger": "cron daily",
+      "purpose": "expiry + renewal reminders rail data + outbound nudges",
+      "branches": [
+        "for active contracts where end_date - today <= notice_days -> emit ctr_events(reminder_sent) + email owner",
+        "auto_renew == true AND within notice window -> open a renewal task / draft renewed contract clone",
+        "auto_renew == false AND <7d to end_date -> escalate to owner.department head"
+      ],
+      "ai_node": "llm node classifies renewal risk (low/medium/high) from value_amount, party history, and notice window, and writes a one-line recommendation onto the reminder"
+    },
+    {
+      "name": "intake-clause-triage",
+      "type": "collection-event (ctr_contracts, after-create) OR manual on file upload",
+      "trigger": "new contract created / counterparty paper uploaded",
+      "purpose": "AI-assisted intake so legal does not read cold",
+      "branches": [
+        "set initial stage = draft, default notice_days by contract_type",
+        "route to the right owner.department by contract_type"
+      ],
+      "ai_node": "llm node extracts key terms (parties, value, dates, auto_renew, governing law) into structured fields AND flags risky clauses (unlimited liability, auto-renew traps, short notice) -> sets risk_level + a clause-risk summary for the reviewer"
+    }
+  ],
+  "interactions": ["drag a card across stages -> stage transition fires contract-stage-router workflow","click a pipeline card -> right inspector loads that contract's approval timeline + reminders","approve/reject on the active timeline step -> approval-step-advance workflow moves the parent stage","stage filter pills cross-filter the Kanban","reminder rail Renew button -> kicks the renewal branch"],
+  "jsKernels": ["Kanban JS card field (contract card)","reminders JS item card (countdown + urgency border)","approval JS item rendered as a vertical step timeline","KPI strip aggregate (event-flow, no JS)"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (Kanban for the pipeline, List for reminders, List for the approval timeline). The custom look (stage cards, countdown rail, step timeline) is built with JS card/item fields nested INSIDE those native blocks. This is the workflow-showcase module: the nb-spec carries a top-level `workflows` dimension describing the 4 server-side automations (trigger collection / condition branches / llm AI-node purpose) that make the stages, approvals and reminders move. Do NOT rebuild the board as a freestanding JSBlock; the only JS allowed is the per-card/per-item render kernel each native block hosts."
+}
+</script>
+<style>
+  :root{
+    --indigo:#3a4cd6; --indigo-soft:#eef0ff; --indigo-line:#c2c9ff; --indigo-deep:#2a37a8;
+    --ink:#181a2a; --ink-2:#4a4f6a; --ink-3:#8b90a8;
+    --line:#eef0f5; --line-2:#e2e5ee; --bg:#f4f5fa; --card:#fff;
+    --green:#13a463; --green-soft:#e7f7ef;
+    --gold:#d99100; --gold-soft:#fdf4e3;
+    --red:#e0445a; --red-soft:#fdeef0;
+    --blue:#2f7fd6; --blue-soft:#eaf3fc;
+    --violet:#7b53d6; --violet-soft:#f1ecfc;
+    --r:11px;
+    --shadow:0 1px 2px rgba(24,26,42,.04), 0 6px 20px rgba(24,26,42,.06);
+    --shadow-lg:0 8px 30px rgba(24,26,42,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1440px;margin:0 auto;min-height:100vh;background:var(--bg)}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:58px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:20px; padding:0 26px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16.5px; letter-spacing:-.3px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--indigo),#7b8cff);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 3px 10px rgba(58,76,214,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:1px}
+  .topnav{display:flex;gap:3px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--indigo-soft);color:var(--indigo)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .search{
+    display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;font-size:13px;color:var(--ink-3);width:230px;
+  }
+  .search input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
+  .chip-wf{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);
+    background:var(--green-soft);border:1px solid #bdeed6;padding:5px 11px;border-radius:20px;font-weight:500}
+  .chip-wf i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.9s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3a4cd6,#7b53d6);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- page head ---------- */
+  .pagehead{padding:22px 26px 4px;display:flex;align-items:flex-end;gap:18px}
+  .pagehead h1{font-size:22px;font-weight:700;letter-spacing:-.4px}
+  .pagehead p{color:var(--ink-3);font-size:13px;margin-top:3px}
+  .pagehead .ph-actions{margin-left:auto;display:flex;gap:10px}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:16px 26px 6px}
+  .kpi{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);
+    padding:15px 17px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .kpi .kicon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:17px;margin-bottom:11px}
+  .kpi.k1 .kicon{background:var(--indigo-soft);color:var(--indigo)}
+  .kpi.k2 .kicon{background:var(--gold-soft);color:var(--gold)}
+  .kpi.k3 .kicon{background:var(--red-soft);color:var(--red)}
+  .kpi.k4 .kicon{background:var(--green-soft);color:var(--green)}
+  .kpi .kval{font-size:25px;font-weight:700;letter-spacing:-.5px;line-height:1}
+  .kpi .klbl{font-size:12px;color:var(--ink-3);margin-top:6px;font-weight:500}
+  .kpi .ktrend{position:absolute;top:15px;right:16px;font-size:11.5px;font-weight:700;padding:2px 7px;border-radius:8px}
+  .ktrend.up{background:var(--green-soft);color:var(--green)}
+  .ktrend.down{background:var(--red-soft);color:var(--red)}
+  .ktrend.flat{background:var(--line);color:var(--ink-3)}
+
+  /* ---------- workspace ---------- */
+  .workspace{
+    display:grid; grid-template-columns: minmax(0,1fr) 392px; gap:18px;
+    padding:14px 26px 26px; align-items:start;
+  }
+
+  /* ---------- pipeline ---------- */
+  .board-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .board-head h2{font-size:15px;font-weight:700}
+  .board-head .sub{font-size:12px;color:var(--ink-3)}
+  .filters{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+  .pf{font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:5px 11px;border-radius:16px;border:1px solid var(--line-2);background:#fff;transition:.13s}
+  .pf:hover{border-color:var(--indigo-line)}
+  .pf.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .board{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
+  .col{flex:0 0 252px;background:#fbfbfe;border:1px solid var(--line-2);border-radius:var(--r);padding:10px;min-height:140px}
+  .col.drag-over{background:var(--indigo-soft);border-color:var(--indigo-line);border-style:dashed}
+  .col-head{display:flex;align-items:center;gap:8px;padding:3px 4px 11px}
+  .col-dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .col-title{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .col-n{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink-3);background:var(--line);border-radius:9px;padding:1px 8px}
+  .col-sum{font-size:10.5px;color:var(--ink-3);font-weight:600;padding:0 4px 8px}
+
+  .ccard{
+    background:#fff;border:1px solid var(--line-2);border-radius:9px;padding:11px 12px;margin-bottom:9px;
+    box-shadow:0 1px 2px rgba(24,26,42,.04);cursor:grab;position:relative;transition:.13s;
+    border-left:3px solid var(--line-2);
+  }
+  .ccard:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-color:var(--indigo-line)}
+  .ccard.selected{border-color:var(--indigo);box-shadow:0 0 0 2px var(--indigo-soft)}
+  .ccard.dragging{opacity:.45}
+  .ccard.risk-high{border-left-color:var(--red)}
+  .ccard.risk-medium{border-left-color:var(--gold)}
+  .ccard.risk-low{border-left-color:var(--green)}
+  .cc-top{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+  .type-badge{font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:6px;flex:none}
+  .tb-nda{background:var(--violet-soft);color:var(--violet)}
+  .tb-msa{background:var(--indigo-soft);color:var(--indigo)}
+  .tb-sow{background:var(--blue-soft);color:var(--blue)}
+  .tb-employment{background:var(--green-soft);color:var(--green)}
+  .tb-lease{background:var(--gold-soft);color:var(--gold)}
+  .tb-saas{background:#e7f0fb;color:#2f6fc4}
+  .tb-service{background:#eef0f5;color:var(--ink-2)}
+  .tb-partnership{background:var(--red-soft);color:var(--red)}
+  .cc-flag{margin-left:auto;font-size:12px}
+  .cc-flag.urgent{color:var(--red)} .cc-flag.high{color:var(--gold)}
+  .cc-title{font-size:13px;font-weight:600;line-height:1.35;color:var(--ink);margin-bottom:3px}
+  .cc-no{font-size:10.5px;color:var(--ink-3);font-weight:600;font-variant-numeric:tabular-nums}
+  .cc-party{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--ink-2)}
+  .cc-party .picon{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:10px;background:var(--line);flex:none}
+  .cc-meta{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+  .cc-val{font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .cc-owner{margin-left:auto;width:23px;height:23px;border-radius:50%;color:#fff;font-size:9.5px;font-weight:700;display:grid;place-items:center}
+  .cc-expiry{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;margin-top:8px}
+  .exp-red{background:var(--red-soft);color:var(--red)}
+  .exp-amber{background:var(--gold-soft);color:var(--gold)}
+  .exp-blue{background:var(--blue-soft);color:var(--blue)}
+  .exp-gray{background:var(--line);color:var(--ink-3)}
+
+  /* ---------- inspector ---------- */
+  .inspector{display:flex;flex-direction:column;gap:18px;position:sticky;top:74px}
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .panel-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+  .panel-head h3{font-size:14px;font-weight:700}
+  .panel-head .cnt{margin-left:auto;font-size:11px;font-weight:700;color:#fff;border-radius:11px;padding:1px 9px}
+  .cnt.red{background:var(--red)} .cnt.indigo{background:var(--indigo)}
+  .panel-head .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:14px}
+  .ic.expiry{background:var(--red-soft)}
+  .ic.appr{background:var(--indigo-soft)}
+
+  /* reminders rail */
+  .rem-list{padding:10px 12px;max-height:286px;overflow:auto}
+  .rem{
+    display:flex;gap:11px;padding:11px 12px;border:1px solid var(--line-2);border-radius:9px;margin-bottom:9px;
+    border-left:3px solid var(--line-2);transition:.13s;cursor:pointer;background:#fff;
+  }
+  .rem:hover{box-shadow:var(--shadow);border-color:var(--indigo-line)}
+  .rem:last-child{margin-bottom:0}
+  .rem.u-red{border-left-color:var(--red)} .rem.u-amber{border-left-color:var(--gold)} .rem.u-blue{border-left-color:var(--blue)}
+  .rem-count{flex:none;text-align:center;width:48px}
+  .rem-count .n{font-size:21px;font-weight:800;line-height:1;letter-spacing:-.5px}
+  .rem.u-red .rem-count .n{color:var(--red)} .rem.u-amber .rem-count .n{color:var(--gold)} .rem.u-blue .rem-count .n{color:var(--blue)}
+  .rem-count .u{font-size:9.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+  .rem-body{flex:1;min-width:0}
+  .rem-body .t{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rem-body .p{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .rem-tags{display:flex;align-items:center;gap:6px;margin-top:7px}
+  .mini-tag{font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:7px}
+  .mt-renew{background:var(--green-soft);color:var(--green)}
+  .mt-manual{background:var(--gold-soft);color:var(--gold)}
+  .mt-notice{background:var(--line);color:var(--ink-2)}
+  .rem-act{border:none;background:var(--indigo);color:#fff;font-size:10.5px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;align-self:center;flex:none;transition:.13s}
+  .rem-act:hover{background:var(--indigo-deep)}
+  .rem-act.ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .rem-act.ghost:hover{border-color:var(--indigo-line);color:var(--indigo)}
+
+  /* approval timeline */
+  .tl-ctx{padding:11px 16px;background:linear-gradient(180deg,#fbfbfe,#fff);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .tl-ctx .tl-no{font-size:10.5px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .tl-ctx .tl-t{font-size:13px;font-weight:700;color:var(--ink);line-height:1.25}
+  .tl-ctx .tl-stage{margin-left:auto;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:3px 9px;border-radius:8px;background:var(--indigo-soft);color:var(--indigo);white-space:nowrap}
+  .timeline{padding:16px 16px 16px;position:relative}
+  .step{display:flex;gap:13px;position:relative;padding-bottom:18px}
+  .step:last-child{padding-bottom:0}
+  .step .rail{position:absolute;left:11px;top:24px;bottom:0;width:2px;background:var(--line-2)}
+  .step:last-child .rail{display:none}
+  .step.done .rail{background:var(--green)}
+  .step-dot{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;z-index:2;border:3px solid var(--card)}
+  .step.done .step-dot{background:var(--green)}
+  .step.active .step-dot{background:var(--indigo);box-shadow:0 0 0 4px var(--indigo-soft)}
+  .step.pending .step-dot{background:#fff;border:2px solid var(--line-2);color:var(--ink-3)}
+  .step.rejected .step-dot{background:var(--red)}
+  .step.changes .step-dot{background:var(--gold)}
+  .step-body{flex:1;min-width:0;padding-top:1px}
+  .step-row1{display:flex;align-items:center;gap:8px}
+  .step-name{font-size:13px;font-weight:600;color:var(--ink)}
+  .step-role{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-3);background:var(--line);padding:1px 7px;border-radius:6px}
+  .step-dec{margin-left:auto;font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;white-space:nowrap}
+  .dec-approved{background:var(--green-soft);color:var(--green)}
+  .dec-pending{background:var(--line);color:var(--ink-3)}
+  .dec-rejected{background:var(--red-soft);color:var(--red)}
+  .dec-changes{background:var(--gold-soft);color:var(--gold)}
+  .step-who{display:flex;align-items:center;gap:7px;margin-top:7px}
+  .step-ava{width:21px;height:21px;border-radius:50%;color:#fff;font-size:9px;font-weight:700;display:grid;place-items:center;flex:none}
+  .step-who .nm{font-size:11.5px;color:var(--ink-2);font-weight:500}
+  .step-who .ts{margin-left:auto;font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .step-comment{font-size:11.5px;color:var(--ink-2);line-height:1.45;margin-top:7px;background:var(--bg);border-radius:8px;padding:8px 10px;border-left:2px solid var(--line-2);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .step-actions{display:flex;gap:7px;margin-top:9px}
+  .sb{border:none;border-radius:7px;padding:6px 12px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;transition:.13s}
+  .sb-approve{background:var(--green);color:#fff} .sb-approve:hover{background:#0e8a52}
+  .sb-reject{background:#fff;border:1px solid var(--red);color:var(--red)} .sb-reject:hover{background:var(--red-soft)}
+  .sb-changes{background:#fff;border:1px solid var(--gold);color:var(--gold)} .sb-changes:hover{background:var(--gold-soft)}
+
+  /* ---------- buttons ---------- */
+  .btn{border:none;border-radius:9px;padding:9px 16px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.13s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--indigo);color:#fff;box-shadow:0 2px 8px rgba(58,76,214,.3)}
+  .btn-primary:hover{background:var(--indigo-deep)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:var(--indigo-line);color:var(--indigo)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:12px 19px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:var(--shadow-lg);transition:.25s;z-index:80;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--indigo)}
+
+  ::-webkit-scrollbar{height:8px;width:8px}
+  ::-webkit-scrollbar-thumb{background:#d4d8e4;border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:#bcc2d4}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">C</span>Clausewise <small>contracts</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Lifecycle</a>
+    <a href="#">Repository</a>
+    <a href="#">Approvals</a>
+    <a href="#">Renewals</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="search">🔎<input placeholder="Search contracts, parties…"></div>
+    <span class="chip-wf"><i></i> 4 workflows active</span>
+    <div class="acct">
+      <div class="ava">DC</div>
+      <div class="who"><b>Dana Cole</b><br><span>Legal Operations</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="pagehead">
+  <div>
+    <h1>Contract Lifecycle</h1>
+    <p>Drag a contract across stages to move it through review, approval and signing — automations do the rest.</p>
+  </div>
+  <div class="ph-actions">
+    <button class="btn btn-ghost">⤓ Export</button>
+    <button class="btn btn-primary">＋ New contract</button>
+  </div>
+</div>
+
+<!-- KPI strip (event-flow summary) -->
+<section class="kpis">
+  <div class="kpi k1">
+    <span class="ktrend up" id="kt1">▲</span>
+    <div class="kicon">📄</div>
+    <div class="kval" id="kpiActive">—</div>
+    <div class="klbl">Active contracts</div>
+  </div>
+  <div class="kpi k2">
+    <span class="ktrend flat" id="kt2">●</span>
+    <div class="kicon">⏳</div>
+    <div class="kval" id="kpiReview">—</div>
+    <div class="klbl">In approval review</div>
+  </div>
+  <div class="kpi k3">
+    <span class="ktrend down" id="kt3">▼</span>
+    <div class="kicon">⏰</div>
+    <div class="kval" id="kpiExpiring">—</div>
+    <div class="klbl">Expiring ≤ 30 days</div>
+  </div>
+  <div class="kpi k4">
+    <span class="ktrend up" id="kt4">▲</span>
+    <div class="kicon">💰</div>
+    <div class="kval" id="kpiValue">—</div>
+    <div class="klbl">Portfolio value</div>
+  </div>
+</section>
+
+<div class="workspace">
+
+  <!-- ============ LEFT: STAGE PIPELINE BOARD ============ -->
+  <section>
+    <div class="board-head">
+      <h2>Stage pipeline</h2>
+      <span class="sub">Kanban over contracts · grouped by stage</span>
+      <div class="filters" id="filters">
+        <span class="pf on" data-f="all">All types</span>
+        <span class="pf" data-f="nda">NDA</span>
+        <span class="pf" data-f="msa">MSA</span>
+        <span class="pf" data-f="sow">SOW</span>
+        <span class="pf" data-f="lease">Lease</span>
+        <span class="pf" data-f="saas_subscription">SaaS</span>
+        <span class="pf" data-f="high">⚑ High risk</span>
+      </div>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <!-- ============ RIGHT: INSPECTOR ============ -->
+  <aside class="inspector">
+
+    <!-- expiry reminders rail -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="ic expiry">⏰</span>
+        <h3>Expiry &amp; renewal reminders</h3>
+        <span class="cnt red" id="remCount">0</span>
+      </div>
+      <div class="rem-list" id="remList"></div>
+    </div>
+
+    <!-- approval timeline -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="ic appr">✓</span>
+        <h3>Approval timeline</h3>
+        <span class="cnt indigo" id="tlCount">0</span>
+      </div>
+      <div class="tl-ctx" id="tlCtx"></div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+
+  </aside>
+</div>
+
+</div>
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- reference data ----------
+  var TODAY = new Date("2026-06-07T00:00:00");
+
+  var STAGES = [
+    {key:"draft",          label:"Draft",            color:"#8b90a8"},
+    {key:"internal_review",label:"Internal review",  color:"#7b53d6"},
+    {key:"legal_approval", label:"Legal approval",   color:"#3a4cd6"},
+    {key:"counterparty",   label:"With counterparty",color:"#2f7fd6"},
+    {key:"signing",        label:"Signing",          color:"#d99100"},
+    {key:"active",         label:"Active",           color:"#13a463"},
+    {key:"expiring",       label:"Expiring",         color:"#e0445a"}
+  ];
+  var STAGE_BY = {}; STAGES.forEach(function(s){STAGE_BY[s.key]=s;});
+
+  var TYPE = {
+    nda:{cls:"tb-nda",t:"NDA"}, msa:{cls:"tb-msa",t:"MSA"}, sow:{cls:"tb-sow",t:"SOW"},
+    employment:{cls:"tb-employment",t:"Employ"}, lease:{cls:"tb-lease",t:"Lease"},
+    saas_subscription:{cls:"tb-saas",t:"SaaS"}, service:{cls:"tb-service",t:"Service"},
+    partnership:{cls:"tb-partnership",t:"Partner"}
+  };
+  var PARTY_ICON = {vendor:"🏭",customer:"🛒",partner:"🤝",landlord:"🏢",contractor:"🔧",other:"📁"};
+  var CCY = {USD:"$",EUR:"€",GBP:"£",JPY:"¥",CNY:"¥"};
+
+  var OWNERS = {
+    dc:{nm:"Dana Cole",      c:"#3a4cd6"},
+    ms:{nm:"Marcus Stern",   c:"#13a463"},
+    pr:{nm:"Priya Rao",      c:"#d99100"},
+    tl:{nm:"Theo Lund",      c:"#7b53d6"},
+    ja:{nm:"Jess Aoki",      c:"#2f7fd6"},
+    nf:{nm:"Nora Feld",      c:"#e0445a"}
+  };
+
+  function avaInit(nm){return nm.split(" ").map(function(w){return w[0];}).join("").slice(0,2).toUpperCase();}
+  function daysTo(dateStr){return Math.round((new Date(dateStr+"T00:00:00")-TODAY)/86400000);}
+  function fmtVal(v,c){
+    var s = v>=1000000 ? (v/1000000).toFixed(v%1000000?1:0)+"M" : v>=1000 ? Math.round(v/1000)+"K" : ""+v;
+    return (CCY[c]||"")+s;
+  }
+  function fmtDate(dateStr){return new Date(dateStr+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+
+  // ---------- contracts (high-density mock) ----------
+  var CONTRACTS = [
+    {id:1,  no:"CTR-2026-0041", title:"Mutual NDA — Helios Robotics",            type:"nda",               stage:"internal_review", party:"Helios Robotics",    ptype:"partner",    val:0,        ccy:"USD", end:"2027-06-30", auto:true,  notice:30, risk:"low",    prio:"normal", owner:"dc"},
+    {id:2,  no:"CTR-2026-0038", title:"Master Services Agreement — Vanta Cloud", type:"msa",               stage:"legal_approval",  party:"Vanta Cloud Inc.",   ptype:"vendor",     val:480000,   ccy:"USD", end:"2026-12-31", auto:false, notice:60, risk:"high",   prio:"urgent", owner:"dc"},
+    {id:3,  no:"CTR-2026-0044", title:"SOW #7 — Meridian Analytics Rollout",     type:"sow",               stage:"internal_review", party:"Meridian Analytics", ptype:"vendor",     val:120000,   ccy:"USD", end:"2026-10-15", auto:false, notice:30, risk:"medium", prio:"high",   owner:"ms"},
+    {id:4,  no:"CTR-2025-0190", title:"Office Lease — Harbor Tower 14F",         type:"lease",             stage:"active",          party:"Harbor Estates",     ptype:"landlord",   val:1320000,  ccy:"USD", end:"2026-06-20", auto:false, notice:90, risk:"medium", prio:"high",   owner:"pr"},
+    {id:5,  no:"CTR-2026-0011", title:"SaaS Subscription — Brightdesk",          type:"saas_subscription", stage:"active",          party:"Brightdesk Ltd.",    ptype:"vendor",     val:64000,    ccy:"USD", end:"2026-06-12", auto:true,  notice:14, risk:"low",    prio:"urgent", owner:"ja"},
+    {id:6,  no:"CTR-2026-0029", title:"Partnership Agreement — Northwind Labs",  type:"partnership",       stage:"counterparty",    party:"Northwind Labs",     ptype:"partner",    val:750000,   ccy:"USD", end:"2028-01-31", auto:false, notice:90, risk:"high",   prio:"high",   owner:"tl"},
+    {id:7,  no:"CTR-2026-0046", title:"Contractor MSA — Greypoint Build",        type:"msa",               stage:"draft",           party:"Greypoint Build",    ptype:"contractor", val:0,        ccy:"USD", end:"2027-03-01", auto:false, notice:30, risk:"low",    prio:"normal", owner:"ms"},
+    {id:8,  no:"CTR-2026-0033", title:"Reseller Agreement — Lumio EU",           type:"partnership",       stage:"signing",         party:"Lumio Systems",      ptype:"partner",    val:300000,   ccy:"EUR", end:"2027-09-30", auto:true,  notice:60, risk:"medium", prio:"normal", owner:"nf"},
+    {id:9,  no:"CTR-2026-0040", title:"NDA — Quill Studio (eval)",               type:"nda",               stage:"draft",           party:"Quill Studio",      ptype:"vendor",     val:0,        ccy:"USD", end:"2027-01-15", auto:true,  notice:30, risk:"low",    prio:"low",    owner:"dc"},
+    {id:10, no:"CTR-2025-0177", title:"Annual Service Contract — Fixwell",       type:"service",           stage:"expiring",        party:"Fixwell Facilities", ptype:"vendor",     val:88000,    ccy:"USD", end:"2026-06-08", auto:false, notice:30, risk:"medium", prio:"urgent", owner:"pr"},
+    {id:11, no:"CTR-2026-0008", title:"Enterprise SaaS — Forgepay",              type:"saas_subscription", stage:"active",          party:"Forgepay Inc.",      ptype:"vendor",     val:210000,   ccy:"USD", end:"2026-09-01", auto:true,  notice:45, risk:"low",    prio:"normal", owner:"ja"},
+    {id:12, no:"CTR-2026-0045", title:"SOW #3 — Aster Migration",                type:"sow",               stage:"legal_approval",  party:"Aster Cloud",        ptype:"vendor",     val:95000,    ccy:"USD", end:"2026-11-30", auto:false, notice:30, risk:"medium", prio:"normal", owner:"tl"},
+    {id:13, no:"CTR-2025-0203", title:"Warehouse Lease — Dockside 22",           type:"lease",             stage:"expiring",        party:"Dockside Realty",    ptype:"landlord",   val:540000,   ccy:"USD", end:"2026-07-05", auto:false, notice:60, risk:"high",   prio:"high",   owner:"pr"},
+    {id:14, no:"CTR-2026-0030", title:"Employment — Sr. Counsel (K. Vance)",     type:"employment",        stage:"counterparty",    party:"K. Vance",           ptype:"other",      val:185000,   ccy:"USD", end:"2027-05-31", auto:false, notice:30, risk:"low",    prio:"normal", owner:"nf"},
+    {id:15, no:"CTR-2026-0042", title:"Data Processing Addendum — Tideline",     type:"service",           stage:"internal_review", party:"Tideline Data",      ptype:"vendor",     val:0,        ccy:"USD", end:"2027-02-28", auto:true,  notice:30, risk:"medium", prio:"normal", owner:"dc"}
+  ];
+
+  // ---------- approval steps per contract (matrix-derived mock) ----------
+  var APPROVALS = {
+    2: [
+      {ord:1, name:"Legal review",        role:"legal",           dec:"approved", who:"dc", ts:"Jun 3, 10:12", comment:"Liability cap added at 12 months fees. Indemnity scope narrowed to IP and confidentiality."},
+      {ord:2, name:"Finance sign-off",    role:"finance",         dec:"active",   who:"ms", ts:"",             comment:"Reviewing payment schedule and FX exposure on the EUR milestone."},
+      {ord:3, name:"CFO approval",        role:"cfo",             dec:"pending",  who:"nf", ts:"",             comment:""},
+      {ord:4, name:"CEO sign",            role:"ceo",             dec:"pending",  who:"tl", ts:"",             comment:""}
+    ],
+    3: [
+      {ord:1, name:"Department head",     role:"department_head", dec:"approved", who:"ms", ts:"Jun 4, 09:40", comment:"Scope and deliverables match the Q3 analytics plan."},
+      {ord:2, name:"Legal review",        role:"legal",           dec:"active",   who:"dc", ts:"",             comment:"Checking the data-sharing clause against our DPA template."},
+      {ord:3, name:"Finance sign-off",    role:"finance",         dec:"pending",  who:"pr", ts:"",             comment:""}
+    ],
+    12:[
+      {ord:1, name:"Department head",     role:"department_head", dec:"approved", who:"tl", ts:"Jun 2, 14:05", comment:"Migration window approved for the maintenance weekend."},
+      {ord:2, name:"Legal review",        role:"legal",           dec:"changes",  who:"dc", ts:"Jun 5, 16:30", comment:"Auto-renew clause needs a 30-day notice carve-out before I can approve. Sent redline to owner."},
+      {ord:3, name:"Finance sign-off",    role:"finance",         dec:"pending",  who:"ms", ts:"",             comment:""}
+    ],
+    6: [
+      {ord:1, name:"Legal review",        role:"legal",           dec:"approved", who:"dc", ts:"May 28, 11:20",comment:"Exclusivity limited to APAC. Term and exit clauses look clean."},
+      {ord:2, name:"Finance sign-off",    role:"finance",         dec:"approved", who:"ms", ts:"Jun 1, 13:15", comment:"Revenue-share model verified, within partnership budget."},
+      {ord:3, name:"CEO sign",            role:"ceo",             dec:"active",   who:"tl", ts:"",             comment:"Final review before sending to Northwind for signature."}
+    ],
+    8: [
+      {ord:1, name:"Legal review",        role:"legal",           dec:"approved", who:"nf", ts:"May 30, 10:00",comment:"Standard reseller terms, EU data residency confirmed."},
+      {ord:2, name:"Finance sign-off",    role:"finance",         dec:"approved", who:"ms", ts:"Jun 2, 09:30", comment:"Pricing tiers approved."},
+      {ord:3, name:"CEO sign",            role:"ceo",             dec:"approved", who:"tl", ts:"Jun 4, 17:45", comment:"Approved — out for counter-signature now."}
+    ]
+  };
+  function defaultApprovals(c){
+    // contracts with no explicit matrix get a light default timeline based on stage
+    var s=[{ord:1,name:"Legal review",role:"legal",dec:"pending",who:"dc",ts:"",comment:""}];
+    if(c.val>=100000) s.push({ord:2,name:"Finance sign-off",role:"finance",dec:"pending",who:"ms",ts:"",comment:""});
+    if(c.val>=500000) s.push({ord:3,name:"CFO approval",role:"cfo",dec:"pending",who:"nf",ts:"",comment:""});
+    var stageIdx=STAGES.findIndex(function(x){return x.key===c.stage;});
+    if(stageIdx>=5){ s.forEach(function(x){x.dec="approved";x.ts="—";}); } // active/expiring => all done
+    return s;
+  }
+
+  // ---------- state ----------
+  var activeFilter="all";
+  var selectedId=2;
+
+  // ============ KPI strip (event-flow aggregate) ============
+  function renderKpis(){
+    var active=CONTRACTS.filter(function(c){return c.stage==="active"||c.stage==="expiring";}).length;
+    var review=CONTRACTS.filter(function(c){return c.stage==="internal_review"||c.stage==="legal_approval";}).length;
+    var expiring=CONTRACTS.filter(function(c){var d=daysTo(c.end);return d>=0&&d<=30&&(c.stage==="active"||c.stage==="expiring");}).length;
+    var value=CONTRACTS.filter(function(c){return c.stage!=="terminated";}).reduce(function(a,c){return a+(c.ccy==="USD"?c.val:c.val);},0);
+    document.getElementById("kpiActive").textContent=active;
+    document.getElementById("kpiReview").textContent=review;
+    document.getElementById("kpiExpiring").textContent=expiring;
+    document.getElementById("kpiValue").textContent="$"+(value/1000000).toFixed(2)+"M";
+    document.getElementById("kt1").textContent="▲ 3";
+    document.getElementById("kt2").textContent="● "+review;
+    document.getElementById("kt3").textContent="▲ "+expiring;
+    document.getElementById("kt4").textContent="▲ 8%";
+  }
+
+  // ============ PIPELINE BOARD (Kanban + JS card field) ============
+  function matchFilter(c){
+    if(activeFilter==="all") return true;
+    if(activeFilter==="high") return c.risk==="high";
+    return c.type===activeFilter;
+  }
+
+  function expiryChip(c){
+    if(c.stage==="draft"||c.stage==="internal_review"||c.stage==="legal_approval") return "";
+    var d=daysTo(c.end);
+    var cls,txt;
+    if(d<0){cls="exp-red";txt="Expired "+(-d)+"d ago";}
+    else if(d<=7){cls="exp-red";txt=d+"d to expiry";}
+    else if(d<=30){cls="exp-amber";txt=d+"d to expiry";}
+    else if(d<=90){cls="exp-blue";txt=d+"d to expiry";}
+    else {cls="exp-gray";txt="ends "+fmtDate(c.end);}
+    return '<div class="cc-expiry '+cls+'">⏰ '+txt+'</div>';
+  }
+
+  function cardHTML(c){
+    var ty=TYPE[c.type], o=OWNERS[c.owner];
+    var flag = c.prio==="urgent"?'<span class="cc-flag urgent">⚑</span>':(c.prio==="high"?'<span class="cc-flag high">⚑</span>':'');
+    var val = c.val>0 ? '<span class="cc-val">'+fmtVal(c.val,c.ccy)+'</span>' : '<span class="cc-val" style="color:var(--ink-3);font-weight:600">No value</span>';
+    return ''+
+      '<div class="cc-top">'+
+        '<span class="type-badge '+ty.cls+'">'+ty.t+'</span>'+
+        flag+
+      '</div>'+
+      '<div class="cc-title">'+c.title+'</div>'+
+      '<div class="cc-no">'+c.no+'</div>'+
+      '<div class="cc-party"><span class="picon">'+(PARTY_ICON[c.ptype]||"📁")+'</span>'+c.party+'</div>'+
+      expiryChip(c)+
+      '<div class="cc-meta">'+
+        val+
+        (c.auto?'<span class="mini-tag mt-renew" style="margin-left:6px">auto-renew</span>':'')+
+        '<span class="cc-owner" style="background:'+o.c+'" title="'+o.nm+'">'+avaInit(o.nm)+'</span>'+
+      '</div>';
+  }
+
+  function renderBoard(){
+    var board=document.getElementById("board"); board.innerHTML="";
+    STAGES.forEach(function(st){
+      var items=CONTRACTS.filter(function(c){return c.stage===st.key && matchFilter(c);});
+      var sumVal=items.reduce(function(a,c){return a+c.val;},0);
+      var col=document.createElement("div");
+      col.className="col"; col.dataset.stage=st.key;
+      col.innerHTML='<div class="col-head"><span class="col-dot" style="background:'+st.color+'"></span>'+
+        '<span class="col-title">'+st.label+'</span><span class="col-n">'+items.length+'</span></div>'+
+        (sumVal>0?'<div class="col-sum">$'+(sumVal>=1000?(sumVal/1000).toFixed(0)+"K":sumVal)+' in stage</div>':'');
+      items.forEach(function(c){
+        var card=document.createElement("div");
+        card.className="ccard risk-"+c.risk+(c.id===selectedId?" selected":"");
+        card.draggable=true; card.dataset.id=c.id;
+        card.innerHTML=cardHTML(c);
+        card.addEventListener("click",function(){ selectedId=c.id; renderBoard(); renderTimeline(); });
+        card.addEventListener("dragstart",function(e){ card.classList.add("dragging"); e.dataTransfer.setData("text/plain",c.id); });
+        card.addEventListener("dragend",function(){ card.classList.remove("dragging"); });
+        col.appendChild(card);
+      });
+      col.addEventListener("dragover",function(e){ e.preventDefault(); col.classList.add("drag-over"); });
+      col.addEventListener("dragleave",function(){ col.classList.remove("drag-over"); });
+      col.addEventListener("drop",function(e){
+        e.preventDefault(); col.classList.remove("drag-over");
+        var id=+e.dataTransfer.getData("text/plain");
+        var c=CONTRACTS.find(function(x){return x.id===id;});
+        if(c && c.stage!==st.key){
+          var from=STAGE_BY[c.stage].label;
+          c.stage=st.key;
+          selectedId=id;
+          renderBoard(); renderKpis(); renderReminders(); renderTimeline();
+          flash("Moved “"+c.title.split(" — ")[0]+"” · "+from+" → "+st.label+" · stage-router workflow fired");
+        }
+      });
+      board.appendChild(col);
+    });
+  }
+
+  // ============ EXPIRY REMINDERS RAIL (List + JS item) ============
+  function renderReminders(){
+    var rows=CONTRACTS.filter(function(c){
+      if(c.stage==="draft"||c.stage==="internal_review"||c.stage==="legal_approval"||c.stage==="counterparty") return false;
+      var d=daysTo(c.end); return d<=c.notice; // inside notice window (incl. already expired)
+    }).sort(function(a,b){return daysTo(a.end)-daysTo(b.end);});
+
+    document.getElementById("remCount").textContent=rows.length;
+    var host=document.getElementById("remList"); host.innerHTML="";
+    if(!rows.length){ host.innerHTML='<div style="text-align:center;color:var(--ink-3);font-size:12px;padding:18px 0">Nothing in the notice window 🎉</div>'; return; }
+
+    rows.forEach(function(c){
+      var d=daysTo(c.end);
+      var u = d<7?"red":(d<=30?"amber":"blue");
+      var nlabel = d<0 ? "ago" : "days";
+      var nval = d<0 ? (-d) : d;
+      var actBtn = c.auto
+        ? '<button class="rem-act" data-renew="'+c.id+'">Renew</button>'
+        : '<button class="rem-act ghost" data-renew="'+c.id+'">Start renewal</button>';
+      var div=document.createElement("div");
+      div.className="rem u-"+u; div.dataset.id=c.id;
+      div.innerHTML=
+        '<div class="rem-count"><div class="n">'+nval+'</div><div class="u">'+nlabel+'</div></div>'+
+        '<div class="rem-body">'+
+          '<div class="t">'+c.title.split(" — ")[0]+'</div>'+
+          '<div class="p">'+c.party+' · ends '+fmtDate(c.end)+'</div>'+
+          '<div class="rem-tags">'+
+            (c.auto?'<span class="mini-tag mt-renew">auto-renew</span>':'<span class="mini-tag mt-manual">manual</span>')+
+            '<span class="mini-tag mt-notice">'+c.notice+'d notice</span>'+
+          '</div>'+
+        '</div>'+
+        actBtn;
+      div.addEventListener("click",function(e){
+        var b=e.target.closest("[data-renew]");
+        if(b){ e.stopPropagation(); var cc=CONTRACTS.find(function(x){return x.id===+b.dataset.renew;});
+          flash((cc.auto?"Auto-renewal queued for ":"Renewal workflow started for ")+"“"+cc.title.split(" — ")[0]+"”"); return; }
+        selectedId=c.id; renderBoard(); renderTimeline();
+        document.querySelector(".inspector").scrollIntoView({behavior:"smooth",block:"start"});
+      });
+      host.appendChild(div);
+    });
+  }
+
+  // ============ APPROVAL TIMELINE (List of ctr_approvals as step timeline) ============
+  var DEC = {
+    approved:{cls:"dec-approved",t:"Approved",sdot:"done",mark:"✓"},
+    active:  {cls:"dec-pending", t:"In review",sdot:"active",mark:"●"},
+    pending: {cls:"dec-pending", t:"Pending",  sdot:"pending",mark:""},
+    rejected:{cls:"dec-rejected",t:"Rejected", sdot:"rejected",mark:"✕"},
+    changes: {cls:"dec-changes", t:"Changes",  sdot:"changes",mark:"!"}
+  };
+
+  function renderTimeline(){
+    var c=CONTRACTS.find(function(x){return x.id===selectedId;}) || CONTRACTS[0];
+    var steps=(APPROVALS[c.id]||defaultApprovals(c)).slice().sort(function(a,b){return a.ord-b.ord;});
+    var pendingN=steps.filter(function(s){return s.dec==="pending"||s.dec==="active";}).length;
+    document.getElementById("tlCount").textContent=pendingN;
+
+    var st=STAGE_BY[c.stage];
+    document.getElementById("tlCtx").innerHTML=
+      '<div><div class="tl-no">'+c.no+'</div><div class="tl-t">'+c.title.split(" — ")[0]+'</div></div>'+
+      '<span class="tl-stage" style="background:'+st.color+'1a;color:'+st.color+'">'+st.label+'</span>';
+
+    var host=document.getElementById("timeline"); host.innerHTML="";
+    steps.forEach(function(s){
+      var d=DEC[s.dec], o=OWNERS[s.who];
+      var dotMark = s.dec==="done"||s.dec==="approved"?"✓":(s.dec==="rejected"?"✕":(s.dec==="changes"?"!":(s.dec==="active"?"●":s.ord)));
+      var stepCls = s.dec==="approved"?"done":s.dec;
+      var node=document.createElement("div");
+      node.className="step "+stepCls;
+      var actions = s.dec==="active"
+        ? '<div class="step-actions">'+
+            '<button class="sb sb-approve" data-act="approve" data-cid="'+c.id+'" data-ord="'+s.ord+'">Approve</button>'+
+            '<button class="sb sb-changes" data-act="changes" data-cid="'+c.id+'" data-ord="'+s.ord+'">Request changes</button>'+
+            '<button class="sb sb-reject" data-act="reject" data-cid="'+c.id+'" data-ord="'+s.ord+'">Reject</button>'+
+          '</div>' : "";
+      node.innerHTML=
+        '<div class="rail"></div>'+
+        '<div class="step-dot">'+dotMark+'</div>'+
+        '<div class="step-body">'+
+          '<div class="step-row1"><span class="step-name">'+s.name+'</span>'+
+            '<span class="step-role">'+s.role.replace("_"," ")+'</span>'+
+            '<span class="step-dec '+d.cls+'">'+d.t+'</span></div>'+
+          '<div class="step-who"><span class="step-ava" style="background:'+o.c+'">'+avaInit(o.nm)+'</span>'+
+            '<span class="nm">'+o.nm+'</span>'+(s.ts?'<span class="ts">'+s.ts+'</span>':'')+'</div>'+
+          (s.comment?'<div class="step-comment">'+s.comment+'</div>':'')+
+          actions+
+        '</div>';
+      host.appendChild(node);
+    });
+
+    host.querySelectorAll("[data-act]").forEach(function(b){
+      b.addEventListener("click",function(){
+        var cid=+b.dataset.cid, ord=+b.dataset.ord, act=b.dataset.act;
+        var arr=APPROVALS[cid]; if(!arr) return;
+        var idx=arr.findIndex(function(s){return s.ord===ord;});
+        var cc=CONTRACTS.find(function(x){return x.id===cid;});
+        if(act==="approve"){
+          arr[idx].dec="approved"; arr[idx].ts="Jun 7, now";
+          var next=arr.find(function(s){return s.dec==="pending";});
+          if(next){ next.dec="active"; flash("Step approved · advancing to “"+next.name+"” (approval-step-advance workflow)"); }
+          else { cc.stage="signing"; flash("Final approval done · contract → Signing (workflow)"); renderBoard(); renderKpis(); }
+        } else if(act==="reject"){
+          arr[idx].dec="rejected"; arr[idx].ts="Jun 7, now"; cc.stage="draft";
+          flash("Step rejected · contract sent back to Draft (workflow)"); renderBoard(); renderKpis();
+        } else if(act==="changes"){
+          arr[idx].dec="changes"; arr[idx].ts="Jun 7, now";
+          flash("Changes requested · owner notified with comment (workflow)");
+        }
+        renderTimeline(); renderReminders();
+      });
+    });
+  }
+
+  // ============ filters ============
+  document.getElementById("filters").addEventListener("click",function(e){
+    var f=e.target.closest(".pf"); if(!f) return;
+    document.querySelectorAll(".pf").forEach(function(x){x.classList.remove("on");});
+    f.classList.add("on"); activeFilter=f.dataset.f; renderBoard();
+  });
+
+  // ============ toast ============
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2800); }
+
+  // ============ init ============
+  renderKpis(); renderBoard(); renderReminders(); renderTimeline();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Contract Management: a 7-stage contract pipeline with approvals and expiry tracking (workflow-driven). Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/26-contract-management.html
+</script>
+</body>
+</html>

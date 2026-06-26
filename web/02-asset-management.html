@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assetly · Asset Catalog</title>
+<style>
+  :root{
+    --accent:#13c2c2; --accent-hover:#36cfc9; --accent-bg:#e6fffb; --accent-bd:#87e8de;
+    --success:#52c41a; --success-bg:#f6ffed; --success-bd:#b7eb8f;
+    --warning:#faad14; --warning-bg:#fffbe6; --warning-bd:#ffe58f;
+    --error:#ff4d4f; --error-bg:#fff2f0; --error-bd:#ffccc7;
+    --info:#1677ff; --info-bg:#e6f4ff; --info-bd:#91caff;
+    --text:rgba(0,0,0,0.88); --text2:rgba(0,0,0,0.45); --text3:rgba(0,0,0,0.25);
+    --border:#d9d9d9; --split:rgba(5,5,5,0.06);
+    --bg:#f7f9fa; --card:#fff;
+    --radius:10px; --radius-sm:7px;
+    --shadow:0 1px 2px rgba(0,0,0,.03),0 2px 8px -2px rgba(0,0,0,.06);
+    --shadow-md:0 6px 20px -4px rgba(0,0,0,.12),0 10px 30px 4px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.57;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit}
+
+  /* ===== Top bar ===== */
+  .topbar{height:60px;background:var(--card);border-bottom:1px solid var(--split);display:flex;align-items:center;gap:18px;padding:0 28px;position:sticky;top:0;z-index:30}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:18px;letter-spacing:.2px;flex-shrink:0}
+  .brand .mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#13c2c2,#36cfc9);display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;box-shadow:0 4px 10px -2px rgba(19,194,194,.45)}
+  .brand small{font-weight:500;color:var(--text2);font-size:12px;margin-left:2px;align-self:flex-end;margin-bottom:3px}
+  .gsearch{flex:1;max-width:560px;margin:0 auto;position:relative}
+  .gsearch input{width:100%;height:40px;border:1px solid var(--border);border-radius:20px;padding:0 16px 0 44px;font-size:14px;outline:none;background:#f7f9fa;transition:.2s}
+  .gsearch input:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-bg)}
+  .gsearch .si{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--text2)}
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+  .tbtn{height:38px;border-radius:var(--radius-sm);border:1px solid var(--border);background:#fff;color:var(--text);padding:0 14px;cursor:pointer;font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:7px;transition:.18s}
+  .tbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .tbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tbtn.primary:hover{background:var(--accent-hover);color:#fff}
+  .avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#36cfc9,#13c2c2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;cursor:pointer;flex-shrink:0}
+
+  /* ===== Page shell ===== */
+  .shell{display:flex;align-items:flex-start;max-width:1560px;margin:0 auto;padding:24px 28px 60px;gap:26px}
+
+  /* ===== Facet rail ===== */
+  .rail{width:248px;flex-shrink:0;position:sticky;top:84px}
+  .facet{background:var(--card);border:1px solid var(--split);border-radius:var(--radius);padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .facet h4{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);margin-bottom:13px;font-weight:600}
+  .facet-clear{width:100%;border:1px dashed var(--border);background:#fff;color:var(--text2);height:36px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px}
+  .facet-clear:hover{border-color:var(--accent);color:var(--accent)}
+  .frow{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;cursor:pointer;font-size:13.5px;color:var(--text);transition:.15s;user-select:none}
+  .frow:hover{background:#f7f9fa}
+  .frow.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+  .frow .cnt{margin-left:auto;font-size:12px;color:var(--text3);font-weight:500}
+  .frow.on .cnt{color:var(--accent)}
+  .frow .ico{width:18px;text-align:center;font-size:14px}
+  .frow .chk{width:16px;height:16px;border:1.5px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0}
+  .frow.on .chk{background:var(--accent);border-color:var(--accent)}
+  .pricebar input[type=range]{width:100%;accent-color:var(--accent)}
+  .pricebar .pv{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-top:6px}
+
+  /* ===== Content column ===== */
+  .content{flex:1;min-width:0}
+
+  /* Filter toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .chip{height:34px;padding:0 15px;border-radius:18px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:.16s;white-space:nowrap}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+  .chip .dot{width:8px;height:8px;border-radius:50%}
+  .sortsel{height:34px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 12px;font-size:13px;background:#fff;color:var(--text);cursor:pointer;outline:none}
+  .sortsel:focus{border-color:var(--accent)}
+  .viewtoggle{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+  .viewtoggle button{width:36px;height:34px;border:none;background:#fff;cursor:pointer;color:var(--text2);font-size:15px;display:flex;align-items:center;justify-content:center}
+  .viewtoggle button.on{background:var(--accent-bg);color:var(--accent)}
+
+  .resultbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .resultbar .rc{font-size:13.5px;color:var(--text2)}
+  .resultbar .rc b{color:var(--text);font-weight:600}
+  .activetag{height:28px;padding:0 8px 0 11px;border-radius:14px;background:var(--accent-bg);color:var(--accent);font-size:12.5px;display:flex;align-items:center;gap:6px;border:1px solid var(--accent-bd)}
+  .activetag span{cursor:pointer;font-size:14px;line-height:1;opacity:.7}
+  .activetag span:hover{opacity:1}
+
+  /* ===== Card grid ===== */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:20px}
+  .grid.list{grid-template-columns:1fr;gap:12px}
+  .acard{background:var(--card);border:1px solid var(--split);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:.2s;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .acard:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--accent-bd)}
+  .thumb{height:158px;position:relative;display:flex;align-items:center;justify-content:center;font-size:46px;color:rgba(255,255,255,.92);overflow:hidden}
+  .thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(0,0,0,.10))}
+  .thumb .cat-tag{position:absolute;top:10px;left:10px;z-index:2;background:rgba(255,255,255,.92);color:var(--text);font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px}
+  .thumb .fav{position:absolute;top:9px;right:9px;z-index:2;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.92);border:none;cursor:pointer;font-size:15px;color:var(--text2);display:flex;align-items:center;justify-content:center}
+  .thumb .fav.on{color:var(--error)}
+  .cbody{padding:14px 15px 15px;display:flex;flex-direction:column;flex:1}
+  .cbody .ctop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .cbody h3{font-size:15px;font-weight:600;line-height:1.35;margin-bottom:2px}
+  .cbody .ctag{font-size:12px;color:var(--text2);font-family:ui-monospace,monospace}
+  .badge{font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:11px;white-space:nowrap;flex-shrink:0}
+  .badge.b-active{background:var(--success-bg);color:var(--success);border:1px solid var(--success-bd)}
+  .badge.b-repair{background:var(--warning-bg);color:#d48806;border:1px solid var(--warning-bd)}
+  .badge.b-retired{background:#fafafa;color:var(--text2);border:1px solid var(--border)}
+  .badge.b-storage{background:var(--info-bg);color:var(--info);border:1px solid var(--info-bd)}
+  .cmeta{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);margin-top:10px}
+  .cmeta .pin{font-size:13px}
+  .depr{margin-top:13px}
+  .depr .dl{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:5px}
+  .depr .dl b{color:var(--text);font-weight:600;font-size:13px}
+  .dbar{height:6px;border-radius:4px;background:#eef1f2;overflow:hidden}
+  .dbar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#13c2c2,#36cfc9)}
+  .cfoot{margin-top:14px;padding-top:13px;border-top:1px solid var(--split);display:flex;align-items:center;gap:9px}
+  .owner-av{width:26px;height:26px;border-radius:50%;color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cfoot .on{font-size:12.5px;color:var(--text)}
+  .cfoot .on small{display:block;color:var(--text3);font-size:11px}
+
+  /* list mode tweaks */
+  .grid.list .acard{flex-direction:row;align-items:stretch}
+  .grid.list .thumb{width:170px;height:auto;min-height:120px;flex-shrink:0;font-size:34px}
+  .grid.list .cbody{flex-direction:row;align-items:center;gap:24px;flex-wrap:wrap}
+  .grid.list .cbody>*{margin-top:0}
+  .grid.list .depr{width:160px}
+  .grid.list .cfoot{border:none;padding:0;margin:0;margin-left:auto}
+
+  .empty{text-align:center;padding:80px 20px;color:var(--text2)}
+  .empty .e-ic{font-size:48px;opacity:.3;margin-bottom:14px}
+
+  /* ===== Drawer ===== */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:.25s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:480px;max-width:92vw;background:#fff;z-index:50;transform:translateX(100%);transition:transform .3s cubic-bezier(.22,1,.36,1);display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.16)}
+  .drawer.show{transform:translateX(0)}
+  .dhead{position:relative;height:200px;display:flex;align-items:flex-end;padding:18px 22px;color:#fff;flex-shrink:0}
+  .dhead::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.35))}
+  .dhead .dh-emoji{position:absolute;top:18px;left:22px;font-size:40px;z-index:2}
+  .dhead .dh-x{position:absolute;top:16px;right:18px;z-index:3;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.22);border:none;color:#fff;font-size:20px;cursor:pointer}
+  .dhead .dh-x:hover{background:rgba(255,255,255,.35)}
+  .dhead .dh-info{position:relative;z-index:2}
+  .dhead .dh-info h2{font-size:21px;font-weight:700;margin-bottom:3px}
+  .dhead .dh-info .dh-tag{font-size:13px;opacity:.9;font-family:ui-monospace,monospace}
+  .dbody{flex:1;overflow-y:auto;padding:22px}
+  .dbadges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:11px 14px;font-size:13.5px;margin-bottom:22px}
+  .kv .k{color:var(--text2)}
+  .kv .v{color:var(--text);font-weight:500}
+  .dsec-t{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);font-weight:600;margin:0 0 12px}
+  .valuebox{background:var(--bg);border:1px solid var(--split);border-radius:var(--radius);padding:16px;margin-bottom:22px}
+  .valuebox .vrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .valuebox .now{font-size:24px;font-weight:700;color:var(--text)}
+  .valuebox .orig{font-size:13px;color:var(--text2)}
+  .valuebox .dbar{height:8px}
+  .valuebox .vlab{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-top:8px}
+  .timeline{position:relative;padding-left:22px;margin-bottom:10px}
+  .timeline::before{content:"";position:absolute;left:5px;top:4px;bottom:4px;width:2px;background:var(--split)}
+  .tl-item{position:relative;padding-bottom:16px}
+  .tl-item::before{content:"";position:absolute;left:-21px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 2px var(--accent-bg)}
+  .tl-item .tl-d{font-size:12px;color:var(--text3);margin-bottom:1px}
+  .tl-item .tl-t{font-size:13.5px}
+  .dfoot{flex-shrink:0;padding:16px 22px;border-top:1px solid var(--split);display:flex;gap:10px}
+  .dfoot .tbtn{flex:1;justify-content:center;height:42px}
+
+  @media(max-width:980px){.rail{display:none}.shell{padding:18px}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="mark">◈</span>Assetly<small>Catalog</small></div>
+  <div class="gsearch">
+    <span class="si">⌕</span>
+    <input id="q" type="text" placeholder="Search assets, tags, serial numbers, owners…" autocomplete="off">
+  </div>
+  <div class="topbar-right">
+    <button class="tbtn">⇪ Export</button>
+    <button class="tbtn primary">+ New Asset</button>
+    <div class="avatar" title="Avery Lin">AL</div>
+  </div>
+</header>
+
+<div class="shell">
+  <!-- ===== Facet rail ===== -->
+  <aside class="rail">
+    <div class="facet">
+      <h4>Category</h4>
+      <div id="catFacet"></div>
+    </div>
+    <div class="facet">
+      <h4>Location</h4>
+      <div id="locFacet"></div>
+    </div>
+    <div class="facet">
+      <h4>Max Current Value</h4>
+      <div class="pricebar">
+        <input id="priceRange" type="range" min="0" max="40000" step="500" value="40000">
+        <div class="pv"><span>$0</span><span id="priceLbl">$40,000+</span></div>
+      </div>
+    </div>
+    <div class="facet" style="padding:14px">
+      <button class="facet-clear" id="clearAll">Reset all filters</button>
+    </div>
+  </aside>
+
+  <!-- ===== Content ===== -->
+  <main class="content">
+    <div class="toolbar" id="statusBar"></div>
+
+    <div class="resultbar">
+      <div class="rc"><b id="rcN">0</b> assets</div>
+      <div id="activeTags" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      <div style="flex:1"></div>
+      <select class="sortsel" id="sort">
+        <option value="featured">Sort: Featured</option>
+        <option value="value-desc">Value: High → Low</option>
+        <option value="value-asc">Value: Low → High</option>
+        <option value="name">Name A → Z</option>
+        <option value="newest">Newest acquired</option>
+        <option value="depr">Most depreciated</option>
+      </select>
+      <div class="viewtoggle">
+        <button id="vGrid" class="on" title="Grid">▦</button>
+        <button id="vList" title="List">≡</button>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" style="display:none">
+      <div class="e-ic">🔍</div>
+      <div style="font-size:16px;color:var(--text);font-weight:600;margin-bottom:4px">No assets match your filters</div>
+      <div>Try clearing some facets or adjusting the value range.</div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== Drawer ===== -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhead" id="dhead">
+    <button class="dh-x" id="dClose">×</button>
+    <div class="dh-emoji" id="dEmoji"></div>
+    <div class="dh-info"><h2 id="dName"></h2><div class="dh-tag" id="dTag"></div></div>
+  </div>
+  <div class="dbody" id="dbody"></div>
+  <div class="dfoot">
+    <button class="tbtn" style="flex:1">✎ Edit</button>
+    <button class="tbtn" style="flex:1">⤴ Transfer</button>
+    <button class="tbtn primary" style="flex:1">🛠 Log Maintenance</button>
+  </div>
+</aside>
+
+<script>
+/* ===== Mock data ===== */
+const CATS = {
+  IT:        {label:'IT Equipment', icon:'💻', grad:'linear-gradient(135deg,#1677ff,#69b1ff)'},
+  Furniture: {label:'Furniture',    icon:'🪑', grad:'linear-gradient(135deg,#722ed1,#b37feb)'},
+  Vehicle:   {label:'Vehicles',     icon:'🚐', grad:'linear-gradient(135deg,#fa8c16,#ffc069)'},
+  Machinery: {label:'Machinery',    icon:'⚙️', grad:'linear-gradient(135deg,#13c2c2,#5cdbd3)'},
+  AV:        {label:'AV / Comms',   icon:'📡', grad:'linear-gradient(135deg,#eb2f96,#ff85c0)'},
+};
+const STATUSES = {
+  active:  {label:'In Service', cls:'b-active',  color:'#52c41a'},
+  storage: {label:'In Storage', cls:'b-storage', color:'#1677ff'},
+  repair:  {label:'In Repair',  cls:'b-repair',  color:'#faad14'},
+  retired: {label:'Retired',    cls:'b-retired', color:'#999'},
+};
+const OWNER_COLORS=['#13c2c2','#722ed1','#fa8c16','#1677ff','#eb2f96','#52c41a','#fa541c'];
+function ownerAv(name){let h=0;for(const c of name)h=(h*31+c.charCodeAt(0))%OWNER_COLORS.length;
+  return {bg:OWNER_COLORS[h],ini:name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()};}
+
+const ASSETS=[
+  {id:'A',name:'MacBook Pro 16" M3',tag:'IT-LT-0241',cat:'IT',status:'active',loc:'HQ — Floor 3',orig:3199,cur:2240,owner:'Maya Chen',dept:'Engineering',acq:'2025-09-12',serial:'C02XK1MPQ6L',vendor:'Apple Inc.',warranty:'2028-09-12',life:4},
+  {id:'B',name:'Herman Miller Aeron',tag:'FN-CH-0117',cat:'Furniture',status:'active',loc:'HQ — Floor 2',orig:1395,cur:1046,owner:'Diego Ramos',dept:'Design',acq:'2024-03-05',serial:'HMA-2024-0117',vendor:'Herman Miller',warranty:'2036-03-05',life:12},
+  {id:'C',name:'Ford Transit 350 Van',tag:'VH-VN-0003',cat:'Vehicle',status:'active',loc:'Depot — Bay A',orig:38500,cur:24100,owner:'Logistics Pool',dept:'Operations',acq:'2023-06-20',serial:'1FTBR1Y8XPK',vendor:'Ford Motor Co.',warranty:'2026-06-20',life:8},
+  {id:'D',name:'CNC Mill — Haas VF-2',tag:'MC-CN-0008',cat:'Machinery',status:'repair',loc:'Plant 1 — Line B',orig:62000,cur:38700,owner:'Sam Okafor',dept:'Manufacturing',acq:'2022-11-02',serial:'HAAS-VF2-2231',vendor:'Haas Automation',warranty:'2025-11-02',life:15},
+  {id:'E',name:'Dell UltraSharp 27" 4K',tag:'IT-MN-0388',cat:'IT',status:'active',loc:'HQ — Floor 3',orig:649,cur:455,owner:'Priya Nair',dept:'Engineering',acq:'2025-02-18',serial:'CN-0H7G2-2388',vendor:'Dell Technologies',warranty:'2028-02-18',life:5},
+  {id:'F',name:'Logitech Rally Bar',tag:'AV-CF-0021',cat:'AV',status:'active',loc:'HQ — Conf Atlas',orig:3999,cur:2599,owner:'Facilities',dept:'IT Ops',acq:'2024-01-30',serial:'LR-RB-0021',vendor:'Logitech',warranty:'2027-01-30',life:6},
+  {id:'G',name:'Steelcase Standing Desk',tag:'FN-DK-0452',cat:'Furniture',status:'storage',loc:'Warehouse — Rack 7',orig:899,cur:540,owner:'Unassigned',dept:'Facilities',acq:'2023-08-14',serial:'SC-SD-0452',vendor:'Steelcase',warranty:'2033-08-14',life:10},
+  {id:'H',name:'Toyota Forklift 8FGCU25',tag:'VH-FL-0011',cat:'Vehicle',status:'active',loc:'Warehouse — Yard',orig:28900,cur:15200,owner:'Warehouse Pool',dept:'Logistics',acq:'2022-04-09',serial:'TY-8FG-0011',vendor:'Toyota Material',warranty:'2025-04-09',life:9},
+  {id:'I',name:'iPad Pro 12.9" + Pencil',tag:'IT-TB-0509',cat:'IT',status:'active',loc:'HQ — Floor 1',orig:1299,cur:780,owner:'Avery Lin',dept:'Sales',acq:'2023-12-01',serial:'DMPXK509',vendor:'Apple Inc.',warranty:'2026-12-01',life:4},
+  {id:'J',name:'3D Printer Formlabs 3L',tag:'MC-3D-0014',cat:'Machinery',status:'storage',loc:'Lab — Shelf 3',orig:11000,cur:6600,owner:'R&D Lab',dept:'R&D',acq:'2023-05-22',serial:'FL-3L-0014',vendor:'Formlabs',warranty:'2026-05-22',life:7},
+  {id:'K',name:'Conference Table Oak 12ft',tag:'FN-TB-0099',cat:'Furniture',status:'active',loc:'HQ — Boardroom',orig:4200,cur:3360,owner:'Facilities',dept:'Facilities',acq:'2024-07-11',serial:'FN-OAK-0099',vendor:'Custom Joinery',warranty:'—',life:15},
+  {id:'L',name:'Lenovo ThinkPad X1',tag:'IT-LT-0277',cat:'IT',status:'retired',loc:'Warehouse — Disposal',orig:1899,cur:0,owner:'Unassigned',dept:'IT Ops',acq:'2020-01-15',serial:'PF-X1-0277',vendor:'Lenovo',warranty:'Expired',life:4},
+  {id:'M',name:'Cisco Catalyst Switch',tag:'AV-NW-0044',cat:'AV',status:'active',loc:'HQ — Server Room',orig:5400,cur:3240,owner:'IT Ops',dept:'IT Ops',acq:'2023-09-08',serial:'CAT-9300-0044',vendor:'Cisco Systems',warranty:'2028-09-08',life:8},
+  {id:'N',name:'Industrial Compressor',tag:'MC-CP-0006',cat:'Machinery',status:'active',loc:'Plant 1 — Utility',orig:18500,cur:11100,owner:'Sam Okafor',dept:'Manufacturing',acq:'2023-02-28',serial:'IC-CP-0006',vendor:'Atlas Copco',warranty:'2028-02-28',life:12},
+  {id:'O',name:'Sony A7 IV Camera Kit',tag:'AV-CM-0031',cat:'AV',status:'storage',loc:'Studio — Cabinet',orig:3499,cur:2449,owner:'Marketing',dept:'Marketing',acq:'2024-10-03',serial:'SN-A7IV-0031',vendor:'Sony',warranty:'2026-10-03',life:5},
+  {id:'P',name:'Tesla Model 3 (Fleet)',tag:'VH-CR-0007',cat:'Vehicle',status:'repair',loc:'Depot — Bay C',orig:46990,cur:31200,owner:'Exec Pool',dept:'Operations',acq:'2024-05-17',serial:'5YJ3E-0007',vendor:'Tesla Inc.',warranty:'2028-05-17',life:8},
+];
+
+/* ===== State ===== */
+const state={q:'',cats:new Set(),locs:new Set(),status:'all',price:40000,sort:'featured',view:'grid',fav:new Set(['A','I'])};
+const LOCS=[...new Set(ASSETS.map(a=>a.loc.split(' — ')[0]))];
+
+/* ===== Facets ===== */
+function countBy(fn){const m={};ASSETS.forEach(a=>{const k=fn(a);m[k]=(m[k]||0)+1});return m;}
+const catCounts=countBy(a=>a.cat), locCounts=countBy(a=>a.loc.split(' — ')[0]);
+
+function renderFacets(){
+  const cf=document.getElementById('catFacet');
+  cf.innerHTML=Object.entries(CATS).map(([k,c])=>`
+    <div class="frow ${state.cats.has(k)?'on':''}" data-cat="${k}">
+      <span class="chk">${state.cats.has(k)?'✓':''}</span>
+      <span class="ico">${c.icon}</span>${c.label}
+      <span class="cnt">${catCounts[k]||0}</span>
+    </div>`).join('');
+  cf.querySelectorAll('.frow').forEach(r=>r.onclick=()=>{toggleSet(state.cats,r.dataset.cat);refresh();});
+
+  const lf=document.getElementById('locFacet');
+  lf.innerHTML=LOCS.map(l=>`
+    <div class="frow ${state.locs.has(l)?'on':''}" data-loc="${l}">
+      <span class="chk">${state.locs.has(l)?'✓':''}</span>
+      <span class="ico">📍</span>${l}
+      <span class="cnt">${locCounts[l]||0}</span>
+    </div>`).join('');
+  lf.querySelectorAll('.frow').forEach(r=>r.onclick=()=>{toggleSet(state.locs,r.dataset.loc);refresh();});
+}
+function toggleSet(s,v){s.has(v)?s.delete(v):s.add(v);}
+
+/* ===== Status chips ===== */
+function renderStatusBar(){
+  const bar=document.getElementById('statusBar');
+  const items=[['all','All Statuses',null],...Object.entries(STATUSES).map(([k,v])=>[k,v.label,v.color])];
+  bar.innerHTML=items.map(([k,lbl,col])=>`
+    <button class="chip ${state.status===k?'on':''}" data-st="${k}">
+      ${col?`<span class="dot" style="background:${col}"></span>`:''}${lbl}
+    </button>`).join('');
+  bar.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{state.status=c.dataset.st;refresh();});
+}
+
+/* ===== Filtering ===== */
+function filtered(){
+  let r=ASSETS.filter(a=>{
+    if(state.cats.size && !state.cats.has(a.cat))return false;
+    if(state.locs.size && !state.locs.has(a.loc.split(' — ')[0]))return false;
+    if(state.status!=='all' && a.status!==state.status)return false;
+    if(a.cur>state.price)return false;
+    if(state.q){const q=state.q.toLowerCase();
+      if(!(a.name+a.tag+a.owner+a.serial+a.vendor+a.loc+CATS[a.cat].label).toLowerCase().includes(q))return false;}
+    return true;
+  });
+  const dpct=a=>a.orig?1-a.cur/a.orig:1;
+  const cmp={
+    'value-desc':(a,b)=>b.cur-a.cur,'value-asc':(a,b)=>a.cur-b.cur,
+    'name':(a,b)=>a.name.localeCompare(b.name),
+    'newest':(a,b)=>b.acq.localeCompare(a.acq),
+    'depr':(a,b)=>dpct(b)-dpct(a),
+    'featured':(a,b)=>(state.fav.has(b.id)-state.fav.has(a.id))||(b.cur-a.cur),
+  }[state.sort];
+  return r.sort(cmp);
+}
+
+/* ===== Card ===== */
+function money(n){return '$'+n.toLocaleString();}
+function card(a){
+  const c=CATS[a.cat],s=STATUSES[a.status],ov=ownerAv(a.owner);
+  const retained=a.orig?Math.round(a.cur/a.orig*100):0;
+  return `<article class="acard" data-id="${a.id}">
+    <div class="thumb" style="background:${c.grad}">
+      <span class="cat-tag">${c.icon} ${c.label}</span>
+      <button class="fav ${state.fav.has(a.id)?'on':''}" data-fav="${a.id}">${state.fav.has(a.id)?'♥':'♡'}</button>
+      <span style="position:relative;z-index:1">${c.icon}</span>
+    </div>
+    <div class="cbody">
+      <div class="ctop">
+        <div><h3>${a.name}</h3><div class="ctag">${a.tag}</div></div>
+        <span class="badge ${s.cls}">${s.label}</span>
+      </div>
+      <div class="cmeta"><span class="pin">📍</span>${a.loc}</div>
+      <div class="depr">
+        <div class="dl"><span>Current value</span><b>${money(a.cur)}</b></div>
+        <div class="dbar"><i style="width:${retained}%"></i></div>
+      </div>
+      <div class="cfoot">
+        <span class="owner-av" style="background:${ov.bg}">${ov.ini}</span>
+        <span class="on">${a.owner}<small>${a.dept}</small></span>
+      </div>
+    </div>
+  </article>`;
+}
+
+/* ===== Active tags ===== */
+function renderActiveTags(){
+  const box=document.getElementById('activeTags');const tags=[];
+  state.cats.forEach(c=>tags.push(['cat',c,CATS[c].label]));
+  state.locs.forEach(l=>tags.push(['loc',l,l]));
+  if(state.status!=='all')tags.push(['status',state.status,STATUSES[state.status].label]);
+  if(state.price<40000)tags.push(['price','','≤ '+money(state.price)]);
+  if(state.q)tags.push(['q','','"'+state.q+'"']);
+  box.innerHTML=tags.map(([t,v,lbl])=>`<span class="activetag" data-t="${t}" data-v="${v}">${lbl}<span>×</span></span>`).join('');
+  box.querySelectorAll('.activetag').forEach(el=>el.querySelector('span:last-child').onclick=()=>{
+    const t=el.dataset.t,v=el.dataset.v;
+    if(t==='cat')state.cats.delete(v);else if(t==='loc')state.locs.delete(v);
+    else if(t==='status')state.status='all';
+    else if(t==='price'){state.price=40000;document.getElementById('priceRange').value=40000;document.getElementById('priceLbl').textContent='$40,000+';}
+    else if(t==='q'){state.q='';document.getElementById('q').value='';}
+    refresh();
+  });
+}
+
+/* ===== Refresh ===== */
+function refresh(){
+  renderFacets();renderStatusBar();renderActiveTags();
+  const list=filtered();
+  document.getElementById('rcN').textContent=list.length;
+  const grid=document.getElementById('grid'),empty=document.getElementById('empty');
+  grid.className='grid'+(state.view==='list'?' list':'');
+  if(!list.length){grid.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  grid.innerHTML=list.map(card).join('');
+  grid.querySelectorAll('.acard').forEach(el=>el.onclick=e=>{
+    if(e.target.closest('.fav'))return;openDrawer(el.dataset.id);});
+  grid.querySelectorAll('.fav').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleSet(state.fav,b.dataset.fav);refresh();});
+}
+
+/* ===== Drawer ===== */
+function openDrawer(id){
+  const a=ASSETS.find(x=>x.id===id);if(!a)return;
+  const c=CATS[a.cat],s=STATUSES[a.status];
+  const retained=a.orig?Math.round(a.cur/a.orig*100):0;
+  const dprcAmt=a.orig-a.cur;
+  document.getElementById('dhead').style.background=c.grad;
+  document.getElementById('dEmoji').textContent=c.icon;
+  document.getElementById('dName').textContent=a.name;
+  document.getElementById('dTag').textContent=a.tag+' · '+c.label;
+  document.getElementById('dbody').innerHTML=`
+    <div class="dbadges">
+      <span class="badge ${s.cls}">${s.label}</span>
+      <span class="badge" style="background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-bd)">${state.fav.has(a.id)?'♥ Watched':'Tracked'}</span>
+    </div>
+    <div class="dsec-t">Valuation</div>
+    <div class="valuebox">
+      <div class="vrow"><span class="now">${money(a.cur)}</span><span class="orig">orig. ${money(a.orig)}</span></div>
+      <div class="dbar"><i style="width:${retained}%"></i></div>
+      <div class="vlab"><span>${retained}% retained</span><span>−${money(dprcAmt)} depreciated</span></div>
+    </div>
+    <div class="dsec-t">Details</div>
+    <div class="kv">
+      <div class="k">Owner</div><div class="v">${a.owner}</div>
+      <div class="k">Department</div><div class="v">${a.dept}</div>
+      <div class="k">Location</div><div class="v">${a.loc}</div>
+      <div class="k">Serial No.</div><div class="v" style="font-family:ui-monospace,monospace">${a.serial}</div>
+      <div class="k">Vendor</div><div class="v">${a.vendor}</div>
+      <div class="k">Acquired</div><div class="v">${a.acq}</div>
+      <div class="k">Useful life</div><div class="v">${a.life} years</div>
+      <div class="k">Warranty</div><div class="v">${a.warranty}</div>
+    </div>
+    <div class="dsec-t">Activity</div>
+    <div class="timeline">
+      ${(a.status==='repair'?`<div class="tl-item"><div class="tl-d">2 days ago</div><div class="tl-t">⚠️ Sent for repair — service ticket #SR-${a.id}204</div></div>`:'')}
+      <div class="tl-item"><div class="tl-d">Last quarter</div><div class="tl-t">Depreciation posted — book value updated to ${money(a.cur)}</div></div>
+      <div class="tl-item"><div class="tl-d">${a.acq}</div><div class="tl-t">Assigned to <b>${a.owner}</b> at ${a.loc.split(' — ')[0]}</div></div>
+      <div class="tl-item"><div class="tl-d">${a.acq}</div><div class="tl-t">Acquired from ${a.vendor} — tagged <b>${a.tag}</b></div></div>
+    </div>`;
+  document.getElementById('scrim').classList.add('show');
+  document.getElementById('drawer').classList.add('show');
+}
+function closeDrawer(){document.getElementById('scrim').classList.remove('show');document.getElementById('drawer').classList.remove('show');}
+document.getElementById('dClose').onclick=closeDrawer;
+document.getElementById('scrim').onclick=closeDrawer;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+
+/* ===== Controls ===== */
+document.getElementById('q').oninput=e=>{state.q=e.target.value.trim();refresh();};
+document.getElementById('sort').onchange=e=>{state.sort=e.target.value;refresh();};
+document.getElementById('priceRange').oninput=e=>{
+  state.price=+e.target.value;
+  document.getElementById('priceLbl').textContent=state.price>=40000?'$40,000+':money(state.price);
+  refresh();
+};
+document.getElementById('clearAll').onclick=()=>{
+  state.cats.clear();state.locs.clear();state.status='all';state.q='';state.price=40000;state.sort='featured';
+  document.getElementById('q').value='';document.getElementById('sort').value='featured';
+  document.getElementById('priceRange').value=40000;document.getElementById('priceLbl').textContent='$40,000+';
+  refresh();
+};
+document.getElementById('vGrid').onclick=function(){state.view='grid';this.classList.add('on');document.getElementById('vList').classList.remove('on');refresh();};
+document.getElementById('vList').onclick=function(){state.view='list';this.classList.add('on');document.getElementById('vGrid').classList.remove('on');refresh();};
+
+refresh();
+</script>
+<!-- repro-foot:begin -->
+<details class="repro-foot">
+  <summary class="repro-foot__sum">📋 Reproduce in NocoBase</summary>
+  <div class="repro-foot__body">
+    <p class="repro-foot__hint">Send the prompt below (with the prototype link) to a Claude Code that has the <code>nocobase-prototype-repro</code> skill installed to reproduce this module in NocoBase.</p>
+    <button class="repro-foot__btn" type="button" data-prompt="Build a fixed-asset management system in NocoBase: an asset ledger (value/status/owner) + maintenance records, with an asset catalog page (left category facet, card grid, a depreciation bar on each card).
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/02-asset-management.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.">Copy</button>
+    <pre class="repro-foot__pre">Build a fixed-asset management system in NocoBase: an asset ledger (value/status/owner) + maintenance records, with an asset catalog page (left category facet, card grid, a depreciation bar on each card).
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/02-asset-management.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.</pre>
+  </div>
+</details>
+<style>
+.repro-foot{margin:40px 16px;padding:0;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#334155}
+.repro-foot__sum{cursor:pointer;list-style:none;padding:14px 18px;font-weight:600;color:#0f172a;user-select:none}
+.repro-foot__sum::-webkit-details-marker{display:none}
+.repro-foot__sum::before{content:"▸ ";color:#94a3b8}
+.repro-foot[open] .repro-foot__sum::before{content:"▾ "}
+.repro-foot__body{padding:0 18px 18px}
+.repro-foot__hint{margin:0 0 10px;color:#64748b;font-size:13px}
+.repro-foot__btn{appearance:none;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;margin-bottom:10px}
+.repro-foot__btn:hover{background:#f1f5f9}
+.repro-foot__btn.ok{border-color:#16a34a;color:#16a34a}
+.repro-foot__pre{margin:0;padding:12px 14px;background:#0f172a;color:#e2e8f0;border-radius:8px;white-space:pre-wrap;word-break:break-word;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+<script>
+(function(){
+  var b=document.currentScript.parentNode.querySelector('.repro-foot__btn');
+  if(!b)return;
+  b.addEventListener('click',function(){
+    var t=b.getAttribute('data-prompt');
+    function done(){var o=b.textContent;b.textContent='Copied \u2713';b.classList.add('ok');setTimeout(function(){b.textContent=o;b.classList.remove('ok')},1500)}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(done,fallback)
+    }else{fallback()}
+    function fallback(){
+      var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.focus();ta.select();
+      try{document.execCommand('copy')}catch(e){}
+      document.body.removeChild(ta);done()
+    }
+  })
+})();
+</script>
+<!-- repro-foot:end -->
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Asset Management: three-section asset cards, depreciation progress bars, and maintenance tracking. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/02-asset-management.html
+</script>
+</body>
+</html>

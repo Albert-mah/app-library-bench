@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Order Management System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-2: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f0f2f5;
+    --line: #e6e8ec;
+    --line-2: #d4d8df;
+    --txt: #1f2937;
+    --txt-2: #4b5563;
+    --txt-3: #8a94a6;
+    --accent: #4f46e5;
+    --accent-2: #7c5cff;
+    --green: #059669;
+    --amber: #d97706;
+    --red: #e11d48;
+    --teal: #0d9488;
+    --pink: #db2777;
+    --shadow: 0 12px 40px rgba(31,41,55,.16);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d4d8df; border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #b9bfc9; }
+
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    padding: 20px 16px;
+    display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 22px; }
+  .brand .logo {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    display: grid; place-items: center; box-shadow: 0 6px 18px rgba(79,70,229,.28);
+  }
+  .brand .logo svg { width: 21px; height: 21px; }
+  .brand .b-name { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+  .brand .b-sub { font-size: 11px; color: var(--txt-3); margin-top: 1px; }
+
+  .nav-group { margin-top: 8px; }
+  .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--txt-3); padding: 14px 8px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 9px; color: var(--txt-2);
+    cursor: pointer; font-weight: 500; font-size: 13.5px; margin-bottom: 2px;
+    transition: background .15s, color .15s;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: .85; }
+  .nav-item:hover { background: var(--panel-2); color: var(--txt); }
+  .nav-item.active { background: rgba(79,70,229,.10); color: var(--accent); }
+  .nav-item.active svg { opacity: 1; color: var(--accent); }
+  .nav-item .badge {
+    margin-left: auto; background: var(--accent); color: #fff;
+    font-size: 10.5px; font-weight: 700; border-radius: 20px; padding: 1px 7px;
+  }
+  .nav-item .badge.warn { background: var(--amber); color: #fff; }
+
+  .side-foot { margin-top: auto; padding-top: 16px; }
+  .user-card {
+    display: flex; align-items: center; gap: 10px; padding: 10px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+  }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
+  }
+  .user-card .u-name { font-size: 13px; font-weight: 600; }
+  .user-card .u-role { font-size: 11px; color: var(--txt-3); }
+
+  /* ---------- Main ---------- */
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 28px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(255,255,255,.85); backdrop-filter: blur(12px);
+  }
+  .topbar h1 { font-size: 19px; margin: 0; font-weight: 700; letter-spacing: -.2px; }
+  .topbar .crumb { font-size: 12px; color: var(--txt-3); margin-top: 2px; }
+  .search {
+    margin-left: auto; position: relative;
+  }
+  .search input {
+    width: 280px; background: var(--panel); border: 1px solid var(--line);
+    color: var(--txt); border-radius: 10px; padding: 9px 12px 9px 36px;
+    font-size: 13px; outline: none; transition: border .15s, width .2s;
+  }
+  .search input:focus { border-color: var(--accent); width: 320px; }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--txt-3); }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--txt-2); display: grid; place-items: center;
+    cursor: pointer; position: relative; transition: background .15s, color .15s;
+  }
+  .icon-btn:hover { background: var(--panel-2); color: var(--txt); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .icon-btn .dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); border: 2px solid var(--panel); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff; border: none; border-radius: 10px; padding: 10px 16px;
+    font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+    box-shadow: 0 4px 12px rgba(79,70,229,.22); transition: transform .12s, box-shadow .15s, background .15s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); background: #4338ca; box-shadow: 0 7px 18px rgba(79,70,229,.30); }
+  .btn-primary svg { width: 16px; height: 16px; }
+
+  .content { padding: 24px 28px 48px; }
+
+  /* ---------- KPI cards ---------- */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 17px 18px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .kpi::after {
+    content: ""; position: absolute; right: -20px; top: -20px; width: 90px; height: 90px;
+    border-radius: 50%; opacity: .10; background: var(--accent);
+  }
+  .kpi.k2::after { background: var(--green); }
+  .kpi.k3::after { background: var(--amber); }
+  .kpi.k4::after { background: var(--pink); }
+  .kpi .k-top { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .kpi .k-ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; }
+  .kpi .k-ico svg { width: 17px; height: 17px; }
+  .kpi .k-label { font-size: 12.5px; color: var(--txt-2); font-weight: 500; }
+  .kpi .k-val { font-size: 27px; font-weight: 750; letter-spacing: -.5px; }
+  .kpi .k-meta { font-size: 12px; margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+  .trend-up { color: var(--green); font-weight: 600; }
+  .trend-down { color: var(--red); font-weight: 600; }
+  .kpi .spark { position: absolute; bottom: 0; left: 0; right: 0; height: 34px; opacity: .55; }
+
+  /* ---------- AI assist panel ---------- */
+  .ai-panel {
+    background: linear-gradient(120deg, rgba(79,70,229,.05), rgba(124,92,255,.03) 60%, var(--panel));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 22px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .ai-panel::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(420px 120px at 12% 0%, rgba(79,70,229,.07), transparent 70%);
+    pointer-events: none;
+  }
+  .ai-head { display: flex; align-items: center; gap: 12px; position: relative; }
+  .ai-orb {
+    width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent-2), var(--accent));
+    display: grid; place-items: center; box-shadow: 0 0 0 4px rgba(79,70,229,.10);
+  }
+  .ai-orb svg { width: 21px; height: 21px; color: #fff; }
+  .ai-head .ai-t { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .pill-live { font-size: 10px; font-weight: 700; color: var(--green); background: rgba(54,211,153,.14); border: 1px solid rgba(54,211,153,.3); padding: 2px 8px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; }
+  .pill-live .blip { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 1.6s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+  .ai-head .ai-s { font-size: 12.5px; color: var(--txt-2); margin-top: 2px; }
+  .ai-actions { margin-left: auto; display: flex; gap: 10px; }
+  .ai-btn {
+    background: var(--panel); border: 1px solid var(--line-2); color: var(--txt);
+    border-radius: 10px; padding: 9px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px; transition: background .15s, border .15s;
+  }
+  .ai-btn:hover { background: var(--panel-2); border-color: var(--accent); }
+  .ai-btn svg { width: 15px; height: 15px; }
+  .ai-btn.solid { background: var(--accent); border: none; color: #fff; box-shadow: 0 4px 12px rgba(79,70,229,.22); }
+  .ai-btn.solid:hover { background: #4338ca; border-color: transparent; }
+
+  .ai-insights { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 16px; position: relative; }
+  .ai-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 13px 14px;
+  }
+  .ai-card .ac-top { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--txt-2); margin-bottom: 7px; font-weight: 600; }
+  .ai-card .ac-top .dotc { width: 8px; height: 8px; border-radius: 50%; }
+  .ai-card .ac-body { font-size: 13px; line-height: 1.45; }
+  .ai-card .ac-body b { color: var(--txt); }
+  .ai-card .ac-tag { margin-top: 9px; font-size: 11px; color: var(--accent); font-weight: 600; cursor: pointer; }
+  .ai-card .ac-tag:hover { text-decoration: underline; }
+
+  /* ---------- Toolbar / tabs ---------- */
+  .panel {
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .tab-row { display: flex; align-items: center; gap: 4px; padding: 14px 18px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tab {
+    padding: 9px 14px 13px; font-size: 13px; font-weight: 600; color: var(--txt-2);
+    cursor: pointer; border-bottom: 2px solid transparent; position: relative; white-space: nowrap;
+  }
+  .tab:hover { color: var(--txt); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab .cnt { font-size: 11px; color: var(--txt-3); background: var(--panel-2); border-radius: 20px; padding: 1px 7px; margin-left: 6px; }
+  .tab.active .cnt { background: rgba(79,70,229,.12); color: var(--accent); }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; padding: 13px 18px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  .seg { display: flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .seg button {
+    border: none; background: transparent; color: var(--txt-2); padding: 6px 12px; font-size: 12.5px;
+    font-weight: 600; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .seg button svg { width: 15px; height: 15px; }
+  .seg button.on { background: #ffffff; color: var(--accent); box-shadow: 0 1px 3px rgba(31,41,55,.12); }
+  .chip {
+    background: var(--panel); border: 1px solid var(--line); color: var(--txt-2);
+    padding: 7px 12px; border-radius: 9px; font-size: 12.5px; cursor: pointer; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 6px; transition: border .15s, color .15s;
+  }
+  .chip:hover { border-color: var(--line-2); color: var(--txt); }
+  .chip svg { width: 14px; height: 14px; }
+  .chip select { background: transparent; border: none; color: inherit; font: inherit; outline: none; cursor: pointer; }
+  .chip select option { background: #ffffff; color: var(--txt); }
+  .tool-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .mini-search { position: relative; }
+  .mini-search input { background: var(--panel); border: 1px solid var(--line); color: var(--txt); border-radius: 9px; padding: 7px 11px 7px 31px; font-size: 12.5px; outline: none; width: 190px; }
+  .mini-search input:focus { border-color: var(--accent); }
+  .mini-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--txt-3); }
+
+  /* ---------- Table ---------- */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; padding: 12px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--txt-3); font-weight: 700; border-bottom: 1px solid var(--line); white-space: nowrap;
+    position: sticky; top: 0; background: var(--bg-2);
+  }
+  thead th.sortable { cursor: pointer; }
+  thead th.sortable:hover { color: var(--txt-2); }
+  tbody tr { border-bottom: 1px solid var(--line); cursor: pointer; transition: background .12s; }
+  tbody tr:hover { background: rgba(79,70,229,.05); }
+  tbody td { padding: 13px 16px; vertical-align: middle; white-space: nowrap; }
+  .ord-id { font-weight: 700; color: var(--txt); font-variant-numeric: tabular-nums; }
+  .ord-sub { font-size: 11.5px; color: var(--txt-3); margin-top: 1px; }
+  .cust { display: flex; align-items: center; gap: 10px; }
+  .cust .avatar { width: 30px; height: 30px; font-size: 12px; }
+  .cust .c-name { font-weight: 600; font-size: 13px; }
+  .cust .c-mail { font-size: 11px; color: var(--txt-3); }
+  .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--txt-3); }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  }
+  .status .d { width: 7px; height: 7px; border-radius: 50%; }
+  .s-new { background: rgba(79,70,229,.10); color: #4338ca; } .s-new .d { background: var(--accent); }
+  .s-paid { background: rgba(13,148,136,.12); color: #0f766e; } .s-paid .d { background: var(--teal); }
+  .s-process { background: rgba(217,119,6,.12); color: #b45309; } .s-process .d { background: var(--amber); }
+  .s-shipped { background: rgba(124,92,255,.12); color: #6d28d9; } .s-shipped .d { background: var(--accent-2); }
+  .s-done { background: rgba(5,150,105,.12); color: #047857; } .s-done .d { background: var(--green); }
+  .s-hold { background: rgba(225,29,72,.10); color: #be123c; } .s-hold .d { background: var(--red); }
+  .s-refund { background: rgba(100,116,139,.14); color: #475569; } .s-refund .d { background: #64748b; }
+
+  .risk { display: inline-flex; align-items: center; gap: 7px; }
+  .risk .bar { width: 46px; height: 6px; border-radius: 5px; background: var(--line); overflow: hidden; }
+  .risk .bar i { display: block; height: 100%; border-radius: 5px; }
+  .risk .rv { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; width: 26px; }
+  .risk.low .bar i { background: var(--green); } .risk.low .rv { color: var(--green); }
+  .risk.med .bar i { background: var(--amber); } .risk.med .rv { color: var(--amber); }
+  .risk.high .bar i { background: var(--red); } .risk.high .rv { color: var(--red); }
+
+  .ai-flag {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+    background: rgba(124,92,255,.10); border: 1px solid rgba(124,92,255,.28); color: #6d28d9;
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .ai-flag svg { width: 12px; height: 12px; }
+  .channel { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--txt-2); }
+  .channel .cd { width: 8px; height: 8px; border-radius: 2px; }
+
+  .row-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s; }
+  tbody tr:hover .row-actions { opacity: 1; }
+  .row-actions button { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--txt-2); cursor: pointer; display: grid; place-items: center; }
+  .row-actions button:hover { color: var(--accent); border-color: var(--accent); }
+  .row-actions svg { width: 14px; height: 14px; }
+
+  .empty { padding: 60px 20px; text-align: center; color: var(--txt-3); display: none; }
+  .empty svg { width: 46px; height: 46px; opacity: .5; margin-bottom: 14px; }
+  .empty.show { display: block; }
+
+  .tbl-foot { display: flex; align-items: center; padding: 13px 18px; gap: 14px; color: var(--txt-3); font-size: 12.5px; }
+  .pager { margin-left: auto; display: flex; gap: 6px; }
+  .pager button { min-width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--txt-2); cursor: pointer; font-size: 12.5px; }
+  .pager button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .pager button:hover:not(.on) { color: var(--accent); border-color: var(--line-2); }
+
+  /* ---------- Drawer ---------- */
+  .overlay { position: fixed; inset: 0; background: rgba(31,41,55,.32); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 90; }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 540px; max-width: 94vw;
+    background: var(--bg-2); border-left: 1px solid var(--line); box-shadow: var(--shadow);
+    transform: translateX(100%); transition: transform .3s cubic-bezier(.4,0,.2,1); z-index: 100;
+    display: flex; flex-direction: column;
+  }
+  .drawer.show { transform: translateX(0); }
+  .dr-head { padding: 20px 22px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; gap: 14px; }
+  .dr-head .dr-id { font-size: 18px; font-weight: 750; }
+  .dr-head .dr-meta { font-size: 12.5px; color: var(--txt-3); margin-top: 3px; }
+  .dr-close { margin-left: auto; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--txt-2); cursor: pointer; display: grid; place-items: center; }
+  .dr-close:hover { color: var(--accent); border-color: var(--accent); }
+  .dr-close svg { width: 17px; height: 17px; }
+  .dr-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+
+  .dr-ai {
+    background: linear-gradient(120deg, rgba(79,70,229,.06), rgba(124,92,255,.03));
+    border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; margin-bottom: 20px;
+  }
+  .dr-ai .dai-h { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+  .dr-ai .dai-h .ai-orb { width: 30px; height: 30px; border-radius: 9px; box-shadow: 0 0 0 3px rgba(124,92,255,.14); }
+  .dr-ai .dai-h .ai-orb svg { width: 16px; height: 16px; }
+  .dr-ai .dai-t { font-weight: 700; font-size: 13.5px; }
+  .dr-ai .dai-conf { margin-left: auto; font-size: 11px; font-weight: 700; }
+  .dr-ai p { margin: 0 0 11px; font-size: 13px; line-height: 1.5; color: var(--txt); }
+  .dr-ai p .hl { color: #6d28d9; font-weight: 600; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .xfield {
+    background: #ffffff; border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px;
+  }
+  .xfield .xf-l { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--txt-3); display: flex; align-items: center; gap: 6px; }
+  .xfield .xf-v { font-size: 13px; font-weight: 600; margin-top: 3px; }
+  .conf-badge { font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 10px; margin-left: auto; }
+  .conf-h { background: rgba(54,211,153,.18); color: var(--green); }
+  .conf-m { background: rgba(246,183,60,.18); color: var(--amber); }
+  .conf-l { background: rgba(248,98,122,.18); color: var(--red); }
+
+  .sec-title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--txt-3); font-weight: 700; margin: 22px 0 11px; }
+
+  .timeline { position: relative; padding-left: 24px; }
+  .timeline::before { content: ""; position: absolute; left: 7px; top: 4px; bottom: 4px; width: 2px; background: var(--line); }
+  .tl-item { position: relative; padding-bottom: 16px; }
+  .tl-item::before { content: ""; position: absolute; left: -22px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); }
+  .tl-item.ai::before { border-color: var(--accent-2); background: rgba(124,92,255,.2); }
+  .tl-item.done::before { background: var(--green); border-color: var(--green); }
+  .tl-t { font-size: 13px; font-weight: 600; }
+  .tl-t .ai-mini { font-size: 10px; color: #6d28d9; background: rgba(124,92,255,.12); padding: 1px 6px; border-radius: 8px; margin-left: 6px; font-weight: 700; }
+  .tl-d { font-size: 11.5px; color: var(--txt-3); margin-top: 2px; }
+
+  .line-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .line-item .li-img { width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center; font-size: 16px; }
+  .line-item .li-n { font-size: 13px; font-weight: 600; }
+  .line-item .li-s { font-size: 11.5px; color: var(--txt-3); }
+  .line-item .li-amt { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .summary-rows { margin-top: 12px; }
+  .summary-rows .sr { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: var(--txt-2); }
+  .summary-rows .sr.total { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 11px; font-size: 15px; font-weight: 750; color: var(--txt); }
+
+  .dr-foot { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; gap: 10px; }
+  .dr-foot .btn-primary { flex: 1; justify-content: center; }
+  .btn-ghost { flex: 1; justify-content: center; background: var(--panel); border: 1px solid var(--line-2); color: var(--txt); border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+  .btn-ghost:hover { background: var(--panel-2); }
+  .btn-ghost svg { width: 16px; height: 16px; }
+
+  /* ---------- Kanban ---------- */
+  .kanban { display: none; gap: 14px; padding: 18px; overflow-x: auto; }
+  .kanban.show { display: flex; }
+  .kcol { flex: 0 0 280px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; max-height: 640px; display: flex; flex-direction: column; }
+  .kcol-h { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 0 4px; }
+  .kcol-h .kc-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .kcol-h .kc-t { font-size: 13px; font-weight: 700; }
+  .kcol-h .kc-n { font-size: 11.5px; color: var(--txt-3); background: var(--bg-2); border-radius: 20px; padding: 1px 8px; margin-left: auto; }
+  .kcol-body { overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+  .kcard { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; cursor: pointer; transition: border .15s, transform .12s; }
+  .kcard:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .kcard .kc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .kcard .kc-id { font-size: 12.5px; font-weight: 700; }
+  .kcard .kc-amt { font-size: 13px; font-weight: 700; }
+  .kcard .kc-cust { font-size: 12px; color: var(--txt-2); display: flex; align-items: center; gap: 7px; }
+  .kcard .kc-cust .avatar { width: 22px; height: 22px; font-size: 10px; }
+  .kcard .kc-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .kcard .kc-channel { font-size: 11px; color: var(--txt-3); }
+
+  .hide { display: none !important; }
+  @media (max-width: 1180px) { .kpi-row { grid-template-columns: repeat(2,1fr); } .ai-insights { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      </div>
+      <div>
+        <div class="b-name">OrderFlow</div>
+        <div class="b-sub">订单管理系统</div>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-label">Operations</div>
+      <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Orders<span class="badge">24</span></div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>Fulfillment</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9V5a2 2 0 0 1 2-2h2"/><path d="M2 13v-1"/><rect x="2" y="9" width="14" height="11" rx="2"/><path d="M16 11h4l2 3v3a2 2 0 0 1-2 2h-1"/><circle cx="6.5" cy="20" r="1.5"/><circle cx="17.5" cy="20" r="1.5"/></svg>Shipments<span class="badge warn">6</span></div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>Products</div>
+
+      <div class="nav-label">Intelligence</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Analytics</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>AI Reviews<span class="badge">3</span></div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.5 0 10-4.5 10-10S17.5 2 12 2 2 6.5 2 12s4.5 10 10 10Z"/><path d="M12 6v6l4 2"/></svg>Automation</div>
+
+      <div class="nav-label">Workspace</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/><circle cx="12" cy="12" r="3"/></svg>Settings</div>
+    </nav>
+
+    <div class="side-foot">
+      <div class="user-card">
+        <div class="avatar" style="background:linear-gradient(135deg,#4f46e5,#7c5cff)">DM</div>
+        <div>
+          <div class="u-name">Dana Mercer</div>
+          <div class="u-role">Operations Lead</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1>Orders</h1>
+        <div class="crumb">Operations / Order Management · Wed, Jun 23</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="globalSearch" type="text" placeholder="Search orders, customers, SKUs…" />
+      </div>
+      <button class="icon-btn"><span class="dot"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+      <button class="btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>New Order</button>
+    </header>
+
+    <div class="content">
+      <!-- KPI -->
+      <div class="kpi-row">
+        <div class="kpi k1">
+          <div class="k-top">
+            <div class="k-ico" style="background:rgba(79,70,229,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+            <div class="k-label">Open Orders</div>
+          </div>
+          <div class="k-val">248</div>
+          <div class="k-meta"><span class="trend-up">▲ 12.4%</span><span class="muted">vs last week</span></div>
+          <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none"><polyline fill="none" stroke="#4f46e5" stroke-width="2" points="0,28 25,24 50,26 75,18 100,20 125,12 150,15 175,8 200,6"/></svg>
+        </div>
+        <div class="kpi k2">
+          <div class="k-top">
+            <div class="k-ico" style="background:rgba(5,150,105,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <div class="k-label">Revenue (MTD)</div>
+          </div>
+          <div class="k-val">$486.2K</div>
+          <div class="k-meta"><span class="trend-up">▲ 8.1%</span><span class="muted">$36K to target</span></div>
+          <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,30 25,26 50,22 75,24 100,16 125,14 150,18 175,10 200,4"/></svg>
+        </div>
+        <div class="kpi k3">
+          <div class="k-top">
+            <div class="k-ico" style="background:rgba(217,119,6,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="k-label">Avg Fulfillment</div>
+          </div>
+          <div class="k-val">1.8d</div>
+          <div class="k-meta"><span class="trend-down">▼ 0.3d</span><span class="muted">faster than SLA</span></div>
+          <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none"><polyline fill="none" stroke="#d97706" stroke-width="2" points="0,8 25,12 50,10 75,16 100,14 125,20 150,18 175,24 200,26"/></svg>
+        </div>
+        <div class="kpi k4">
+          <div class="k-top">
+            <div class="k-ico" style="background:rgba(219,39,119,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+            <div class="k-label">AI Risk Flags</div>
+          </div>
+          <div class="k-val">5</div>
+          <div class="k-meta"><span class="trend-down">▼ 2</span><span class="muted">need manual review</span></div>
+          <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none"><polyline fill="none" stroke="#db2777" stroke-width="2" points="0,14 25,10 50,16 75,12 100,20 125,18 150,22 175,20 200,24"/></svg>
+        </div>
+      </div>
+
+      <!-- AI Panel -->
+      <div class="ai-panel">
+        <div class="ai-head">
+          <div class="ai-orb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>
+          </div>
+          <div>
+            <div class="ai-t">Order Intelligence <span class="pill-live"><span class="blip"></span>LIVE</span></div>
+            <div class="ai-s">Auto-triaging incoming orders · last scan 2 min ago · 248 orders analyzed</div>
+          </div>
+          <div class="ai-actions">
+            <button class="ai-btn" id="reviewBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>Review Queue</button>
+            <button class="ai-btn solid" id="rescanBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/></svg>Re-run Analysis</button>
+          </div>
+        </div>
+        <div class="ai-insights">
+          <div class="ai-card">
+            <div class="ac-top"><span class="dotc" style="background:var(--red)"></span>Fraud & Risk</div>
+            <div class="ac-body"><b>2 orders</b> flagged: mismatched billing country and a $4,890 first-time order on a new account.</div>
+            <div class="ac-tag" data-jump="risk">Review flagged orders →</div>
+          </div>
+          <div class="ai-card">
+            <div class="ac-top"><span class="dotc" style="background:var(--amber)"></span>Inventory Watch</div>
+            <div class="ac-body">SKU <b>AX-340 "Nimbus Pack"</b> is oversold — 3 paid orders exceed available stock. Suggest split shipment.</div>
+            <div class="ac-tag" data-jump="inv">View affected orders →</div>
+          </div>
+          <div class="ai-card">
+            <div class="ac-top"><span class="dotc" style="background:var(--green)"></span>Auto-Ready to Ship</div>
+            <div class="ac-body"><b>9 orders</b> passed all checks and are queued for label generation. Est. saving: 47 min today.</div>
+            <div class="ac-tag" data-jump="ship">Approve batch →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders panel -->
+      <div class="panel">
+        <div class="tab-row" id="tabRow">
+          <div class="tab active" data-tab="all">All Orders<span class="cnt" id="cnt-all">0</span></div>
+          <div class="tab" data-tab="new">New<span class="cnt" id="cnt-new">0</span></div>
+          <div class="tab" data-tab="paid">Paid<span class="cnt" id="cnt-paid">0</span></div>
+          <div class="tab" data-tab="processing">Processing<span class="cnt" id="cnt-processing">0</span></div>
+          <div class="tab" data-tab="shipped">Shipped<span class="cnt" id="cnt-shipped">0</span></div>
+          <div class="tab" data-tab="completed">Completed<span class="cnt" id="cnt-completed">0</span></div>
+          <div class="tab" data-tab="flagged">⚑ Flagged<span class="cnt" id="cnt-flagged">0</span></div>
+        </div>
+
+        <div class="toolbar">
+          <div class="seg">
+            <button class="on" id="viewTable"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/></svg>Table</button>
+            <button id="viewBoard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="10" y="3" width="6" height="12" rx="1"/><rect x="17" y="3" width="4" height="16" rx="1"/></svg>Board</button>
+          </div>
+          <label class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M7 12h10M10 18h4"/></svg><select id="channelFilter"><option value="">All Channels</option><option>Web Store</option><option>Mobile App</option><option>Marketplace</option><option>Wholesale</option><option>Phone</option></select></label>
+          <label class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg><select id="riskFilter"><option value="">Any Risk</option><option value="low">Low risk</option><option value="med">Medium risk</option><option value="high">High risk</option></select></label>
+          <div class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Last 30 days</div>
+          <div class="tool-right">
+            <div class="mini-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input id="tableSearch" type="text" placeholder="Filter in view…" />
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLE VIEW -->
+        <div id="tableView">
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort="id">Order</th>
+                  <th class="sortable" data-sort="customer">Customer</th>
+                  <th>Channel</th>
+                  <th class="sortable" data-sort="amount">Amount</th>
+                  <th>AI Risk</th>
+                  <th class="sortable" data-sort="status">Status</th>
+                  <th class="sortable" data-sort="date">Placed</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="ordersBody"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="emptyState">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <div style="font-size:15px;font-weight:600;color:var(--txt-2)">No orders match your filters</div>
+            <div style="margin-top:4px">Try clearing the search or switching tabs.</div>
+          </div>
+          <div class="tbl-foot">
+            <span id="rowCount">Showing 0 orders</span>
+            <div class="pager">
+              <button>‹</button><button class="on">1</button><button>2</button><button>3</button><button>›</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOARD VIEW -->
+        <div class="kanban" id="boardView"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== DRAWER ===================== -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div>
+      <div class="dr-id" id="drId">—</div>
+      <div class="dr-meta" id="drMeta">—</div>
+    </div>
+    <button class="dr-close" id="drClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot">
+    <button class="btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>Print Invoice</button>
+    <button class="btn-primary" id="drShip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Mark as Shipped</button>
+  </div>
+</aside>
+
+<script>
+// ---------------- Seed data ----------------
+const ORDERS = [
+  { id:"ORD-10482", customer:"Marcus Lindqvist", email:"m.lindqvist@northwind.io", channel:"Web Store", amount:1289.00, status:"new", risk:18, date:"2026-06-23", ship:"DHL Express", items:[{e:"📷",n:"Aperture X100 Camera",s:"1 × $1,049.00",a:"$1,049.00"},{e:"🔋",n:"Spare Battery Pack",s:"2 × $120.00",a:"$240.00"}], summary:{Subtotal:"$1,289.00",Shipping:"$0.00",Tax:"$103.12"}, total:"$1,392.12", reason:"Returning customer, address verified, payment cleared instantly. No anomalies detected.", flag:false },
+  { id:"ORD-10481", customer:"Priya Nair", email:"priya.n@gmail.com", channel:"Mobile App", amount:4890.00, status:"new", risk:84, date:"2026-06-23", ship:"FedEx Priority", items:[{e:"💻",n:"Studio Pro Laptop 16\"",s:"1 × $3,290.00",a:"$3,290.00"},{e:"🖥️",n:"UltraWide Monitor",s:"2 × $800.00",a:"$1,600.00"}], summary:{Subtotal:"$4,890.00",Shipping:"$0.00",Tax:"$391.20"}, total:"$5,281.20", reason:"High-value first order on an account created 11 minutes ago. Billing country (US) differs from shipping country (RO). Recommend manual ID verification before release.", flag:true },
+  { id:"ORD-10480", customer:"Tobias Wagner", email:"t.wagner@helix-corp.de", channel:"Wholesale", amount:12450.00, status:"paid", risk:9, date:"2026-06-23", ship:"Freight", items:[{e:"📦",n:"Nimbus Pack AX-340 (bulk)",s:"50 × $189.00",a:"$9,450.00"},{e:"🧰",n:"Pro Toolkit Bundle",s:"20 × $150.00",a:"$3,000.00"}], summary:{Subtotal:"$12,450.00",Shipping:"$0.00",Tax:"$0.00"}, total:"$12,450.00", reason:"Established B2B account, 47 prior orders, net-30 terms approved. ⚠ Inventory note: AX-340 stock is short by 3 units — suggest split shipment.", flag:false },
+  { id:"ORD-10479", customer:"Sofia Romano", email:"sofia.r@bellavita.it", channel:"Marketplace", amount:342.50, status:"paid", risk:22, date:"2026-06-22", ship:"DHL Standard", items:[{e:"👜",n:"Canvas Weekender Bag",s:"1 × $245.00",a:"$245.00"},{e:"🧴",n:"Travel Care Kit",s:"1 × $97.50",a:"$97.50"}], summary:{Subtotal:"$342.50",Shipping:"$12.00",Tax:"$27.40"}, total:"$381.90", reason:"Marketplace order auto-validated. Standard shipping selected, no risk indicators.", flag:false },
+  { id:"ORD-10478", customer:"Daniel Okafor", email:"d.okafor@apex.ng", channel:"Web Store", amount:799.00, status:"processing", risk:41, date:"2026-06-22", ship:"FedEx Intl", items:[{e:"🎧",n:"NoiseGuard Headphones",s:"1 × $349.00",a:"$349.00"},{e:"⌚",n:"Pulse Smartwatch",s:"1 × $450.00",a:"$450.00"}], summary:{Subtotal:"$799.00",Shipping:"$28.00",Tax:"$63.92"}, total:"$890.92", reason:"Medium risk: international shipping to a new region. Address geocoded successfully, payment 3DS-verified. Cleared for processing.", flag:false },
+  { id:"ORD-10477", customer:"Emma Thorne", email:"emma.thorne@outlook.com", channel:"Web Store", amount:156.00, status:"processing", risk:12, date:"2026-06-22", ship:"USPS Ground", items:[{e:"👕",n:"Merino Base Layer",s:"2 × $58.00",a:"$116.00"},{e:"🧦",n:"Trail Socks 3-pack",s:"1 × $40.00",a:"$40.00"}], summary:{Subtotal:"$156.00",Shipping:"$6.50",Tax:"$12.48"}, total:"$174.98", reason:"Low risk loyal customer, 14 prior orders. Auto-approved for fulfillment.", flag:false },
+  { id:"ORD-10476", customer:"Lucas Fontaine", email:"l.fontaine@maison.fr", channel:"Phone", amount:2240.00, status:"processing", risk:31, date:"2026-06-21", ship:"DHL Express", items:[{e:"🪑",n:"Ergo Office Chair",s:"2 × $720.00",a:"$1,440.00"},{e:"🖼️",n:"Standing Desk Frame",s:"1 × $800.00",a:"$800.00"}], summary:{Subtotal:"$2,240.00",Shipping:"$45.00",Tax:"$179.20"}, total:"$2,464.20", reason:"Phone order keyed by agent. Payment captured on file. Bulky-item handling flagged for warehouse.", flag:false },
+  { id:"ORD-10475", customer:"Aisha Rahman", email:"a.rahman@zenith.ae", channel:"Mobile App", amount:6730.00, status:"shipped", risk:7, date:"2026-06-21", ship:"FedEx Priority", items:[{e:"💎",n:"Aurora Necklace 18k",s:"1 × $5,200.00",a:"$5,200.00"},{e:"💍",n:"Matching Band",s:"1 × $1,530.00",a:"$1,530.00"}], summary:{Subtotal:"$6,730.00",Shipping:"$0.00",Tax:"$538.40"}, total:"$7,268.40", reason:"VIP customer, insured shipment. All checks passed, signature-on-delivery enabled.", flag:false },
+  { id:"ORD-10474", customer:"James Whitfield", email:"j.whitfield@coastal.us", channel:"Web Store", amount:489.00, status:"shipped", risk:15, date:"2026-06-20", ship:"UPS Ground", items:[{e:"🚲",n:"Folding Bike Helmet",s:"1 × $129.00",a:"$129.00"},{e:"🔦",n:"Rechargeable Bike Light",s:"4 × $90.00",a:"$360.00"}], summary:{Subtotal:"$489.00",Shipping:"$9.00",Tax:"$39.12"}, total:"$537.12", reason:"Tracking active, on schedule. No exceptions.", flag:false },
+  { id:"ORD-10473", customer:"Chen Wei", email:"chen.wei@summit.cn", channel:"Marketplace", amount:1875.00, status:"shipped", risk:28, date:"2026-06-20", ship:"DHL Intl", items:[{e:"📱",n:"Vortex Phone 5G",s:"1 × $1,099.00",a:"$1,099.00"},{e:"🎮",n:"Game Controller Pro",s:"2 × $388.00",a:"$776.00"}], summary:{Subtotal:"$1,875.00",Shipping:"$32.00",Tax:"$150.00"}, total:"$2,057.00", reason:"Cross-border marketplace order, customs docs auto-generated. In transit.", flag:false },
+  { id:"ORD-10472", customer:"Olivia Bennett", email:"o.bennett@harbor.uk", channel:"Web Store", amount:268.00, status:"completed", risk:8, date:"2026-06-19", ship:"Royal Mail", items:[{e:"📚",n:"Hardcover Box Set",s:"1 × $148.00",a:"$148.00"},{e:"🕯️",n:"Soy Candle Trio",s:"1 × $120.00",a:"$120.00"}], summary:{Subtotal:"$268.00",Shipping:"$5.50",Tax:"$21.44"}, total:"$294.94", reason:"Delivered & confirmed. Customer left 5★ review. Closed.", flag:false },
+  { id:"ORD-10471", customer:"Mateo Alvarez", email:"m.alvarez@solara.mx", channel:"Mobile App", amount:920.00, status:"completed", risk:11, date:"2026-06-19", ship:"FedEx Ground", items:[{e:"☕",n:"Espresso Machine Mini",s:"1 × $640.00",a:"$640.00"},{e:"🫘",n:"Bean Subscription 3mo",s:"1 × $280.00",a:"$280.00"}], summary:{Subtotal:"$920.00",Shipping:"$0.00",Tax:"$73.60"}, total:"$993.60", reason:"Delivered on time. Subscription activated automatically.", flag:false },
+  { id:"ORD-10470", customer:"Hannah Berg", email:"h.berg@fjord.no", channel:"Web Store", amount:3450.00, status:"new", risk:67, date:"2026-06-23", ship:"DHL Express", items:[{e:"📺",n:"OLED 65\" TV",s:"1 × $2,890.00",a:"$2,890.00"},{e:"🔊",n:"Soundbar 5.1",s:"1 × $560.00",a:"$560.00"}], summary:{Subtotal:"$3,450.00",Shipping:"$0.00",Tax:"$276.00"}, total:"$3,726.00", reason:"Elevated risk: shipping address is a known freight-forwarder location, common in resale fraud. Payment cleared. Recommend phone confirmation.", flag:true },
+  { id:"ORD-10469", customer:"Ryan Cooper", email:"ryan.c@vertex.us", channel:"Wholesale", amount:8900.00, status:"paid", risk:13, date:"2026-06-22", ship:"Freight", items:[{e:"📦",n:"Nimbus Pack AX-340 (bulk)",s:"30 × $189.00",a:"$5,670.00"},{e:"🎒",n:"Daypack Series",s:"35 × $92.00",a:"$3,220.00"}], summary:{Subtotal:"$8,890.00",Shipping:"$10.00",Tax:"$0.00"}, total:"$8,900.00", reason:"Approved B2B reorder. ⚠ Inventory: AX-340 stock conflict with ORD-10480 — split shipment recommended.", flag:false },
+  { id:"ORD-10468", customer:"Isabella Costa", email:"i.costa@aurora.br", channel:"Marketplace", amount:412.00, status:"hold", risk:58, date:"2026-06-21", ship:"—", items:[{e:"👗",n:"Linen Summer Dress",s:"2 × $138.00",a:"$276.00"},{e:"👡",n:"Leather Sandals",s:"1 × $136.00",a:"$136.00"}], summary:{Subtotal:"$412.00",Shipping:"$18.00",Tax:"$32.96"}, total:"$462.96", reason:"On hold: payment authorization pending bank verification. AI auto-paused fulfillment to avoid loss. Retry in 24h or contact customer.", flag:false },
+  { id:"ORD-10467", customer:"Noah Schmidt", email:"n.schmidt@alpine.ch", channel:"Web Store", amount:1640.00, status:"processing", risk:19, date:"2026-06-21", ship:"DHL Express", items:[{e:"⛷️",n:"Carbon Ski Set",s:"1 × $1,290.00",a:"$1,290.00"},{e:"🥽",n:"Snow Goggles Pro",s:"2 × $175.00",a:"$350.00"}], summary:{Subtotal:"$1,640.00",Shipping:"$24.00",Tax:"$131.20"}, total:"$1,795.20", reason:"Seasonal order, all checks passed. Allocated to fulfillment queue.", flag:false },
+  { id:"ORD-10466", customer:"Grace Kim", email:"grace.kim@lumen.kr", channel:"Mobile App", amount:225.00, status:"completed", risk:6, date:"2026-06-18", ship:"CJ Logistics", items:[{e:"💄",n:"Glow Serum Set",s:"1 × $125.00",a:"$125.00"},{e:"🧼",n:"Cleanser Duo",s:"1 × $100.00",a:"$100.00"}], summary:{Subtotal:"$225.00",Shipping:"$4.00",Tax:"$18.00"}, total:"$247.00", reason:"Delivered, reorder reminder scheduled. Closed.", flag:false },
+  { id:"ORD-10465", customer:"Liam Murphy", email:"l.murphy@shamrock.ie", channel:"Phone", amount:1330.00, status:"paid", risk:24, date:"2026-06-22", ship:"An Post", items:[{e:"🎸",n:"Acoustic Guitar Deluxe",s:"1 × $980.00",a:"$980.00"},{e:"🎵",n:"Hardshell Case",s:"1 × $350.00",a:"$350.00"}], summary:{Subtotal:"$1,330.00",Shipping:"$22.00",Tax:"$106.40"}, total:"$1,458.40", reason:"Phone order, payment captured. Fragile-item packaging flagged for warehouse.", flag:false },
+  { id:"ORD-10464", customer:"Zara Hussain", email:"z.hussain@meridian.pk", channel:"Web Store", amount:540.00, status:"refunded", risk:35, date:"2026-06-17", ship:"DHL Intl", items:[{e:"🧥",n:"Waterproof Parka",s:"1 × $420.00",a:"$420.00"},{e:"🧤",n:"Thermal Gloves",s:"2 × $60.00",a:"$120.00"}], summary:{Subtotal:"$540.00",Shipping:"$26.00",Tax:"$43.20"}, total:"$609.20", reason:"Customer requested refund — wrong size. AI auto-approved return label (within policy window). Refund issued.", flag:false },
+  { id:"ORD-10463", customer:"Ethan Park", email:"ethan.park@nova.us", channel:"Marketplace", amount:99.00, status:"new", risk:21, date:"2026-06-23", ship:"USPS First", items:[{e:"🔌",n:"Fast Charger 65W",s:"1 × $59.00",a:"$59.00"},{e:"🔗",n:"USB-C Cable 3-pack",s:"1 × $40.00",a:"$40.00"}], summary:{Subtotal:"$99.00",Shipping:"$4.50",Tax:"$7.92"}, total:"$111.42", reason:"Small marketplace order, auto-validated. Ready for batch fulfillment.", flag:false },
+  { id:"ORD-10462", customer:"Camille Dubois", email:"c.dubois@lumiere.fr", channel:"Web Store", amount:2780.00, status:"shipped", risk:16, date:"2026-06-20", ship:"Chronopost", items:[{e:"📸",n:"Aperture Lens 85mm",s:"1 × $1,490.00",a:"$1,490.00"},{e:"🎒",n:"Pro Camera Bag",s:"1 × $290.00",a:"$290.00"},{e:"💡",n:"LED Light Panel",s:"2 × $500.00",a:"$1,000.00"}], summary:{Subtotal:"$2,780.00",Shipping:"$30.00",Tax:"$222.40"}, total:"$3,032.40", reason:"Professional kit, insured. In transit, on schedule.", flag:false },
+  { id:"ORD-10461", customer:"Felix Andersson", email:"f.andersson@boreal.se", channel:"Web Store", amount:178.00, status:"hold", risk:72, date:"2026-06-22", ship:"—", items:[{e:"🎮",n:"Retro Console Mini",s:"1 × $128.00",a:"$128.00"},{e:"🕹️",n:"Wireless Gamepad",s:"1 × $50.00",a:"$50.00"}], summary:{Subtotal:"$178.00",Shipping:"$8.00",Tax:"$14.24"}, total:"$200.24", reason:"High risk: 4 orders placed from this IP in 6 minutes with different cards. AI paused for review — possible carding pattern.", flag:true },
+  { id:"ORD-10460", customer:"Maya Patel", email:"maya.p@indigo.in", channel:"Mobile App", amount:1095.00, status:"completed", risk:10, date:"2026-06-18", ship:"BlueDart", items:[{e:"🧘",n:"Yoga Mat Premium",s:"1 × $95.00",a:"$95.00"},{e:"🏋️",n:"Adjustable Dumbbells",s:"1 × $1,000.00",a:"$1,000.00"}], summary:{Subtotal:"$1,095.00",Shipping:"$0.00",Tax:"$87.60"}, total:"$1,182.60", reason:"Delivered & confirmed. Repeat customer. Closed.", flag:false },
+];
+
+const CHANNEL_COLOR = { "Web Store":"#5b8def","Mobile App":"#7c5cff","Marketplace":"#2dd4bf","Wholesale":"#f6b73c","Phone":"#f472b6" };
+const STATUS_LABEL = { new:"New", paid:"Paid", processing:"Processing", shipped:"Shipped", completed:"Completed", hold:"On Hold", refunded:"Refunded" };
+const STATUS_CLASS = { new:"s-new", paid:"s-paid", processing:"s-process", shipped:"s-shipped", completed:"s-done", hold:"s-hold", refunded:"s-refund" };
+const AV_COLORS = ["#5b8def","#7c5cff","#2dd4bf","#f6b73c","#f472b6","#36d399","#f8627a","#60a5fa"];
+
+function initials(name){ return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+function avColor(name){ let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))%AV_COLORS.length; return AV_COLORS[h]; }
+function riskClass(r){ return r>=55?"high":r>=30?"med":"low"; }
+function money(n){ return "$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(d){ const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"}); }
+function relDate(d){ const dt=new Date(d+"T00:00:00"); const now=new Date("2026-06-23T00:00:00"); const diff=Math.round((now-dt)/86400000); return diff<=0?"Today":diff===1?"Yesterday":diff+"d ago"; }
+
+// ---------------- State ----------------
+let state = { tab:"all", channel:"", risk:"", search:"", sort:"date", dir:-1, view:"table" };
+
+function getFiltered(){
+  let rows = ORDERS.slice();
+  if(state.tab==="flagged") rows = rows.filter(o=>o.flag);
+  else if(state.tab!=="all") rows = rows.filter(o=>o.status===state.tab);
+  if(state.channel) rows = rows.filter(o=>o.channel===state.channel);
+  if(state.risk) rows = rows.filter(o=>riskClass(o.risk)===state.risk);
+  if(state.search){
+    const q=state.search.toLowerCase();
+    rows = rows.filter(o=> o.id.toLowerCase().includes(q) || o.customer.toLowerCase().includes(q) || o.email.toLowerCase().includes(q) || o.channel.toLowerCase().includes(q) || o.items.some(i=>i.n.toLowerCase().includes(q)));
+  }
+  rows.sort((a,b)=>{
+    let x=a[state.sort], y=b[state.sort];
+    if(state.sort==="customer"||state.sort==="status"||state.sort==="id"){ x=String(x); y=String(y); return x<y?-1*state.dir:x>y?1*state.dir:0; }
+    return (x>y?1:x<y?-1:0)*state.dir;
+  });
+  return rows;
+}
+
+// ---------------- Render table ----------------
+function renderTable(){
+  const rows = getFiltered();
+  const tb = document.getElementById("ordersBody");
+  tb.innerHTML = "";
+  const empty = document.getElementById("emptyState");
+  if(rows.length===0){ empty.classList.add("show"); } else { empty.classList.remove("show"); }
+  document.getElementById("rowCount").textContent = "Showing "+rows.length+" order"+(rows.length===1?"":"s");
+
+  rows.forEach(o=>{
+    const tr = document.createElement("tr");
+    tr.onclick = ()=>openDrawer(o.id);
+    const rc = riskClass(o.risk);
+    tr.innerHTML = `
+      <td>
+        <div class="ord-id">${o.id}</div>
+        <div class="ord-sub">${o.items.length} item${o.items.length===1?"":"s"} · ${o.ship}</div>
+      </td>
+      <td>
+        <div class="cust">
+          <div class="avatar" style="background:${avColor(o.customer)}">${initials(o.customer)}</div>
+          <div>
+            <div class="c-name">${o.customer}</div>
+            <div class="c-mail">${o.email}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="channel"><span class="cd" style="background:${CHANNEL_COLOR[o.channel]}"></span>${o.channel}</span></td>
+      <td><span class="amt">${money(o.amount)}</span></td>
+      <td>
+        <div class="risk ${rc}">
+          <span class="bar"><i style="width:${o.risk}%"></i></span>
+          <span class="rv">${o.risk}</span>
+        </div>
+        ${o.flag?`<div style="margin-top:5px"><span class="ai-flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>AI flagged</span></div>`:""}
+      </td>
+      <td><span class="status ${STATUS_CLASS[o.status]}"><span class="d"></span>${STATUS_LABEL[o.status]}</span></td>
+      <td>
+        <div style="font-weight:600">${fmtDate(o.date)}</div>
+        <div class="ord-sub">${relDate(o.date)}</div>
+      </td>
+      <td>
+        <div class="row-actions">
+          <button title="View" onclick="event.stopPropagation();openDrawer('${o.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button title="More" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+        </div>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+// ---------------- Render board ----------------
+function renderBoard(){
+  const board = document.getElementById("boardView");
+  const cols = [
+    { key:"new", label:"New", color:"#4f46e5" },
+    { key:"paid", label:"Paid", color:"#2dd4bf" },
+    { key:"processing", label:"Processing", color:"#f6b73c" },
+    { key:"shipped", label:"Shipped", color:"#7c5cff" },
+    { key:"completed", label:"Completed", color:"#36d399" },
+  ];
+  // board respects channel/risk/search but not tab (it IS the status grouping)
+  let base = ORDERS.slice();
+  if(state.channel) base = base.filter(o=>o.channel===state.channel);
+  if(state.risk) base = base.filter(o=>riskClass(o.risk)===state.risk);
+  if(state.search){ const q=state.search.toLowerCase(); base = base.filter(o=> o.id.toLowerCase().includes(q)||o.customer.toLowerCase().includes(q)||o.items.some(i=>i.n.toLowerCase().includes(q))); }
+
+  board.innerHTML = "";
+  cols.forEach(col=>{
+    const items = base.filter(o=>o.status===col.key);
+    const div = document.createElement("div");
+    div.className="kcol";
+    div.innerHTML = `
+      <div class="kcol-h"><span class="kc-dot" style="background:${col.color}"></span><span class="kc-t">${col.label}</span><span class="kc-n">${items.length}</span></div>
+      <div class="kcol-body"></div>`;
+    const body = div.querySelector(".kcol-body");
+    if(items.length===0){ body.innerHTML = `<div style="padding:18px 8px;text-align:center;color:var(--txt-3);font-size:12px">No orders</div>`; }
+    items.forEach(o=>{
+      const rc = riskClass(o.risk);
+      const card = document.createElement("div");
+      card.className="kcard";
+      card.onclick = ()=>openDrawer(o.id);
+      card.innerHTML = `
+        <div class="kc-top">
+          <span class="kc-id">${o.id}</span>
+          <span class="kc-amt">${money(o.amount)}</span>
+        </div>
+        <div class="kc-cust"><span class="avatar" style="background:${avColor(o.customer)}">${initials(o.customer)}</span>${o.customer}</div>
+        <div class="kc-foot">
+          <span class="risk ${rc}"><span class="bar" style="width:34px"><i style="width:${o.risk}%"></i></span><span class="rv">${o.risk}</span></span>
+          <span class="kc-channel" style="margin-left:auto">${o.channel}</span>
+        </div>
+        ${o.flag?`<div style="margin-top:8px"><span class="ai-flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>AI flagged</span></div>`:""}`;
+      body.appendChild(card);
+    });
+    board.appendChild(div);
+  });
+}
+
+function rerender(){ if(state.view==="table") renderTable(); else renderBoard(); }
+
+// ---------------- Tab counts ----------------
+function updateCounts(){
+  const c = k=>document.getElementById("cnt-"+k);
+  c("all").textContent = ORDERS.length;
+  ["new","paid","processing","shipped","completed"].forEach(s=> c(s).textContent = ORDERS.filter(o=>o.status===s).length );
+  c("flagged").textContent = ORDERS.filter(o=>o.flag).length;
+}
+
+// ---------------- Drawer ----------------
+function openDrawer(id){
+  const o = ORDERS.find(x=>x.id===id);
+  if(!o) return;
+  document.getElementById("drId").innerHTML = `${o.id} <span class="status ${STATUS_CLASS[o.status]}" style="vertical-align:middle;margin-left:6px"><span class="d"></span>${STATUS_LABEL[o.status]}</span>`;
+  document.getElementById("drMeta").textContent = `Placed ${fmtDate(o.date)}, 2026 · ${o.channel} · ${o.ship}`;
+  const rc = riskClass(o.risk);
+  const confClass = o.risk>=55?"conf-l":o.risk>=30?"conf-m":"conf-h";
+  const confTxt = o.risk>=55?"NEEDS REVIEW":o.risk>=30?"MEDIUM":"HIGH CONF";
+
+  const ship = STATUS_LABEL[o.status];
+  const body = document.getElementById("drBody");
+  body.innerHTML = `
+    <div class="dr-ai">
+      <div class="dai-h">
+        <div class="ai-orb"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg></div>
+        <div class="dai-t">AI Order Assessment</div>
+        <div class="dai-conf ${confClass==='conf-l'?'':'' }" style="color:${o.risk>=55?'var(--red)':o.risk>=30?'var(--amber)':'var(--green)'}">Risk ${o.risk}/100</div>
+      </div>
+      <p>${o.reason.replace(/⚠/g,'<span class="hl">⚠</span>')}</p>
+      <div class="field-grid">
+        <div class="xfield"><div class="xf-l">Payment<span class="conf-badge conf-h">99%</span></div><div class="xf-v">${o.status==='hold'?'Pending':'Verified'}</div></div>
+        <div class="xfield"><div class="xf-l">Address<span class="conf-badge ${o.flag?'conf-m':'conf-h'}">${o.flag?'82%':'97%'}</span></div><div class="xf-v">${o.flag?'Review':'Geocoded'}</div></div>
+        <div class="xfield"><div class="xf-l">Routing<span class="conf-badge conf-h">95%</span></div><div class="xf-v">${o.ship==='—'?'Pending':o.ship}</div></div>
+        <div class="xfield"><div class="xf-l">Recommendation<span class="conf-badge ${confClass}">${confTxt}</span></div><div class="xf-v">${o.flag?'Hold & verify':o.status==='hold'?'Retry auth':'Approve'}</div></div>
+      </div>
+    </div>
+
+    <div class="sec-title">Customer</div>
+    <div class="cust">
+      <div class="avatar" style="background:${avColor(o.customer)};width:38px;height:38px;font-size:14px">${initials(o.customer)}</div>
+      <div>
+        <div class="c-name" style="font-size:14px">${o.customer}</div>
+        <div class="c-mail" style="font-size:12px">${o.email}</div>
+      </div>
+    </div>
+
+    <div class="sec-title">Items (${o.items.length})</div>
+    ${o.items.map(i=>`
+      <div class="line-item">
+        <div class="li-img" style="background:${avColor(i.n)}22">${i.e}</div>
+        <div><div class="li-n">${i.n}</div><div class="li-s">${i.s}</div></div>
+        <div class="li-amt">${i.a}</div>
+      </div>`).join("")}
+    <div class="summary-rows">
+      ${Object.entries(o.summary).map(([k,v])=>`<div class="sr"><span>${k}</span><span>${v}</span></div>`).join("")}
+      <div class="sr total"><span>Total</span><span>${o.total}</span></div>
+    </div>
+
+    <div class="sec-title">Activity Timeline</div>
+    <div class="timeline">
+      <div class="tl-item ai">
+        <div class="tl-t">AI risk assessment completed <span class="ai-mini">AI</span></div>
+        <div class="tl-d">Scored ${o.risk}/100 · ${o.flag?'flagged for manual review':'auto-cleared'} · ${relDate(o.date)}</div>
+      </div>
+      ${o.status==='hold'?`<div class="tl-item"><div class="tl-t">Fulfillment auto-paused <span class="ai-mini" style="color:#b45309;background:rgba(217,119,6,.12)">AUTO</span></div><div class="tl-d">System held order pending verification</div></div>`:''}
+      <div class="tl-item ${o.status!=='new'?'done':''}">
+        <div class="tl-t">Payment ${o.status==='hold'?'authorization pending':'captured'}</div>
+        <div class="tl-d">${o.total} via ${o.channel} · ${relDate(o.date)}</div>
+      </div>
+      <div class="tl-item ${['shipped','completed'].includes(o.status)?'done':''}">
+        <div class="tl-t">Order placed</div>
+        <div class="tl-d">${fmtDate(o.date)}, 2026 · ${o.channel}</div>
+      </div>
+    </div>`;
+
+  // contextual ship button label
+  const shipBtn = document.getElementById("drShip");
+  if(o.flag || o.status==='hold'){ shipBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Approve & Release`; }
+  else if(o.status==='shipped'){ shipBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Mark Delivered`; }
+  else { shipBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Mark as Shipped`; }
+
+  document.getElementById("overlay").classList.add("show");
+  document.getElementById("drawer").classList.add("show");
+}
+function closeDrawer(){
+  document.getElementById("overlay").classList.remove("show");
+  document.getElementById("drawer").classList.remove("show");
+}
+
+// ---------------- Events ----------------
+document.getElementById("tabRow").addEventListener("click", e=>{
+  const t = e.target.closest(".tab"); if(!t) return;
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  state.tab = t.dataset.tab;
+  rerender();
+});
+
+document.getElementById("channelFilter").addEventListener("change", e=>{ state.channel=e.target.value; rerender(); });
+document.getElementById("riskFilter").addEventListener("change", e=>{ state.risk=e.target.value; rerender(); });
+document.getElementById("tableSearch").addEventListener("input", e=>{ state.search=e.target.value; rerender(); });
+document.getElementById("globalSearch").addEventListener("input", e=>{
+  state.search=e.target.value;
+  document.getElementById("tableSearch").value=e.target.value;
+  rerender();
+});
+
+document.querySelectorAll("th.sortable").forEach(th=>{
+  th.addEventListener("click", ()=>{
+    const key = th.dataset.sort;
+    if(state.sort===key) state.dir*=-1; else { state.sort=key; state.dir=1; }
+    renderTable();
+  });
+});
+
+document.getElementById("viewTable").addEventListener("click", ()=>{
+  state.view="table";
+  document.getElementById("viewTable").classList.add("on");
+  document.getElementById("viewBoard").classList.remove("on");
+  document.getElementById("tableView").classList.remove("hide");
+  document.getElementById("boardView").classList.remove("show");
+  renderTable();
+});
+document.getElementById("viewBoard").addEventListener("click", ()=>{
+  state.view="board";
+  document.getElementById("viewBoard").classList.add("on");
+  document.getElementById("viewTable").classList.remove("on");
+  document.getElementById("tableView").classList.add("hide");
+  document.getElementById("boardView").classList.add("show");
+  renderBoard();
+});
+
+document.getElementById("drClose").addEventListener("click", closeDrawer);
+document.getElementById("overlay").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+// AI panel actions
+document.getElementById("reviewBtn").addEventListener("click", ()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelector('.tab[data-tab="flagged"]').classList.add("active");
+  state.tab="flagged"; state.view="table";
+  document.getElementById("viewTable").click();
+  document.querySelector(".panel").scrollIntoView({behavior:"smooth"});
+});
+document.querySelectorAll(".ac-tag").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    const j = t.dataset.jump;
+    if(j==="risk"){ document.querySelector('.tab[data-tab="flagged"]').click(); }
+    else if(j==="ship"){ document.getElementById("riskFilter").value="low"; state.risk="low"; document.querySelector('.tab[data-tab="paid"]').click(); }
+    else if(j==="inv"){ document.getElementById("channelFilter").value="Wholesale"; state.channel="Wholesale"; document.querySelector('.tab[data-tab="all"]').click(); }
+    document.querySelector(".panel").scrollIntoView({behavior:"smooth"});
+  });
+});
+
+const rescan = document.getElementById("rescanBtn");
+rescan.addEventListener("click", ()=>{
+  const orig = rescan.innerHTML;
+  rescan.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>Analyzing…`;
+  rescan.style.opacity=".75"; rescan.style.pointerEvents="none";
+  document.querySelector(".ai-s").textContent = "Re-scanning 248 orders for risk, inventory and routing…";
+  setTimeout(()=>{
+    rescan.innerHTML = orig; rescan.style.opacity="1"; rescan.style.pointerEvents="auto";
+    document.querySelector(".ai-s").textContent = "Auto-triaging incoming orders · last scan just now · 248 orders analyzed";
+  }, 1800);
+});
+
+// spin keyframe
+const sk = document.createElement("style");
+sk.textContent = "@keyframes spin{to{transform:rotate(360deg)}}";
+document.head.appendChild(sk);
+
+// ---------------- Init ----------------
+updateCounts();
+renderTable();
+</script>
+</body>
+</html>

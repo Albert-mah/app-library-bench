@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Servio — Service Request Portal</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Service Request Portal (Servio)",
+  "prefix": "srq_",
+  "collections": {
+    "srq_categories": {"titleField":"name","fields":{"name":"input","icon":"input","sla_hours":"integer","approval_required":"boolean"}},
+    "srq_agents": {"titleField":"name","fields":{"name":"input","team":"select:it_support|facilities|hr_ops|finance","email":"input","is_active":"boolean"}},
+    "srq_requests": {"titleField":"title","fields":{"request_no":"input","title":"input","description":"textarea","priority":"select:low|normal|high|urgent","status":"select:submitted|in_review|approved|in_progress|resolved|rejected","channel":"select:portal|email|phone|walk_in","submitted_at":"datetime","due_at":"datetime","sla_state":"select:on_track|at_risk|breached|met"},"relations":{"category":"m2o srq_categories (fk category_id)","assignee":"m2o srq_agents (fk assignee_id)"}}
+  },
+  "page": {
+    "name": "Service Requests",
+    "layout": "left = native Form (srq_requests, create mode) rendered as a step wizard via JS items | right = native List of my srq_requests + JS item card with SLA badge",
+    "regions": [
+      {"id":"wizard","block":"native Form block (srq_requests, create mode) — NOT a freestanding JSBlock","intent":"submit a new service request through a guided wizard","content":["step rail = JS item (1 Category · 2 Details · 3 Review)","category = JS item rendering category cards (sets category field + drives sla_hours/approval hints)","title = input field","description = textarea field","priority = JS item rendering priority pills (sets priority field)","channel field","review summary = JS item bound to ctx.form.getFieldsValue()"],"actions":["Submit request = submit/JS action (status=submitted, computes due_at = now + category.sla_hours)","Save draft = JS action"]},
+      {"id":"sla-hint","block":"JS item bound to the wizard Form — live SLA + approval banner","intent":"show the SLA target and whether approval is needed AS the category/priority changes","binds":"ctx.form.getFieldsValue() + ctx.blockModel.on('formValuesChange', render)","shows":["resolve-by target (category.sla_hours adjusted by priority)","approval-required chip","assigned team"]},
+      {"id":"myrequests","block":"List + JS item card","collection":"srq_requests","intent":"my submitted requests with SLA tracking","sort":"submitted_at desc","filter":"requester = current user","group":"by status bucket (Open / Resolved)","card":["priority color left-border","request_no + title","category chip + channel","status pill","SLA badge (on_track / at_risk / breached / met) with countdown"]}
+    ]
+  },
+  "interactions": ["category card click sets category + updates live SLA banner","priority pills shift the SLA target","review step mirrors the form live (formValuesChange)","Submit writes srq_requests and prepends to my-requests list","my-requests filter pills push addFilterGroup on the same resource","SLA badge color derived from due_at vs now"],
+  "jsKernels": ["step wizard rail + step switching (binds Form)","live SLA/approval banner (binds Form)","my-request JS item card with SLA countdown badge"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (Form for the wizard, List for my-requests); reproduce the custom look/behavior with JS items/actions/cards nested INSIDE them. The step rail, category cards, priority pills, live SLA banner and review summary are JS items on the Form — NOT native fields and NOT a freestanding JSBlock. The my-requests panel is a real native List of srq_requests (requester = current user), each row a JS item card carrying the SLA badge. SLA badge state (on_track/at_risk/breached/met) is computed from due_at vs now; due_at = submitted_at + category.sla_hours, shortened for high/urgent priority. Do not rebuild the form as a freestanding JSBlock."
+}
+</script>
+<style>
+  :root{
+    --teal:#0d9488; --teal-dark:#0f766e; --teal-soft:#f0fdfa; --teal-line:#99f6e4;
+    --ink:#1f2937; --ink-2:#4b5563; --ink-3:#9ca3af;
+    --line:#f1f3f5; --line-2:#e5e7eb; --bg:#f4f6f8; --card:#fff;
+    --blue:#2563eb; --green:#16a34a; --amber:#d97706; --red:#dc2626; --violet:#7c3aed;
+    --low:#64748b; --normal:#2563eb; --high:#d97706; --urgent:#dc2626;
+    --r:12px;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 22px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 24px; position:sticky; top:0; z-index:30;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--teal),#2dd4bf);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 2px 8px rgba(13,148,136,.35);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--teal-soft);color:var(--teal-dark)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .searchbox{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;width:240px;color:var(--ink-3);font-size:13px}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0d9488,#22d3ee);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+  .chip-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);
+    background:var(--teal-soft);border:1px solid var(--teal-line);padding:5px 10px;border-radius:20px;font-weight:500}
+  .chip-status i{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* ---------- workspace ---------- */
+  .workspace{
+    display:grid; grid-template-columns: minmax(0,1fr) 420px; gap:0;
+    height:calc(100vh - 56px);
+  }
+  .wizard-pane{ overflow:auto; padding:28px 32px; align-content:start; }
+  .requests-pane{
+    background:linear-gradient(180deg,#fafbfc,#f4f6f8);
+    border-left:1px solid var(--line-2);
+    overflow:auto; padding:0;
+  }
+  @media(max-width:1180px){
+    .workspace{grid-template-columns:1fr; height:auto}
+    .requests-pane{border-left:none;border-top:1px solid var(--line-2)}
+  }
+
+  .pane-head{margin-bottom:20px}
+  .pane-head h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .pane-head p{color:var(--ink-3);font-size:13px;margin-top:3px}
+
+  /* ---------- step rail ---------- */
+  .steprail{display:flex;align-items:center;gap:0;margin-bottom:22px;max-width:620px}
+  .step{display:flex;align-items:center;gap:10px;cursor:pointer}
+  .step .num{width:30px;height:30px;border-radius:50%;border:2px solid var(--line-2);background:#fff;
+    display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--ink-3);transition:.16s;flex:none}
+  .step .txt{line-height:1.15}
+  .step .txt b{font-size:13px;color:var(--ink-2);display:block}
+  .step .txt span{font-size:11px;color:var(--ink-3)}
+  .step.done .num{background:var(--teal);border-color:var(--teal);color:#fff}
+  .step.active .num{border-color:var(--teal);color:var(--teal);box-shadow:0 0 0 4px var(--teal-soft)}
+  .step.active .txt b{color:var(--ink)}
+  .step-line{flex:1;height:2px;background:var(--line-2);margin:0 14px;border-radius:2px;min-width:26px}
+  .step-line.done{background:var(--teal)}
+
+  /* ---------- wizard card ---------- */
+  .wizard{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);
+    box-shadow:var(--shadow); overflow:hidden; max-width:760px;
+  }
+  .wz-body{padding:24px 26px;min-height:340px}
+  .panel{display:none}
+  .panel.show{display:block;animation:fade .22s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .sec-title{font-size:15px;font-weight:700;margin-bottom:4px}
+  .sec-sub{font-size:12.5px;color:var(--ink-3);margin-bottom:18px}
+  .lbl{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);margin-bottom:10px;display:block}
+
+  /* category cards */
+  .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .cat{
+    border:1.5px solid var(--line-2);border-radius:11px;padding:15px 14px;cursor:pointer;transition:.15s;background:#fff;
+    position:relative;
+  }
+  .cat:hover{border-color:var(--teal-line);background:var(--teal-soft)}
+  .cat.sel{border-color:var(--teal);background:var(--teal-soft);box-shadow:0 0 0 3px rgba(13,148,136,.1)}
+  .cat .ci{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:18px;margin-bottom:10px;
+    background:var(--teal-soft);color:var(--teal-dark)}
+  .cat.sel .ci{background:var(--teal);color:#fff}
+  .cat b{font-size:13.5px;display:block;margin-bottom:3px}
+  .cat .meta{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .cat .meta .sla{color:var(--teal-dark);font-weight:600}
+  .cat .tick{position:absolute;top:12px;right:12px;width:20px;height:20px;border-radius:50%;background:var(--teal);
+    color:#fff;display:none;place-items:center;font-size:11px;font-weight:700}
+  .cat.sel .tick{display:grid}
+
+  /* form fields */
+  .field{margin-bottom:18px}
+  .field>label{font-size:12.5px;color:var(--ink-2);font-weight:600;display:block;margin-bottom:7px}
+  .field .req{color:var(--red);margin-left:2px}
+  .field input[type=text], .field textarea, .field select{
+    width:100%;border:1.5px solid var(--line-2);border-radius:9px;padding:11px 13px;font-family:inherit;
+    font-size:14px;color:var(--ink);outline:none;transition:.13s;background:#fff;
+  }
+  .field textarea{min-height:120px;resize:vertical;line-height:1.55}
+  .field input:focus, .field textarea:focus, .field select:focus{
+    border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-soft)}
+  .field .hint{font-size:11.5px;color:var(--ink-3);margin-top:6px}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+  /* priority pills */
+  .pri-pills{display:flex;gap:9px;flex-wrap:wrap}
+  .pri{
+    display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;
+    border:1.5px solid var(--line-2);background:#fff;border-radius:9px;padding:9px 14px;
+    font-size:13px;font-weight:600;color:var(--ink-2);transition:.13s;
+  }
+  .pri .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .pri[data-p=low] .dot{background:var(--low)} .pri[data-p=normal] .dot{background:var(--normal)}
+  .pri[data-p=high] .dot{background:var(--high)} .pri[data-p=urgent] .dot{background:var(--urgent)}
+  .pri.sel[data-p=low]{border-color:var(--low);background:#f8fafc;color:var(--low)}
+  .pri.sel[data-p=normal]{border-color:var(--normal);background:#eff6ff;color:var(--normal)}
+  .pri.sel[data-p=high]{border-color:var(--high);background:#fffbeb;color:var(--high)}
+  .pri.sel[data-p=urgent]{border-color:var(--urgent);background:#fef2f2;color:var(--urgent)}
+
+  /* live SLA banner */
+  .sla-banner{
+    margin-top:20px;border:1.5px solid var(--teal-line);background:var(--teal-soft);border-radius:11px;padding:14px 16px;
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  .sla-banner .clock{width:42px;height:42px;border-radius:11px;background:var(--teal);color:#fff;display:grid;
+    place-items:center;font-size:20px;flex:none}
+  .sla-banner .sb-main{line-height:1.3}
+  .sla-banner .sb-main b{font-size:14px;color:var(--teal-dark)}
+  .sla-banner .sb-main span{font-size:12px;color:var(--ink-2);display:block}
+  .sla-banner .sb-tags{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .sb-tag{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:8px;background:#fff;color:var(--ink-2);
+    border:1px solid var(--line-2);display:flex;align-items:center;gap:5px}
+  .sb-tag.approval{background:#fffbeb;border-color:#fde68a;color:var(--amber)}
+  .sb-tag.team{background:#eff6ff;border-color:#bfdbfe;color:var(--blue)}
+
+  /* review */
+  .review-grid{display:grid;grid-template-columns:140px 1fr;gap:0;border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
+  .review-grid .k{padding:12px 16px;background:#fafbfc;font-size:12px;font-weight:600;color:var(--ink-3);
+    border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.4px}
+  .review-grid .v{padding:12px 16px;font-size:13.5px;color:var(--ink);border-bottom:1px solid var(--line)}
+  .review-grid .k:last-of-type, .review-grid .v:last-of-type{border-bottom:none}
+  .v .badge-pri{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+  .v .badge-pri .dot{width:8px;height:8px;border-radius:50%}
+
+  /* wizard footer */
+  .wz-foot{display:flex;align-items:center;gap:10px;padding:16px 26px;background:#fafbfc;border-top:1px solid var(--line-2)}
+  .btn{border:none;border-radius:9px;padding:11px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:.13s}
+  .btn-primary{background:var(--teal);color:#fff;box-shadow:0 2px 8px rgba(13,148,136,.3)}
+  .btn-primary:hover{background:var(--teal-dark)}
+  .btn-ghost{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#d1d5db}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .wz-foot .spacer{margin-left:auto;display:flex;gap:10px}
+  .wz-foot .req-no{font-size:12px;color:var(--ink-3);align-self:center}
+
+  /* ---------- my requests ---------- */
+  .r-head{padding:20px 22px 14px;position:sticky;top:0;background:#fafbfc;z-index:5;border-bottom:1px solid var(--line)}
+  .r-head .row{display:flex;align-items:center;justify-content:space-between}
+  .r-head h2{font-size:16px;font-weight:700}
+  .r-head .cnt{font-size:11.5px;color:#fff;background:var(--teal);border-radius:11px;padding:2px 10px;font-weight:700}
+  .r-stats{display:flex;gap:10px;margin-top:14px}
+  .r-stat{flex:1;background:#fff;border:1px solid var(--line-2);border-radius:10px;padding:10px 12px}
+  .r-stat .n{font-size:19px;font-weight:800;letter-spacing:-.5px;line-height:1}
+  .r-stat .l{font-size:11px;color:var(--ink-3);margin-top:4px;font-weight:500}
+  .r-stat.risk .n{color:var(--amber)} .r-stat.breach .n{color:var(--red)} .r-stat.ok .n{color:var(--teal)}
+  .r-filters{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+  .rf{font-size:11.5px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:5px 11px;border-radius:14px;border:1px solid var(--line-2);background:#fff}
+  .rf.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .bucket{padding:6px 0}
+  .bucket-label{display:flex;align-items:center;gap:10px;padding:14px 22px 8px}
+  .bucket-label b{font-size:12px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.5px}
+  .bucket-label .bl-line{flex:1;height:1px;background:var(--line-2)}
+  .bucket-label .bl-n{font-size:11px;color:var(--ink-3);font-weight:600}
+
+  .r-card{
+    margin:0 16px 11px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r);padding:14px 15px;
+    box-shadow:0 1px 2px rgba(16,24,40,.03);position:relative;cursor:pointer;transition:.14s;border-left:3px solid var(--line-2);
+  }
+  .r-card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+  .r-card[data-pri=low]{border-left-color:var(--low)} .r-card[data-pri=normal]{border-left-color:var(--normal)}
+  .r-card[data-pri=high]{border-left-color:var(--high)} .r-card[data-pri=urgent]{border-left-color:var(--urgent)}
+  .rc-top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .rc-no{font-size:11px;font-weight:700;color:var(--teal-dark);font-variant-numeric:tabular-nums;
+    background:var(--teal-soft);padding:2px 8px;border-radius:6px}
+  .rc-sla{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+  .sla-on_track{background:#f0fdf4;color:var(--green);border:1px solid #bbf7d0}
+  .sla-at_risk{background:#fffbeb;color:var(--amber);border:1px solid #fde68a}
+  .sla-breached{background:#fef2f2;color:var(--red);border:1px solid #fecaca}
+  .sla-met{background:#f8fafc;color:var(--ink-2);border:1px solid var(--line-2)}
+  .rc-sla .sla-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .rc-title{font-size:14px;font-weight:600;color:var(--ink);line-height:1.4;margin-bottom:8px}
+  .rc-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .rc-chip{font-size:11px;color:var(--ink-2);background:var(--line);padding:3px 9px;border-radius:7px;display:flex;align-items:center;gap:5px}
+  .rc-chip .ic{font-size:12px}
+  .rc-foot{display:flex;align-items:center;gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+  .rc-status{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:10px;letter-spacing:.2px}
+  .st-submitted{background:#eff6ff;color:var(--blue)}
+  .st-in_review{background:#f5f3ff;color:var(--violet)}
+  .st-approved{background:#ecfeff;color:#0891b2}
+  .st-in_progress{background:var(--teal-soft);color:var(--teal-dark)}
+  .st-resolved{background:#f0fdf4;color:var(--green)}
+  .st-rejected{background:#fef2f2;color:var(--red)}
+  .rc-assignee{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3)}
+  .rc-assignee .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#0d9488,#22d3ee);
+    color:#fff;display:grid;place-items:center;font-size:10px;font-weight:700}
+
+  .empty{margin:24px 16px;border:1.5px dashed var(--line-2);border-radius:var(--r);padding:22px;text-align:center;color:var(--ink-3);font-size:12.5px}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(16,24,40,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">S</span>Servio <small>service desk</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">New request</a>
+    <a href="#">My requests</a>
+    <a href="#">Catalog</a>
+    <a href="#">Knowledge</a>
+  </nav>
+  <div class="top-right">
+    <div class="searchbox"><span>🔍</span><span>Search the catalog…</span></div>
+    <span class="chip-status"><i></i> SLA engine live</span>
+    <div class="acct">
+      <div class="ava">RC</div>
+      <div class="who"><b>Riley Carter</b><br><span>Marketing · Requester</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ============ LEFT: REQUEST WIZARD ============ -->
+  <section class="wizard-pane">
+    <div class="pane-head">
+      <h1>Submit a service request</h1>
+      <p>Pick a category, describe what you need, and we'll route it with the right SLA.</p>
+    </div>
+
+    <!-- step rail -->
+    <div class="steprail" id="steprail">
+      <div class="step active" data-step="1">
+        <span class="num">1</span>
+        <span class="txt"><b>Category</b><span>What do you need?</span></span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" data-step="2">
+        <span class="num">2</span>
+        <span class="txt"><b>Details</b><span>Tell us more</span></span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step" data-step="3">
+        <span class="num">3</span>
+        <span class="txt"><b>Review</b><span>Confirm &amp; submit</span></span>
+      </div>
+    </div>
+
+    <div class="wizard">
+      <div class="wz-body">
+
+        <!-- STEP 1 — CATEGORY -->
+        <div class="panel show" data-panel="1">
+          <div class="sec-title">Choose a request type</div>
+          <div class="sec-sub">Each category routes to the right team with a target resolution time.</div>
+          <div class="cat-grid" id="catGrid"></div>
+        </div>
+
+        <!-- STEP 2 — DETAILS -->
+        <div class="panel" data-panel="2">
+          <div class="sec-title">Describe your request</div>
+          <div class="sec-sub">The clearer the description, the faster we can resolve it.</div>
+
+          <div class="field">
+            <label>Subject<span class="req">*</span></label>
+            <input type="text" id="fTitle" placeholder="e.g. Laptop won't connect to the VPN" value="New monitor for hot-desk 4B">
+          </div>
+
+          <div class="field">
+            <label>Description<span class="req">*</span></label>
+            <textarea id="fDesc" placeholder="What's happening, what you've tried, and what you expect…">Moved to the new hot-desk zone this week and there's no external display. Requesting a 27" monitor plus a USB-C dock so I can run a dual-screen setup for design reviews.</textarea>
+            <div class="hint">Attachments and screenshots can be added after submission.</div>
+          </div>
+
+          <div class="two-col">
+            <div class="field">
+              <label>Priority</label>
+              <div class="pri-pills" id="priPills">
+                <div class="pri" data-p="low"><span class="dot"></span>Low</div>
+                <div class="pri sel" data-p="normal"><span class="dot"></span>Normal</div>
+                <div class="pri" data-p="high"><span class="dot"></span>High</div>
+                <div class="pri" data-p="urgent"><span class="dot"></span>Urgent</div>
+              </div>
+            </div>
+            <div class="field">
+              <label>Preferred channel for updates</label>
+              <select id="fChannel">
+                <option value="portal">Portal &amp; email</option>
+                <option value="email">Email only</option>
+                <option value="phone">Phone</option>
+                <option value="walk_in">In person</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="sla-banner" id="slaBanner">
+            <div class="clock">⏱</div>
+            <div class="sb-main">
+              <b id="slaTarget">Resolve by —</b>
+              <span id="slaSub">Select a category to see the SLA target.</span>
+            </div>
+            <div class="sb-tags" id="slaTags"></div>
+          </div>
+        </div>
+
+        <!-- STEP 3 — REVIEW -->
+        <div class="panel" data-panel="3">
+          <div class="sec-title">Review &amp; submit</div>
+          <div class="sec-sub">Confirm the details below. You can still go back and edit.</div>
+          <div class="review-grid" id="reviewGrid"></div>
+        </div>
+
+      </div>
+
+      <div class="wz-foot">
+        <button class="btn btn-ghost" id="btnBack" disabled>Back</button>
+        <span class="req-no">Draft · SRQ-2026-0148</span>
+        <div class="spacer">
+          <button class="btn btn-ghost" id="btnDraft">Save draft</button>
+          <button class="btn btn-primary" id="btnNext">Continue</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RIGHT: MY REQUESTS ============ -->
+  <aside class="requests-pane">
+    <div class="r-head">
+      <div class="row">
+        <h2>My requests</h2>
+        <span class="cnt" id="reqCount">0</span>
+      </div>
+      <div class="r-stats">
+        <div class="r-stat ok"><div class="n" id="statOpen">0</div><div class="l">Open</div></div>
+        <div class="r-stat risk"><div class="n" id="statRisk">0</div><div class="l">At risk</div></div>
+        <div class="r-stat breach"><div class="n" id="statBreach">0</div><div class="l">Breached</div></div>
+      </div>
+      <div class="r-filters" id="rFilters">
+        <span class="rf on" data-f="all">All</span>
+        <span class="rf" data-f="open">Open</span>
+        <span class="rf" data-f="at_risk">At risk</span>
+        <span class="rf" data-f="resolved">Resolved</span>
+      </div>
+    </div>
+    <div id="reqList"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- catalog ----------
+  var CATEGORIES = {
+    hardware:  {name:"Hardware",        icon:"💻", sla:24, team:"IT Support",  teamKey:"it_support", approval:true,  desc:"Laptops, monitors, peripherals"},
+    access:    {name:"Access request",  icon:"🔑", sla:8,  team:"IT Support",  teamKey:"it_support", approval:true,  desc:"App accounts, permissions, VPN"},
+    software:  {name:"Software",        icon:"🧩", sla:16, team:"IT Support",  teamKey:"it_support", approval:false, desc:"Installs, licenses, bugs"},
+    facilities:{name:"Facilities",      icon:"🏢", sla:48, team:"Facilities",  teamKey:"facilities", approval:false, desc:"Desks, rooms, repairs"},
+    hr:        {name:"HR & People",     icon:"🧑‍💼", sla:72, team:"HR Ops",     teamKey:"hr_ops",     approval:true,  desc:"Letters, leave, onboarding"},
+    finance:   {name:"Finance",         icon:"💳", sla:40, team:"Finance",     teamKey:"finance",    approval:true,  desc:"Reimbursements, POs, cards"}
+  };
+  var CAT_ORDER = ["hardware","access","software","facilities","hr","finance"];
+
+  var PRI_FACTOR = {low:1.5, normal:1, high:0.5, urgent:0.25};
+  var PRI_LABEL  = {low:"Low", normal:"Normal", high:"High", urgent:"Urgent"};
+  var PRI_COLOR  = {low:"#64748b", normal:"#2563eb", high:"#d97706", urgent:"#dc2626"};
+  var CHANNEL_LABEL = {portal:"Portal & email", email:"Email only", phone:"Phone", walk_in:"In person"};
+
+  // ---------- wizard state ----------
+  var state = { step:1, category:null, priority:"normal", channel:"portal" };
+  var NOW = new Date("2026-06-07T10:30:00");
+
+  // ---------- step 1: category cards ----------
+  var catGrid = document.getElementById("catGrid");
+  CAT_ORDER.forEach(function(k){
+    var c = CATEGORIES[k];
+    var el = document.createElement("div");
+    el.className = "cat"; el.dataset.k = k;
+    el.innerHTML =
+      '<div class="tick">✓</div>'+
+      '<div class="ci">'+c.icon+'</div>'+
+      '<b>'+c.name+'</b>'+
+      '<div class="meta"><span class="sla">⏱ '+c.sla+'h SLA</span>'+(c.approval?' · <span>approval</span>':'')+'</div>';
+    el.onclick = function(){
+      state.category = k;
+      document.querySelectorAll(".cat").forEach(function(x){x.classList.toggle("sel", x.dataset.k===k);});
+      renderSlaBanner(); flash(c.name+" selected · routes to "+c.team);
+    };
+    catGrid.appendChild(el);
+  });
+
+  // ---------- step 2: priority pills + sla banner ----------
+  document.getElementById("priPills").addEventListener("click", function(e){
+    var p = e.target.closest(".pri"); if(!p) return;
+    state.priority = p.dataset.p;
+    document.querySelectorAll(".pri").forEach(function(x){x.classList.toggle("sel", x===p);});
+    renderSlaBanner();
+  });
+  document.getElementById("fChannel").addEventListener("change", function(e){ state.channel = e.target.value; });
+
+  function dueDate(){
+    if(!state.category) return null;
+    var hrs = CATEGORIES[state.category].sla * PRI_FACTOR[state.priority];
+    return new Date(NOW.getTime() + hrs*3600*1000);
+  }
+  function fmtDue(d){
+    return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})+
+      ", "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+  }
+
+  function renderSlaBanner(){
+    var banner = document.getElementById("slaBanner");
+    var tags = document.getElementById("slaTags");
+    if(!state.category){
+      document.getElementById("slaTarget").textContent = "Resolve by —";
+      document.getElementById("slaSub").textContent = "Select a category to see the SLA target.";
+      tags.innerHTML = ""; return;
+    }
+    var c = CATEGORIES[state.category];
+    var d = dueDate();
+    var effHrs = Math.round(c.sla * PRI_FACTOR[state.priority]);
+    document.getElementById("slaTarget").textContent = "Resolve by "+fmtDue(d);
+    document.getElementById("slaSub").textContent =
+      effHrs+"h target · "+PRI_LABEL[state.priority]+" priority on a "+c.sla+"h base SLA";
+    tags.innerHTML =
+      '<span class="sb-tag team">🛟 '+c.team+'</span>'+
+      (c.approval ? '<span class="sb-tag approval">✓ Approval required</span>' : '<span class="sb-tag">⚡ Auto-routed</span>');
+  }
+
+  // ---------- step 3: review ----------
+  function renderReview(){
+    var c = state.category ? CATEGORIES[state.category] : null;
+    var d = c ? dueDate() : null;
+    var rows = [
+      ["Category", c ? (c.icon+" "+c.name) : "<span style='color:var(--ink-3)'>Not selected</span>"],
+      ["Subject", esc(document.getElementById("fTitle").value) || "<span style='color:var(--ink-3)'>—</span>"],
+      ["Description", esc(document.getElementById("fDesc").value) || "<span style='color:var(--ink-3)'>—</span>"],
+      ["Priority", '<span class="badge-pri"><span class="dot" style="background:'+PRI_COLOR[state.priority]+'"></span>'+PRI_LABEL[state.priority]+'</span>'],
+      ["Channel", CHANNEL_LABEL[state.channel]],
+      ["Routed to", c ? c.team : "—"],
+      ["SLA target", d ? ("⏱ "+fmtDue(d)) : "—"],
+      ["Approval", c ? (c.approval ? "Required before work starts" : "Not required") : "—"]
+    ];
+    document.getElementById("reviewGrid").innerHTML = rows.map(function(r){
+      return '<div class="k">'+r[0]+'</div><div class="v">'+r[1]+'</div>';
+    }).join("");
+  }
+  function esc(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+  // ---------- step navigation ----------
+  function gotoStep(n){
+    if(n===2 && !state.category){ flash("Pick a category first"); return; }
+    if(n===3){
+      if(!document.getElementById("fTitle").value.trim()){ flash("Add a subject"); return; }
+      renderReview();
+    }
+    state.step = n;
+    document.querySelectorAll(".panel").forEach(function(p){p.classList.toggle("show", +p.dataset.panel===n);});
+    document.querySelectorAll(".step").forEach(function(s){
+      var sn = +s.dataset.step;
+      s.classList.toggle("active", sn===n);
+      s.classList.toggle("done", sn<n);
+    });
+    document.querySelectorAll(".step-line").forEach(function(l,i){ l.classList.toggle("done", i+1<n); });
+    document.getElementById("btnBack").disabled = n===1;
+    document.getElementById("btnNext").textContent = n===3 ? "Submit request" : "Continue";
+    if(n===2) renderSlaBanner();
+  }
+  document.querySelectorAll(".step").forEach(function(s){ s.onclick = function(){
+    var n = +s.dataset.step;
+    if(n>state.step){ gotoStep(n); } else { gotoStep(n); }
+  };});
+  document.getElementById("btnBack").onclick = function(){ if(state.step>1) gotoStep(state.step-1); };
+  document.getElementById("btnNext").onclick = function(){
+    if(state.step<3){ gotoStep(state.step+1); }
+    else { submitRequest(); }
+  };
+  document.getElementById("btnDraft").onclick = function(){ flash("Saved as draft · SRQ-2026-0148"); };
+
+  // ---------- submit ----------
+  var reqSeq = 148;
+  function submitRequest(){
+    var c = CATEGORIES[state.category];
+    var d = dueDate();
+    reqSeq++;
+    var rec = {
+      no:"SRQ-2026-"+String(reqSeq).padStart(4,"0"),
+      title:document.getElementById("fTitle").value.trim() || "Untitled request",
+      cat:state.category, channel:state.channel, priority:state.priority,
+      status:c.approval ? "in_review" : "submitted",
+      assignee:null, due:d, submitted:new Date(NOW),
+      sla:slaStateFor(d, c.approval?"in_review":"submitted")
+    };
+    REQUESTS.unshift(rec);
+    renderList();
+    flash("Request submitted · "+rec.no+" → "+c.team);
+    // reset to step 1
+    state.step=1; gotoStep(1);
+    document.querySelectorAll(".cat").forEach(function(x){x.classList.remove("sel");});
+    state.category=null;
+  }
+
+  // ---------- MY REQUESTS DATA ----------
+  function hoursFromNow(h){ return new Date(NOW.getTime()+h*3600*1000); }
+  function hoursAgo(h){ return new Date(NOW.getTime()-h*3600*1000); }
+
+  function slaStateFor(due, status){
+    if(status==="resolved") return "met";
+    if(status==="rejected") return "met";
+    var ms = due - NOW;
+    if(ms < 0) return "breached";
+    if(ms < 4*3600*1000) return "at_risk";
+    return "on_track";
+  }
+
+  var REQUESTS = [
+    {no:"SRQ-2026-0147", title:"VPN keeps dropping every 10 minutes on the new laptop", cat:"access", channel:"portal", priority:"high", status:"in_progress", assignee:"Dana Whitfield", due:hoursFromNow(2.5), submitted:hoursAgo(5)},
+    {no:"SRQ-2026-0146", title:"Adobe Creative Cloud license seat for new hire", cat:"software", channel:"email", priority:"normal", status:"in_review", assignee:"Marcus Lee", due:hoursFromNow(9), submitted:hoursAgo(7)},
+    {no:"SRQ-2026-0145", title:"Replacement door badge — lost over the weekend", cat:"facilities", channel:"walk_in", priority:"urgent", status:"submitted", assignee:null, due:hoursAgo(1), submitted:hoursAgo(13)},
+    {no:"SRQ-2026-0144", title:"Standing desk for the 3rd-floor design pod", cat:"facilities", channel:"portal", priority:"low", status:"approved", assignee:"Priya Raman", due:hoursFromNow(30), submitted:hoursAgo(26)},
+    {no:"SRQ-2026-0142", title:"Q2 conference travel reimbursement", cat:"finance", channel:"email", priority:"normal", status:"in_progress", assignee:"Owen Hart", due:hoursFromNow(3.2), submitted:hoursAgo(20)},
+    {no:"SRQ-2026-0140", title:"Employment verification letter for mortgage", cat:"hr", channel:"portal", priority:"normal", status:"resolved", assignee:"Sofia Mendez", due:hoursAgo(8), submitted:hoursAgo(60)},
+    {no:"SRQ-2026-0138", title:"USB-C dock not charging the MacBook", cat:"hardware", channel:"phone", priority:"high", status:"resolved", assignee:"Dana Whitfield", due:hoursAgo(30), submitted:hoursAgo(48)},
+    {no:"SRQ-2026-0135", title:"Admin access to the analytics workspace", cat:"access", channel:"portal", priority:"normal", status:"rejected", assignee:"Marcus Lee", due:hoursAgo(40), submitted:hoursAgo(72)}
+  ];
+  REQUESTS.forEach(function(r){ r.sla = slaStateFor(r.due, r.status); });
+
+  // ---------- render ----------
+  var STATUS_LABEL = {submitted:"Submitted", in_review:"In review", approved:"Approved", in_progress:"In progress", resolved:"Resolved", rejected:"Rejected"};
+  var SLA_LABEL = {on_track:"On track", at_risk:"At risk", breached:"Breached", met:"Met"};
+  var OPEN_STATUSES = ["submitted","in_review","approved","in_progress"];
+
+  function countdown(due){
+    var ms = due - NOW, abs = Math.abs(ms);
+    var h = Math.floor(abs/3600000), m = Math.floor((abs%3600000)/60000);
+    var txt = h>=24 ? (Math.floor(h/24)+"d "+(h%24)+"h") : (h+"h "+m+"m");
+    return ms<0 ? ("+"+txt+" over") : (txt+" left");
+  }
+
+  var activeFilter = "all";
+  document.getElementById("rFilters").addEventListener("click", function(e){
+    var f = e.target.closest(".rf"); if(!f) return;
+    document.querySelectorAll(".rf").forEach(function(x){x.classList.remove("on");});
+    f.classList.add("on"); activeFilter = f.dataset.f; renderList();
+  });
+
+  function passFilter(r){
+    if(activeFilter==="all") return true;
+    if(activeFilter==="open") return OPEN_STATUSES.indexOf(r.status)>-1;
+    if(activeFilter==="at_risk") return r.sla==="at_risk" || r.sla==="breached";
+    if(activeFilter==="resolved") return r.status==="resolved" || r.status==="rejected";
+    return true;
+  }
+
+  function renderList(){
+    // stats over the full set
+    var open = REQUESTS.filter(function(r){return OPEN_STATUSES.indexOf(r.status)>-1;});
+    document.getElementById("statOpen").textContent = open.length;
+    document.getElementById("statRisk").textContent = REQUESTS.filter(function(r){return r.sla==="at_risk";}).length;
+    document.getElementById("statBreach").textContent = REQUESTS.filter(function(r){return r.sla==="breached";}).length;
+    document.getElementById("reqCount").textContent = REQUESTS.length;
+
+    var list = REQUESTS.filter(passFilter);
+    var host = document.getElementById("reqList"); host.innerHTML = "";
+    if(list.length===0){ host.innerHTML = '<div class="empty">No requests match this filter.</div>'; return; }
+
+    var buckets = [
+      {key:"open",  label:"Open", items:list.filter(function(r){return OPEN_STATUSES.indexOf(r.status)>-1;})},
+      {key:"done",  label:"Resolved", items:list.filter(function(r){return OPEN_STATUSES.indexOf(r.status)===-1;})}
+    ];
+    buckets.forEach(function(b){
+      if(b.items.length===0) return;
+      var grp = document.createElement("div"); grp.className="bucket";
+      grp.innerHTML = '<div class="bucket-label"><b>'+b.label+'</b><span class="bl-line"></span><span class="bl-n">'+b.items.length+'</span></div>';
+      b.items.forEach(function(r){ grp.appendChild(card(r)); });
+      host.appendChild(grp);
+    });
+  }
+
+  function card(r){
+    var c = CATEGORIES[r.cat];
+    var resolved = OPEN_STATUSES.indexOf(r.status)===-1;
+    var el = document.createElement("div");
+    el.className = "r-card"; el.dataset.pri = r.priority;
+    var slaInner = r.sla==="met"
+      ? '<span class="sla-dot"></span>'+(r.status==="rejected"?"Closed":"Met")
+      : '<span class="sla-dot"></span>'+SLA_LABEL[r.sla]+' · '+countdown(r.due);
+    el.innerHTML =
+      '<div class="rc-top">'+
+        '<span class="rc-no">'+r.no+'</span>'+
+        '<span class="rc-sla sla-'+r.sla+'">'+slaInner+'</span>'+
+      '</div>'+
+      '<div class="rc-title">'+esc(r.title)+'</div>'+
+      '<div class="rc-meta">'+
+        '<span class="rc-chip"><span class="ic">'+c.icon+'</span>'+c.name+'</span>'+
+        '<span class="rc-chip">📨 '+CHANNEL_LABEL[r.channel]+'</span>'+
+        '<span class="rc-chip" style="color:'+PRI_COLOR[r.priority]+'">● '+PRI_LABEL[r.priority]+'</span>'+
+      '</div>'+
+      '<div class="rc-foot">'+
+        '<span class="rc-status st-'+r.status+'">'+STATUS_LABEL[r.status]+'</span>'+
+        (r.assignee
+          ? '<span class="rc-assignee"><span class="av">'+initials(r.assignee)+'</span>'+r.assignee+'</span>'
+          : '<span class="rc-assignee">⏳ Awaiting assignment</span>')+
+      '</div>';
+    el.onclick = function(){ flash("Opening "+r.no+" — "+STATUS_LABEL[r.status]); };
+    return el;
+  }
+  function initials(name){ return name.split(" ").map(function(w){return w[0];}).join("").slice(0,2).toUpperCase(); }
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- live mirror: details typing keeps review/banner fresh ----------
+  document.getElementById("fTitle").addEventListener("input", function(){ if(state.step===3) renderReview(); });
+  document.getElementById("fDesc").addEventListener("input", function(){ if(state.step===3) renderReview(); });
+
+  // ---------- init ----------
+  // preselect a category so the wizard demoes richly
+  state.category = "hardware";
+  document.querySelector('.cat[data-k="hardware"]').classList.add("sel");
+  renderSlaBanner();
+  renderList();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Service Request: a 3-step request wizard, an SLA banner, and a request list. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/30-service-request.html
+</script>
+</body>
+</html>

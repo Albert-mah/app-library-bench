@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Email Parser</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --panel-2:#f6f7f9;
+    --panel-3:#eef0f3;
+    --line:#e3e6eb;
+    --line-soft:#edeff2;
+    --txt:#1f2937;
+    --txt-2:#566072;
+    --txt-3:#8a93a3;
+    --accent:#c026d3;
+    --accent-2:#a21caf;
+    --teal:#0d9488;
+    --green:#059669;
+    --amber:#d97706;
+    --red:#dc2626;
+    --pink:#db2777;
+    --shadow:0 12px 32px rgba(31,41,55,.12);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  .app{display:grid;grid-template-columns:230px 1fr;height:100vh}
+
+  /* ===== Sidebar ===== */
+  .side{
+    background:#ffffff;
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;padding:18px 14px;gap:6px;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 8px 16px}
+  .logo{
+    width:38px;height:38px;border-radius:11px;flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;box-shadow:0 6px 16px rgba(192,38,211,.28);
+  }
+  .logo svg{width:21px;height:21px}
+  .brand h1{font-size:15px;font-weight:700;letter-spacing:.2px;line-height:1.1}
+  .brand p{font-size:11px;color:var(--txt-3);margin-top:2px}
+  .nav-label{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--txt-3);padding:14px 10px 6px}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;
+    color:var(--txt-2);font-size:13.5px;font-weight:500;cursor:pointer;transition:.16s;position:relative;
+  }
+  .nav-item svg{width:17px;height:17px;flex:none;opacity:.85}
+  .nav-item:hover{background:var(--panel-2);color:var(--txt)}
+  .nav-item.active{background:rgba(192,38,211,.10);color:var(--accent)}
+  .nav-item.active::before{content:"";position:absolute;left:-14px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--accent)}
+  .nav-item .count{margin-left:auto;font-size:11px;background:var(--panel-3);padding:1px 7px;border-radius:20px;color:var(--txt-2)}
+  .nav-item.active .count{background:rgba(192,38,211,.18);color:var(--accent)}
+  .side-foot{margin-top:auto;padding:12px 8px 2px;border-top:1px solid var(--line-soft)}
+  .usage{font-size:11px;color:var(--txt-3);margin-bottom:8px;display:flex;justify-content:space-between}
+  .usage b{color:var(--txt-2);font-weight:600}
+  .bar{height:6px;border-radius:6px;background:var(--panel-3);overflow:hidden}
+  .bar > i{display:block;height:100%;width:68%;border-radius:6px;background:linear-gradient(90deg,var(--accent-2),var(--accent))}
+  .me{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .me .av{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+  .me small{display:block;font-size:11px;color:var(--txt-3)}
+  .me span{font-size:12.5px;font-weight:600}
+
+  /* ===== Main ===== */
+  .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+  .topbar{
+    display:flex;align-items:center;gap:16px;padding:16px 24px;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.75);backdrop-filter:blur(8px);
+  }
+  .topbar h2{font-size:17px;font-weight:700}
+  .topbar h2 .sub{font-size:12px;font-weight:500;color:var(--txt-3);margin-left:8px}
+  .search{
+    margin-left:8px;flex:1;max-width:340px;display:flex;align-items:center;gap:8px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;
+  }
+  .search svg{width:15px;height:15px;color:var(--txt-3)}
+  .search input{background:none;border:none;outline:none;color:var(--txt);font-size:13px;width:100%}
+  .search input::placeholder{color:var(--txt-3)}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;
+    font-size:13px;font-weight:600;padding:9px 15px;border-radius:10px;transition:.16s;
+  }
+  .btn svg{width:15px;height:15px}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;box-shadow:0 6px 16px rgba(192,38,211,.28)}
+  .btn-primary:hover{filter:brightness(1.05);transform:translateY(-1px)}
+  .btn-ghost{background:var(--panel);color:var(--txt-2);border:1px solid var(--line)}
+  .btn-ghost:hover{color:var(--txt);border-color:#cbd0d9}
+
+  /* ===== KPI strip ===== */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:18px 24px 6px}
+  .kpi{
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:15px 17px;position:relative;overflow:hidden;
+    box-shadow:0 1px 2px rgba(31,41,55,.04);
+  }
+  .kpi .k-top{display:flex;align-items:center;justify-content:space-between}
+  .kpi .k-ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center}
+  .kpi .k-ico svg{width:17px;height:17px}
+  .kpi .k-val{font-size:26px;font-weight:750;margin-top:10px;letter-spacing:-.5px}
+  .kpi .k-lab{font-size:12px;color:var(--txt-3);margin-top:2px}
+  .kpi .k-delta{font-size:11px;font-weight:600;margin-top:9px;display:inline-flex;align-items:center;gap:4px}
+  .up{color:var(--green)} .down{color:var(--red)}
+  .spark{position:absolute;right:14px;bottom:12px;opacity:.85}
+
+  /* ===== Split layout ===== */
+  .split{display:grid;grid-template-columns:minmax(0,1fr) 0;flex:1;min-height:0;gap:0;padding:8px 24px 22px;transition:grid-template-columns .28s ease}
+  .split.open{grid-template-columns:minmax(0,1.05fr) minmax(380px,.95fr);gap:18px}
+
+  .queue{display:flex;flex-direction:column;min-height:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .q-head{display:flex;align-items:center;gap:6px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .tab{
+    font-size:12.5px;font-weight:600;color:var(--txt-2);padding:6px 13px;border-radius:9px;cursor:pointer;transition:.15s;
+    border:1px solid transparent;display:flex;align-items:center;gap:7px;
+  }
+  .tab:hover{background:var(--panel-2)}
+  .tab.active{background:rgba(192,38,211,.10);color:var(--accent);border-color:rgba(192,38,211,.30)}
+  .tab .dot{width:7px;height:7px;border-radius:50%}
+  .tab .pill{font-size:10.5px;background:rgba(31,41,55,.07);padding:0 6px;border-radius:10px}
+  .q-tools{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{background:none;border:none;color:var(--txt-3);font-size:11.5px;font-weight:600;padding:6px 11px;cursor:pointer;font-family:inherit}
+  .seg button.on{background:#ffffff;color:var(--accent);box-shadow:0 1px 2px rgba(31,41,55,.10)}
+
+  .q-list{overflow-y:auto;flex:1;padding:8px}
+  .q-list::-webkit-scrollbar{width:9px}
+  .q-list::-webkit-scrollbar-thumb{background:#cbd0d9;border-radius:9px;border:2px solid var(--panel)}
+  .q-list::-webkit-scrollbar-track{background:transparent}
+
+  .row{
+    display:grid;grid-template-columns:42px 1fr auto;gap:13px;align-items:center;
+    padding:13px 14px;border-radius:11px;cursor:pointer;transition:.14s;border:1px solid transparent;margin-bottom:3px;
+  }
+  .row:hover{background:var(--panel-2);border-color:var(--line-soft)}
+  .row.sel{background:rgba(192,38,211,.07);border-color:rgba(192,38,211,.35)}
+  .av-cat{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:13px;flex:none;position:relative}
+  .av-cat svg{width:19px;height:19px}
+  .r-mid{min-width:0}
+  .r-line1{display:flex;align-items:center;gap:8px}
+  .r-from{font-size:13.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r-subj{font-size:12.5px;color:var(--txt-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  .r-meta{display:flex;align-items:center;gap:7px;margin-top:6px;flex-wrap:wrap}
+  .chip{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .chip svg{width:11px;height:11px}
+  .r-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .r-time{font-size:11px;color:var(--txt-3);white-space:nowrap}
+  .conf{display:flex;align-items:center;gap:6px}
+  .conf-ring{width:34px;height:34px;flex:none}
+  .conf-num{font-size:11px;font-weight:700}
+
+  /* category tints */
+  .t-invoice{background:rgba(13,148,136,.12);color:var(--teal)}
+  .t-lead{background:rgba(192,38,211,.12);color:var(--accent)}
+  .t-support{background:rgba(217,119,6,.13);color:var(--amber)}
+  .t-order{background:rgba(5,150,105,.12);color:var(--green)}
+  .t-contract{background:rgba(219,39,119,.12);color:var(--pink)}
+  .t-spam{background:rgba(220,38,38,.11);color:var(--red)}
+  .chip.t-invoice,.chip.t-lead,.chip.t-support,.chip.t-order,.chip.t-contract,.chip.t-spam{}
+
+  .st-new{background:rgba(192,38,211,.12);color:var(--accent)}
+  .st-review{background:rgba(217,119,6,.14);color:#b45309}
+  .st-done{background:rgba(5,150,105,.13);color:#047857}
+  .st-routed{background:rgba(162,28,175,.13);color:var(--accent-2)}
+  .chip.muted{background:var(--panel-3);color:var(--txt-2)}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--txt-3)}
+  .empty svg{width:46px;height:46px;opacity:.4;margin-bottom:14px}
+  .empty h4{color:var(--txt-2);font-size:14px;margin-bottom:5px}
+  .empty p{font-size:12.5px}
+
+  /* ===== Detail panel ===== */
+  .detail{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0;overflow:hidden;opacity:0;transform:translateX(16px);transition:.28s;pointer-events:none}
+  .split.open .detail{opacity:1;transform:none;pointer-events:auto}
+  .d-head{padding:16px 18px;border-bottom:1px solid var(--line);position:relative}
+  .d-head .close{position:absolute;right:14px;top:14px;width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt-2);cursor:pointer;display:grid;place-items:center}
+  .d-head .close:hover{color:var(--txt);background:var(--panel-3)}
+  .d-head .close svg{width:14px;height:14px}
+  .d-cat{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px}
+  .d-subj{font-size:16.5px;font-weight:700;margin-top:11px;line-height:1.35;padding-right:34px}
+  .d-from{display:flex;align-items:center;gap:10px;margin-top:13px}
+  .d-from .av{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:13px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
+  .d-from b{font-size:13px}
+  .d-from small{font-size:11.5px;color:var(--txt-3);display:block;margin-top:1px}
+  .d-from .when{margin-left:auto;font-size:11px;color:var(--txt-3);text-align:right}
+
+  .d-body{overflow-y:auto;padding:16px 18px;flex:1}
+  .d-body::-webkit-scrollbar{width:9px}
+  .d-body::-webkit-scrollbar-thumb{background:#cbd0d9;border-radius:9px;border:2px solid var(--panel)}
+
+  .ai-banner{
+    background:linear-gradient(120deg,rgba(192,38,211,.10),rgba(162,28,175,.06));
+    border:1px solid rgba(192,38,211,.22);border-radius:12px;padding:13px 14px;display:flex;align-items:center;gap:12px;margin-bottom:16px;
+  }
+  .ai-banner .spin{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;flex:none;box-shadow:0 4px 12px rgba(192,38,211,.32)}
+  .ai-banner .spin svg{width:16px;height:16px}
+  .ai-banner .txt b{font-size:12.5px}
+  .ai-banner .txt p{font-size:11.5px;color:var(--txt-2);margin-top:2px}
+  .ai-banner .ovr{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:5px}
+
+  .sec-title{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--txt-3);font-weight:700;margin:18px 0 11px;display:flex;align-items:center;gap:8px}
+  .sec-title:first-child{margin-top:0}
+  .sec-title .ai-tag{font-size:9.5px;background:rgba(162,28,175,.12);color:var(--accent-2);padding:2px 7px;border-radius:6px;letter-spacing:.3px}
+
+  /* extracted fields */
+  .fields{display:grid;gap:8px}
+  .field{
+    background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:10px 13px;display:grid;
+    grid-template-columns:1fr auto;gap:5px 12px;align-items:center;transition:.15s;cursor:default;
+  }
+  .field:hover{border-color:var(--line);background:var(--panel-3)}
+  .f-key{font-size:11px;color:var(--txt-3);font-weight:600;grid-column:1;grid-row:1}
+  .f-val{font-size:13.5px;font-weight:650;grid-column:1;grid-row:2;word-break:break-word}
+  .f-val.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:13px;letter-spacing:.2px}
+  .f-conf{grid-column:2;grid-row:1/3;align-self:center;display:flex;align-items:center;gap:6px}
+  .cbar{width:46px;height:5px;border-radius:5px;background:#e3e6eb;overflow:hidden}
+  .cbar > i{display:block;height:100%;border-radius:5px}
+  .c-hi i{background:var(--green)} .c-md i{background:var(--amber)} .c-lo i{background:var(--red)}
+  .cpct{font-size:10.5px;font-weight:700;width:26px;text-align:right}
+  .c-hi .cpct{color:var(--green)} .c-md .cpct{color:var(--amber)} .c-lo .cpct{color:var(--red)}
+  .field.flag{border-color:rgba(217,119,6,.4);background:rgba(217,119,6,.07)}
+  .field .warn{grid-column:1/3;font-size:10.5px;color:var(--amber);display:flex;align-items:center;gap:5px;margin-top:2px}
+  .field .warn svg{width:12px;height:12px}
+
+  /* routing card */
+  .route{
+    background:var(--panel-2);border:1px solid var(--line);
+    border-radius:12px;padding:14px;display:flex;align-items:center;gap:13px;
+  }
+  .route .rIco{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex:none}
+  .route .rIco svg{width:20px;height:20px}
+  .route .rMid b{font-size:13.5px}
+  .route .rMid p{font-size:11.5px;color:var(--txt-2);margin-top:3px;line-height:1.5}
+  .route .rScore{margin-left:auto;text-align:center;flex:none}
+  .route .rScore .n{font-size:20px;font-weight:750}
+  .route .rScore small{font-size:9.5px;color:var(--txt-3);text-transform:uppercase;letter-spacing:.5px}
+
+  .reason{font-size:12px;color:var(--txt-2);line-height:1.6;background:var(--panel-2);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:11px 13px;margin-top:10px}
+  .reason b{color:var(--txt)}
+
+  /* original message */
+  .raw{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:11px;padding:14px;font-size:12.5px;line-height:1.65;color:var(--txt-2)}
+  .raw .hl{background:rgba(192,38,211,.15);color:#86198f;border-radius:4px;padding:1px 3px;font-weight:600}
+  .raw .hl.g{background:rgba(5,150,105,.15);color:#047857}
+  .raw .hl.p{background:rgba(219,39,119,.15);color:#9d174d}
+
+  /* suggested actions */
+  .acts{display:grid;gap:8px}
+  .act{display:flex;align-items:center;gap:11px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:11px 13px;transition:.15s}
+  .act:hover{border-color:rgba(192,38,211,.4);background:var(--panel-3)}
+  .act .aIco{width:30px;height:30px;border-radius:8px;background:rgba(192,38,211,.12);color:var(--accent);display:grid;place-items:center;flex:none}
+  .act .aIco svg{width:15px;height:15px}
+  .act .aTxt{flex:1}
+  .act .aTxt b{font-size:12.5px;display:block}
+  .act .aTxt small{font-size:11px;color:var(--txt-3)}
+  .act .go{font-size:11.5px;font-weight:700;color:var(--accent);background:none;border:1px solid var(--line);padding:5px 11px;border-radius:8px;cursor:pointer;font-family:inherit}
+  .act .go:hover{background:rgba(192,38,211,.12);border-color:rgba(192,38,211,.35)}
+
+  .d-foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:9px;background:var(--panel)}
+  .d-foot .btn{flex:1;justify-content:center}
+  .btn-ok{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
+  .btn-ok:hover{filter:brightness(1.05)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-3);border:1px solid var(--line);border-radius:11px;padding:12px 18px;
+    display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;box-shadow:var(--shadow);
+    opacity:0;pointer-events:none;transition:.3s;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast svg{width:17px;height:17px;color:var(--green)}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .live{animation:pulse 1.6s infinite}
+  @media (max-width:1180px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .split.open{grid-template-columns:1fr}
+    .split.open .detail{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Mailgrid AI</h1>
+        <p>Email Parser</p>
+      </div>
+    </div>
+
+    <div class="nav-label">Triage</div>
+    <div class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+      Parse Queue <span class="count">18</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+      Needs Review <span class="count">4</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+      Processed <span class="count">231</span>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      Extraction Schemas
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+      Analytics
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </div>
+
+    <div class="side-foot">
+      <div class="usage"><span>Monthly parses</span><b>3,420 / 5,000</b></div>
+      <div class="bar"><i></i></div>
+      <div class="me">
+        <div class="av">AM</div>
+        <div>
+          <span>Alex Mercer</span>
+          <small>Ops Lead</small>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <div class="topbar">
+      <h2>Parse Queue <span class="sub">incoming email intelligence</span></h2>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search sender, subject, extracted value…">
+      </div>
+      <button class="btn btn-ghost" id="autoBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        Re-parse all
+      </button>
+      <button class="btn btn-primary" id="ingestBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Ingest email
+      </button>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="k-top">
+          <div class="k-ico t-invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
+        </div>
+        <div class="k-val">18</div>
+        <div class="k-lab">In parse queue</div>
+        <div class="k-delta up">▲ 6 since 9:00 AM</div>
+      </div>
+      <div class="kpi">
+        <div class="k-top">
+          <div class="k-ico t-order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg></div>
+        </div>
+        <div class="k-val">94.2%</div>
+        <div class="k-lab">Avg extraction confidence</div>
+        <div class="k-delta up">▲ 1.8% vs last week</div>
+      </div>
+      <div class="kpi">
+        <div class="k-top">
+          <div class="k-ico t-support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+        </div>
+        <div class="k-val">4</div>
+        <div class="k-lab">Flagged for review</div>
+        <div class="k-delta down">▲ 2 low-confidence</div>
+      </div>
+      <div class="kpi">
+        <div class="k-top">
+          <div class="k-ico t-lead"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        </div>
+        <div class="k-val">2.4s</div>
+        <div class="k-lab">Median parse time</div>
+        <div class="k-delta up">▼ 0.6s faster</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,20 9,16 18,18 27,11 36,13 45,7 54,9 64,4" fill="none" stroke="#c026d3" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <!-- Split: queue + detail -->
+    <div class="split" id="split">
+      <section class="queue">
+        <div class="q-head">
+          <div class="tab active" data-cat="all"><span class="dot" style="background:#c026d3"></span> All</div>
+          <div class="tab" data-cat="invoice"><span class="dot" style="background:#0d9488"></span> Invoices <span class="pill">5</span></div>
+          <div class="tab" data-cat="lead"><span class="dot" style="background:#c026d3"></span> Leads <span class="pill">4</span></div>
+          <div class="tab" data-cat="support"><span class="dot" style="background:#d97706"></span> Support <span class="pill">4</span></div>
+          <div class="tab" data-cat="order"><span class="dot" style="background:#059669"></span> Orders <span class="pill">3</span></div>
+          <div class="tab" data-cat="contract"><span class="dot" style="background:#db2777"></span> Contracts <span class="pill">2</span></div>
+          <div class="q-tools">
+            <div class="seg">
+              <button class="on" data-sort="time">Newest</button>
+              <button data-sort="conf">Confidence</button>
+            </div>
+          </div>
+        </div>
+        <div class="q-list" id="list"></div>
+      </section>
+
+      <!-- Detail panel -->
+      <aside class="detail" id="detail">
+        <div class="d-head">
+          <button class="close" id="closeBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          <span class="d-cat" id="dCat"></span>
+          <div class="d-subj" id="dSubj"></div>
+          <div class="d-from">
+            <div class="av" id="dAv"></div>
+            <div>
+              <b id="dName"></b>
+              <small id="dEmail"></small>
+            </div>
+            <div class="when" id="dWhen"></div>
+          </div>
+        </div>
+        <div class="d-body" id="dBody"></div>
+        <div class="d-foot">
+          <button class="btn btn-ghost" id="rejectBtn" style="flex:.6">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Discard
+          </button>
+          <button class="btn btn-ok" id="approveBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+            Approve & route
+          </button>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+// ===== Seed data =====
+const CAT = {
+  invoice:{label:"Invoice",cls:"t-invoice",icon:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'},
+  lead:{label:"Sales Lead",cls:"t-lead",icon:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'},
+  support:{label:"Support",cls:"t-support",icon:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'},
+  order:{label:"Order",cls:"t-order",icon:'<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>'},
+  contract:{label:"Contract",cls:"t-contract",icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>'},
+  spam:{label:"Spam",cls:"t-spam",icon:'<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>'},
+};
+const STATUS = {
+  new:{label:"New",cls:"st-new"},
+  review:{label:"Needs review",cls:"st-review"},
+  done:{label:"Processed",cls:"st-done"},
+  routed:{label:"Routed",cls:"st-routed"},
+};
+
+const EMAILS = [
+  {id:1,cat:"invoice",status:"new",from:"Dana Whitfield",email:"billing@northstar-supply.com",subj:"Invoice #NS-20418 — Q2 logistics services",time:"3m",conf:96,
+    route:{to:"Accounts Payable",reason:"PO match found",score:96,col:"t-invoice"},
+    reason:"Detected a structured invoice with a valid PO reference (<b>PO-7741</b>) matching an open purchase order. Vendor is a known supplier; payment terms and totals are internally consistent.",
+    fields:[
+      {k:"Vendor",v:"Northstar Supply Co.",c:98},
+      {k:"Invoice number",v:"NS-20418",c:99,mono:true},
+      {k:"Amount due",v:"$14,820.00",c:97,mono:true},
+      {k:"Currency",v:"USD",c:99},
+      {k:"Due date",v:"Jul 14, 2026",c:95},
+      {k:"PO reference",v:"PO-7741",c:91,mono:true},
+      {k:"Tax (8.25%)",v:"$1,222.65",c:88,mono:true},
+    ],
+    raw:`Hi Accounts team,\n\nPlease find attached <span class="hl">Invoice NS-20418</span> covering Q2 logistics services. Total due is <span class="hl g">$14,820.00 USD</span>, payable by <span class="hl">July 14, 2026</span>. This relates to <span class="hl p">PO-7741</span>.\n\nThanks,\nDana Whitfield — Billing, Northstar Supply`,
+    acts:[{i:"file",t:"Create AP entry",s:"Pre-filled from 7 extracted fields"},{i:"link",t:"Attach to PO-7741",s:"Open purchase order found"},{i:"bell",t:"Schedule reminder",s:"5 days before due date"}]},
+
+  {id:2,cat:"lead",status:"new",from:"Marcus Lindqvist",email:"m.lindqvist@helios-robotics.io",subj:"Demo request — 40-seat deployment for Helios Robotics",time:"11m",conf:92,
+    route:{to:"Enterprise Sales · West",reason:"High-fit segment",score:88,col:"t-lead"},
+    reason:"Inbound demand with explicit seat count and a named decision maker. Company size and stated budget place this in the enterprise tier; routed to the West regional pod based on the sender domain location.",
+    fields:[
+      {k:"Contact",v:"Marcus Lindqvist",c:97},
+      {k:"Company",v:"Helios Robotics",c:96},
+      {k:"Role",v:"VP of Operations",c:84},
+      {k:"Intent",v:"Product demo",c:95},
+      {k:"Seats requested",v:"40",c:90,mono:true},
+      {k:"Est. budget",v:"$60k–80k / yr",c:79,flag:true,warn:"Budget stated as a range — confirm before quoting"},
+      {k:"Timeline",v:"Q3 2026",c:86},
+    ],
+    raw:`Hello,\n\nWe're evaluating tooling for our ops team — about <span class="hl">40 seats</span> to start. I'm the <span class="hl p">VP of Operations</span> at <span class="hl g">Helios Robotics</span>. Could we schedule a <span class="hl">demo</span> this quarter? Budget is roughly $60–80k annually.\n\nBest, Marcus`,
+    acts:[{i:"user",t:"Create CRM opportunity",s:"Stage: Discovery · Owner: West pod"},{i:"cal",t:"Propose demo slots",s:"3 times in next 5 business days"},{i:"file",t:"Draft intro reply",s:"AI-written, awaiting your review"}]},
+
+  {id:3,cat:"support",status:"review",from:"Priya Raman",email:"priya.r@quantleaf.com",subj:"URGENT: API returning 503 on production checkout",time:"18m",conf:71,
+    route:{to:"Tier-2 Engineering",reason:"Sev-1 escalation",score:71,col:"t-support"},
+    reason:"Language signals high urgency and a production outage. Sentiment is strongly negative. Confidence dropped because the affected endpoint could not be matched to a known service id — flagged for a human to confirm severity.",
+    fields:[
+      {k:"Reporter",v:"Priya Raman",c:96},
+      {k:"Account tier",v:"Enterprise · Platinum",c:88},
+      {k:"Severity",v:"Sev-1 (Critical)",c:74,flag:true,warn:"Severity inferred from tone — verify against SLA"},
+      {k:"Affected system",v:"Checkout API",c:69,flag:true,warn:"Endpoint not matched to a known service id"},
+      {k:"Error code",v:"HTTP 503",c:97,mono:true},
+      {k:"Sentiment",v:"Negative · Frustrated",c:82},
+      {k:"Order impact",v:"Blocking",c:80},
+    ],
+    raw:`This is the THIRD time today. Our <span class="hl">production checkout</span> is throwing <span class="hl g">503</span> errors and customers can't pay. We're on the <span class="hl p">Platinum</span> plan and this is unacceptable. Need someone NOW.`,
+    acts:[{i:"bolt",t:"Open Sev-1 incident",s:"Page on-call · Tier-2 Eng"},{i:"file",t:"Draft acknowledgement",s:"Empathetic, SLA-compliant tone"},{i:"link",t:"Attach status page",s:"Recent 503 spike detected"}]},
+
+  {id:4,cat:"order",status:"new",from:"Tomás Herrera",email:"orders@bluepeak-retail.com",subj:"Purchase order — 250x wireless modules",time:"26m",conf:95,
+    route:{to:"Order Fulfillment",reason:"In-stock SKU",score:95,col:"t-order"},
+    reason:"A clean purchase order with a recognized SKU and quantity. Requested ship-by date is feasible against current inventory; no manual review needed.",
+    fields:[
+      {k:"Customer",v:"BluePeak Retail",c:97},
+      {k:"SKU",v:"WM-200-BLK",c:96,mono:true},
+      {k:"Quantity",v:"250 units",c:98,mono:true},
+      {k:"Unit price",v:"$48.50",c:94,mono:true},
+      {k:"Order total",v:"$12,125.00",c:95,mono:true},
+      {k:"Ship-by",v:"Jul 02, 2026",c:90},
+      {k:"Ship to",v:"Austin, TX 78701",c:93},
+    ],
+    raw:`Please process a PO for <span class="hl">250 units</span> of <span class="hl g">WM-200-BLK</span> at <span class="hl">$48.50</span> each. Ship to our Austin warehouse by <span class="hl p">July 2</span>. Confirm availability.`,
+    acts:[{i:"file",t:"Create sales order",s:"Inventory reserved: 250/250"},{i:"link",t:"Generate pick list",s:"Warehouse: TX-Central"},{i:"bell",t:"Confirm with customer",s:"Auto-reply with order number"}]},
+
+  {id:5,cat:"contract",status:"review",from:"Legal — Vantage Media",email:"contracts@vantage-media.co",subj:"Countersigned MSA + amended liability clause",time:"41m",conf:68,
+    route:{to:"Legal Review",reason:"Clause change detected",score:68,col:"t-contract"},
+    reason:"This is a returned master agreement, but the liability cap differs from our standard template. The change is material, so the document is held for legal sign-off rather than auto-filed.",
+    fields:[
+      {k:"Counterparty",v:"Vantage Media Co.",c:95},
+      {k:"Document type",v:"Master Service Agreement",c:93},
+      {k:"Status",v:"Countersigned",c:90},
+      {k:"Term length",v:"24 months",c:87},
+      {k:"Liability cap",v:"$500,000",c:64,flag:true,warn:"Differs from template ($250k) — material change"},
+      {k:"Effective date",v:"Aug 01, 2026",c:85},
+      {k:"Auto-renew",v:"Yes · 12 mo",c:72,flag:true,warn:"Renewal terms ambiguous in section 9.2"},
+    ],
+    raw:`Attached is the <span class="hl">countersigned MSA</span>. Note we amended the <span class="hl g">liability cap to $500,000</span> in section 7. Term remains <span class="hl">24 months</span> with auto-renewal. Effective <span class="hl p">Aug 1</span>.`,
+    acts:[{i:"file",t:"Send to legal queue",s:"Flagged: clause deviation"},{i:"link",t:"Diff vs template",s:"2 material changes highlighted"},{i:"bell",t:"Set renewal alert",s:"60 days before Aug 2028"}]},
+
+  {id:6,cat:"invoice",status:"done",from:"Grace Okafor",email:"ap@meridian-cloud.com",subj:"Invoice MC-3391 for May hosting",time:"1h",conf:97,
+    route:{to:"Accounts Payable",reason:"Recurring vendor",score:97,col:"t-invoice"},
+    reason:"Recurring monthly hosting invoice from a trusted vendor. Amount is within the expected range for this subscription; auto-approved for payment scheduling.",
+    fields:[
+      {k:"Vendor",v:"Meridian Cloud",c:99},
+      {k:"Invoice number",v:"MC-3391",c:99,mono:true},
+      {k:"Amount due",v:"$3,200.00",c:98,mono:true},
+      {k:"Due date",v:"Jun 30, 2026",c:96},
+      {k:"Billing period",v:"May 2026",c:95},
+    ],
+    raw:`Your <span class="hl">May hosting invoice MC-3391</span> is ready. Amount: <span class="hl g">$3,200.00</span>, due <span class="hl">Jun 30</span>. Thanks for being a Meridian customer.`,
+    acts:[{i:"file",t:"Scheduled for payment",s:"Auto-approved · Jun 28"},{i:"link",t:"View in ledger",s:"Posted to G/L 6100"}]},
+
+  {id:7,cat:"lead",status:"new",from:"Aisha Bello",email:"aisha@finchpay.io",subj:"Partnership inquiry — embedded payments",time:"1h",conf:84,
+    route:{to:"Partnerships",reason:"Strategic fit",score:81,col:"t-lead"},
+    reason:"Not a direct sales lead but a partnership overture from a fintech. Routed to the partnerships team; intent classified as exploratory with no immediate revenue signal.",
+    fields:[
+      {k:"Contact",v:"Aisha Bello",c:95},
+      {k:"Company",v:"FinchPay",c:94},
+      {k:"Intent",v:"Partnership",c:88},
+      {k:"Topic",v:"Embedded payments",c:90},
+      {k:"Urgency",v:"Low",c:76},
+    ],
+    raw:`Hi team, we're exploring an <span class="hl">embedded payments partnership</span>. Would love to chat about integration. No rush — exploring options.`,
+    acts:[{i:"user",t:"Log partnership lead",s:"Owner: Partnerships"},{i:"file",t:"Draft holding reply",s:"Polite, low-commitment"}]},
+
+  {id:8,cat:"support",status:"new",from:"Liam O'Connor",email:"liam.oc@brightway.org",subj:"Password reset link expired again",time:"2h",conf:93,
+    route:{to:"Tier-1 Support",reason:"Known issue",score:93,col:"t-support"},
+    reason:"A common, low-severity account access issue matching a known help-center article. Sentiment is mildly annoyed but not critical; suitable for tier-1 self-service deflection.",
+    fields:[
+      {k:"Reporter",v:"Liam O'Connor",c:96},
+      {k:"Category",v:"Account access",c:94},
+      {k:"Severity",v:"Sev-3 (Low)",c:91},
+      {k:"Sentiment",v:"Neutral",c:88},
+      {k:"Matched article",v:"KB-114 Reset link TTL",c:85},
+    ],
+    raw:`The <span class="hl">password reset link</span> expired before I could use it — happened <span class="hl g">twice</span> now. Can you extend the window or send a fresh one?`,
+    acts:[{i:"file",t:"Send KB-114 + new link",s:"Auto-resolve suggested"},{i:"bell",t:"Mark as low priority",s:"Tier-1 queue"}]},
+
+  {id:9,cat:"order",status:"routed",from:"Sofia Marchetti",email:"procurement@altitude-gear.com",subj:"Reorder — 80x carbon frames, rush",time:"2h",conf:89,
+    route:{to:"Order Fulfillment",reason:"Rush flag",score:86,col:"t-order"},
+    reason:"A reorder with a rush request. Quantity exceeds standard stock, so partial fulfillment may be required; flagged the rush attribute for the fulfillment team.",
+    fields:[
+      {k:"Customer",v:"Altitude Gear",c:96},
+      {k:"SKU",v:"CF-700-RAW",c:93,mono:true},
+      {k:"Quantity",v:"80 units",c:95,mono:true},
+      {k:"Priority",v:"Rush",c:90},
+      {k:"Requested ship",v:"Jun 25, 2026",c:84,flag:true,warn:"Stock 60/80 — partial ship likely"},
+    ],
+    raw:`Need to <span class="hl">reorder 80x CF-700-RAW</span> carbon frames, <span class="hl g">rush</span> please — customer deadline. Ship by <span class="hl">Jun 25</span> if possible.`,
+    acts:[{i:"file",t:"Create rush order",s:"Reserved 60/80 · backorder 20"},{i:"bell",t:"Notify customer of split",s:"Partial ship + ETA"}]},
+
+  {id:10,cat:"invoice",status:"new",from:"Henrik Sandberg",email:"finance@polarworks.se",subj:"Faktura 8841 — konsulttjänster (multi-currency)",time:"3h",conf:77,
+    route:{to:"Accounts Payable",reason:"FX conversion needed",score:74,col:"t-invoice"},
+    reason:"A foreign-language invoice in SEK. Fields were extracted and translated, but the currency requires conversion at the booking rate; flagged so finance can confirm the exchange.",
+    fields:[
+      {k:"Vendor",v:"Polarworks AB",c:91},
+      {k:"Invoice number",v:"8841",c:95,mono:true},
+      {k:"Amount due",v:"kr 88,400.00",c:90,mono:true},
+      {k:"Currency",v:"SEK",c:93,flag:true,warn:"Non-USD — apply FX at booking rate"},
+      {k:"Approx. USD",v:"~$8,310",c:62,flag:true,warn:"Estimated · live rate not locked"},
+      {k:"Due date",v:"Jul 09, 2026",c:88},
+    ],
+    raw:`Hej, bifogat <span class="hl">faktura 8841</span> för konsulttjänster. Belopp: <span class="hl g">88 400 SEK</span>, förfaller <span class="hl">9 juli</span>. Tack!`,
+    acts:[{i:"file",t:"Create AP entry (SEK)",s:"Hold for FX confirmation"},{i:"link",t:"Fetch FX rate",s:"SEK→USD at booking date"}]},
+
+  {id:11,cat:"support",status:"new",from:"Noah Kim",email:"noah.kim@greenfield.co",subj:"Feature request: bulk CSV export",time:"4h",conf:90,
+    route:{to:"Product · Backlog",reason:"Enhancement",score:90,col:"t-support"},
+    reason:"Classified as a product enhancement rather than a defect. No SLA applies; routed to the product backlog and tagged for the data-export theme.",
+    fields:[
+      {k:"Reporter",v:"Noah Kim",c:95},
+      {k:"Type",v:"Feature request",c:92},
+      {k:"Theme",v:"Data export",c:89},
+      {k:"Sentiment",v:"Positive",c:91},
+      {k:"Vote weight",v:"Enterprise +3",c:80},
+    ],
+    raw:`Love the product! One ask — could we get a <span class="hl">bulk CSV export</span> for reports? Would save my team hours each week. <span class="hl g">Not urgent</span> but high value.`,
+    acts:[{i:"file",t:"Add to backlog",s:"Theme: Data export"},{i:"user",t:"Notify product owner",s:"Enterprise-weighted vote"}]},
+
+  {id:12,cat:"lead",status:"new",from:"Elena Vasquez",email:"e.vasquez@tidalflow.com",subj:"Pricing for 5-seat startup plan",time:"5h",conf:81,
+    route:{to:"Self-serve / SMB",reason:"Low ACV",score:78,col:"t-lead"},
+    reason:"A small-team inquiry with a low expected contract value. Routed to the self-serve funnel rather than an account executive; an automated pricing reply is suggested.",
+    fields:[
+      {k:"Contact",v:"Elena Vasquez",c:94},
+      {k:"Company",v:"Tidalflow",c:90},
+      {k:"Seats",v:"5",c:93,mono:true},
+      {k:"Segment",v:"SMB / Startup",c:85},
+      {k:"Intent",v:"Pricing inquiry",c:92},
+    ],
+    raw:`Hi! We're a <span class="hl">5-person startup</span> looking at your <span class="hl g">Starter plan</span>. Could you share <span class="hl">pricing</span> and any startup discounts?`,
+    acts:[{i:"file",t:"Send pricing + promo",s:"Startup discount eligible"},{i:"user",t:"Tag SMB funnel",s:"No AE assignment"}]},
+
+  {id:13,cat:"order",status:"done",from:"Raj Patel",email:"buyer@summit-tools.com",subj:"Confirmation needed — order ST-9920",time:"6h",conf:96,
+    route:{to:"Order Fulfillment",reason:"Confirmed",score:96,col:"t-order"},
+    reason:"A confirmation reply on an existing order. Matched to order ST-9920 and marked confirmed; no new action required beyond status update.",
+    fields:[
+      {k:"Customer",v:"Summit Tools",c:97},
+      {k:"Order ref",v:"ST-9920",c:98,mono:true},
+      {k:"Action",v:"Confirm shipment",c:94},
+      {k:"Quantity",v:"120 units",c:95,mono:true},
+    ],
+    raw:`Confirming order <span class="hl">ST-9920</span> for <span class="hl g">120 units</span> — please proceed with shipment. Thanks!`,
+    acts:[{i:"file",t:"Marked confirmed",s:"Status: shipped"}]},
+
+  {id:14,cat:"spam",status:"new",from:"Crypto Rewards",email:"win@offers-x9z.biz",subj:"🎉 You've been selected! Claim your $5000 bonus NOW",time:"6h",conf:99,
+    route:{to:"Quarantine",reason:"Spam signals",score:99,col:"t-spam"},
+    reason:"Multiple spam indicators: a mismatched display name, an unverified bulk domain, monetary bait, and urgency triggers. Confidently quarantined and excluded from all business routing.",
+    fields:[
+      {k:"Classification",v:"Spam / Phishing",c:99},
+      {k:"Risk signals",v:"4 detected",c:97},
+      {k:"Domain reputation",v:"Unverified",c:96},
+      {k:"Action",v:"Auto-quarantine",c:98},
+    ],
+    raw:`CONGRATULATIONS!!! You've been <span class="hl">selected</span> to claim <span class="hl g">$5000</span> in crypto rewards. Click <span class="hl p">HERE</span> NOW before it expires!!!`,
+    acts:[{i:"file",t:"Quarantined",s:"No business routing"}]},
+
+  {id:15,cat:"invoice",status:"new",from:"Maya Fischer",email:"billing@coreweave-it.com",subj:"Invoice CW-552 — overdue notice attached",time:"7h",conf:86,
+    route:{to:"Accounts Payable",reason:"Overdue flag",score:83,col:"t-invoice"},
+    reason:"An invoice carrying a past-due notice. Extracted the original amount and a late fee; flagged the overdue status so finance can prioritize and verify whether payment was already issued.",
+    fields:[
+      {k:"Vendor",v:"CoreWeave IT",c:94},
+      {k:"Invoice number",v:"CW-552",c:96,mono:true},
+      {k:"Original amount",v:"$6,400.00",c:92,mono:true},
+      {k:"Late fee",v:"$320.00",c:80,flag:true,warn:"Verify late fee against contract terms"},
+      {k:"Status",v:"Overdue · 12 days",c:88},
+    ],
+    raw:`Reminder: <span class="hl">Invoice CW-552</span> for <span class="hl g">$6,400</span> is now <span class="hl p">12 days overdue</span>. A late fee of $320 has been applied. Please remit promptly.`,
+    acts:[{i:"file",t:"Escalate to AP lead",s:"Overdue · verify payment status"},{i:"link",t:"Check prior payments",s:"Possible duplicate"}]},
+
+  {id:16,cat:"support",status:"new",from:"Carlos Mendes",email:"carlos@novabank.com",subj:"Integration webhook not firing on event",time:"8h",conf:88,
+    route:{to:"Tier-2 Engineering",reason:"Technical defect",score:85,col:"t-support"},
+    reason:"A reproducible technical defect with specific endpoint detail. Severity is moderate — degraded, not outage. Routed to tier-2 with the relevant integration context attached.",
+    fields:[
+      {k:"Reporter",v:"Carlos Mendes",c:95},
+      {k:"Category",v:"Integration / Webhooks",c:90},
+      {k:"Severity",v:"Sev-2 (High)",c:84},
+      {k:"Sentiment",v:"Neutral · technical",c:87},
+      {k:"Affected event",v:"invoice.paid",c:89,mono:true},
+    ],
+    raw:`Our <span class="hl">webhook</span> for the <span class="hl g">invoice.paid</span> event stopped firing since the last release. Other events work fine. Can engineering investigate?`,
+    acts:[{i:"bolt",t:"Open Sev-2 ticket",s:"Tier-2 · Integrations"},{i:"link",t:"Pull webhook logs",s:"Filter: invoice.paid"}]},
+
+  {id:17,cat:"contract",status:"new",from:"Procurement — Atlas Group",email:"vendor@atlasgroup.com",subj:"NDA for evaluation — please review and sign",time:"9h",conf:91,
+    route:{to:"Legal Review",reason:"Standard NDA",score:88,col:"t-contract"},
+    reason:"A standard mutual NDA with no detected deviations from common terms. Low risk; routed to legal for a quick countersign rather than full negotiation.",
+    fields:[
+      {k:"Counterparty",v:"Atlas Group",c:95},
+      {k:"Document type",v:"Mutual NDA",c:94},
+      {k:"Deviations",v:"None detected",c:89},
+      {k:"Term length",v:"3 years",c:88},
+      {k:"Governing law",v:"Delaware",c:86},
+    ],
+    raw:`Attached is our standard <span class="hl">mutual NDA</span> for the evaluation. <span class="hl g">3-year term</span>, governed by <span class="hl">Delaware</span> law. Please review and countersign.`,
+    acts:[{i:"file",t:"Route for countersign",s:"No deviations — fast track"},{i:"link",t:"Compare to template",s:"100% match"}]},
+
+  {id:18,cat:"lead",status:"new",from:"Yuki Tanaka",email:"yuki.tanaka@orbital-labs.jp",subj:"Re: Following up on our booth conversation",time:"11h",conf:83,
+    route:{to:"Enterprise Sales · APAC",reason:"Warm re-engage",score:80,col:"t-lead"},
+    reason:"A warm follow-up referencing a prior trade-show contact. Matched to an existing record and routed to APAC; intent is mid-funnel, suggesting a re-engagement sequence.",
+    fields:[
+      {k:"Contact",v:"Yuki Tanaka",c:93},
+      {k:"Company",v:"Orbital Labs",c:91},
+      {k:"Source",v:"Trade show · booth",c:85},
+      {k:"Intent",v:"Follow-up / re-engage",c:88},
+      {k:"Matched record",v:"Existing lead #4471",c:79},
+    ],
+    raw:`Hi, great meeting you at the <span class="hl">booth</span> last week! Following up as discussed — we'd like to <span class="hl g">explore further</span>. Are you free next week?`,
+    acts:[{i:"user",t:"Merge into lead #4471",s:"Existing record found"},{i:"cal",t:"Suggest APAC slots",s:"Timezone-aware"}]},
+];
+
+const ACT_ICONS = {
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  bolt:'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+};
+
+// ===== State & render =====
+let filterCat="all", sortBy="time", searchQ="", selId=null, processed=new Set();
+const list=document.getElementById('list');
+
+function confClass(c){return c>=90?'c-hi':c>=75?'c-md':'c-lo';}
+
+function initials(name){return name.split(/[\s—]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();}
+
+function renderList(){
+  let items=EMAILS.filter(e=>!processed.has(e.id));
+  if(filterCat!=="all") items=items.filter(e=>e.cat===filterCat);
+  if(searchQ){
+    const q=searchQ.toLowerCase();
+    items=items.filter(e=>
+      e.from.toLowerCase().includes(q)||e.subj.toLowerCase().includes(q)||e.email.toLowerCase().includes(q)||
+      e.fields.some(f=>String(f.v).toLowerCase().includes(q))
+    );
+  }
+  if(sortBy==="conf") items=[...items].sort((a,b)=>b.conf-a.conf);
+
+  if(!items.length){
+    list.innerHTML=`<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+      <h4>Queue is clear</h4><p>No emails match this view — nicely done.</p></div>`;
+    return;
+  }
+
+  list.innerHTML=items.map(e=>{
+    const c=CAT[e.cat], st=STATUS[e.status];
+    const cc=confClass(e.conf);
+    const ring=ringSVG(e.conf,cc);
+    return `<div class="row ${selId===e.id?'sel':''}" data-id="${e.id}">
+      <div class="av-cat ${c.cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${c.icon}</svg></div>
+      <div class="r-mid">
+        <div class="r-line1"><span class="r-from">${e.from}</span></div>
+        <div class="r-subj">${e.subj}</div>
+        <div class="r-meta">
+          <span class="chip ${c.cls}">${c.label}</span>
+          <span class="chip ${st.cls}">${st.label}</span>
+          <span class="chip muted">${e.fields.length} fields</span>
+        </div>
+      </div>
+      <div class="r-right">
+        <span class="r-time">${e.time} ago</span>
+        <div class="conf">${ring}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.row').forEach(r=>r.addEventListener('click',()=>openDetail(+r.dataset.id)));
+}
+
+function ringSVG(pct,cc){
+  const col=cc==='c-hi'?'#059669':cc==='c-md'?'#d97706':'#dc2626';
+  const r=14,circ=2*Math.PI*r,off=circ*(1-pct/100);
+  return `<svg class="conf-ring" viewBox="0 0 34 34">
+    <circle cx="17" cy="17" r="${r}" fill="none" stroke="#e3e6eb" stroke-width="3.5"/>
+    <circle cx="17" cy="17" r="${r}" fill="none" stroke="${col}" stroke-width="3.5" stroke-linecap="round"
+      stroke-dasharray="${circ}" stroke-dashoffset="${off}" transform="rotate(-90 17 17)"/>
+    <text x="17" y="20.5" text-anchor="middle" font-size="9.5" font-weight="700" fill="${col}">${pct}</text>
+  </svg>`;
+}
+
+// ===== Detail =====
+function openDetail(id){
+  const e=EMAILS.find(x=>x.id===id); if(!e) return;
+  selId=id;
+  const c=CAT[e.cat];
+  document.getElementById('split').classList.add('open');
+
+  const dCat=document.getElementById('dCat');
+  dCat.className='d-cat '+c.cls;
+  dCat.innerHTML=`<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2">${c.icon}</svg>${c.label}`;
+  document.getElementById('dSubj').textContent=e.subj;
+  document.getElementById('dAv').textContent=initials(e.from);
+  document.getElementById('dName').textContent=e.from;
+  document.getElementById('dEmail').textContent=e.email;
+  document.getElementById('dWhen').innerHTML=`${e.time} ago<br><span style="opacity:.7">${e.fields.length} fields parsed</span>`;
+
+  const rt=e.route, cc=confClass(e.conf);
+  const fieldsHTML=e.fields.map(f=>{
+    const fc=confClass(f.c);
+    return `<div class="field ${f.flag?'flag':''}">
+      <div class="f-key">${f.k}</div>
+      <div class="f-val ${f.mono?'mono':''}">${f.v}</div>
+      <div class="f-conf ${fc}">
+        <div class="cbar"><i style="width:${f.c}%"></i></div>
+        <span class="cpct">${f.c}%</span>
+      </div>
+      ${f.warn?`<div class="warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>${f.warn}</div>`:''}
+    </div>`;
+  }).join('');
+
+  const actsHTML=e.acts.map(a=>`<div class="act">
+    <div class="aIco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ACT_ICONS[a.i]||ACT_ICONS.file}</svg></div>
+    <div class="aTxt"><b>${a.t}</b><small>${a.s}</small></div>
+    <button class="go" data-act="${a.t}">Run</button>
+  </div>`).join('');
+
+  document.getElementById('dBody').innerHTML=`
+    <div class="ai-banner">
+      <div class="spin"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
+      <div class="txt"><b>Parsed by AI · ${e.fields.length} fields extracted</b><p>Overall confidence ${e.conf}% · classified as ${c.label}</p></div>
+      <div class="ovr" style="cursor:pointer" id="ovrBtn">Correct fields →</div>
+    </div>
+
+    <div class="sec-title">Routing decision <span class="ai-tag">AI</span></div>
+    <div class="route">
+      <div class="rIco ${rt.col}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div class="rMid"><b>Route to ${rt.to}</b><p>${rt.reason}</p></div>
+      <div class="rScore"><div class="n" style="color:${cc==='c-hi'?'#059669':cc==='c-md'?'#d97706':'#dc2626'}">${rt.score}</div><small>match</small></div>
+    </div>
+    <div class="reason">${e.reason}</div>
+
+    <div class="sec-title">Extracted fields <span class="ai-tag">AI</span></div>
+    <div class="fields">${fieldsHTML}</div>
+
+    <div class="sec-title">Original message</div>
+    <div class="raw">${e.raw.replace(/\n/g,'<br>')}</div>
+
+    <div class="sec-title">Suggested actions <span class="ai-tag">AI</span></div>
+    <div class="acts">${actsHTML}</div>
+  `;
+
+  document.querySelectorAll('.go').forEach(b=>b.addEventListener('click',ev=>{
+    ev.stopPropagation();
+    toast(`"${b.dataset.act}" queued`);
+    b.textContent='Queued';b.style.opacity='.6';b.disabled=true;
+  }));
+  document.getElementById('ovrBtn').addEventListener('click',()=>toast('Field correction mode — your edits retrain the parser'));
+
+  renderList();
+}
+
+function closeDetail(){
+  selId=null;
+  document.getElementById('split').classList.remove('open');
+  renderList();
+}
+
+// ===== Toast =====
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+// ===== Events =====
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  filterCat=t.dataset.cat;
+  renderList();
+}));
+
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  sortBy=b.dataset.sort;
+  renderList();
+}));
+
+document.getElementById('search').addEventListener('input',e=>{searchQ=e.target.value;renderList();});
+document.getElementById('closeBtn').addEventListener('click',closeDetail);
+
+document.getElementById('approveBtn').addEventListener('click',()=>{
+  if(selId==null) return;
+  const e=EMAILS.find(x=>x.id===selId);
+  processed.add(selId);
+  toast(`Approved — routed to ${e.route.to}`);
+  closeDetail();
+});
+document.getElementById('rejectBtn').addEventListener('click',()=>{
+  if(selId==null) return;
+  processed.add(selId);
+  toast('Email discarded');
+  closeDetail();
+});
+
+document.getElementById('ingestBtn').addEventListener('click',()=>toast('Listening on inbox — new emails parse automatically'));
+document.getElementById('autoBtn').addEventListener('click',()=>{
+  const btn=document.getElementById('autoBtn');
+  btn.querySelector('svg').classList.add('live');
+  toast('Re-parsing queue with the latest model…');
+  setTimeout(()=>btn.querySelector('svg').classList.remove('live'),1800);
+});
+
+// ===== Init =====
+renderList();
+setTimeout(()=>openDetail(1),300);
+</script>
+</body>
+</html>

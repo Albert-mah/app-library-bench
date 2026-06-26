@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helpdesk Board — IT Support</title>
+<style>
+  :root{
+    --volcano:#fa541c; --volcano-dark:#d4380d; --volcano-soft:#fff2e8;
+    --p0:#ff4d4f; --p1:#fa8c16; --p2:#faad14; --p3:#1677ff;
+    --ink:#1f1f1f; --ink-2:#595959; --ink-3:#8c8c8c;
+    --line:#f0f0f0; --line-2:#e8e8e8; --bg:#fafafa; --white:#fff;
+    --r:10px; --shadow:0 1px 2px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.04);
+    --shadow-lg:0 6px 24px rgba(0,0,0,.12);
+    --lane-open:#fff5f0; --lane-prog:#f0f7ff; --lane-res:#f0fbf3; --lane-closed:#f6f6f6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg);
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+    font-size:13.5px; -webkit-font-smoothing:antialiased;
+  }
+
+  /* ===== Top app bar ===== */
+  .appbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:18px;
+    padding:0 20px; height:56px; background:var(--white);
+    border-bottom:1px solid var(--line-2); z-index:30;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:15px; white-space:nowrap}
+  .brand .mark{
+    width:28px; height:28px; border-radius:8px; flex:0 0 auto;
+    background:linear-gradient(135deg,var(--volcano),#ff7a45);
+    display:grid; place-items:center; color:#fff; font-size:15px; font-weight:800;
+    box-shadow:0 2px 6px rgba(250,84,28,.35);
+  }
+  .brand small{color:var(--ink-3); font-weight:500; font-size:11.5px}
+
+  .views{display:flex; align-items:center; gap:2px; margin-left:6px; background:var(--bg); padding:3px; border-radius:9px}
+  .views button{
+    border:0; background:transparent; padding:6px 12px; border-radius:7px;
+    font:inherit; font-size:12.5px; font-weight:600; color:var(--ink-2); cursor:pointer;
+  }
+  .views button.on{background:var(--white); color:var(--ink); box-shadow:var(--shadow)}
+
+  .filters{display:flex; align-items:center; gap:8px; margin-left:4px}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-2);
+    background:var(--white); border-radius:8px; padding:6px 11px; font:inherit; font-size:12.5px;
+    color:var(--ink-2); cursor:pointer; font-weight:500; white-space:nowrap;
+  }
+  .chip:hover{border-color:#d9d9d9}
+  .chip.active{border-color:var(--volcano); color:var(--volcano-dark); background:var(--volcano-soft); font-weight:600}
+  .chip .dot{width:8px;height:8px;border-radius:50%}
+
+  .search{position:relative; margin-left:auto}
+  .search input{
+    width:230px; border:1px solid var(--line-2); border-radius:9px;
+    padding:8px 12px 8px 32px; font:inherit; font-size:12.5px; background:var(--bg);
+    transition:.15s;
+  }
+  .search input:focus{outline:none; border-color:var(--volcano); background:#fff; box-shadow:0 0 0 3px rgba(250,84,28,.1)}
+  .search svg{position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--ink-3)}
+
+  .avatars{display:flex; align-items:center}
+  .avatars .av{margin-left:-7px; border:2px solid #fff}
+  .av{
+    width:28px; height:28px; border-radius:50%; flex:0 0 auto; color:#fff;
+    display:grid; place-items:center; font-size:11px; font-weight:700; letter-spacing:.2px;
+  }
+  .btn-new{
+    border:0; background:var(--volcano); color:#fff; font:inherit; font-weight:600; font-size:13px;
+    padding:8px 15px; border-radius:9px; cursor:pointer; display:flex; align-items:center; gap:6px;
+    box-shadow:0 2px 8px rgba(250,84,28,.3); white-space:nowrap;
+  }
+  .btn-new:hover{background:var(--volcano-dark)}
+
+  /* ===== Board ===== */
+  .board{
+    flex:1 1 auto; display:grid; grid-template-columns:repeat(4,1fr);
+    gap:14px; padding:14px 16px 18px; overflow:hidden; min-height:0;
+  }
+  .lane{
+    display:flex; flex-direction:column; min-height:0; border-radius:14px;
+    border:1px solid var(--line); overflow:hidden;
+  }
+  .lane[data-col="open"]{background:var(--lane-open)}
+  .lane[data-col="progress"]{background:var(--lane-prog)}
+  .lane[data-col="resolved"]{background:var(--lane-res)}
+  .lane[data-col="closed"]{background:var(--lane-closed)}
+  .lane.dragover{outline:2px dashed var(--volcano); outline-offset:-3px}
+
+  .lane-head{
+    flex:0 0 auto; display:flex; align-items:center; gap:9px;
+    padding:13px 14px 11px; font-weight:700; font-size:13px;
+  }
+  .lane-head .lh-dot{width:9px; height:9px; border-radius:50%}
+  .lane[data-col="open"] .lh-dot{background:var(--p0)}
+  .lane[data-col="progress"] .lh-dot{background:var(--p3)}
+  .lane[data-col="resolved"] .lh-dot{background:#52c41a}
+  .lane[data-col="closed"] .lh-dot{background:var(--ink-3)}
+  .lane-head .count{
+    background:rgba(0,0,0,.06); color:var(--ink-2); border-radius:20px;
+    padding:1px 9px; font-size:11.5px; font-weight:700; min-width:22px; text-align:center;
+  }
+  .lane-head .add{margin-left:auto; border:0; background:transparent; color:var(--ink-3); cursor:pointer; font-size:18px; line-height:1; width:24px; height:24px; border-radius:6px}
+  .lane-head .add:hover{background:rgba(0,0,0,.06); color:var(--ink)}
+
+  .lane-body{flex:1 1 auto; overflow-y:auto; padding:2px 10px 12px; display:flex; flex-direction:column; gap:9px}
+  .lane-body::-webkit-scrollbar{width:8px}
+  .lane-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12); border-radius:8px; border:2px solid transparent; background-clip:padding-box}
+
+  /* ===== Card ===== */
+  .card{
+    background:var(--white); border:1px solid var(--line); border-radius:var(--r);
+    padding:11px 12px 10px; cursor:pointer; box-shadow:var(--shadow);
+    transition:transform .1s, box-shadow .15s, border-color .15s; position:relative;
+  }
+  .card:hover{box-shadow:var(--shadow-lg); border-color:#e0e0e0; transform:translateY(-1px)}
+  .card.dragging{opacity:.45; transform:rotate(1.5deg)}
+  .card-top{display:flex; align-items:center; gap:7px; margin-bottom:7px}
+  .pri{
+    font-size:10.5px; font-weight:800; letter-spacing:.4px; color:#fff;
+    padding:2px 7px; border-radius:5px; flex:0 0 auto;
+  }
+  .pri.P0{background:var(--p0)} .pri.P1{background:var(--p1)}
+  .pri.P2{background:var(--p2)} .pri.P3{background:var(--p3)}
+  .cat{
+    font-size:10.5px; font-weight:600; color:var(--ink-2); background:var(--bg);
+    border:1px solid var(--line-2); padding:2px 7px; border-radius:5px; white-space:nowrap;
+  }
+  .tid{margin-left:auto; font-size:10.5px; color:var(--ink-3); font-weight:600; font-variant-numeric:tabular-nums}
+  .card h4{font-size:13px; font-weight:600; line-height:1.35; margin-bottom:9px; color:var(--ink)}
+  .card-foot{display:flex; align-items:center; gap:8px}
+  .req{display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--ink-3); min-width:0}
+  .req span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .sla{
+    margin-left:auto; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:20px; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:4px;
+  }
+  .sla.ok{background:#f0fbf3; color:#389e0d}
+  .sla.warn{background:#fffbe6; color:#d48806}
+  .sla.breach{background:#fff1f0; color:#cf1322}
+  .sla.done{background:#f5f5f5; color:#8c8c8c}
+  .sla::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.8}
+  .av.sm{width:24px; height:24px; font-size:10px}
+  .card.hidden{display:none}
+
+  .empty-lane{color:var(--ink-3); font-size:12px; text-align:center; padding:24px 8px; border:1px dashed var(--line-2); border-radius:10px; margin:2px 0}
+
+  /* ===== Slide-over ===== */
+  .scrim{position:fixed; inset:0; background:rgba(0,0,0,.3); opacity:0; pointer-events:none; transition:.2s; z-index:40}
+  .scrim.show{opacity:1; pointer-events:auto}
+  .panel{
+    position:fixed; top:0; right:0; height:100vh; width:460px; max-width:92vw;
+    background:var(--white); box-shadow:-8px 0 30px rgba(0,0,0,.16); z-index:50;
+    transform:translateX(100%); transition:transform .26s cubic-bezier(.4,0,.2,1);
+    display:flex; flex-direction:column;
+  }
+  .panel.show{transform:translateX(0)}
+  .panel-head{flex:0 0 auto; padding:18px 20px 14px; border-bottom:1px solid var(--line)}
+  .panel-head .row1{display:flex; align-items:center; gap:8px; margin-bottom:12px}
+  .panel-close{margin-left:auto; border:0; background:var(--bg); width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:17px; color:var(--ink-2); line-height:1}
+  .panel-close:hover{background:var(--line-2)}
+  .panel-head h2{font-size:17px; font-weight:700; line-height:1.35}
+  .panel-body{flex:1 1 auto; overflow-y:auto; padding:18px 20px}
+  .meta-grid{display:grid; grid-template-columns:auto 1fr; gap:11px 16px; align-items:center; margin-bottom:20px}
+  .meta-grid dt{font-size:12px; color:var(--ink-3); font-weight:600}
+  .meta-grid dd{font-size:13px; display:flex; align-items:center; gap:7px}
+  .status-tag{font-size:11px; font-weight:700; padding:3px 9px; border-radius:6px}
+  .status-tag.open{background:var(--lane-open); color:var(--p0)}
+  .status-tag.progress{background:var(--lane-prog); color:var(--p3)}
+  .status-tag.resolved{background:var(--lane-res); color:#389e0d}
+  .status-tag.closed{background:#f0f0f0; color:var(--ink-2)}
+  .sect-label{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin:6px 0 9px}
+  .desc{font-size:13px; line-height:1.6; color:var(--ink-2); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px 13px; margin-bottom:22px}
+
+  .thread{display:flex; flex-direction:column; gap:15px; margin-bottom:14px}
+  .cmt{display:flex; gap:10px}
+  .cmt .body{flex:1; min-width:0}
+  .cmt .by{display:flex; align-items:baseline; gap:8px; margin-bottom:3px}
+  .cmt .by b{font-size:12.5px; font-weight:700}
+  .cmt .by time{font-size:11px; color:var(--ink-3)}
+  .cmt .txt{font-size:12.5px; line-height:1.55; color:var(--ink-2)}
+  .cmt.sys .txt{font-style:italic; color:var(--ink-3); background:var(--bg); padding:7px 10px; border-radius:8px; border:1px dashed var(--line-2)}
+
+  .composer{flex:0 0 auto; border-top:1px solid var(--line); padding:13px 20px; display:flex; gap:9px; align-items:flex-end; background:var(--white)}
+  .composer textarea{
+    flex:1; resize:none; border:1px solid var(--line-2); border-radius:10px; padding:9px 11px;
+    font:inherit; font-size:12.5px; line-height:1.4; min-height:38px; max-height:120px;
+  }
+  .composer textarea:focus{outline:none; border-color:var(--volcano); box-shadow:0 0 0 3px rgba(250,84,28,.1)}
+  .composer button{border:0; background:var(--volcano); color:#fff; font:inherit; font-weight:600; padding:9px 15px; border-radius:10px; cursor:pointer}
+  .composer button:hover{background:var(--volcano-dark)}
+
+  @media(max-width:1100px){
+    .board{grid-template-columns:repeat(2,1fr); grid-auto-rows:1fr}
+    .filters{display:none}
+  }
+  @media(max-width:680px){
+    .board{grid-template-columns:1fr; overflow-y:auto}
+    .lane{min-height:300px}
+    .views{display:none}
+    .search input{width:140px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Top app bar ===== -->
+<header class="appbar">
+  <div class="brand">
+    <div class="mark">⛑</div>
+    <div>Helpdesk Board <small>IT Support · Acme Corp</small></div>
+  </div>
+
+  <div class="views">
+    <button class="on">Board</button>
+    <button onclick="alert('List view — not in prototype')">List</button>
+    <button onclick="alert('Timeline view — not in prototype')">Timeline</button>
+  </div>
+
+  <div class="filters" id="filters">
+    <button class="chip active" data-pri="all">All priorities</button>
+    <button class="chip" data-pri="P0"><span class="dot" style="background:var(--p0)"></span>P0</button>
+    <button class="chip" data-pri="P1"><span class="dot" style="background:var(--p1)"></span>P1</button>
+    <button class="chip" data-pri="P2"><span class="dot" style="background:var(--p2)"></span>P2</button>
+    <button class="chip" data-pri="P3"><span class="dot" style="background:var(--p3)"></span>P3</button>
+  </div>
+
+  <div class="search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="q" placeholder="Search tickets…">
+  </div>
+
+  <div class="avatars" title="Team online">
+    <div class="av" style="background:#722ed1">MK</div>
+    <div class="av" style="background:#13c2c2">JL</div>
+    <div class="av" style="background:#eb2f96">SR</div>
+    <div class="av" style="background:#1677ff">DV</div>
+  </div>
+
+  <button class="btn-new" onclick="alert('New ticket form — not in prototype')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    New
+  </button>
+</header>
+
+<!-- ===== Board ===== -->
+<main class="board" id="board"></main>
+
+<!-- ===== Slide-over ===== -->
+<div class="scrim" id="scrim" onclick="closePanel()"></div>
+<aside class="panel" id="panel" aria-hidden="true">
+  <div class="panel-head">
+    <div class="row1">
+      <span class="pri" id="p-pri">P1</span>
+      <span class="cat" id="p-cat">Network</span>
+      <span class="tid" id="p-id">#IT-1042</span>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <h2 id="p-title">Ticket title</h2>
+  </div>
+  <div class="panel-body">
+    <dl class="meta-grid">
+      <dt>Status</dt><dd><span class="status-tag" id="p-status">Open</span></dd>
+      <dt>Requester</dt><dd id="p-req"></dd>
+      <dt>Assignee</dt><dd id="p-assignee"></dd>
+      <dt>SLA</dt><dd id="p-sla"></dd>
+      <dt>Created</dt><dd id="p-created"></dd>
+    </dl>
+    <div class="sect-label">Description</div>
+    <div class="desc" id="p-desc"></div>
+    <div class="sect-label">Activity</div>
+    <div class="thread" id="p-thread"></div>
+  </div>
+  <div class="composer">
+    <textarea id="p-reply" placeholder="Add a comment…" rows="1"></textarea>
+    <button onclick="postComment()">Reply</button>
+  </div>
+</aside>
+
+<script>
+/* ---------- Data ---------- */
+const PEOPLE = {
+  MK:{n:"Maya Khan",c:"#722ed1"}, JL:{n:"Jon Lee",c:"#13c2c2"},
+  SR:{n:"Sara Reyes",c:"#eb2f96"}, DV:{n:"Dev Varma",c:"#1677ff"},
+  TN:{n:"Tom Nguyen",c:"#fa8c16"}, AB:{n:"Aisha Bello",c:"#52c41a"},
+  PG:{n:"Pat Green",c:"#2f54eb"}, RC:{n:"Rosa Costa",c:"#eb2f96"},
+  KW:{n:"Ken Wu",c:"#08979c"}, LM:{n:"Lara Moss",c:"#d4380d"},
+  HF:{n:"Henry Fox",c:"#531dab"}, NB:{n:"Nina Bloom",c:"#c41d7f"},
+};
+const av = (id,sm)=>`<div class="av${sm?' sm':''}" style="background:${PEOPLE[id].c}">${id}</div>`;
+
+const TICKETS = [
+  {id:"IT-1051",pri:"P0",cat:"Outage",col:"open",title:"Email server down — no inbound or outbound mail company-wide",
+   req:"AB",asg:"MK",sla:"breach",slaTxt:"Breached 12m",created:"Jun 3, 09:48",
+   desc:"Exchange relay rejecting all connections since 09:30. Multiple departments reporting bounce-backs. Suspected disk full on MX01.",
+   thread:[["sys","",`Auto-escalated to P0 by SLA monitor`,"09:36"],["MK","Maya Khan","On it — checking MX01 disk and queue depth now.","09:42"],["AB","Aisha Bello","Finance can't send invoices, this is urgent.","09:45"]]},
+
+  {id:"IT-1050",pri:"P2",cat:"Access",col:"open",title:"New hire needs VPN + Slack + Jira accounts provisioned",
+   req:"PG",asg:"JL",sla:"ok",slaTxt:"Due in 6h",created:"Jun 3, 09:10",
+   desc:"Starting Monday in Marketing. Needs standard SaaS bundle, VPN profile, and a managed laptop image.",
+   thread:[["JL","Jon Lee","Created AD account, VPN profile pending HR confirmation of start date.","09:25"]]},
+
+  {id:"IT-1048",pri:"P1",cat:"Hardware",col:"open",title:"Laptop won't boot after Windows update — black screen",
+   req:"RC",asg:"DV",sla:"warn",slaTxt:"Due in 50m",created:"Jun 3, 08:30",
+   desc:"Dell Latitude 7440. Powers on, fan spins, but display stays black past BIOS. Started after last night's feature update.",
+   thread:[["RC","Rosa Costa","I have a client demo at noon, any loaner available?","08:40"],["DV","Dev Varma","Bringing a loaner + will try recovery boot. ETA 30 min.","08:52"]]},
+
+  {id:"IT-1047",pri:"P3",cat:"Software",col:"open",title:"Request: install Figma desktop on design workstation",
+   req:"NB",asg:"",sla:"ok",slaTxt:"Due in 2d",created:"Jun 2, 16:20",
+   desc:"Need the latest Figma desktop app and font sync tooling on WS-DES-04.",
+   thread:[]},
+
+  {id:"IT-1045",pri:"P1",cat:"Security",col:"progress",title:"Phishing email reported — credentials possibly entered",
+   req:"KW",asg:"SR",sla:"warn",slaTxt:"Due in 35m",created:"Jun 3, 07:55",
+   desc:"User clicked a spoofed Microsoft login and may have entered password. Need forced reset + session revoke + mailbox audit.",
+   thread:[["SR","Sara Reyes","Revoked all sessions, forced MFA re-enrollment. Running mailbox rule audit now.","08:10"],["sys","",`Linked to security incident SEC-220`,"08:12"]]},
+
+  {id:"IT-1044",pri:"P2",cat:"Network",col:"progress",title:"Wi-Fi keeps dropping on 4th floor west wing",
+   req:"LM",asg:"DV",sla:"ok",slaTxt:"Due in 4h",created:"Jun 2, 14:05",
+   desc:"Intermittent disconnects every ~10 min on the west wing. Wired connections fine. Possible AP channel interference.",
+   thread:[["DV","Dev Varma","Pulled AP logs — AP-4W-02 is flapping. Scheduling a swap.","Jun 2, 15:20"]]},
+
+  {id:"IT-1043",pri:"P2",cat:"Account",col:"progress",title:"Password reset loop — MFA not accepting codes",
+   req:"HF",asg:"JL",sla:"ok",slaTxt:"Due in 3h",created:"Jun 3, 08:05",
+   desc:"Authenticator codes rejected as invalid. Device clock drift suspected after the user reset their phone.",
+   thread:[["JL","Jon Lee","Re-synced authenticator time on device, asked user to re-add account.","08:30"]]},
+
+  {id:"IT-1040",pri:"P3",cat:"Software",col:"progress",title:"Excel macro fails with runtime error 1004 on shared report",
+   req:"PG",asg:"MK",sla:"ok",slaTxt:"Due in 1d",created:"Jun 1, 11:40",
+   desc:"Monthly finance macro errors on the consolidation step. Works on one machine, fails on another — likely missing reference.",
+   thread:[["MK","Maya Khan","Reproduced. Missing Solver add-in reference on the failing machine.","Jun 2, 09:15"]]},
+
+  {id:"IT-1037",pri:"P1",cat:"Hardware",col:"resolved",title:"Conference room A projector not displaying HDMI input",
+   req:"AB",asg:"DV",sla:"done",slaTxt:"Resolved",created:"Jun 2, 10:00",
+   desc:"Projector shows 'No Signal' on all HDMI sources in the main boardroom.",
+   thread:[["DV","Dev Varma","Faulty HDMI matrix switcher — swapped unit, all inputs working.","Jun 2, 13:30"],["AB","Aisha Bello","Confirmed, thanks!","Jun 2, 13:45"]]},
+
+  {id:"IT-1035",pri:"P2",cat:"Access",col:"resolved",title:"Shared drive permissions missing for Sales team folder",
+   req:"RC",asg:"SR",sla:"done",slaTxt:"Resolved",created:"Jun 1, 15:10",
+   desc:"Three sales reps lost write access to the Sales directory on the file share after a group cleanup.",
+   thread:[["SR","Sara Reyes","Re-added the Sales-RW security group to the folder ACL.","Jun 2, 09:50"]]},
+
+  {id:"IT-1031",pri:"P3",cat:"Software",col:"resolved",title:"Zoom plugin for Outlook missing after reinstall",
+   req:"KW",asg:"JL",sla:"done",slaTxt:"Resolved",created:"May 31, 13:20",
+   desc:"Schedule-a-meeting button gone from Outlook ribbon after Office reinstall.",
+   thread:[["JL","Jon Lee","Reinstalled the Zoom Outlook add-in and re-enabled in COM add-ins.","Jun 1, 10:05"]]},
+
+  {id:"IT-1024",pri:"P2",cat:"Hardware",col:"closed",title:"Replace failing SSD in design workstation WS-DES-02",
+   req:"NB",asg:"MK",sla:"done",slaTxt:"Closed",created:"May 28, 09:30",
+   desc:"SMART warnings indicating imminent drive failure. Clone + replace before data loss.",
+   thread:[["MK","Maya Khan","Cloned to new NVMe, verified boot, RMA'd old drive.","May 29, 14:00"],["sys","",`Ticket closed after 48h verification window`,"May 31, 14:00"]]},
+];
+
+let activeFilter = "all", searchTerm = "", currentId = null;
+
+const COLS = [
+  {key:"open",     label:"Open"},
+  {key:"progress", label:"In Progress"},
+  {key:"resolved", label:"Resolved"},
+  {key:"closed",   label:"Closed"},
+];
+
+/* ---------- Render board ---------- */
+function renderBoard(){
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  COLS.forEach(c=>{
+    const lane = document.createElement("section");
+    lane.className = "lane"; lane.dataset.col = c.key;
+    lane.innerHTML = `
+      <div class="lane-head">
+        <span class="lh-dot"></span>${c.label}
+        <span class="count" data-count="${c.key}">0</span>
+        <button class="add" onclick="alert('Add ticket to ${c.label} — not in prototype')">+</button>
+      </div>
+      <div class="lane-body" data-body="${c.key}"></div>`;
+    lane.addEventListener("dragover", e=>{e.preventDefault(); lane.classList.add("dragover");});
+    lane.addEventListener("dragleave", ()=> lane.classList.remove("dragover"));
+    lane.addEventListener("drop", e=>{
+      e.preventDefault(); lane.classList.remove("dragover");
+      const id = e.dataTransfer.getData("text/plain");
+      const t = TICKETS.find(x=>x.id===id);
+      if(t){ t.col = c.key; if(c.key==="resolved"||c.key==="closed"){t.sla="done"; t.slaTxt = c.key==="closed"?"Closed":"Resolved";} renderBoard(); }
+    });
+    board.appendChild(lane);
+  });
+  renderCards();
+}
+
+function matches(t){
+  if(activeFilter!=="all" && t.pri!==activeFilter) return false;
+  if(searchTerm){
+    const hay = (t.title+" "+t.id+" "+t.cat+" "+PEOPLE[t.req].n+" "+(t.asg?PEOPLE[t.asg].n:"")).toLowerCase();
+    if(!hay.includes(searchTerm)) return false;
+  }
+  return true;
+}
+
+function renderCards(){
+  const counts = {open:0,progress:0,resolved:0,closed:0};
+  COLS.forEach(c=> document.querySelector(`[data-body="${c.key}"]`).innerHTML = "");
+  TICKETS.forEach(t=>{
+    const body = document.querySelector(`[data-body="${t.col}"]`);
+    const visible = matches(t);
+    if(visible) counts[t.col]++;
+    const card = document.createElement("article");
+    card.className = "card" + (visible?"":" hidden");
+    card.draggable = true;
+    card.dataset.id = t.id;
+    card.onclick = ()=> openPanel(t.id);
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="pri ${t.pri}">${t.pri}</span>
+        <span class="cat">${t.cat}</span>
+        <span class="tid">#${t.id}</span>
+      </div>
+      <h4>${t.title}</h4>
+      <div class="card-foot">
+        <div class="req">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <span>${PEOPLE[t.req].n}</span>
+        </div>
+        ${t.asg?av(t.asg,true):'<div class="av sm" style="background:#bfbfbf" title="Unassigned">?</div>'}
+        <span class="sla ${t.sla}">${t.slaTxt}</span>
+      </div>`;
+    card.addEventListener("dragstart", e=>{ e.dataTransfer.setData("text/plain",t.id); card.classList.add("dragging"); });
+    card.addEventListener("dragend", ()=> card.classList.remove("dragging"));
+    body.appendChild(card);
+  });
+  COLS.forEach(c=>{
+    document.querySelector(`[data-count="${c.key}"]`).textContent = counts[c.key];
+    const body = document.querySelector(`[data-body="${c.key}"]`);
+    if(counts[c.key]===0){
+      const e = document.createElement("div");
+      e.className="empty-lane";
+      e.textContent = (searchTerm||activeFilter!=="all") ? "No matching tickets" : "No tickets";
+      body.appendChild(e);
+    }
+  });
+}
+
+/* ---------- Filters & search ---------- */
+document.getElementById("filters").addEventListener("click", e=>{
+  const b = e.target.closest(".chip"); if(!b) return;
+  document.querySelectorAll("#filters .chip").forEach(c=>c.classList.remove("active"));
+  b.classList.add("active");
+  activeFilter = b.dataset.pri;
+  renderCards();
+});
+document.getElementById("q").addEventListener("input", e=>{
+  searchTerm = e.target.value.trim().toLowerCase();
+  renderCards();
+});
+
+/* ---------- Slide-over ---------- */
+const STATUS_LABEL = {open:"Open",progress:"In Progress",resolved:"Resolved",closed:"Closed"};
+function openPanel(id){
+  const t = TICKETS.find(x=>x.id===id); if(!t) return;
+  currentId = id;
+  document.getElementById("p-pri").className = "pri "+t.pri;
+  document.getElementById("p-pri").textContent = t.pri;
+  document.getElementById("p-cat").textContent = t.cat;
+  document.getElementById("p-id").textContent = "#"+t.id;
+  document.getElementById("p-title").textContent = t.title;
+  const st = document.getElementById("p-status");
+  st.className = "status-tag "+t.col; st.textContent = STATUS_LABEL[t.col];
+  document.getElementById("p-req").innerHTML = av(t.req,true)+`<span>${PEOPLE[t.req].n}</span>`;
+  document.getElementById("p-assignee").innerHTML = t.asg ? av(t.asg,true)+`<span>${PEOPLE[t.asg].n}</span>` : `<span style="color:var(--ink-3)">Unassigned</span>`;
+  document.getElementById("p-sla").innerHTML = `<span class="sla ${t.sla}">${t.slaTxt}</span>`;
+  document.getElementById("p-created").textContent = t.created;
+  document.getElementById("p-desc").textContent = t.desc;
+  renderThread(t);
+  document.getElementById("scrim").classList.add("show");
+  document.getElementById("panel").classList.add("show");
+  document.getElementById("panel").setAttribute("aria-hidden","false");
+}
+function renderThread(t){
+  const th = document.getElementById("p-thread");
+  if(!t.thread.length){ th.innerHTML = `<div class="cmt sys"><div class="body"><div class="txt">No activity yet.</div></div></div>`; return; }
+  th.innerHTML = t.thread.map(([who,name,txt,time])=>{
+    if(who==="sys") return `<div class="cmt sys"><div class="body"><div class="txt">⚙ ${txt} <time> · ${time}</time></div></div></div>`;
+    return `<div class="cmt">${av(who)}<div class="body"><div class="by"><b>${name}</b><time>${time}</time></div><div class="txt">${txt}</div></div></div>`;
+  }).join("");
+}
+function postComment(){
+  const ta = document.getElementById("p-reply");
+  const v = ta.value.trim(); if(!v||!currentId) return;
+  const t = TICKETS.find(x=>x.id===currentId);
+  const now = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+  t.thread.push(["MK","Maya Khan (you)",v,now]);
+  ta.value=""; renderThread(t);
+  document.querySelector("#p-thread").lastElementChild.scrollIntoView({behavior:"smooth"});
+}
+function closePanel(){
+  document.getElementById("scrim").classList.remove("show");
+  document.getElementById("panel").classList.remove("show");
+  document.getElementById("panel").setAttribute("aria-hidden","true");
+  currentId = null;
+}
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closePanel(); });
+document.getElementById("p-reply").addEventListener("keydown", e=>{
+  if(e.key==="Enter" && (e.metaKey||e.ctrlKey)){ e.preventDefault(); postComment(); }
+});
+
+renderBoard();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — IT Helpdesk: a kanban board of ticket cards showing priority, SLA, and assignee avatars. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/07-it-helpdesk.html
+</script>
+</body>
+</html>

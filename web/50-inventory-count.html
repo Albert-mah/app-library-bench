@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Physical Inventory Count — Count Station</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Physical Inventory Count (StockTake)",
+  "prefix": "pic_",
+  "collections": {
+    "pic_sessions": {"titleField":"name","fields":{"name":"input","code":"input","warehouse":"input","zone":"input","status":"select:open|in_progress|review|closed","method":"select:full|cycle|spot","scheduled_for":"date","line_total":"integer","line_counted":"integer"}},
+    "pic_items": {"titleField":"name","fields":{"name":"input","sku":"input","barcode":"input","category":"select:beverage|snack|dairy|frozen|produce|household|electronics","uom":"select:ea|case|kg|pack","location_bin":"input","unit_cost":"number","system_qty":"integer"}},
+    "pic_counts": {"titleField":"id","fields":{"counted_qty":"integer","system_qty_snapshot":"integer","variance":"integer","variance_value":"number","status":"select:pending|counted|recount|approved|rejected","counted_at":"datetime","counted_by":"input","note":"textarea"},"relations":{"session":"m2o pic_sessions (fk session_id)","item":"m2o pic_items (fk item_id)"}}
+  },
+  "page": {
+    "name": "Count Station",
+    "layout": "scan-kiosk = freestanding JSBlock (no data container — keypad/scan kiosk) | progress-stats = native Chart/stat cards | variance-table = native Table(pic_counts) + JSColumn(item+variance) + summary row | sessions-rail = native List(pic_sessions) + JS item card",
+    "regions": [
+      {"id":"scan-kiosk","block":"freestanding JSBlock (kiosk — no data container)","intent":"scan a barcode / enter counted qty for the active item","content":["big SKU + item name display of current scan target","system qty shown only after submit (blind count)","numeric keypad + counted-qty input","Submit count = writes a pic_counts row","Skip / Recount controls","live variance flash after submit"],"writes":"pic_counts.create (counted_qty, system_qty_snapshot, variance, counted_by, counted_at)"},
+      {"id":"progress","block":"native stat cards + small Chart","collection":"pic_counts / pic_sessions","intent":"count progress + accuracy KPIs","cards":["lines counted / total (progress %)","items with variance","shrinkage value $","accuracy %"]},
+      {"id":"variance-table","block":"native Table + JSColumn + summary row","collection":"pic_counts","intent":"system vs counted variance review","sort":"abs(variance) desc","columns":["item (JSColumn: name + sku + bin)","system_qty","counted_qty","variance (JSColumn: signed pill +/- colored)","variance_value $","status pill","counted_by"],"behavior":"event-flow footer summary row (sum variance_value, count of variances)","rowAction":"open recount popup via ctx.openView"},
+      {"id":"sessions-rail","block":"native List + JS item card","collection":"pic_sessions","intent":"count sessions list with mini progress bar","card":["session name + warehouse/zone","status pill","method tag","progress bar line_counted/line_total"]}
+    ]
+  },
+  "interactions": ["scan kiosk writes pic_counts and advances to next pending item","blind count — system qty hidden until submit, then variance flashes","variance table sorted by absolute variance, signed colored pills","footer summary aggregates shrinkage value","clicking a session in the rail filters the variance table (cross-block filter)","recount sets status=recount and re-queues item in kiosk"],
+  "jsKernels": ["scan/keypad kiosk JSBlock (writes pic_counts)","variance signed-pill JSColumn","session progress-bar JS item card","footer summary row (event-flow aggregate)"],
+  "notes": "Container/content rule: the count station is a kiosk with NO underlying single data block (numeric keypad + scan target), so it is a freestanding JSBlock that calls ctx.resource to create pic_counts rows. The variance review is a REAL native Table of pic_counts (not a JSBlock) with a JSColumn for the item lead cell and the signed variance pill, plus an event-flow summary footer. The sessions rail is a native List of pic_sessions with a JS item card carrying the progress bar. Blind-count UX: system_qty is snapshotted into pic_counts on submit and only revealed after the count is entered."
+}
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gray-1: #ffffff;
+    --gray-2: #fafafa;
+    --gray-3: #f5f5f5;
+    --gray-4: #f0f0f0;
+    --gray-5: #d9d9d9;
+    --gray-6: #bfbfbf;
+    --gray-7: #8c8c8c;
+    --gray-8: #595959;
+    --gray-9: #434343;
+    --gray-10: #262626;
+    --gray-11: #1f1f1f;
+
+    /* Primary — warehouse cyan/teal for inventory ops */
+    --primary-1: #e6fffb;
+    --primary-5: #36cfc9;
+    --primary-6: #13c2c2;
+    --primary-7: #08979c;
+    --primary-8: #006d75;
+
+    /* Status / variance colors */
+    --pos: #52c41a;          /* overage (counted > system) */
+    --pos-bg: #f6ffed; --pos-border: #b7eb8f;
+    --neg: #ff4d4f;          /* shortage (counted < system) */
+    --neg-bg: #fff2f0; --neg-border: #ffccc7;
+    --match: #8c8c8c;        /* exact match */
+    --match-bg: #fafafa; --match-border: #f0f0f0;
+    --warn: #faad14;
+    --warn-bg: #fffbe6; --warn-border: #ffe58f;
+    --info: #1677ff;
+    --info-bg: #e6f4ff; --info-border: #91caff;
+    --purple: #722ed1;
+    --purple-bg: #f9f0ff; --purple-border: #d3adf7;
+
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+    --shadow: 0 2px 8px rgba(0,0,0,.09);
+    --shadow-lg: 0 8px 28px rgba(0,0,0,.14);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #eef1f4;
+    color: var(--gray-10);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5715;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: #fff;
+    border-bottom: 1px solid var(--gray-4);
+    padding: 0 28px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+  .topbar-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 16px; color: var(--gray-10);
+  }
+  .brand-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--primary-7), var(--primary-5));
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 17px;
+  }
+  .topbar-right { display: flex; align-items: center; gap: 18px; }
+  .topbar-session {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--gray-8);
+    background: var(--primary-1); border: 1px solid #b5f5ec;
+    padding: 5px 12px; border-radius: 50px; font-weight: 500;
+  }
+  .topbar-session b { color: var(--primary-8); }
+  .topbar-date { font-size: 13px; color: var(--gray-7); }
+  .user-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, #13c2c2 0%, #1677ff 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  /* ── MAIN ── */
+  .main { max-width: 1440px; margin: 0 auto; padding: 22px 28px 56px; }
+
+  /* ── TOP GRID: kiosk + progress ── */
+  .top-grid {
+    display: grid;
+    grid-template-columns: 460px 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* ── COUNT KIOSK ── */
+  .kiosk {
+    background: linear-gradient(150deg, #006d75 0%, #08979c 45%, #13c2c2 100%);
+    border-radius: 16px;
+    padding: 26px 28px 24px;
+    box-shadow: 0 6px 24px rgba(8,151,156,.32);
+    position: relative; overflow: hidden;
+    color: #fff;
+    display: flex; flex-direction: column;
+  }
+  .kiosk::before {
+    content: ''; position: absolute; top: -70px; right: -70px;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: rgba(255,255,255,.07);
+  }
+  .kiosk::after {
+    content: ''; position: absolute; bottom: -90px; left: -40px;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: rgba(255,255,255,.05);
+  }
+  .kiosk-head {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .kiosk-title {
+    font-size: 13px; font-weight: 600; letter-spacing: .6px;
+    text-transform: uppercase; opacity: .85;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .kiosk-counter {
+    font-size: 12px; background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.2);
+    padding: 3px 11px; border-radius: 50px; font-weight: 600;
+    backdrop-filter: blur(4px);
+  }
+
+  /* scan target card */
+  .scan-target {
+    position: relative; z-index: 1;
+    background: rgba(255,255,255,.13);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(6px);
+  }
+  .scan-target-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .scan-sku {
+    font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px; letter-spacing: .5px;
+    background: rgba(0,0,0,.18); padding: 3px 10px;
+    border-radius: 5px; font-weight: 600;
+  }
+  .scan-cat {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+    opacity: .8;
+  }
+  .scan-name {
+    font-size: 22px; font-weight: 700; line-height: 1.15;
+    margin-bottom: 6px;
+  }
+  .scan-meta {
+    display: flex; gap: 16px; font-size: 12px; opacity: .82;
+  }
+  .scan-meta span b { font-weight: 600; opacity: 1; }
+  .barcode-strip {
+    margin-top: 12px; height: 38px;
+    background: repeating-linear-gradient(90deg,
+      #fff 0, #fff 2px, transparent 2px, transparent 4px,
+      #fff 4px, #fff 7px, transparent 7px, transparent 9px,
+      #fff 9px, #fff 10px, transparent 10px, transparent 13px,
+      #fff 13px, #fff 16px, transparent 16px, transparent 18px);
+    border-radius: 5px; opacity: .9;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+
+  /* count input + keypad */
+  .count-input-wrap {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: 14px;
+  }
+  .count-input-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+    opacity: .75;
+  }
+  .count-input {
+    background: #fff; color: var(--primary-8);
+    border-radius: 10px; height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  }
+  .count-input-value {
+    font-size: 40px; font-weight: 800; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -1px;
+  }
+  .count-input-uom { font-size: 14px; color: var(--gray-7); font-weight: 600; }
+
+  .keypad {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    margin-bottom: 14px;
+  }
+  .key {
+    background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.18);
+    color: #fff; border-radius: 10px;
+    height: 46px; font-size: 19px; font-weight: 600;
+    cursor: pointer; transition: all .12s;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .key:hover { background: rgba(255,255,255,.28); transform: translateY(-1px); }
+  .key:active { transform: translateY(0) scale(.97); }
+  .key-clear { color: #ffd6d6; font-size: 15px; }
+  .key-back { font-size: 17px; }
+
+  .kiosk-actions {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: 1fr 2fr; gap: 10px;
+  }
+  .btn-skip, .btn-submit {
+    border: none; border-radius: 10px; height: 50px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: all .15s; letter-spacing: .3px;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+  }
+  .btn-skip {
+    background: rgba(255,255,255,.16); color: #fff;
+    border: 1px solid rgba(255,255,255,.22);
+  }
+  .btn-skip:hover { background: rgba(255,255,255,.26); }
+  .btn-submit {
+    background: #fff; color: var(--primary-8);
+    box-shadow: 0 4px 14px rgba(0,0,0,.2);
+  }
+  .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 7px 20px rgba(0,0,0,.26); }
+
+  /* variance flash after submit */
+  .variance-flash {
+    position: relative; z-index: 1;
+    margin-top: 12px; min-height: 0;
+    border-radius: 10px; overflow: hidden;
+    max-height: 0; transition: max-height .25s ease, margin .25s ease;
+  }
+  .variance-flash.show { max-height: 90px; margin-top: 12px; }
+  .vf-inner {
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-weight: 600;
+  }
+  .vf-match  { background: rgba(255,255,255,.18); color: #fff; }
+  .vf-pos    { background: rgba(82,196,26,.32); color: #f6ffed; border:1px solid rgba(82,196,26,.4); }
+  .vf-neg    { background: rgba(255,77,79,.32); color: #fff0f0; border:1px solid rgba(255,77,79,.4); }
+  .vf-label { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; opacity: .9; }
+  .vf-value { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .vf-system { font-size: 12px; opacity: .85; }
+
+  /* ── PROGRESS COLUMN ── */
+  .progress-col { display: flex; flex-direction: column; gap: 20px; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat-card {
+    background: #fff; border-radius: var(--radius);
+    padding: 18px 18px 16px;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--gray-4);
+    display: flex; flex-direction: column; gap: 4px;
+    transition: box-shadow .15s;
+  }
+  .stat-card:hover { box-shadow: var(--shadow); }
+  .stat-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .stat-label {
+    font-size: 11.5px; color: var(--gray-7);
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .stat-icon { font-size: 16px; opacity: .55; }
+  .stat-value {
+    font-size: 30px; font-weight: 800; line-height: 1; margin-top: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-value small { font-size: 16px; font-weight: 700; }
+  .stat-sub { font-size: 12px; color: var(--gray-7); margin-top: 3px; }
+  .stat-bar { height: 5px; border-radius: 3px; background: var(--gray-4); margin-top: 10px; overflow: hidden; }
+  .stat-bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+  .c-teal   { color: var(--primary-6); }  .bg-teal   { background: var(--primary-6); }
+  .c-green  { color: var(--pos); }        .bg-green  { background: var(--pos); }
+  .c-red    { color: var(--neg); }        .bg-red    { background: var(--neg); }
+  .c-warn   { color: var(--warn); }       .bg-warn   { background: var(--warn); }
+  .c-purple { color: var(--purple); }     .bg-purple { background: var(--purple); }
+
+  /* progress ring + breakdown card */
+  .progress-card {
+    background: #fff; border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); border: 1px solid var(--gray-4);
+    padding: 20px 22px;
+    display: grid; grid-template-columns: auto 1fr; gap: 26px; align-items: center;
+    flex: 1;
+  }
+  .ring-wrap { position: relative; width: 132px; height: 132px; }
+  .ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ring-pct { font-size: 30px; font-weight: 800; color: var(--gray-10); line-height: 1; }
+  .ring-cap { font-size: 11px; color: var(--gray-7); text-transform: uppercase; letter-spacing: .5px; margin-top: 3px; }
+
+  .breakdown { display: flex; flex-direction: column; gap: 13px; }
+  .breakdown-title {
+    font-size: 14px; font-weight: 600; color: var(--gray-10);
+    display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+  }
+  .bd-row { display: flex; align-items: center; gap: 12px; }
+  .bd-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+  .bd-label { font-size: 13px; color: var(--gray-8); width: 110px; }
+  .bd-track { flex: 1; height: 8px; border-radius: 4px; background: var(--gray-3); overflow: hidden; }
+  .bd-fill { height: 100%; border-radius: 4px; }
+  .bd-num { font-size: 13px; font-weight: 600; color: var(--gray-9); width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ── BOTTOM GRID: table + rail ── */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+  }
+
+  /* card shell */
+  .card {
+    background: #fff; border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); border: 1px solid var(--gray-4);
+    overflow: hidden;
+  }
+  .card-head {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--gray-4);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+  }
+  .card-title {
+    font-size: 15px; font-weight: 600; color: var(--gray-10);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .chip {
+    display: inline-flex; align-items: center;
+    background: var(--primary-1); color: var(--primary-8);
+    border: 1px solid #b5f5ec;
+    border-radius: 50px; padding: 2px 11px;
+    font-size: 12px; font-weight: 600;
+  }
+  .head-controls { display: flex; align-items: center; gap: 8px; }
+  .seg {
+    display: inline-flex; background: var(--gray-3);
+    border-radius: 7px; padding: 3px; gap: 2px;
+  }
+  .seg button {
+    border: none; background: transparent; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--gray-7);
+    padding: 4px 11px; border-radius: 5px; transition: all .12s;
+  }
+  .seg button.active { background: #fff; color: var(--primary-7); box-shadow: var(--shadow-sm); }
+  .seg button:hover:not(.active) { color: var(--gray-9); }
+
+  /* ── VARIANCE TABLE ── */
+  .vtable-wrap { overflow-x: auto; }
+  table.vtable { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 760px; }
+  table.vtable thead th {
+    font-size: 11px; font-weight: 600; color: var(--gray-7);
+    text-transform: uppercase; letter-spacing: .4px;
+    text-align: left; padding: 11px 16px;
+    background: var(--gray-2); border-bottom: 1px solid var(--gray-4);
+    white-space: nowrap; position: sticky; top: 0;
+  }
+  table.vtable thead th.num { text-align: right; }
+  table.vtable thead th.ctr { text-align: center; }
+  table.vtable tbody td {
+    padding: 11px 16px; border-bottom: 1px solid var(--gray-3);
+    font-size: 13px; vertical-align: middle;
+  }
+  table.vtable tbody td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  table.vtable tbody tr { transition: background .1s; cursor: pointer; }
+  table.vtable tbody tr:hover { background: rgba(19,194,194,.045); }
+  table.vtable tbody tr.row-flag { background: rgba(255,77,79,.04); }
+  table.vtable tbody tr.row-flag:hover { background: rgba(255,77,79,.07); }
+
+  /* lead cell (JSColumn: item) */
+  .item-lead { display: flex; align-items: center; gap: 11px; }
+  .item-thumb {
+    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .item-name { font-size: 13px; font-weight: 600; color: var(--gray-10); }
+  .item-meta {
+    font-size: 11px; color: var(--gray-7); margin-top: 1px;
+    font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  /* signed variance pill (JSColumn) */
+  .var-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    border-radius: 50px; padding: 3px 11px;
+    font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  .var-pos   { background: var(--pos-bg);   color: var(--pos);   border: 1px solid var(--pos-border); }
+  .var-neg   { background: var(--neg-bg);   color: var(--neg);   border: 1px solid var(--neg-border); }
+  .var-match { background: var(--match-bg); color: var(--match); border: 1px solid var(--match-border); }
+
+  .vval-neg { color: var(--neg); }
+  .vval-pos { color: var(--pos); }
+
+  /* status pill */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 50px; padding: 2px 10px;
+    font-size: 11.5px; font-weight: 600;
+  }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+  .pill-counted  { background: var(--pos-bg);   color: var(--pos);    border:1px solid var(--pos-border); }
+  .pill-counted::before  { background: var(--pos); }
+  .pill-recount  { background: var(--warn-bg);  color: #d48806;       border:1px solid var(--warn-border); }
+  .pill-recount::before  { background: var(--warn); }
+  .pill-pending  { background: var(--gray-3);   color: var(--gray-7); border:1px solid var(--gray-4); }
+  .pill-pending::before  { background: var(--gray-6); }
+  .pill-approved { background: var(--info-bg);  color: var(--info);   border:1px solid var(--info-border); }
+  .pill-approved::before { background: var(--info); }
+
+  .counter-by { display: flex; align-items: center; gap: 7px; }
+  .by-avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+  .by-name { font-size: 12px; color: var(--gray-8); }
+
+  /* summary footer row (event-flow aggregate) */
+  table.vtable tfoot td {
+    padding: 13px 16px; background: var(--gray-2);
+    border-top: 2px solid var(--gray-5); font-size: 13px;
+    font-weight: 700; color: var(--gray-9);
+  }
+  table.vtable tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .foot-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--gray-7); font-weight: 600; }
+
+  /* ── SESSIONS RAIL ── */
+  .rail-list { list-style: none; }
+  .rail-item {
+    padding: 14px 18px; border-bottom: 1px solid var(--gray-3);
+    cursor: pointer; transition: background .12s; position: relative;
+  }
+  .rail-item:last-child { border-bottom: none; }
+  .rail-item:hover { background: var(--gray-2); }
+  .rail-item.active { background: var(--primary-1); }
+  .rail-item.active::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--primary-6);
+  }
+  .rail-top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 10px; margin-bottom: 5px;
+  }
+  .rail-name { font-size: 13.5px; font-weight: 600; color: var(--gray-10); }
+  .rail-loc { font-size: 11.5px; color: var(--gray-7); margin-top: 1px; }
+  .rail-tags { display: flex; gap: 6px; margin: 7px 0 8px; flex-wrap: wrap; }
+  .tag-sm {
+    font-size: 10.5px; font-weight: 600; padding: 1px 8px;
+    border-radius: 50px; text-transform: uppercase; letter-spacing: .3px;
+  }
+  .tag-full  { background: var(--purple-bg); color: var(--purple); border:1px solid var(--purple-border); }
+  .tag-cycle { background: var(--info-bg);   color: var(--info);   border:1px solid var(--info-border); }
+  .tag-spot  { background: var(--primary-1); color: var(--primary-8); border:1px solid #b5f5ec; }
+  .rail-prog-row { display: flex; align-items: center; gap: 9px; }
+  .rail-prog-track { flex: 1; height: 6px; border-radius: 3px; background: var(--gray-3); overflow: hidden; }
+  .rail-prog-fill { height: 100%; border-radius: 3px; }
+  .rail-prog-num { font-size: 11px; font-weight: 600; color: var(--gray-8); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* mini status pill on rail */
+  .rail-status {
+    font-size: 10.5px; font-weight: 600; padding: 2px 9px;
+    border-radius: 50px; white-space: nowrap;
+  }
+  .rs-progress { background: var(--warn-bg); color: #d48806; border:1px solid var(--warn-border); }
+  .rs-review   { background: var(--info-bg); color: var(--info); border:1px solid var(--info-border); }
+  .rs-open     { background: var(--gray-3); color: var(--gray-7); border:1px solid var(--gray-4); }
+  .rs-closed   { background: var(--pos-bg); color: var(--pos); border:1px solid var(--pos-border); }
+
+  @media (max-width: 1200px) {
+    .top-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2,1fr); }
+    .bottom-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">📦</div>
+    StockTake — Physical Inventory Count
+  </div>
+  <div class="topbar-right">
+    <div class="topbar-session">📋 Active session: <b>WH-A · Cold Zone</b></div>
+    <div class="topbar-date" id="topbar-date"></div>
+    <div class="user-avatar" title="Counter: Diego Ramos">DR</div>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- ══ TOP GRID: KIOSK + PROGRESS ══ -->
+  <div class="top-grid">
+
+    <!-- ── COUNT KIOSK (freestanding JS kiosk) ── -->
+    <section class="kiosk">
+      <div class="kiosk-head">
+        <div class="kiosk-title">🔢 Count Station</div>
+        <div class="kiosk-counter" id="kiosk-counter">Item 18 of 64</div>
+      </div>
+
+      <!-- scan target -->
+      <div class="scan-target">
+        <div class="scan-target-top">
+          <div class="scan-sku" id="scan-sku">SKU-DR-0451</div>
+          <div class="scan-cat" id="scan-cat">Dairy · Bin C-12</div>
+        </div>
+        <div class="scan-name" id="scan-name">Organic Whole Milk 1 L</div>
+        <div class="scan-meta">
+          <span>UoM <b id="scan-uom">EA</b></span>
+          <span>Unit cost <b id="scan-cost">$1.85</b></span>
+          <span>Last counted <b>21 d ago</b></span>
+        </div>
+        <div class="barcode-strip"></div>
+      </div>
+
+      <!-- counted qty input -->
+      <div class="count-input-wrap">
+        <div class="count-input-label">Counted quantity (blind — system qty hidden)</div>
+        <div class="count-input">
+          <div class="count-input-value" id="count-value">0</div>
+          <div class="count-input-uom" id="count-uom">EA</div>
+        </div>
+      </div>
+
+      <!-- keypad -->
+      <div class="keypad">
+        <button class="key" onclick="press('7')">7</button>
+        <button class="key" onclick="press('8')">8</button>
+        <button class="key" onclick="press('9')">9</button>
+        <button class="key" onclick="press('4')">4</button>
+        <button class="key" onclick="press('5')">5</button>
+        <button class="key" onclick="press('6')">6</button>
+        <button class="key" onclick="press('1')">1</button>
+        <button class="key" onclick="press('2')">2</button>
+        <button class="key" onclick="press('3')">3</button>
+        <button class="key key-clear" onclick="clearCount()">C</button>
+        <button class="key" onclick="press('0')">0</button>
+        <button class="key key-back" onclick="backspace()">⌫</button>
+      </div>
+
+      <div class="kiosk-actions">
+        <button class="btn-skip" onclick="skipItem()">⏭ Skip</button>
+        <button class="btn-submit" onclick="submitCount()">✓ Submit count</button>
+      </div>
+
+      <!-- variance flash -->
+      <div class="variance-flash" id="variance-flash">
+        <div class="vf-inner" id="vf-inner"></div>
+      </div>
+    </section>
+
+    <!-- ── PROGRESS COLUMN ── -->
+    <div class="progress-col">
+
+      <!-- stat cards -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Lines Counted</span>
+            <span class="stat-icon">✅</span>
+          </div>
+          <div class="stat-value c-teal" id="kpi-counted">817<small> / 1,240</small></div>
+          <div class="stat-sub">65.9% complete</div>
+          <div class="stat-bar"><div class="stat-bar-fill bg-teal" style="width:65.9%"></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Variances Found</span>
+            <span class="stat-icon">⚠️</span>
+          </div>
+          <div class="stat-value c-warn">93</div>
+          <div class="stat-sub">11.4% of counted lines</div>
+          <div class="stat-bar"><div class="stat-bar-fill bg-warn" style="width:11.4%"></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Net Shrinkage</span>
+            <span class="stat-icon">💸</span>
+          </div>
+          <div class="stat-value c-red">−$2,418</div>
+          <div class="stat-sub">net value · 41 shortages</div>
+          <div class="stat-bar"><div class="stat-bar-fill bg-red" style="width:42%"></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Count Accuracy</span>
+            <span class="stat-icon">🎯</span>
+          </div>
+          <div class="stat-value c-green">88.6<small>%</small></div>
+          <div class="stat-sub">+2.1% vs last count</div>
+          <div class="stat-bar"><div class="stat-bar-fill bg-green" style="width:88.6%"></div></div>
+        </div>
+      </div>
+
+      <!-- progress ring + breakdown -->
+      <div class="progress-card">
+        <div class="ring-wrap">
+          <svg width="132" height="132" viewBox="0 0 132 132">
+            <circle cx="66" cy="66" r="56" fill="none" stroke="#f0f0f0" stroke-width="14"/>
+            <circle cx="66" cy="66" r="56" fill="none" stroke="url(#ringgrad)" stroke-width="14"
+                    stroke-linecap="round" stroke-dasharray="351.86"
+                    stroke-dashoffset="119.98" transform="rotate(-90 66 66)"/>
+            <defs>
+              <linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#08979c"/>
+                <stop offset="100%" stop-color="#36cfc9"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-pct">66%</div>
+            <div class="ring-cap">Counted</div>
+          </div>
+        </div>
+        <div class="breakdown">
+          <div class="breakdown-title">📊 Line status breakdown</div>
+          <div class="bd-row">
+            <div class="bd-dot bg-green"></div>
+            <div class="bd-label">Exact match</div>
+            <div class="bd-track"><div class="bd-fill bg-green" style="width:78%"></div></div>
+            <div class="bd-num">724</div>
+          </div>
+          <div class="bd-row">
+            <div class="bd-dot bg-red"></div>
+            <div class="bd-label">Shortage</div>
+            <div class="bd-track"><div class="bd-fill bg-red" style="width:38%"></div></div>
+            <div class="bd-num">41</div>
+          </div>
+          <div class="bd-row">
+            <div class="bd-dot" style="background:var(--pos)"></div>
+            <div class="bd-label">Overage</div>
+            <div class="bd-track"><div class="bd-fill" style="width:25%;background:#95de64"></div></div>
+            <div class="bd-num">28</div>
+          </div>
+          <div class="bd-row">
+            <div class="bd-dot bg-warn"></div>
+            <div class="bd-label">Recount queued</div>
+            <div class="bd-track"><div class="bd-fill bg-warn" style="width:22%"></div></div>
+            <div class="bd-num">24</div>
+          </div>
+          <div class="bd-row">
+            <div class="bd-dot" style="background:var(--gray-6)"></div>
+            <div class="bd-label">Not yet counted</div>
+            <div class="bd-track"><div class="bd-fill" style="width:34%;background:var(--gray-5)"></div></div>
+            <div class="bd-num">423</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ BOTTOM GRID: VARIANCE TABLE + SESSIONS RAIL ══ -->
+  <div class="bottom-grid">
+
+    <!-- ── VARIANCE TABLE (native Table + JSColumn + summary row) ── -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">📋 Variance Review <span class="chip" id="var-chip">93 variances</span></div>
+        <div class="head-controls">
+          <div class="seg">
+            <button class="active" onclick="filterVar('all', this)">All</button>
+            <button onclick="filterVar('short', this)">Shortages</button>
+            <button onclick="filterVar('over', this)">Overages</button>
+            <button onclick="filterVar('recount', this)">Recount</button>
+          </div>
+        </div>
+      </div>
+      <div class="vtable-wrap">
+        <table class="vtable">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="num">System</th>
+              <th class="num">Counted</th>
+              <th class="ctr">Variance</th>
+              <th class="num">Value</th>
+              <th>Status</th>
+              <th>Counted by</th>
+            </tr>
+          </thead>
+          <tbody id="vtable-body"></tbody>
+          <tfoot>
+            <tr>
+              <td><span class="foot-label">Summary · <span id="foot-rows">12</span> lines shown</span></td>
+              <td class="num" id="foot-system">—</td>
+              <td class="num" id="foot-counted">—</td>
+              <td class="ctr" id="foot-var">—</td>
+              <td class="num vval-neg" id="foot-value">—</td>
+              <td colspan="2"><span class="foot-label">Net shrinkage value</span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── SESSIONS RAIL (native List + JS item card) ── -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🗂 Count Sessions <span class="chip">6 active</span></div>
+      </div>
+      <ul class="rail-list" id="rail-list"></ul>
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+// ──────────────────────────────────────────────
+//  DATA
+// ──────────────────────────────────────────────
+const CAT_ICON = {
+  beverage:'🥤', snack:'🍿', dairy:'🥛', frozen:'🧊',
+  produce:'🥦', household:'🧴', electronics:'🔌'
+};
+const CAT_BG = {
+  beverage:'#e6f4ff', snack:'#fff7e6', dairy:'#f9f0ff', frozen:'#e6fffb',
+  produce:'#f6ffed', household:'#fff0f6', electronics:'#f0f5ff'
+};
+
+const COUNTERS = [
+  { name:'Diego Ramos',   initials:'DR', color:'#13c2c2' },
+  { name:'Hana Yoshida',  initials:'HY', color:'#722ed1' },
+  { name:'Omar Haddad',   initials:'OH', color:'#fa8c16' },
+  { name:'Lena Vogt',     initials:'LV', color:'#1677ff' },
+  { name:'Priya Nair',    initials:'PN', color:'#eb2f96' },
+];
+
+// Variance lines (system vs counted) — sorted by absolute variance value desc on render
+const VAR_LINES = [
+  { name:'Premium Cold Brew 750 ml', sku:'BEV-CB-0912', bin:'A-04', cat:'beverage', system:240, counted:198, cost:3.40, status:'counted', by:0 },
+  { name:'Frozen Dumplings 1 kg',    sku:'FRZ-DP-2207', bin:'F-21', cat:'frozen',   system:160, counted:124, cost:4.10, status:'recount', by:1 },
+  { name:'Organic Whole Milk 1 L',   sku:'DR-0451',     bin:'C-12', cat:'dairy',    system:320, counted:296, cost:1.85, status:'counted', by:0 },
+  { name:'Energy Drink 250 ml',      sku:'BEV-ED-0388', bin:'A-09', cat:'beverage', system:480, counted:512, cost:1.20, status:'counted', by:2 },
+  { name:'Greek Yogurt 500 g',       sku:'DR-YG-0677',  bin:'C-03', cat:'dairy',    system:144, counted:118, cost:2.30, status:'counted', by:3 },
+  { name:'Potato Chips Family Pack', sku:'SNK-PC-1501', bin:'B-17', cat:'snack',    system:300, counted:284, cost:1.95, status:'recount', by:1 },
+  { name:'USB-C Cable 2 m',          sku:'ELC-UC-9920', bin:'E-02', cat:'electronics', system:88, counted:71, cost:6.50, status:'counted', by:4 },
+  { name:'Sparkling Water 12-pack',  sku:'BEV-SW-0144', bin:'A-01', cat:'beverage', system:96,  counted:108, cost:5.40, status:'counted', by:2 },
+  { name:'Avocado (loose)',          sku:'PRD-AV-3310', bin:'D-08', cat:'produce',  system:210, counted:189, cost:0.85, status:'counted', by:3 },
+  { name:'Dish Soap 1 L',            sku:'HHD-DS-7702', bin:'G-14', cat:'household', system:132, counted:132, cost:2.10, status:'counted', by:0 },
+  { name:'Ice Cream Tub 1 L',        sku:'FRZ-IC-2288', bin:'F-05', cat:'frozen',   system:72,  counted:60,  cost:5.90, status:'recount', by:1 },
+  { name:'Trail Mix 250 g',          sku:'SNK-TM-1820', bin:'B-22', cat:'snack',    system:176, counted:184, cost:2.75, status:'counted', by:4 },
+  { name:'Almond Milk 1 L',          sku:'DR-AM-0490',  bin:'C-19', cat:'dairy',    system:120, counted:114, cost:2.55, status:'counted', by:3 },
+  { name:'Power Bank 10000 mAh',     sku:'ELC-PB-9955', bin:'E-07', cat:'electronics', system:54, counted:48, cost:14.0, status:'recount', by:4 },
+];
+
+// Count sessions
+const SESSIONS = [
+  { name:'WH-A · Cold Zone',     loc:'Warehouse A · Refrigerated', method:'full',  status:'progress', counted:817, total:1240, active:true },
+  { name:'WH-A · Dry Goods',     loc:'Warehouse A · Ambient',      method:'cycle', status:'progress', counted:402, total:540 },
+  { name:'WH-B · Electronics',   loc:'Warehouse B · Secure cage',  method:'spot',  status:'review',   counted:96,  total:96 },
+  { name:'WH-A · Produce',       loc:'Warehouse A · Chilled',      method:'cycle', status:'open',     counted:0,   total:318 },
+  { name:'WH-C · Overflow',      loc:'Warehouse C · Pallet racks', method:'full',  status:'progress', counted:1104, total:2860 },
+  { name:'WH-B · Returns',       loc:'Warehouse B · QA staging',   method:'spot',  status:'closed',   counted:74,  total:74 },
+];
+
+// ──────────────────────────────────────────────
+//  TOP BAR DATE
+// ──────────────────────────────────────────────
+(function setDate(){
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now = new Date();
+  document.getElementById('topbar-date').textContent =
+    `${MON[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+})();
+
+// ──────────────────────────────────────────────
+//  KIOSK — keypad + blind count + variance flash
+// ──────────────────────────────────────────────
+let countStr = '';
+const SCAN_TARGET = { system: 320 }; // current item's (hidden) system qty
+
+function renderCount() {
+  document.getElementById('count-value').textContent = countStr === '' ? '0' : countStr;
+}
+function press(d) {
+  if (countStr.length >= 5) return;
+  if (countStr === '0') countStr = '';
+  countStr += d;
+  renderCount();
+}
+function backspace() { countStr = countStr.slice(0, -1); renderCount(); }
+function clearCount() { countStr = ''; renderCount(); }
+
+function skipItem() {
+  flash('match', null, 'Skipped — re-queued at end of session');
+  clearCount();
+}
+
+function submitCount() {
+  const counted = parseInt(countStr || '0', 10);
+  const variance = counted - SCAN_TARGET.system;  // reveal blind system qty now
+  let kind = 'match';
+  if (variance > 0) kind = 'pos';
+  else if (variance < 0) kind = 'neg';
+  flash(kind, variance, null);
+  clearCount();
+}
+
+function flash(kind, variance, msg) {
+  const wrap = document.getElementById('variance-flash');
+  const inner = document.getElementById('vf-inner');
+  let cls = 'vf-match', html = '';
+  if (msg) {
+    cls = 'vf-match';
+    html = `<span class="vf-label">⏭ ${msg}</span>`;
+  } else if (kind === 'match') {
+    cls = 'vf-match';
+    html = `<div><span class="vf-label">✓ Match</span><div class="vf-system">System qty: ${SCAN_TARGET.system}</div></div>
+            <span class="vf-value">0</span>`;
+  } else if (kind === 'pos') {
+    cls = 'vf-pos';
+    html = `<div><span class="vf-label">▲ Overage</span><div class="vf-system">System ${SCAN_TARGET.system} · counted ${SCAN_TARGET.system + variance}</div></div>
+            <span class="vf-value">+${variance}</span>`;
+  } else {
+    cls = 'vf-neg';
+    html = `<div><span class="vf-label">▼ Shortage</span><div class="vf-system">System ${SCAN_TARGET.system} · counted ${SCAN_TARGET.system + variance}</div></div>
+            <span class="vf-value">${variance}</span>`;
+  }
+  inner.className = 'vf-inner ' + cls;
+  inner.innerHTML = html;
+  wrap.classList.add('show');
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => wrap.classList.remove('show'), 3200);
+}
+renderCount();
+
+// keyboard support
+document.addEventListener('keydown', e => {
+  if (e.key >= '0' && e.key <= '9') press(e.key);
+  else if (e.key === 'Backspace') backspace();
+  else if (e.key === 'Enter') submitCount();
+});
+
+// ──────────────────────────────────────────────
+//  VARIANCE TABLE (JSColumn lead + signed pill + summary footer)
+// ──────────────────────────────────────────────
+let currentFilter = 'all';
+
+function lineVariance(l) { return l.counted - l.system; }
+function lineVarValue(l) { return (l.counted - l.system) * l.cost; }
+
+function renderTable() {
+  const body = document.getElementById('vtable-body');
+  let lines = VAR_LINES.slice();
+
+  // filter
+  if (currentFilter === 'short')   lines = lines.filter(l => lineVariance(l) < 0);
+  else if (currentFilter === 'over')    lines = lines.filter(l => lineVariance(l) > 0);
+  else if (currentFilter === 'recount') lines = lines.filter(l => l.status === 'recount');
+
+  // sort by absolute variance value desc
+  lines.sort((a,b) => Math.abs(lineVarValue(b)) - Math.abs(lineVarValue(a)));
+
+  body.innerHTML = '';
+  let sumSys = 0, sumCnt = 0, sumVar = 0, sumVal = 0;
+
+  lines.forEach(l => {
+    const v = lineVariance(l);
+    const vval = lineVarValue(l);
+    sumSys += l.system; sumCnt += l.counted; sumVar += v; sumVal += vval;
+
+    const counter = COUNTERS[l.by];
+    const flagRow = v < 0 ? ' row-flag' : '';
+    let varPill, valCls;
+    if (v > 0)      { varPill = `<span class="var-pill var-pos">▲ +${v}</span>`; valCls = 'vval-pos'; }
+    else if (v < 0) { varPill = `<span class="var-pill var-neg">▼ ${v}</span>`;  valCls = 'vval-neg'; }
+    else            { varPill = `<span class="var-pill var-match">— 0</span>`;   valCls = ''; }
+
+    const statusCls = { counted:'pill-counted', recount:'pill-recount', pending:'pill-pending', approved:'pill-approved' }[l.status];
+    const statusLbl = { counted:'Counted', recount:'Recount', pending:'Pending', approved:'Approved' }[l.status];
+
+    const valStr = (vval >= 0 ? '+$' : '−$') + Math.abs(vval).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+
+    const tr = document.createElement('tr');
+    tr.className = flagRow;
+    tr.onclick = () => openRecount(l);
+    tr.innerHTML = `
+      <td>
+        <div class="item-lead">
+          <div class="item-thumb" style="background:${CAT_BG[l.cat]}">${CAT_ICON[l.cat]}</div>
+          <div>
+            <div class="item-name">${l.name}</div>
+            <div class="item-meta">${l.sku} · Bin ${l.bin}</div>
+          </div>
+        </div>
+      </td>
+      <td class="num" style="color:var(--gray-8);font-weight:600">${l.system}</td>
+      <td class="num">${l.counted}</td>
+      <td class="ctr">${varPill}</td>
+      <td class="num ${valCls}">${valStr}</td>
+      <td><span class="pill ${statusCls}">${statusLbl}</span></td>
+      <td>
+        <div class="counter-by">
+          <div class="by-avatar" style="background:${counter.color}">${counter.initials}</div>
+          <div class="by-name">${counter.name.split(' ')[0]}</div>
+        </div>
+      </td>`;
+    body.appendChild(tr);
+  });
+
+  // summary footer (event-flow aggregate)
+  document.getElementById('foot-rows').textContent = lines.length;
+  document.getElementById('foot-system').textContent = sumSys.toLocaleString();
+  document.getElementById('foot-counted').textContent = sumCnt.toLocaleString();
+  const fv = document.getElementById('foot-var');
+  fv.innerHTML = sumVar === 0
+    ? `<span class="var-pill var-match">— 0</span>`
+    : `<span class="var-pill ${sumVar>0?'var-pos':'var-neg'}">${sumVar>0?'▲ +':'▼ '}${sumVar}</span>`;
+  const fval = document.getElementById('foot-value');
+  fval.className = 'num ' + (sumVal < 0 ? 'vval-neg' : 'vval-pos');
+  fval.textContent = (sumVal >= 0 ? '+$' : '−$') + Math.abs(sumVal).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+
+  document.getElementById('var-chip').textContent = `${VAR_LINES.length} variances`;
+}
+
+function filterVar(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.seg button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function openRecount(l) {
+  // ctx.openView(recount popup, {filterByTk}) in NocoBase — here just a hint
+  console.log('Open recount popup for', l.sku);
+}
+
+// ──────────────────────────────────────────────
+//  SESSIONS RAIL (JS item card with progress bar)
+// ──────────────────────────────────────────────
+function renderRail() {
+  const ul = document.getElementById('rail-list');
+  ul.innerHTML = '';
+  SESSIONS.forEach((s, i) => {
+    const pct = s.total ? Math.round((s.counted / s.total) * 100) : 0;
+    const methodCls = { full:'tag-full', cycle:'tag-cycle', spot:'tag-spot' }[s.method];
+    const methodLbl = { full:'Full count', cycle:'Cycle', spot:'Spot' }[s.method];
+    const statusCls = { progress:'rs-progress', review:'rs-review', open:'rs-open', closed:'rs-closed' }[s.status];
+    const statusLbl = { progress:'In progress', review:'Review', open:'Open', closed:'Closed' }[s.status];
+    const fillColor = s.status === 'closed' ? 'var(--pos)' : s.status === 'review' ? 'var(--info)' : 'var(--primary-6)';
+
+    const li = document.createElement('li');
+    li.className = 'rail-item' + (s.active ? ' active' : '');
+    li.onclick = () => selectSession(i);
+    li.innerHTML = `
+      <div class="rail-top">
+        <div>
+          <div class="rail-name">${s.name}</div>
+          <div class="rail-loc">${s.loc}</div>
+        </div>
+        <span class="rail-status ${statusCls}">${statusLbl}</span>
+      </div>
+      <div class="rail-tags">
+        <span class="tag-sm ${methodCls}">${methodLbl}</span>
+      </div>
+      <div class="rail-prog-row">
+        <div class="rail-prog-track"><div class="rail-prog-fill" style="width:${pct}%;background:${fillColor}"></div></div>
+        <div class="rail-prog-num">${s.counted.toLocaleString()}/${s.total.toLocaleString()} · ${pct}%</div>
+      </div>`;
+    ul.appendChild(li);
+  });
+}
+
+function selectSession(i) {
+  // cross-block filter: clicking a session filters the variance table
+  SESSIONS.forEach((s, idx) => s.active = idx === i);
+  renderRail();
+}
+
+// ──────────────────────────────────────────────
+//  INIT
+// ──────────────────────────────────────────────
+renderTable();
+renderRail();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Inventory Count: a counting kiosk with keypad entry, a variance table, and progress. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/50-inventory-count.html
+</script>
+</body>
+</html>

@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Document Approval System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --ink:#1e2533;
+    --ink-2:#475067;
+    --ink-3:#737e94;
+    --line:#e7e9ef;
+    --line-2:#eef0f5;
+    --accent:#ea580c;
+    --accent-soft:#fff1e9;
+    --accent-ink:#9a3a0a;
+    --green:#16a34a;
+    --green-soft:#e9f7ee;
+    --amber:#d97706;
+    --amber-soft:#fdf2e2;
+    --red:#dc2626;
+    --red-soft:#fdecec;
+    --blue:#2563eb;
+    --blue-soft:#ebf1fe;
+    --violet:#7c3aed;
+    --violet-soft:#f1ecfd;
+    --shadow:0 1px 2px rgba(20,28,45,.04), 0 6px 20px rgba(20,28,45,.06);
+    --shadow-lg:0 12px 40px rgba(20,28,45,.14);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--accent-soft);color:var(--accent-ink)}
+  button{font-family:inherit;cursor:pointer}
+  input{font-family:inherit}
+
+  /* ---------- App frame ---------- */
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+
+  /* ---------- Sidebar ---------- */
+  .side{
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    padding:20px 16px;
+    display:flex;flex-direction:column;gap:6px;
+    position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+  .brand .mark{
+    width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),#f97316);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    box-shadow:0 4px 12px rgba(234,88,12,.28);
+  }
+  .brand h1{font-size:15px;margin:0;font-weight:650;letter-spacing:-.2px}
+  .brand .sub{font-size:11px;color:var(--ink-3);font-weight:500}
+  .nav-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);font-weight:650;padding:14px 8px 6px}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;
+    padding:8px 10px;border-radius:9px;color:var(--ink-2);
+    font-weight:500;font-size:13.5px;border:1px solid transparent;
+    transition:.15s;
+  }
+  .nav-item svg{width:17px;height:17px;flex-shrink:0;stroke:var(--ink-3)}
+  .nav-item:hover{background:var(--line-2);color:var(--ink)}
+  .nav-item.active{background:var(--accent-soft);color:var(--accent-ink);border-color:#fadfce}
+  .nav-item.active svg{stroke:var(--accent)}
+  .nav-item .count{margin-left:auto;font-size:11px;background:var(--line-2);color:var(--ink-2);padding:1px 7px;border-radius:20px;font-weight:600}
+  .nav-item.active .count{background:#fff;color:var(--accent)}
+  .side-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
+  .me{display:flex;align-items:center;gap:10px;padding:6px 4px}
+  .me .av{width:32px;height:32px;border-radius:50%;background:#dde3ee;display:flex;align-items:center;justify-content:center;font-weight:650;font-size:12px;color:#41506b}
+  .me .nm{font-size:13px;font-weight:600}
+  .me .rl{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    background:rgba(255,255,255,.85);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    padding:16px 28px;display:flex;align-items:center;gap:18px;
+    position:sticky;top:0;z-index:20;
+  }
+  .topbar h2{font-size:18px;margin:0;font-weight:650;letter-spacing:-.3px}
+  .topbar .crumb{font-size:12px;color:var(--ink-3);margin-top:1px}
+  .search{
+    margin-left:auto;position:relative;width:300px;
+  }
+  .search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--ink-3)}
+  .search input{
+    width:100%;padding:9px 12px 9px 36px;border:1px solid var(--line);
+    border-radius:10px;background:#fbfbfd;font-size:13px;color:var(--ink);outline:none;transition:.15s;
+  }
+  .search input:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-soft)}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:9px 15px;border-radius:10px;font-weight:600;font-size:13px;
+    border:1px solid var(--line);background:#fff;color:var(--ink-2);transition:.15s;
+  }
+  .btn:hover{background:var(--line-2)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(234,88,12,.22)}
+  .btn.primary:hover{background:#d4500b}
+  .btn svg{width:15px;height:15px}
+
+  .content{padding:24px 28px 48px;max-width:1480px;width:100%}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .kpi{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .kpi .lab{font-size:12px;color:var(--ink-3);font-weight:600;display:flex;align-items:center;gap:7px}
+  .kpi .lab .dot{width:8px;height:8px;border-radius:50%}
+  .kpi .val{font-size:27px;font-weight:700;letter-spacing:-.5px;margin-top:8px}
+  .kpi .meta{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+  .kpi .spark{position:absolute;right:14px;bottom:12px;opacity:.9}
+  .kpi .trend{font-weight:650;font-size:11.5px}
+  .trend.up{color:var(--green)} .trend.dn{color:var(--red)}
+
+  /* ---------- AI banner ---------- */
+  .ai-strip{
+    background:linear-gradient(120deg,#fff8f3,#fffdfb);
+    border:1px solid #f6dcc8;border-radius:var(--radius);
+    padding:14px 18px;margin-bottom:22px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);
+  }
+  .ai-strip .ai-ic{
+    width:38px;height:38px;border-radius:11px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--accent),#fb923c);
+    display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(234,88,12,.25);
+  }
+  .ai-strip .txt{flex:1;min-width:0}
+  .ai-strip .txt b{font-weight:650}
+  .ai-strip .txt .d{font-size:12.5px;color:var(--ink-2);margin-top:1px}
+  .ai-strip .pill-row{display:flex;gap:8px;flex-shrink:0}
+
+  /* ---------- Toolbar ---------- */
+  .work{display:grid;grid-template-columns:1fr;gap:18px}
+  .tabs{display:flex;gap:4px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:4px;width:fit-content}
+  .tab{padding:7px 15px;border-radius:8px;font-weight:600;font-size:13px;color:var(--ink-3);border:none;background:transparent}
+  .tab.active{background:var(--accent-soft);color:var(--accent-ink)}
+  .tab:hover:not(.active){background:var(--line-2);color:var(--ink-2)}
+  .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:2px}
+  .filters{display:flex;gap:7px;margin-left:auto;flex-wrap:wrap}
+  .chip{
+    padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:600;
+    border:1px solid var(--line);background:#fff;color:var(--ink-2);transition:.15s;
+  }
+  .chip:hover{border-color:#d4d8e2;background:#fafbfc}
+  .chip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* ---------- Table ---------- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  thead th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-3);font-weight:650;padding:13px 18px;border-bottom:1px solid var(--line);background:#fbfbfd;
+    user-select:none;
+  }
+  tbody td{padding:13px 18px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+  tbody tr{transition:.12s;cursor:pointer}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fcfbfa}
+  .doc-cell{display:flex;align-items:center;gap:12px}
+  .doc-ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700;color:#fff}
+  .doc-tt{font-weight:600;font-size:13.5px;letter-spacing:-.1px}
+  .doc-mt{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+  .tag{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .tag .d{width:6px;height:6px;border-radius:50%}
+  .s-review{background:var(--blue-soft);color:var(--blue)} .s-review .d{background:var(--blue)}
+  .s-pending{background:var(--amber-soft);color:var(--amber)} .s-pending .d{background:var(--amber)}
+  .s-approved{background:var(--green-soft);color:var(--green)} .s-approved .d{background:var(--green)}
+  .s-rejected{background:var(--red-soft);color:var(--red)} .s-rejected .d{background:var(--red)}
+  .s-draft{background:var(--line-2);color:var(--ink-3)} .s-draft .d{background:var(--ink-3)}
+
+  .stack{display:flex;align-items:center}
+  .stack .av{
+    width:26px;height:26px;border-radius:50%;border:2px solid #fff;margin-left:-8px;
+    display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;
+  }
+  .stack .av:first-child{margin-left:0}
+  .stack .more{width:26px;height:26px;border-radius:50%;border:2px solid #fff;margin-left:-8px;background:#eef0f5;color:var(--ink-2);font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700}
+
+  .conf{display:inline-flex;align-items:center;gap:8px}
+  .conf .bar{width:54px;height:6px;border-radius:6px;background:var(--line-2);overflow:hidden}
+  .conf .fill{height:100%;border-radius:6px}
+  .conf .pct{font-size:11.5px;font-weight:650;color:var(--ink-2)}
+
+  .prio{font-size:12px;font-weight:650}
+  .prio.high{color:var(--red)} .prio.med{color:var(--amber)} .prio.low{color:var(--ink-3)}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--ink-3)}
+  .empty svg{width:46px;height:46px;stroke:#c8cedb;margin-bottom:12px}
+  .empty b{display:block;color:var(--ink-2);font-size:14px;margin-bottom:3px}
+
+  /* ---------- Drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(22,28,42,.42);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.22s;z-index:50}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:min(1080px,94vw);
+    background:var(--bg);box-shadow:var(--shadow-lg);
+    transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);
+    z-index:60;display:grid;grid-template-columns:1.55fr 1fr;
+  }
+  .drawer.show{transform:translateX(0)}
+  .dr-doc{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+  .dr-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:14px}
+  .dr-head .doc-ic{width:42px;height:42px;border-radius:11px;font-size:12px}
+  .dr-head h3{margin:0;font-size:17px;font-weight:650;letter-spacing:-.3px}
+  .dr-head .mt{font-size:12px;color:var(--ink-3);margin-top:3px}
+  .x{margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;color:var(--ink-2);flex-shrink:0}
+  .x:hover{background:var(--line-2)}
+
+  .viewer{flex:1;overflow:auto;padding:22px;background:#f3f4f7}
+  .page{
+    background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(20,28,45,.05);
+    max-width:560px;margin:0 auto;padding:38px 42px;
+  }
+  .page .ttl{font-size:18px;font-weight:700;margin:0 0 4px}
+  .page .doc-sub{font-size:12px;color:var(--ink-3);margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--line-2)}
+  .page h4{font-size:13px;font-weight:700;margin:20px 0 7px;color:var(--ink)}
+  .page p{font-size:12.5px;color:var(--ink-2);margin:0 0 10px;line-height:1.65}
+  .page .ln{height:9px;background:#eef0f5;border-radius:4px;margin:7px 0}
+  .page .ln.s{width:72%} .page .ln.m{width:88%}
+  .hl{background:#fff1cc;border-bottom:2px solid #f4c430;padding:1px 2px;border-radius:2px}
+  .ai-flag{background:var(--accent-soft);border:1px dashed #f3c19c;border-radius:8px;padding:9px 12px;margin:12px 0;font-size:11.5px;color:var(--accent-ink);display:flex;gap:8px;align-items:flex-start}
+  .ai-flag svg{width:14px;height:14px;flex-shrink:0;margin-top:1px;stroke:var(--accent)}
+
+  /* ---------- Drawer right rail ---------- */
+  .dr-rail{display:flex;flex-direction:column;min-width:0;overflow:auto}
+  .rail-tabs{display:flex;padding:14px 18px 0;gap:4px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:5}
+  .rt{padding:9px 12px;font-size:13px;font-weight:600;color:var(--ink-3);border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .rt.active{color:var(--accent-ink);border-bottom-color:var(--accent)}
+  .rail-body{padding:18px;display:flex;flex-direction:column;gap:18px;flex:1}
+  .rsec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+  .rsec h5{margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);font-weight:700;display:flex;align-items:center;gap:7px}
+  .rsec h5 .badge-ai{background:var(--accent-soft);color:var(--accent-ink);font-size:9.5px;padding:1px 6px;border-radius:5px;letter-spacing:0;text-transform:none}
+
+  /* extracted fields */
+  .xf{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-2)}
+  .xf:last-child{border-bottom:none}
+  .xf .k{font-size:12px;color:var(--ink-3);font-weight:500}
+  .xf .v{font-size:12.5px;font-weight:600;text-align:right;display:flex;align-items:center;gap:8px}
+  .mini{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:5px}
+  .mini.hi{background:var(--green-soft);color:var(--green)}
+  .mini.mid{background:var(--amber-soft);color:var(--amber)}
+  .mini.lo{background:var(--red-soft);color:var(--red)}
+
+  /* route result */
+  .route{display:flex;align-items:center;gap:12px;padding:4px 0}
+  .route .rb{width:40px;height:40px;border-radius:11px;background:var(--violet-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .route .rb svg{width:20px;height:20px;stroke:var(--violet)}
+  .route .rt2 b{font-size:13.5px}
+  .route .rt2 .reason{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+
+  .sugg{display:flex;gap:9px;padding:8px 0;font-size:12.5px;color:var(--ink-2);border-bottom:1px solid var(--line-2)}
+  .sugg:last-child{border-bottom:none}
+  .sugg .ic{width:18px;height:18px;flex-shrink:0;margin-top:1px}
+  .sugg .ic svg{width:18px;height:18px}
+
+  /* ---------- Timeline ---------- */
+  .timeline{position:relative;padding-left:6px}
+  .step{display:flex;gap:14px;position:relative;padding-bottom:20px}
+  .step:last-child{padding-bottom:0}
+  .step .rail{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+  .step .node{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:2;font-size:12px;font-weight:700}
+  .step .line{width:2px;flex:1;background:var(--line);margin-top:2px}
+  .step:last-child .line{display:none}
+  .node.done{background:var(--green);color:#fff}
+  .node.current{background:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-soft)}
+  .node.wait{background:#fff;border:2px solid var(--line);color:var(--ink-3)}
+  .node.rej{background:var(--red);color:#fff}
+  .step .body{flex:1;padding-top:2px;min-width:0}
+  .step .body .row1{display:flex;align-items:center;gap:8px}
+  .step .body b{font-size:13.5px;font-weight:650}
+  .step .body .who{display:flex;align-items:center;gap:8px;margin-top:6px}
+  .step .body .who .av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+  .step .body .who .nm{font-size:12.5px;font-weight:600}
+  .step .body .who .rl{font-size:11px;color:var(--ink-3)}
+  .step .body .ts{font-size:11px;color:var(--ink-3);margin-left:auto}
+  .step .note{font-size:12px;color:var(--ink-2);background:#fafbfc;border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;margin-top:8px}
+
+  /* comments */
+  .cmt{display:flex;gap:11px;padding-bottom:16px}
+  .cmt .av{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+  .cmt .cb{flex:1;min-width:0}
+  .cmt .ch{display:flex;align-items:center;gap:8px}
+  .cmt .ch b{font-size:12.5px;font-weight:650}
+  .cmt .ch .t{font-size:10.5px;color:var(--ink-3)}
+  .cmt .ctxt{font-size:12.5px;color:var(--ink-2);margin-top:3px;line-height:1.55}
+  .cmt.ai .av{background:linear-gradient(135deg,var(--accent),#fb923c)}
+  .cmt.ai .cb{background:var(--accent-soft);border:1px solid #f6dcc8;border-radius:10px;padding:9px 12px;margin-top:-2px}
+  .cmt-box{display:flex;gap:9px;padding-top:6px;border-top:1px solid var(--line-2)}
+  .cmt-box input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;outline:none}
+  .cmt-box input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .cmt-box button{padding:0 14px;border-radius:9px;background:var(--accent);color:#fff;border:none;font-weight:600;font-size:12.5px}
+
+  /* action footer */
+  .dr-actions{padding:14px 18px;border-top:1px solid var(--line);background:#fff;display:flex;gap:10px;position:sticky;bottom:0}
+  .dr-actions .btn{flex:1;justify-content:center}
+  .btn.approve{background:var(--green);color:#fff;border-color:var(--green)}
+  .btn.approve:hover{background:#138a3e}
+  .btn.reject{background:#fff;color:var(--red);border-color:#f3c4c4}
+  .btn.reject:hover{background:var(--red-soft)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:11px;font-size:13px;font-weight:600;
+    box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.25s;z-index:90;display:flex;align-items:center;gap:9px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast svg{width:16px;height:16px}
+
+  @media(max-width:1100px){
+    .app{grid-template-columns:1fr}
+    .side{display:none}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .drawer{grid-template-columns:1fr}
+    .dr-doc{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="mark">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>
+      </div>
+      <div>
+        <h1>ApprovalFlow</h1>
+        <div class="sub">Document Governance</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <a class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M9 21V9"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Review Queue<span class="count">14</span></a>
+    <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Approved<span class="count">38</span></a>
+    <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>My Drafts<span class="count">5</span></a>
+    <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>Delegated<span class="count">3</span></a>
+
+    <div class="nav-label">Insights</div>
+    <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Analytics</a>
+    <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Audit Log</a>
+    <a class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>Policy Library</a>
+
+    <div class="side-foot">
+      <div class="me">
+        <div class="av">DV</div>
+        <div>
+          <div class="nm">Dana Vetrov</div>
+          <div class="rl">Compliance Lead</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h2>Review Queue</h2>
+        <div class="crumb">Documents awaiting your decision</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search documents, owners, types…" />
+      </div>
+      <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></svg>New Document</button>
+    </div>
+
+    <div class="content">
+      <div class="kpis">
+        <div class="kpi">
+          <div class="lab"><span class="dot" style="background:var(--blue)"></span>Awaiting Review</div>
+          <div class="val">14</div>
+          <div class="meta"><span class="trend dn">▼ 3</span> vs last week</div>
+          <svg class="spark" width="60" height="26" viewBox="0 0 60 26"><polyline points="0,18 12,14 24,16 36,8 48,12 60,6" fill="none" stroke="#2563eb" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="lab"><span class="dot" style="background:var(--green)"></span>Approved (30d)</div>
+          <div class="val">38</div>
+          <div class="meta"><span class="trend up">▲ 12%</span> throughput</div>
+          <svg class="spark" width="60" height="26" viewBox="0 0 60 26"><polyline points="0,20 12,16 24,12 36,13 48,7 60,4" fill="none" stroke="#16a34a" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="lab"><span class="dot" style="background:var(--amber)"></span>Avg. Cycle Time</div>
+          <div class="val">1.8<span style="font-size:15px;color:var(--ink-3)"> d</span></div>
+          <div class="meta"><span class="trend up">▲ faster</span> AI pre-triage</div>
+          <svg class="spark" width="60" height="26" viewBox="0 0 60 26"><polyline points="0,6 12,9 24,8 36,13 48,16 60,18" fill="none" stroke="#d97706" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="lab"><span class="dot" style="background:var(--accent)"></span>AI Auto-Triaged</div>
+          <div class="val">91<span style="font-size:15px;color:var(--ink-3)">%</span></div>
+          <div class="meta"><span class="trend up">▲ 6%</span> routed correctly</div>
+          <svg class="spark" width="60" height="26" viewBox="0 0 60 26"><polyline points="0,16 12,14 24,11 36,10 48,7 60,5" fill="none" stroke="#ea580c" stroke-width="2"/></svg>
+        </div>
+      </div>
+
+      <div class="ai-strip">
+        <div class="ai-ic">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="txt">
+          <b>AI Review Assistant pre-processed 14 documents.</b>
+          <div class="d">Fields extracted, risk-classified and routed to approvers. <span style="color:var(--accent-ink);font-weight:600">3 flagged</span> for clause conflicts — review highlighted before sign-off.</div>
+        </div>
+        <div class="pill-row">
+          <span class="tag" style="background:var(--green-soft);color:var(--green)"><span class="d" style="background:var(--green)"></span>11 clean</span>
+          <span class="tag" style="background:var(--amber-soft);color:var(--amber)"><span class="d" style="background:var(--amber)"></span>3 needs attention</span>
+        </div>
+      </div>
+
+      <div class="work">
+        <div class="toolbar">
+          <div class="tabs">
+            <button class="tab active" data-tab="all">All</button>
+            <button class="tab" data-tab="mine">Assigned to me</button>
+            <button class="tab" data-tab="flagged">AI Flagged</button>
+            <button class="tab" data-tab="urgent">Urgent</button>
+          </div>
+          <div class="filters">
+            <button class="chip active" data-filter="all">All Status</button>
+            <button class="chip" data-filter="review">In Review</button>
+            <button class="chip" data-filter="pending">Pending</button>
+            <button class="chip" data-filter="approved">Approved</button>
+            <button class="chip" data-filter="rejected">Rejected</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:30%">Document</th>
+                <th>Type</th>
+                <th>Owner</th>
+                <th>AI Risk</th>
+                <th>Approvers</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div class="empty" id="empty" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <b>No documents match your filters</b>
+            Try clearing search or switching tabs.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="dr-doc">
+    <div class="dr-head">
+      <div class="doc-ic" id="d-ic">CT</div>
+      <div style="min-width:0">
+        <h3 id="d-title">—</h3>
+        <div class="mt" id="d-meta">—</div>
+      </div>
+      <button class="x" onclick="closeDrawer()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="viewer">
+      <div class="page">
+        <div class="ttl" id="p-title">—</div>
+        <div class="doc-sub" id="p-sub">—</div>
+        <p id="p-lead">—</p>
+        <h4>1. Scope &amp; Term</h4>
+        <p>This agreement governs the services described herein for an initial term of <span class="hl">24 months</span>, renewing automatically unless terminated with 60 days written notice.</p>
+        <div class="ln m"></div><div class="ln"></div><div class="ln s"></div>
+        <div class="ai-flag" id="p-flag">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <span><b>AI flag:</b> Liability cap in §4.2 (<span class="hl">$50,000</span>) is below the policy floor of $250,000 for contracts of this value. Recommend escalation to Legal.</span>
+        </div>
+        <h4>2. Payment Terms</h4>
+        <p>Net <span class="hl">45 days</span> from invoice date. Late payments accrue interest at 1.5% per month.</p>
+        <div class="ln"></div><div class="ln m"></div><div class="ln s"></div>
+        <h4>3. Confidentiality</h4>
+        <p>Each party agrees to protect the other's confidential information using the same degree of care it applies to its own.</p>
+        <div class="ln m"></div><div class="ln"></div>
+        <h4>4. Liability</h4>
+        <p>Except for breaches of confidentiality, aggregate liability is capped at <span class="hl">$50,000</span> per the terms set in §4.2.</p>
+        <div class="ln"></div><div class="ln s"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dr-rail">
+    <div class="rail-tabs">
+      <button class="rt active" data-rt="ai">AI Summary</button>
+      <button class="rt" data-rt="flow">Approval Flow</button>
+      <button class="rt" data-rt="cmt">Comments</button>
+    </div>
+    <div class="rail-body" id="rail-body"></div>
+    <div class="dr-actions">
+      <button class="btn reject" onclick="decide('rejected')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Request Changes</button>
+      <button class="btn approve" onclick="decide('approved')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Approve &amp; Sign</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toast-txt">Done</span></div>
+
+<script>
+/* ---------- seed data ---------- */
+const palette={CT:'#ea580c',PO:'#2563eb',HR:'#7c3aed',FN:'#16a34a',LG:'#dc2626',IT:'#0891b2',MK:'#db2777'};
+function av(name){const p=name.split(' ');return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase();}
+function color(seed){const c=['#ea580c','#2563eb','#7c3aed','#16a34a','#dc2626','#0891b2','#db2777','#475067'];let h=0;for(const ch of seed)h=ch.charCodeAt(0)+((h<<5)-h);return c[Math.abs(h)%c.length];}
+
+const DOCS=[
+  {id:1,title:'Acme Corp — Master Services Agreement',type:'Contract',code:'CT',owner:'Marcus Reyes',risk:'High',conf:94,status:'review',prio:'high',updated:'12m ago',
+   sub:'MSA-2026-0412 · 28 pages · v3', lead:'Master services agreement covering cloud migration and managed support for Acme Corp, including SLA commitments and data processing terms.',
+   route:{to:'Legal Review',reason:'Liability cap below policy floor + cross-border data clause detected.'},
+   fields:[['Counterparty','Acme Corp Ltd','hi'],['Contract Value','$420,000 / yr','hi'],['Term','24 months','hi'],['Liability Cap','$50,000','lo'],['Governing Law','State of Delaware','mid'],['Auto-Renewal','Yes (60d notice)','hi']],
+   sugg:['Escalate §4.2 liability cap to Legal — below $250k policy floor.','Add GDPR data-processing addendum (counterparty is EU-based).','Confirm SLA credits align with the 99.9% uptime clause.'],
+   steps:[{n:'Drafted',who:'Marcus Reyes',role:'Account Manager',state:'done',ts:'Jun 18',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 18',note:'Classified High-risk · routed to Legal · 2 clauses flagged.'},
+          {n:'Legal Review',who:'Dana Vetrov',role:'Compliance Lead',state:'current',ts:'pending',note:''},
+          {n:'Finance Sign-off',who:'Priya Anand',role:'CFO',state:'wait',ts:'—',note:''},
+          {n:'Final Approval',who:'Leah Cho',role:'VP Operations',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'2h ago',txt:'Detected a liability cap conflict in §4.2 ($50k vs $250k policy floor). Highlighted in the document viewer.'},
+         {who:'Marcus Reyes',t:'1h ago',txt:'Acme pushed back on raising the cap. Can we accept with an added indemnity carve-out?'}]},
+
+  {id:2,title:'Q3 Marketing Budget Reallocation',type:'Finance',code:'FN',owner:'Sofia Klein',risk:'Medium',conf:88,status:'pending',prio:'med',updated:'40m ago',
+   sub:'FN-Q3-0088 · 6 pages · v1', lead:'Proposal to reallocate $180,000 from paid-search to brand and events for Q3, with projected CAC and pipeline impact.',
+   route:{to:'Finance Approval',reason:'Spend within department authority; no policy exceptions found.'},
+   fields:[['Total Reallocation','$180,000','hi'],['From','Paid Search','hi'],['To','Brand + Events','hi'],['Projected CAC Δ','+4%','mid'],['Approver Tier','Tier 2','hi']],
+   sugg:['Budget shift is within VP discretionary limit — no CFO sign-off required.','Attach the Q2 CAC report referenced on page 3.'],
+   steps:[{n:'Drafted',who:'Sofia Klein',role:'Marketing Dir.',state:'done',ts:'Jun 20',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 20',note:'Classified Medium-risk · single-approver path.'},
+          {n:'Finance Approval',who:'Priya Anand',role:'CFO',state:'current',ts:'pending',note:''},
+          {n:'Archive',who:'System',role:'—',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'40m ago',txt:'No policy exceptions. CAC impact is modeled at +4%, within the acceptable threshold for brand spend.'}]},
+
+  {id:3,title:'Vendor NDA — Northwind Analytics',type:'Legal',code:'LG',owner:'Tariq Hassan',risk:'Low',conf:97,status:'approved',prio:'low',updated:'2h ago',
+   sub:'NDA-2026-0231 · 4 pages · v2', lead:'Mutual non-disclosure agreement for an analytics evaluation engagement with Northwind, standard 3-year term.',
+   route:{to:'Auto-Approved',reason:'Matches the pre-approved NDA template with no deviations.'},
+   fields:[['Counterparty','Northwind Analytics','hi'],['Type','Mutual NDA','hi'],['Term','3 years','hi'],['Template Match','99%','hi'],['Deviations','None','hi']],
+   sugg:['Document matches standard template — eligible for auto-approval.','No clause-level edits detected vs the master NDA.'],
+   steps:[{n:'Drafted',who:'Tariq Hassan',role:'Procurement',state:'done',ts:'Jun 19',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 19',note:'99% template match · zero deviations · fast-tracked.'},
+          {n:'Legal Sign-off',who:'Dana Vetrov',role:'Compliance Lead',state:'done',ts:'Jun 21',note:'Approved — standard terms, no edits needed.'},
+          {n:'Executed',who:'System',role:'—',state:'done',ts:'Jun 21',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'2h ago',txt:'Template fingerprint matched the master NDA at 99%. Auto-approval was eligible; Dana confirmed manually.'},
+         {who:'Dana Vetrov',t:'2h ago',txt:'Confirmed. Clean.'}]},
+
+  {id:4,title:'Employee Handbook 2026 Revision',type:'HR Policy',code:'HR',owner:'Nadia Brooks',risk:'Medium',conf:85,status:'review',prio:'med',updated:'3h ago',
+   sub:'HR-POL-2026 · 64 pages · v4', lead:'Annual handbook revision updating remote-work, parental leave and code-of-conduct sections to meet new regional regulations.',
+   route:{to:'HR + Legal Review',reason:'Regulatory leave changes require dual sign-off.'},
+   fields:[['Sections Changed','7','mid'],['New Policies','Remote Work, Leave','hi'],['Jurisdictions','3 regions','mid'],['Effective Date','Sep 1, 2026','hi'],['Risk Areas','2','mid']],
+   sugg:['Parental-leave update must be reviewed against new regional statute (flagged §6.3).','Have Legal confirm the remote-work tax-nexus language.'],
+   steps:[{n:'Drafted',who:'Nadia Brooks',role:'HR Manager',state:'done',ts:'Jun 17',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 17',note:'Medium-risk · routed for dual HR+Legal review.'},
+          {n:'HR Review',who:'Owen Pratt',role:'HR Director',state:'done',ts:'Jun 20',note:'Approved with minor wording tweaks to §3.'},
+          {n:'Legal Review',who:'Dana Vetrov',role:'Compliance Lead',state:'current',ts:'pending',note:''},
+          {n:'Publish',who:'System',role:'—',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'3h ago',txt:'Section 6.3 (parental leave) introduces terms that diverge from the prior policy — recommend statutory cross-check.'},
+         {who:'Owen Pratt',t:'2h ago',txt:'HR side looks good. Passing to Legal for the statutory bits.'}]},
+
+  {id:5,title:'PO #4471 — Datacenter Hardware Refresh',type:'Purchase',code:'PO',owner:'Liam Foster',risk:'High',conf:91,status:'pending',prio:'high',updated:'5h ago',
+   sub:'PO-4471 · 3 pages · v1', lead:'Capital purchase order for server and networking hardware refresh across two datacenters, total $312,000.',
+   route:{to:'CFO + Procurement',reason:'Capital spend exceeds the $250k threshold — dual approval.'},
+   fields:[['PO Total','$312,000','hi'],['Vendor','Dell Technologies','hi'],['Category','Capital — Hardware','hi'],['Budget Line','IT-CAPEX-26','mid'],['Over Threshold','Yes (>$250k)','lo']],
+   sugg:['Capital spend over $250k — CFO sign-off mandatory.','Confirm IT-CAPEX-26 has remaining budget ($312k of $400k requested YTD).'],
+   steps:[{n:'Requested',who:'Liam Foster',role:'IT Lead',state:'done',ts:'Jun 19',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 19',note:'High-value · flagged over-threshold · dual-approval path.'},
+          {n:'Procurement',who:'Tariq Hassan',role:'Procurement',state:'done',ts:'Jun 20',note:'Vendor pricing verified against quote.'},
+          {n:'CFO Approval',who:'Priya Anand',role:'CFO',state:'current',ts:'pending',note:''},
+          {n:'Issue PO',who:'System',role:'—',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'5h ago',txt:'PO total ($312k) exceeds the $250k capital threshold. Budget line IT-CAPEX-26 has $88k remaining headroom.'}]},
+
+  {id:6,title:'SOC 2 Subprocessor Disclosure Update',type:'Compliance',code:'IT',owner:'Grace Lin',risk:'Low',conf:96,status:'approved',prio:'low',updated:'6h ago',
+   sub:'COMP-SOC2-09 · 8 pages · v2', lead:'Update to the public subprocessor list adding two new infrastructure vendors, with DPA links and data-residency notes.',
+   route:{to:'Auto-Approved',reason:'Routine disclosure update; no contractual change.'},
+   fields:[['New Subprocessors','2','mid'],['DPA Linked','Yes','hi'],['Data Residency','EU + US','hi'],['Change Type','Disclosure only','hi']],
+   sugg:['No contractual change — routine disclosure path.','Schedule the 30-day customer notification per the master DPA.'],
+   steps:[{n:'Drafted',who:'Grace Lin',role:'Security Eng.',state:'done',ts:'Jun 18',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 18',note:'Low-risk · disclosure-only · fast-tracked.'},
+          {n:'Security Sign-off',who:'Grace Lin',role:'Security Eng.',state:'done',ts:'Jun 21',note:'Approved.'},
+          {n:'Published',who:'System',role:'—',state:'done',ts:'Jun 21',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'6h ago',txt:'No clause changes. Triggered the 30-day customer notification workflow automatically.'}]},
+
+  {id:7,title:'Reseller Agreement — Pacific Trade',type:'Contract',code:'CT',owner:'Marcus Reyes',risk:'Medium',conf:82,status:'review',prio:'med',updated:'8h ago',
+   sub:'RA-2026-0119 · 19 pages · v2', lead:'Channel reseller agreement granting Pacific Trade non-exclusive distribution rights in the APAC region.',
+   route:{to:'Legal Review',reason:'Non-standard territory and margin terms detected.'},
+   fields:[['Counterparty','Pacific Trade Co','hi'],['Region','APAC (non-excl.)','hi'],['Reseller Margin','22%','mid'],['Term','12 months','hi'],['Exclusivity','None','hi']],
+   sugg:['Margin of 22% exceeds standard 18% — confirm with Finance.','Territory clause is non-standard; verify against channel policy.'],
+   steps:[{n:'Drafted',who:'Marcus Reyes',role:'Account Manager',state:'done',ts:'Jun 16',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 16',note:'Medium-risk · margin deviation flagged.'},
+          {n:'Legal Review',who:'Dana Vetrov',role:'Compliance Lead',state:'current',ts:'pending',note:''},
+          {n:'Finance Sign-off',who:'Priya Anand',role:'CFO',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'8h ago',txt:'Reseller margin (22%) is 4 points above the channel standard. Recommend a Finance confirmation before sign-off.'}]},
+
+  {id:8,title:'Severance Agreement — Confidential',type:'HR Policy',code:'HR',owner:'Nadia Brooks',risk:'High',conf:89,status:'pending',prio:'high',updated:'9h ago',
+   sub:'HR-SEV-0042 · 7 pages · v1', lead:'Individual severance and release agreement requiring Legal and HR sign-off prior to delivery.',
+   route:{to:'Legal + HR Director',reason:'Release of claims clause requires legal review.'},
+   fields:[['Severance Weeks','16 weeks','hi'],['Release of Claims','Yes','hi'],['COBRA Coverage','6 months','mid'],['NDA Included','Yes','hi'],['Risk Area','Release language','lo']],
+   sugg:['Release-of-claims language must be Legal-reviewed for enforceability.','Confirm the 16-week severance aligns with tenure-based policy.'],
+   steps:[{n:'Drafted',who:'Nadia Brooks',role:'HR Manager',state:'done',ts:'Jun 19',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 19',note:'High-risk · release clause flagged · dual sign-off.'},
+          {n:'Legal Review',who:'Dana Vetrov',role:'Compliance Lead',state:'current',ts:'pending',note:''},
+          {n:'HR Director',who:'Owen Pratt',role:'HR Director',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'9h ago',txt:'Release-of-claims clause uses non-standard wording. Flagged for enforceability review under current jurisdiction.'}]},
+
+  {id:9,title:'Cloud Spend Approval — AWS Q3',type:'Finance',code:'FN',owner:'Grace Lin',risk:'Low',conf:93,status:'approved',prio:'low',updated:'1d ago',
+   sub:'FN-CLOUD-0307 · 2 pages · v1', lead:'Quarterly cloud-spend commitment for reserved instances, projected $96,000 with 31% savings vs on-demand.',
+   route:{to:'Finance Approval',reason:'Within budget; savings model validated.'},
+   fields:[['Commitment','$96,000 / qtr','hi'],['Savings vs On-Demand','31%','hi'],['Term','3-yr reserved','hi'],['Budget Status','Within plan','hi']],
+   sugg:['Savings model verified — recommend approval.','Reserved-instance term locks pricing for 3 years.'],
+   steps:[{n:'Drafted',who:'Grace Lin',role:'Security Eng.',state:'done',ts:'Jun 18',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 18',note:'Low-risk · savings validated.'},
+          {n:'Finance Approval',who:'Priya Anand',role:'CFO',state:'done',ts:'Jun 20',note:'Approved — strong savings case.'},
+          {n:'Archive',who:'System',role:'—',state:'done',ts:'Jun 20',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'1d ago',txt:'Reserved-instance savings of 31% validated against current on-demand usage trend.'}]},
+
+  {id:10,title:'Data Processing Addendum — Helix Health',type:'Legal',code:'LG',owner:'Tariq Hassan',risk:'High',conf:90,status:'review',prio:'high',updated:'1d ago',
+   sub:'DPA-2026-0156 · 11 pages · v3', lead:'DPA for a healthcare client involving PHI; requires HIPAA-aligned safeguards and breach-notification terms.',
+   route:{to:'Legal + Security',reason:'PHI handling triggers HIPAA review path.'},
+   fields:[['Counterparty','Helix Health Inc','hi'],['Data Class','PHI (HIPAA)','lo'],['Breach Notice','48 hours','hi'],['Subprocessors','3 listed','mid'],['Encryption','AES-256','hi']],
+   sugg:['PHI handling — confirm HIPAA BAA is attached and current.','Verify the 48-hour breach-notification window meets client SLA.'],
+   steps:[{n:'Drafted',who:'Tariq Hassan',role:'Procurement',state:'done',ts:'Jun 17',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 17',note:'High-risk · PHI detected · HIPAA path.'},
+          {n:'Security Review',who:'Grace Lin',role:'Security Eng.',state:'done',ts:'Jun 19',note:'Encryption + subprocessor list verified.'},
+          {n:'Legal Review',who:'Dana Vetrov',role:'Compliance Lead',state:'current',ts:'pending',note:''},
+          {n:'Execute',who:'System',role:'—',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'1d ago',txt:'PHI data class detected. Confirmed BAA is attached; breach-notice window (48h) matches the client master agreement.'},
+         {who:'Grace Lin',t:'20h ago',txt:'Security controls check out. AES-256 at rest and in transit.'}]},
+
+  {id:11,title:'Office Lease Renewal — Suite 1200',type:'Purchase',code:'PO',owner:'Liam Foster',risk:'Medium',conf:86,status:'pending',prio:'med',updated:'1d ago',
+   sub:'LEASE-1200 · 22 pages · v2', lead:'Five-year renewal of the headquarters office lease with a 3% annual escalator and tenant-improvement allowance.',
+   route:{to:'Finance + Facilities',reason:'Multi-year commitment requires Finance sign-off.'},
+   fields:[['Annual Rent','$540,000','hi'],['Term','5 years','hi'],['Escalator','3% / yr','mid'],['TI Allowance','$120,000','hi'],['Break Clause','Year 3','mid']],
+   sugg:['Five-year commitment — confirm with Finance long-range plan.','Negotiate the TI allowance disbursement schedule (currently lump-sum).'],
+   steps:[{n:'Drafted',who:'Liam Foster',role:'IT Lead',state:'done',ts:'Jun 16',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 16',note:'Medium-risk · multi-year commitment.'},
+          {n:'Facilities Review',who:'Owen Pratt',role:'HR Director',state:'done',ts:'Jun 18',note:'Space plan confirmed.'},
+          {n:'Finance Sign-off',who:'Priya Anand',role:'CFO',state:'current',ts:'pending',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'1d ago',txt:'Total 5-year obligation modeled at ~$2.86M including escalators. Within facilities budget envelope.'}]},
+
+  {id:12,title:'Partner API Terms — DevBridge',type:'Contract',code:'CT',owner:'Sofia Klein',risk:'Low',conf:95,status:'approved',prio:'low',updated:'2d ago',
+   sub:'API-2026-0077 · 9 pages · v1', lead:'API integration terms with DevBridge under the standard partner template with no deviations.',
+   route:{to:'Auto-Approved',reason:'Standard partner template, no deviations.'},
+   fields:[['Counterparty','DevBridge Inc','hi'],['Rate Limit','10k req/min','hi'],['Template Match','98%','hi'],['Deviations','None','hi']],
+   sugg:['Matches standard partner API template — auto-approval eligible.','No custom rate or liability terms.'],
+   steps:[{n:'Drafted',who:'Sofia Klein',role:'Marketing Dir.',state:'done',ts:'Jun 15',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 15',note:'98% template match · fast-tracked.'},
+          {n:'Legal Sign-off',who:'Dana Vetrov',role:'Compliance Lead',state:'done',ts:'Jun 16',note:'Approved.'},
+          {n:'Executed',who:'System',role:'—',state:'done',ts:'Jun 16',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'2d ago',txt:'Template fingerprint matched at 98%. No clause-level review needed.'}]},
+
+  {id:13,title:'Contractor SOW — Atlas Design',type:'Purchase',code:'PO',owner:'Nadia Brooks',risk:'Medium',conf:84,status:'rejected',prio:'med',updated:'2d ago',
+   sub:'SOW-2026-0203 · 5 pages · v2', lead:'Statement of work for a design contractor engagement; returned for missing acceptance criteria.',
+   route:{to:'Returned to Owner',reason:'Missing deliverable acceptance criteria.'},
+   fields:[['Contractor','Atlas Design','hi'],['Engagement','12 weeks','hi'],['Fee','$60,000','hi'],['Acceptance Criteria','Missing','lo'],['IP Assignment','Present','hi']],
+   sugg:['Add explicit deliverable acceptance criteria before re-submission.','Define milestone-based payment to reduce upfront exposure.'],
+   steps:[{n:'Drafted',who:'Nadia Brooks',role:'HR Manager',state:'done',ts:'Jun 17',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 17',note:'Medium-risk · missing acceptance criteria noted.'},
+          {n:'Procurement',who:'Tariq Hassan',role:'Procurement',state:'rej',ts:'Jun 21',note:'Returned — add acceptance criteria and milestones.'},
+          {n:'Re-draft',who:'Nadia Brooks',role:'HR Manager',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'2d ago',txt:'No acceptance-criteria section found. Payment is structured as a single upfront fee — flagged as elevated exposure.'},
+         {who:'Tariq Hassan',t:'2d ago',txt:'Sending back. Need clear acceptance gates and milestone payments.'}]},
+
+  {id:14,title:'Brand Guidelines Refresh — External',type:'Marketing',code:'MK',owner:'Sofia Klein',risk:'Low',conf:92,status:'review',prio:'low',updated:'3d ago',
+   sub:'MK-BRAND-0011 · 34 pages · v5', lead:'Updated external brand guidelines including new logo usage, color tokens and partner co-branding rules.',
+   route:{to:'Marketing Lead',reason:'Internal style update; single-approver path.'},
+   fields:[['Sections','6','mid'],['New Assets','12','hi'],['Co-brand Rules','Updated','hi'],['External Facing','Yes','mid']],
+   sugg:['Single-approver path — Marketing Lead sign-off only.','Confirm legal cleared the partner co-branding trademark usage.'],
+   steps:[{n:'Drafted',who:'Sofia Klein',role:'Marketing Dir.',state:'done',ts:'Jun 14',note:''},
+          {n:'AI Pre-Triage',who:'Review Assistant',role:'Automation',state:'done',ts:'Jun 14',note:'Low-risk · single-approver path.'},
+          {n:'Marketing Lead',who:'Leah Cho',role:'VP Operations',state:'current',ts:'pending',note:''},
+          {n:'Publish',who:'System',role:'—',state:'wait',ts:'—',note:''}],
+   cmts:[{ai:true,who:'AI Assistant',t:'3d ago',txt:'Detected new partner co-branding rules. Recommend a quick trademark check on the partner-logo lockups.'}]}
+];
+
+const statusMap={review:['In Review','s-review'],pending:['Pending','s-pending'],approved:['Approved','s-approved'],rejected:['Rejected','s-rejected'],draft:['Draft','s-draft']};
+const riskMap={High:['var(--red)',82],Medium:['var(--amber)',60],Low:['var(--green)',34]};
+
+let state={tab:'all',filter:'all',q:''};
+
+/* ---------- render table ---------- */
+function renderRows(){
+  const rows=document.getElementById('rows');
+  const q=state.q.trim().toLowerCase();
+  let list=DOCS.filter(d=>{
+    if(state.filter!=='all' && d.status!==state.filter) return false;
+    if(state.tab==='mine' && !d.steps.some(s=>s.who==='Dana Vetrov'&&s.state==='current')) return false;
+    if(state.tab==='flagged' && d.conf>0 && !(d.risk==='High'||d.risk==='Medium')) return false;
+    if(state.tab==='flagged' && d.risk==='Low') return false;
+    if(state.tab==='urgent' && d.prio!=='high') return false;
+    if(q && !(d.title.toLowerCase().includes(q)||d.owner.toLowerCase().includes(q)||d.type.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  document.getElementById('empty').style.display=list.length?'none':'block';
+  rows.innerHTML=list.map(d=>{
+    const [sl,sc]=statusMap[d.status];
+    const [rc,rw]=riskMap[d.risk];
+    const aps=d.steps.filter(s=>s.role!=='Automation'&&s.role!=='—'&&s.who!=='System');
+    const avs=aps.slice(0,3).map(s=>`<div class="av" style="background:${color(s.who)}" title="${s.who}">${av(s.who)}</div>`).join('');
+    const more=aps.length>3?`<div class="more">+${aps.length-3}</div>`:'';
+    return `<tr onclick="openDrawer(${d.id})">
+      <td><div class="doc-cell">
+        <div class="doc-ic" style="background:${palette[d.code]||'#475067'}">${d.code}</div>
+        <div><div class="doc-tt">${d.title}</div><div class="doc-mt">${d.sub}</div></div>
+      </div></td>
+      <td><span style="font-size:12.5px;color:var(--ink-2);font-weight:500">${d.type}</span></td>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="av" style="width:24px;height:24px;border-radius:50%;background:${color(d.owner)};color:#fff;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">${av(d.owner)}</div><span style="font-size:12.5px">${d.owner}</span></div></td>
+      <td><div class="conf"><div class="bar"><div class="fill" style="width:${rw}%;background:${rc}"></div></div><span class="pct" style="color:${rc}">${d.risk}</span></div></td>
+      <td><div class="stack">${avs}${more}</div></td>
+      <td><span class="tag ${sc}"><span class="d"></span>${sl}</span></td>
+      <td><span class="prio ${d.prio==='high'?'high':d.prio==='med'?'med':'low'}">${d.prio==='high'?'● High':d.prio==='med'?'● Medium':'● Low'}</span></td>
+      <td><span style="font-size:12px;color:var(--ink-3)">${d.updated}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---------- tabs / filters / search ---------- */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');state.tab=t.dataset.tab;renderRows();
+});
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');state.filter=c.dataset.filter;renderRows();
+});
+document.getElementById('search').oninput=e=>{state.q=e.target.value;renderRows();};
+
+/* ---------- drawer ---------- */
+let cur=null, railTab='ai';
+function openDrawer(id){
+  cur=DOCS.find(d=>d.id===id);
+  const d=cur;
+  document.getElementById('d-ic').textContent=d.code;
+  document.getElementById('d-ic').style.background=palette[d.code]||'#475067';
+  document.getElementById('d-title').textContent=d.title;
+  document.getElementById('d-meta').textContent=`${d.type} · ${d.sub} · Owner ${d.owner}`;
+  document.getElementById('p-title').textContent=d.title;
+  document.getElementById('p-sub').textContent=`${d.sub} — last updated ${d.updated}`;
+  document.getElementById('p-lead').textContent=d.lead;
+  // flag only for high/medium
+  document.getElementById('p-flag').style.display=(d.risk==='High')?'flex':'none';
+  railTab='ai';
+  document.querySelectorAll('.rt').forEach(x=>x.classList.toggle('active',x.dataset.rt==='ai'));
+  renderRail();
+  document.getElementById('scrim').classList.add('show');
+  document.getElementById('drawer').classList.add('show');
+}
+function closeDrawer(){
+  document.getElementById('scrim').classList.remove('show');
+  document.getElementById('drawer').classList.remove('show');
+}
+document.querySelectorAll('.rt').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.rt').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');railTab=t.dataset.rt;renderRail();
+});
+
+function renderRail(){
+  const d=cur, body=document.getElementById('rail-body');
+  if(railTab==='ai'){
+    const [rc]=riskMap[d.risk];
+    body.innerHTML=`
+      <div class="rsec">
+        <h5>AI Classification <span class="badge-ai">auto</span></h5>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+          <div>
+            <div style="font-size:20px;font-weight:700;color:${rc}">${d.risk} Risk</div>
+            <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">Confidence ${d.conf}%</div>
+          </div>
+          <svg width="64" height="64" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--line-2)" stroke-width="3.4"/>
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke="${rc}" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="${d.conf} 100" transform="rotate(-90 18 18)"/>
+            <text x="18" y="21" text-anchor="middle" font-size="9" font-weight="700" fill="${rc}">${d.conf}%</text>
+          </svg>
+        </div>
+      </div>
+      <div class="rsec">
+        <h5>Routing Decision <span class="badge-ai">AI</span></h5>
+        <div class="route" style="margin-top:8px">
+          <div class="rb"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg></div>
+          <div class="rt2"><b>→ ${d.route.to}</b><div class="reason">${d.route.reason}</div></div>
+        </div>
+      </div>
+      <div class="rsec">
+        <h5>Extracted Fields <span class="badge-ai">${d.fields.length} fields</span></h5>
+        ${d.fields.map(f=>`<div class="xf"><div class="k">${f[0]}</div><div class="v">${f[1]} <span class="mini ${f[2]}">${f[2]==='hi'?'97%':f[2]==='mid'?'84%':'62%'}</span></div></div>`).join('')}
+      </div>
+      <div class="rsec">
+        <h5>Suggestions</h5>
+        ${d.sugg.map(s=>`<div class="sugg"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .9 1.6h6.2c.1-.6.4-1.2.9-1.6A7 7 0 0 0 12 2Z"/></svg></div><div>${s}</div></div>`).join('')}
+      </div>`;
+  } else if(railTab==='flow'){
+    body.innerHTML=`
+      <div class="rsec">
+        <h5>Approval Timeline</h5>
+        <div class="timeline" style="margin-top:12px">
+          ${d.steps.map(s=>{
+            const cls=s.state==='done'?'done':s.state==='current'?'current':s.state==='rej'?'rej':'wait';
+            const ic=s.state==='done'?'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+              :s.state==='current'?'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+              :s.state==='rej'?'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>'
+              :'<span style="font-size:11px">○</span>';
+            const isAuto=s.role==='Automation';
+            const whoAv=isAuto?`<div class="av" style="background:linear-gradient(135deg,var(--accent),#fb923c)">AI</div>`
+              :s.who==='System'?`<div class="av" style="background:#94a3b8">SY</div>`
+              :`<div class="av" style="background:${color(s.who)}">${av(s.who)}</div>`;
+            return `<div class="step">
+              <div class="rail"><div class="node ${cls}">${ic}</div><div class="line"></div></div>
+              <div class="body">
+                <div class="row1"><b>${s.n}</b><span class="ts">${s.ts}</span></div>
+                <div class="who">${whoAv}<div><div class="nm">${s.who}</div><div class="rl">${s.role}</div></div></div>
+                ${s.note?`<div class="note">${s.note}</div>`:''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  } else {
+    body.innerHTML=`
+      <div class="rsec">
+        <h5>Comments &amp; Activity</h5>
+        <div id="cmt-list" style="margin-top:12px">
+          ${d.cmts.map(c=>`<div class="cmt ${c.ai?'ai':''}">
+            <div class="av" style="${c.ai?'':'background:'+color(c.who)}">${c.ai?'AI':av(c.who)}</div>
+            <div class="cb"><div class="ch"><b>${c.who}</b><span class="t">${c.t}</span></div><div class="ctxt">${c.txt}</div></div>
+          </div>`).join('')}
+        </div>
+        <div class="cmt-box">
+          <input id="cmt-input" type="text" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postCmt()"/>
+          <button onclick="postCmt()">Send</button>
+        </div>
+      </div>`;
+  }
+}
+
+function postCmt(){
+  const inp=document.getElementById('cmt-input');
+  if(!inp || !inp.value.trim())return;
+  cur.cmts.push({who:'Dana Vetrov',t:'just now',txt:inp.value.trim()});
+  renderRail();
+  toast('Comment posted');
+}
+
+function decide(kind){
+  if(!cur)return;
+  cur.status=kind;
+  // advance timeline
+  const ci=cur.steps.findIndex(s=>s.state==='current');
+  if(ci>-1){
+    cur.steps[ci].state=(kind==='approved')?'done':'rej';
+    cur.steps[ci].ts='just now';
+    cur.steps[ci].note=(kind==='approved')?'Approved & signed.':'Changes requested — returned to owner.';
+    if(kind==='approved' && cur.steps[ci+1]) cur.steps[ci+1].state='current';
+  }
+  closeDrawer();
+  renderRows();
+  toast(kind==='approved'?'Document approved & signed':'Changes requested — owner notified');
+}
+
+let tT;
+function toast(msg){
+  document.getElementById('toast-txt').textContent=msg;
+  const t=document.getElementById('toast');t.classList.add('show');
+  clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+renderRows();
+</script>
+</body>
+</html>

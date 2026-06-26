@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Compliance Management System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-2: #f0f2f5;
+    --panel: #ffffff;
+    --panel-2: #f3f4f7;
+    --panel-3: #e9ecf1;
+    --line: #d8dce3;
+    --line-soft: #e6e9ee;
+    --text: #1f2937;
+    --text-2: #56607a;
+    --text-3: #8a93a6;
+    --accent: #4f46e5;
+    --accent-2: #6366f1;
+    --good: #0f9d6e;
+    --warn: #c87f0a;
+    --bad: #dc2626;
+    --info: #2563eb;
+    --chip: #eef0f4;
+    --radius: 14px;
+    --shadow: 0 12px 32px -16px rgba(30,41,59,.28);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: rgba(79,70,229,.18); }
+
+  /* ---------- Layout shell ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 248px 1fr;
+    min-height: 100vh;
+  }
+  .sidebar {
+    border-right: 1px solid var(--line-soft);
+    background: #ffffff;
+    padding: 22px 16px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 4px 8px 18px;
+  }
+  .brand .logo {
+    width: 38px; height: 38px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    box-shadow: 0 8px 20px -8px rgba(79,70,229,.5);
+    flex: none;
+  }
+  .brand .logo svg { width: 21px; height: 21px; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+  .brand .sub { font-size: 11px; color: var(--text-3); letter-spacing: .3px; }
+
+  .nav-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-3);
+    padding: 14px 10px 6px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    color: var(--text-2);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background .15s, color .15s;
+    position: relative;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  .nav-item:hover { background: var(--panel-2); color: var(--text); }
+  .nav-item.active {
+    background: rgba(79,70,229,.10);
+    color: var(--accent);
+  }
+  .nav-item.active::before {
+    content: "";
+    position: absolute; left: -16px; top: 8px; bottom: 8px;
+    width: 3px; border-radius: 0 3px 3px 0;
+    background: var(--accent);
+  }
+  .nav-item .count {
+    margin-left: auto;
+    font-size: 11px;
+    background: var(--panel-3);
+    color: var(--text-2);
+    padding: 1px 7px;
+    border-radius: 20px;
+  }
+  .nav-item.active .count { background: rgba(79,70,229,.16); color: var(--accent); }
+
+  .sb-footer {
+    margin-top: auto;
+    padding: 12px 10px 2px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .userbox {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 4px;
+  }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 13px; color: #ffffff;
+    flex: none;
+  }
+
+  /* ---------- Main ---------- */
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--line-soft);
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .topbar h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .topbar .crumb { color: var(--text-3); font-size: 12px; }
+  .search {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 12px;
+    width: 320px;
+  }
+  .search input {
+    background: none; border: none; outline: none;
+    color: var(--text); width: 100%; font-size: 13px;
+  }
+  .search svg { width: 16px; height: 16px; color: var(--text-3); }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    display: grid; place-items: center;
+    cursor: pointer; color: var(--text-2);
+    position: relative;
+  }
+  .icon-btn:hover { background: var(--panel-2); color: var(--text); }
+  .icon-btn .dot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--bad); border: 2px solid var(--panel); }
+
+  .content { padding: 24px 28px 48px; }
+
+  /* ---------- KPI cards ---------- */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(30,41,59,.04);
+  }
+  .kpi .label { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 7px; }
+  .kpi .label .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+  .kpi .val { font-size: 28px; font-weight: 750; margin-top: 12px; letter-spacing: -.5px; }
+  .kpi .delta { font-size: 12px; margin-top: 4px; display: flex; align-items: center; gap: 5px; }
+  .kpi .delta.up { color: var(--good); }
+  .kpi .delta.down { color: var(--bad); }
+  .kpi .spark { position: absolute; right: 14px; bottom: 14px; opacity: .8; }
+
+  /* ---------- Section grid ---------- */
+  .grid-main {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 18px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(30,41,59,.04);
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .panel-head h2 { font-size: 15px; margin: 0; font-weight: 650; }
+  .panel-head .hint { font-size: 12px; color: var(--text-3); }
+  .panel-head .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* ---------- Tabs / filters ---------- */
+  .tabs { display: flex; gap: 4px; background: var(--bg-2); padding: 4px; border-radius: 10px; border: 1px solid var(--line-soft); }
+  .tab {
+    padding: 6px 13px; border-radius: 7px; font-size: 12.5px; cursor: pointer;
+    color: var(--text-2); font-weight: 550; white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: #ffffff; color: var(--accent); box-shadow: 0 1px 3px rgba(30,41,59,.12); }
+
+  .seg { display: flex; gap: 7px; flex-wrap: wrap; }
+  .seg .pill {
+    font-size: 12px; padding: 5px 11px; border-radius: 20px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--text-2);
+    cursor: pointer; user-select: none;
+  }
+  .seg .pill:hover { color: var(--text); border-color: #c2c8d4; }
+  .seg .pill.active { background: rgba(79,70,229,.10); border-color: rgba(79,70,229,.4); color: var(--accent); }
+
+  /* ---------- Review queue list (signature: split review pane) ---------- */
+  .queue { max-height: 560px; overflow-y: auto; }
+  .queue::-webkit-scrollbar { width: 9px; }
+  .queue::-webkit-scrollbar-thumb { background: #cbd1da; border-radius: 8px; border: 2px solid var(--panel); }
+  .qrow {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 13px;
+    align-items: center;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    cursor: pointer;
+    transition: background .12s;
+  }
+  .qrow:hover { background: var(--panel-2); }
+  .qrow.sel { background: rgba(79,70,229,.07); box-shadow: inset 3px 0 0 var(--accent); }
+  .qrow .rk {
+    width: 36px; height: 36px; border-radius: 10px; flex: none;
+    display: grid; place-items: center; font-weight: 700; font-size: 14px;
+  }
+  .qrow .qtitle { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .qrow .qmeta { font-size: 11.5px; color: var(--text-3); margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .qrow .qmeta b { color: var(--text-2); font-weight: 550; }
+
+  .risk-score {
+    text-align: right; min-width: 64px;
+  }
+  .risk-score .num { font-size: 19px; font-weight: 750; line-height: 1; }
+  .risk-score .lbl { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: .5px; }
+
+  /* ---------- Badges & pills ---------- */
+  .badge {
+    font-size: 10.5px; font-weight: 650; padding: 2px 8px; border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .b-crit { background: rgba(220,38,38,.10); color: #c11d1d; border-color: rgba(220,38,38,.28); }
+  .b-high { background: rgba(200,127,10,.12); color: #a9650a; border-color: rgba(200,127,10,.3); }
+  .b-med  { background: rgba(37,99,235,.10); color: #1e54c8; border-color: rgba(37,99,235,.28); }
+  .b-low  { background: rgba(15,157,110,.12); color: #0c7d57; border-color: rgba(15,157,110,.3); }
+  .b-gray { background: var(--panel-3); color: var(--text-2); border-color: var(--line); }
+  .b-ai   { background: rgba(99,102,241,.12); color: #4f46e5; border-color: rgba(99,102,241,.3); }
+
+  .dotstat { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* ---------- Donut / framework health ---------- */
+  .frameworks { padding: 6px 4px 4px; }
+  .fwrow {
+    display: grid; grid-template-columns: 1fr auto; gap: 8px;
+    align-items: center; padding: 11px 14px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .fwrow:last-child { border-bottom: none; }
+  .fwrow .fname { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+  .fwrow .fsub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .bar { height: 7px; border-radius: 6px; background: var(--panel-3); overflow: hidden; margin-top: 8px; width: 100%; }
+  .bar > span { display: block; height: 100%; border-radius: 6px; }
+  .fwval { text-align: right; }
+  .fwval .pct { font-size: 16px; font-weight: 700; }
+
+  /* ---------- AI activity feed ---------- */
+  .feed { padding: 6px 0; max-height: 320px; overflow-y: auto; }
+  .feed::-webkit-scrollbar { width: 8px; }
+  .feed::-webkit-scrollbar-thumb { background: #cbd1da; border-radius: 8px; }
+  .fitem {
+    display: grid; grid-template-columns: 30px 1fr; gap: 11px;
+    padding: 11px 18px; position: relative;
+  }
+  .fitem .fdot {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    display: grid; place-items: center;
+    background: var(--panel-3); border: 1px solid var(--line);
+  }
+  .fitem .fdot svg { width: 15px; height: 15px; }
+  .fitem .ftxt { font-size: 12.5px; color: var(--text-2); }
+  .fitem .ftxt b { color: var(--text); font-weight: 600; }
+  .fitem .ftime { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .fitem:not(:last-child)::after {
+    content:""; position: absolute; left: 32px; top: 41px; bottom: -2px; width: 1px; background: var(--line-soft);
+  }
+
+  /* ---------- Drawer ---------- */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(30,41,59,.32);
+    backdrop-filter: blur(3px); opacity: 0; pointer-events: none;
+    transition: opacity .25s; z-index: 80;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 560px; max-width: 94vw;
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    transform: translateX(100%);
+    transition: transform .3s cubic-bezier(.22,.61,.36,1);
+    z-index: 90;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .dhead {
+    padding: 20px 24px 16px; border-bottom: 1px solid var(--line-soft);
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  .dhead .dclose {
+    margin-left: auto; cursor: pointer; color: var(--text-3);
+    width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center;
+    border: 1px solid var(--line); flex: none;
+  }
+  .dhead .dclose:hover { color: var(--text); background: var(--panel-2); }
+  .dbody { padding: 20px 24px 30px; overflow-y: auto; }
+  .dbody::-webkit-scrollbar { width: 8px; }
+  .dbody::-webkit-scrollbar-thumb { background: #cbd1da; border-radius: 8px; }
+
+  .ai-card {
+    background: linear-gradient(135deg, rgba(99,102,241,.08), rgba(79,70,229,.04));
+    border: 1px solid rgba(99,102,241,.25);
+    border-radius: 13px; padding: 16px 17px; margin-bottom: 20px;
+  }
+  .ai-card .ai-top { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .ai-card .ai-top .ttl { font-weight: 700; font-size: 13.5px; }
+  .ai-gauge { display: flex; align-items: center; gap: 18px; }
+  .verdict { font-size: 13px; line-height: 1.55; color: var(--text-2); }
+  .verdict b { color: var(--text); }
+
+  .field-extract {
+    border: 1px solid var(--line-soft); border-radius: 11px; overflow: hidden; margin-bottom: 20px;
+  }
+  .fe-row {
+    display: grid; grid-template-columns: 150px 1fr auto; gap: 12px;
+    padding: 11px 15px; align-items: center; border-bottom: 1px solid var(--line-soft);
+    font-size: 13px;
+  }
+  .fe-row:last-child { border-bottom: none; }
+  .fe-row .fk { color: var(--text-3); font-size: 12px; }
+  .fe-row .fv { font-weight: 550; }
+  .conf { font-size: 10.5px; font-weight: 650; padding: 2px 7px; border-radius: 6px; }
+
+  .checklist { margin-bottom: 20px; }
+  .ck {
+    display: flex; gap: 11px; align-items: flex-start;
+    padding: 11px 14px; border: 1px solid var(--line-soft); border-radius: 11px; margin-bottom: 9px;
+  }
+  .ck .cico {
+    width: 22px; height: 22px; border-radius: 7px; flex: none; display: grid; place-items: center;
+    margin-top: 1px;
+  }
+  .ck .ctxt { font-size: 13px; }
+  .ck .ctxt .csub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+
+  .sec-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-3); margin: 0 0 12px; font-weight: 650; }
+
+  .dactions { display: flex; gap: 10px; margin-top: 6px; }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+    padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; transition: .15s;
+  }
+  .btn:hover { background: var(--panel-3); }
+  .btn svg { width: 15px; height: 15px; }
+  .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { border-color: rgba(220,38,38,.4); color: #c11d1d; }
+  .btn.danger:hover { background: rgba(220,38,38,.08); }
+
+  .empty {
+    text-align: center; padding: 50px 20px; color: var(--text-3);
+  }
+  .empty svg { width: 46px; height: 46px; opacity: .5; margin-bottom: 12px; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-3); border: 1px solid var(--line); color: var(--text);
+    padding: 12px 18px; border-radius: 12px; font-size: 13px; font-weight: 550;
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: .3s; z-index: 200;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .meter-mini { display: inline-block; width: 70px; height: 6px; border-radius: 5px; background: var(--panel-3); overflow: hidden; vertical-align: middle; }
+  .meter-mini > span { display: block; height: 100%; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 1100px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .grid-main { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.4-3 8.4-7 9.5C8 19.4 5 15.4 5 11V5l7-3z" stroke="#fff" stroke-width="1.6"/><path d="M9 11.5l2 2 4-4.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div class="name">AI Compliance</div>
+        <div class="sub">Governance Suite</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none"><path d="M4 13h7V4H4v9zM13 20h7v-9h-7v9zM13 4v5h7V4h-7zM4 20h7v-5H4v5z" stroke="currentColor" stroke-width="1.5"/></svg>Overview</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M4 5h16M4 12h16M4 19h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Review Queue<span class="count">14</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M7 3h7l5 5v13H7V3z" stroke="currentColor" stroke-width="1.5"/><path d="M14 3v5h5" stroke="currentColor" stroke-width="1.5"/></svg>Documents</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 7l10-5 10 5M2 17l10 5 10-5" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Frameworks</div>
+
+    <div class="nav-label">Operations</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/></svg>Audit Log</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17l5-5 4 4 8-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Risk Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="currentColor" stroke-width="1.5"/></svg>Vendors</div>
+
+    <div class="sb-footer">
+      <div class="userbox">
+        <div class="avatar">DM</div>
+        <div>
+          <div style="font-weight:600;font-size:13px;">Dana Mercer</div>
+          <div style="font-size:11px;color:var(--text-3);">Chief Compliance Officer</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1>Compliance Overview</h1>
+        <div class="crumb">Workspace · Q2 2026 reporting cycle</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.7"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <input id="globalSearch" placeholder="Search controls, documents, vendors…" />
+      </div>
+      <div class="icon-btn" title="Notifications"><span class="dot"></span><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z" stroke="currentColor" stroke-width="1.5"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.5"/></svg></div>
+      <div class="icon-btn" title="Help"><svg viewBox="0 0 24 24" fill="none" width="18" height="18"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M9.5 9.5a2.5 2.5 0 113.4 2.3c-.8.4-1.4.9-1.4 1.7v.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg></div>
+    </header>
+
+    <div class="content">
+      <!-- ===== KPI ROW ===== -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="label"><span class="ic" style="background:rgba(15,157,110,.12)"><svg viewBox="0 0 24 24" fill="none" width="15"><path d="M5 12l4 4 10-10" stroke="#0f9d6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Compliance Score</div>
+          <div class="val">87.4<span style="font-size:16px;color:var(--text-3)">%</span></div>
+          <div class="delta up">▲ 3.2 pts vs last cycle</div>
+          <svg class="spark" width="78" height="34" viewBox="0 0 78 34"><polyline points="0,26 13,22 26,24 39,16 52,18 65,9 78,6" fill="none" stroke="#0f9d6e" stroke-width="2"/><polyline points="0,26 13,22 26,24 39,16 52,18 65,9 78,6 78,34 0,34" fill="rgba(15,157,110,.10)" stroke="none"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="label"><span class="ic" style="background:rgba(200,127,10,.14)"><svg viewBox="0 0 24 24" fill="none" width="15"><path d="M12 3l9 16H3L12 3z" stroke="#c87f0a" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v5" stroke="#c87f0a" stroke-width="1.8" stroke-linecap="round"/></svg></span>Open Findings</div>
+          <div class="val">23</div>
+          <div class="delta down">▲ 5 new this week</div>
+          <svg class="spark" width="78" height="34" viewBox="0 0 78 34"><polyline points="0,18 13,20 26,14 39,17 52,12 65,15 78,9" fill="none" stroke="#c87f0a" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="label"><span class="ic" style="background:rgba(99,102,241,.14)"><svg viewBox="0 0 24 24" fill="none" width="15"><path d="M12 2l2.4 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.6-1.5L12 2z" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/></svg></span>AI Reviews Today</div>
+          <div class="val">142</div>
+          <div class="delta up">▲ 96% auto-cleared</div>
+          <svg class="spark" width="78" height="34" viewBox="0 0 78 34"><rect x="2" y="20" width="8" height="14" rx="2" fill="#4f46e5" opacity=".45"/><rect x="14" y="14" width="8" height="20" rx="2" fill="#4f46e5" opacity=".6"/><rect x="26" y="22" width="8" height="12" rx="2" fill="#4f46e5" opacity=".45"/><rect x="38" y="8" width="8" height="26" rx="2" fill="#4f46e5" opacity=".8"/><rect x="50" y="16" width="8" height="18" rx="2" fill="#4f46e5" opacity=".6"/><rect x="62" y="4" width="8" height="30" rx="2" fill="#4f46e5"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="label"><span class="ic" style="background:rgba(37,99,235,.12)"><svg viewBox="0 0 24 24" fill="none" width="15"><path d="M12 8v5l3 2" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="#2563eb" stroke-width="1.6"/></svg></span>Controls Due (30d)</div>
+          <div class="val">11</div>
+          <div class="delta down">3 overdue attestations</div>
+          <svg class="spark" width="78" height="34" viewBox="0 0 78 34"><polyline points="0,8 13,12 26,10 39,20 52,18 65,26 78,28" fill="none" stroke="#2563eb" stroke-width="2"/></svg>
+        </div>
+      </div>
+
+      <!-- ===== MAIN GRID ===== -->
+      <div class="grid-main">
+        <!-- LEFT: Review queue (signature split-review) -->
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>AI Review Queue</h2>
+              <div class="hint">Items the AI flagged for human sign-off, ranked by risk</div>
+            </div>
+            <div class="right">
+              <div class="tabs" id="riskTabs">
+                <div class="tab active" data-f="all">All</div>
+                <div class="tab" data-f="critical">Critical</div>
+                <div class="tab" data-f="high">High</div>
+                <div class="tab" data-f="needs">Needs Review</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:12px 18px 0;display:flex;gap:7px;flex-wrap:wrap;" class="seg" id="typeSeg">
+            <div class="pill active" data-t="all">All types</div>
+            <div class="pill" data-t="Policy">Policy</div>
+            <div class="pill" data-t="Contract">Contract</div>
+            <div class="pill" data-t="Vendor">Vendor</div>
+            <div class="pill" data-t="Disclosure">Disclosure</div>
+            <div class="pill" data-t="Incident">Incident</div>
+          </div>
+          <div class="queue" id="queue"></div>
+          <div class="empty hidden" id="queueEmpty">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div style="font-weight:600;color:var(--text-2)">Queue is clear</div>
+            <div>No items match these filters — the AI auto-cleared the rest.</div>
+          </div>
+        </section>
+
+        <!-- RIGHT: stacked panels -->
+        <div style="display:flex;flex-direction:column;gap:18px;">
+          <section class="panel">
+            <div class="panel-head">
+              <div><h2>Framework Coverage</h2><div class="hint">AI-assessed control readiness</div></div>
+            </div>
+            <div class="frameworks" id="frameworks"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div><h2>AI Activity</h2><div class="hint">Recent automated actions</div></div>
+              <div class="right"><span class="badge b-ai"><span class="dotstat" style="background:#4f46e5"></span>live</span></div>
+            </div>
+            <div class="feed" id="feed"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRAWER ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhead">
+    <div class="rk" id="dRk" style="width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-weight:700;font-size:15px;flex:none;"></div>
+    <div style="min-width:0;">
+      <div id="dTitle" style="font-weight:700;font-size:16px;"></div>
+      <div id="dSub" style="font-size:12px;color:var(--text-3);margin-top:3px;"></div>
+    </div>
+    <div class="dclose" id="dClose"><svg viewBox="0 0 24 24" fill="none" width="16"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+  </div>
+  <div class="dbody" id="dBody"></div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" width="17"><path d="M5 12l4 4L19 7" stroke="#0f9d6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="toastTxt"></span></div>
+
+<script>
+/* ============================ SEED DATA ============================ */
+const RECORDS = [
+  { id:'CMP-2041', title:'Data Processing Agreement — Northwind Cloud', type:'Vendor', framework:'GDPR', score:91, sev:'critical', status:'Needs Review', owner:'Priya Anand', date:'2026-06-21',
+    verdict:'Cross-border transfer clause references a deprecated SCC module and omits sub-processor notification timelines required under Art. 28. Recommend escalation before renewal.',
+    fields:[ {k:'Counterparty',v:'Northwind Cloud Ltd.',c:98},{k:'Effective Date',v:'2026-07-01',c:96},{k:'Data Categories',v:'PII, Payment, Telemetry',c:88},{k:'Transfer Mechanism',v:'SCC (2010 module)',c:71},{k:'Retention',v:'36 months',c:84},{k:'Sub-processors',v:'Not enumerated',c:62} ],
+    checks:[ {t:'Standard Contractual Clauses current',s:'fail',d:'Cites 2010 SCC — superseded by 2021 EU SCCs'},{t:'Sub-processor notification window',s:'fail',d:'No 30-day notice clause found'},{t:'Data subject rights pass-through',s:'pass',d:'Art. 15–22 obligations present'},{t:'Audit & inspection rights',s:'warn',d:'Limited to annual written report'} ] },
+  { id:'CMP-2039', title:'Q2 Marketing Email Disclosure Review', type:'Disclosure', framework:'CAN-SPAM', score:88, sev:'critical', status:'Needs Review', owner:'Marcus Webb', date:'2026-06-20',
+    verdict:'Promotional campaign batch lacks a physical postal address in 4 of 12 templates and uses a misleading subject line on the "Flash Sale" variant. High enforcement exposure.',
+    fields:[ {k:'Campaign',v:'Summer Flash 2026',c:99},{k:'Templates',v:'12 variants',c:97},{k:'Unsubscribe Link',v:'Present (all)',c:95},{k:'Postal Address',v:'Missing in 4',c:90},{k:'Subject Accuracy',v:'1 flagged',c:80} ],
+    checks:[ {t:'Functioning opt-out present',s:'pass',d:'All 12 templates verified'},{t:'Physical mailing address',s:'fail',d:'Absent in templates 5,7,9,11'},{t:'Non-deceptive subject line',s:'warn',d:'"Flash Sale ends NOW" — review claim'},{t:'Sender identification clear',s:'pass',d:'From-name matches brand'} ] },
+  { id:'CMP-2037', title:'Vendor Risk Reassessment — Aperture Analytics', type:'Vendor', framework:'SOC 2', score:79, sev:'high', status:'Needs Review', owner:'Dana Mercer', date:'2026-06-19',
+    verdict:'SOC 2 Type II report is 14 months old and a Confidentiality criterion exception was noted. AI recommends requesting a bridge letter and a remediation timeline.',
+    fields:[ {k:'Vendor',v:'Aperture Analytics',c:99},{k:'Tier',v:'Tier 1 (Critical)',c:94},{k:'Report Type',v:'SOC 2 Type II',c:97},{k:'Report Age',v:'14 months',c:92},{k:'Exceptions',v:'1 (Confidentiality)',c:86} ],
+    checks:[ {t:'Current SOC 2 within 12 months',s:'fail',d:'Last report dated Apr 2025'},{t:'Security criteria — no exceptions',s:'pass',d:'Clean opinion'},{t:'Confidentiality criteria',s:'warn',d:'1 exception, remediation in progress'},{t:'Bridge letter on file',s:'fail',d:'Not provided'} ] },
+  { id:'CMP-2035', title:'Acceptable Use Policy — Annual Revision', type:'Policy', framework:'ISO 27001', score:74, sev:'high', status:'Needs Review', owner:'Lena Cho', date:'2026-06-18',
+    verdict:'Updated AUP aligns with most A.5 controls but the incident-reporting SLA is undefined and remote-work provisions are missing. Minor language clarity issues elsewhere.',
+    fields:[ {k:'Document',v:'AUP v9.2',c:99},{k:'Owner Dept',v:'Information Security',c:95},{k:'Mapped Controls',v:'ISO A.5, A.6, A.8',c:88},{k:'Incident SLA',v:'Undefined',c:77},{k:'Review Cadence',v:'Annual',c:93} ],
+    checks:[ {t:'Acceptable use scope defined',s:'pass',d:'Covers systems, data, devices'},{t:'Incident reporting SLA stated',s:'fail',d:'No timeframe specified'},{t:'Remote / BYOD provisions',s:'warn',d:'Partially addressed'},{t:'Sanctions for violation',s:'pass',d:'Clearly enumerated'} ] },
+  { id:'CMP-2033', title:'Incident Report — Phishing Exposure 0612', type:'Incident', framework:'NIST CSF', score:82, sev:'high', status:'Needs Review', owner:'Marcus Webb', date:'2026-06-17',
+    verdict:'Credential-phishing incident affected 6 accounts. Containment was prompt but notification to affected users exceeded the internal 72-hour target by 9 hours. Documentation complete.',
+    fields:[ {k:'Incident Class',v:'Phishing / Credential',c:97},{k:'Accounts Affected',v:'6',c:99},{k:'Detection',v:'EDR alert',c:91},{k:'Containment Time',v:'47 min',c:88},{k:'User Notification',v:'81h (target 72h)',c:90} ],
+    checks:[ {t:'Detection logged & timestamped',s:'pass',d:'EDR + SIEM correlation'},{t:'Containment within policy',s:'pass',d:'Under 1 hour'},{t:'72-hour notification met',s:'fail',d:'Exceeded by 9 hours'},{t:'Post-incident review scheduled',s:'pass',d:'Booked for 2026-06-24'} ] },
+  { id:'CMP-2031', title:'Master Services Agreement — Helix Logistics', type:'Contract', framework:'Internal', score:68, sev:'medium', status:'Needs Review', owner:'Priya Anand', date:'2026-06-16',
+    verdict:'Liability cap is below policy floor (1x fees vs required 2x) and indemnification is mutual where one-sided is preferred. No data-security addendum attached.',
+    fields:[ {k:'Counterparty',v:'Helix Logistics',c:98},{k:'Contract Value',v:'$420,000 / yr',c:95},{k:'Liability Cap',v:'1x annual fees',c:89},{k:'Indemnity',v:'Mutual',c:84},{k:'Security Addendum',v:'Absent',c:80} ],
+    checks:[ {t:'Liability cap ≥ 2x fees',s:'fail',d:'Currently 1x'},{t:'Termination for convenience',s:'pass',d:'90-day notice present'},{t:'Data security addendum',s:'fail',d:'Not attached'},{t:'Governing law approved',s:'pass',d:'Delaware'} ] },
+  { id:'CMP-2029', title:'Privacy Notice Update — Mobile App 4.0', type:'Disclosure', framework:'CCPA', score:71, sev:'medium', status:'Needs Review', owner:'Lena Cho', date:'2026-06-15',
+    verdict:'"Do Not Sell or Share" link is present but the data-categories table omits inferred-data disclosures and the opt-out signal honoring statement is ambiguous.',
+    fields:[ {k:'Document',v:'Privacy Notice 4.0',c:99},{k:'Jurisdiction',v:'California',c:96},{k:'Opt-out Link',v:'Present',c:94},{k:'Inferred Data',v:'Not disclosed',c:81},{k:'GPC Honored',v:'Ambiguous',c:73} ],
+    checks:[ {t:'Notice at collection',s:'pass',d:'Present pre-download'},{t:'Do Not Sell/Share link',s:'pass',d:'Footer + settings'},{t:'Inferred data categories',s:'fail',d:'Omitted from table'},{t:'GPC signal honored',s:'warn',d:'Statement unclear'} ] },
+  { id:'CMP-2027', title:'Anti-Bribery Attestation — APAC Region', type:'Policy', framework:'FCPA', score:64, sev:'medium', status:'Needs Review', owner:'Dana Mercer', date:'2026-06-14',
+    verdict:'Attestation completion at 78% for the region. Three gift-and-entertainment entries exceed the pre-approval threshold without recorded sign-off.',
+    fields:[ {k:'Region',v:'APAC',c:99},{k:'Attestation Rate',v:'78%',c:95},{k:'Flagged Entries',v:'3',c:90},{k:'Threshold',v:'$150 USD',c:96},{k:'Sign-offs Missing',v:'3',c:88} ],
+    checks:[ {t:'Annual attestation completed',s:'warn',d:'78% — below 95% target'},{t:'Gift register maintained',s:'pass',d:'Up to date'},{t:'Pre-approval over threshold',s:'fail',d:'3 entries lack sign-off'},{t:'Third-party due diligence',s:'pass',d:'Screening current'} ] },
+  { id:'CMP-2025', title:'Access Recertification — Finance Systems', type:'Policy', framework:'SOX', score:58, sev:'low', status:'Cleared', owner:'Marcus Webb', date:'2026-06-13',
+    verdict:'Quarterly access recertification completed. Two stale accounts identified and revoked. Segregation-of-duties matrix passes with no conflicts.',
+    fields:[ {k:'System',v:'Finance ERP',c:99},{k:'Reviewers',v:'4',c:97},{k:'Accounts Reviewed',v:'212',c:99},{k:'Revoked',v:'2 stale',c:94},{k:'SoD Conflicts',v:'0',c:96} ],
+    checks:[ {t:'Recertification completed on time',s:'pass',d:'Closed 2 days early'},{t:'Stale accounts revoked',s:'pass',d:'2 accounts disabled'},{t:'Segregation of duties',s:'pass',d:'No conflicts'},{t:'Privileged access reviewed',s:'pass',d:'All justified'} ] },
+  { id:'CMP-2023', title:'Cookie Consent Banner — EU Storefront', type:'Disclosure', framework:'ePrivacy', score:55, sev:'low', status:'Cleared', owner:'Lena Cho', date:'2026-06-12',
+    verdict:'Consent banner correctly blocks non-essential cookies before opt-in and provides granular category controls. Reject-all is one click. Fully compliant.',
+    fields:[ {k:'Surface',v:'EU Storefront',c:99},{k:'Pre-consent Blocking',v:'Active',c:95},{k:'Granular Controls',v:'Yes',c:97},{k:'Reject-all',v:'One click',c:96},{k:'Consent Log',v:'Stored',c:92} ],
+    checks:[ {t:'Non-essential cookies blocked',s:'pass',d:'Verified pre-consent'},{t:'Reject-all parity',s:'pass',d:'Equal prominence'},{t:'Granular category choice',s:'pass',d:'5 categories'},{t:'Consent record retained',s:'pass',d:'12-month log'} ] },
+  { id:'CMP-2021', title:'Data Retention Schedule — HR Records', type:'Policy', framework:'GDPR', score:61, sev:'medium', status:'Cleared', owner:'Priya Anand', date:'2026-06-11',
+    verdict:'Retention periods are documented and lawful basis is mapped per category. Automated deletion job is configured and last ran successfully on schedule.',
+    fields:[ {k:'Document',v:'HR Retention v3',c:99},{k:'Categories',v:'18',c:96},{k:'Lawful Basis Mapped',v:'Yes',c:93},{k:'Auto-deletion',v:'Configured',c:90},{k:'Last Purge',v:'2026-06-01',c:94} ],
+    checks:[ {t:'Retention periods defined',s:'pass',d:'All 18 categories'},{t:'Lawful basis recorded',s:'pass',d:'Mapped per category'},{t:'Automated deletion runs',s:'pass',d:'Monthly cron healthy'},{t:'Legal-hold override',s:'pass',d:'Exception path exists'} ] },
+  { id:'CMP-2019', title:'Subprocessor Addendum — Cobalt Email API', type:'Vendor', framework:'GDPR', score:66, sev:'medium', status:'Cleared', owner:'Dana Mercer', date:'2026-06-10',
+    verdict:'Addendum includes current EU SCCs and a complete sub-processor list with the 30-day objection window. Security measures annex meets the baseline.',
+    fields:[ {k:'Vendor',v:'Cobalt Email API',c:99},{k:'SCC Version',v:'2021 modules',c:97},{k:'Sub-processors',v:'Enumerated (7)',c:95},{k:'Objection Window',v:'30 days',c:96},{k:'Security Annex',v:'Present',c:92} ],
+    checks:[ {t:'Current SCCs referenced',s:'pass',d:'2021 EU SCCs'},{t:'Sub-processor list complete',s:'pass',d:'7 named'},{t:'Objection window present',s:'pass',d:'30-day notice'},{t:'TOMs annex attached',s:'pass',d:'Meets baseline'} ] },
+  { id:'CMP-2017', title:'Whistleblower Channel — Annual Test', type:'Incident', framework:'Internal', score:52, sev:'low', status:'Cleared', owner:'Marcus Webb', date:'2026-06-09',
+    verdict:'Anonymous reporting channel tested end-to-end. Intake, triage, and escalation all functioned. Median acknowledgement time was 6 hours, within SLA.',
+    fields:[ {k:'Channel',v:'Anonymous Hotline',c:99},{k:'Test Cases',v:'5',c:97},{k:'Intake',v:'Working',c:96},{k:'Ack Time',v:'6h median',c:93},{k:'Escalation',v:'Routed OK',c:94} ],
+    checks:[ {t:'Anonymous submission works',s:'pass',d:'No identity leak'},{t:'Acknowledgement within SLA',s:'pass',d:'6h vs 24h target'},{t:'Escalation routing correct',s:'pass',d:'All 5 routed'},{t:'Non-retaliation notice shown',s:'pass',d:'Displayed at intake'} ] },
+  { id:'CMP-2015', title:'PCI DSS Self-Assessment — Checkout', type:'Disclosure', framework:'PCI DSS', score:69, sev:'medium', status:'Needs Review', owner:'Priya Anand', date:'2026-06-08',
+    verdict:'SAQ-A scope confirmed and card data is fully tokenized. One requirement on quarterly external scans shows the most recent scan is overdue by 8 days.',
+    fields:[ {k:'SAQ Type',v:'SAQ-A',c:97},{k:'Card Data',v:'Tokenized',c:96},{k:'External Scan',v:'Overdue 8d',c:88},{k:'TLS Version',v:'1.3',c:95},{k:'Scope',v:'Checkout only',c:93} ],
+    checks:[ {t:'Cardholder data tokenized',s:'pass',d:'No PAN stored'},{t:'Quarterly external ASV scan',s:'fail',d:'Overdue by 8 days'},{t:'TLS 1.2+ enforced',s:'pass',d:'TLS 1.3 in use'},{t:'SAQ scope documented',s:'pass',d:'SAQ-A confirmed'} ] }
+];
+
+const FRAMEWORKS = [
+  { name:'GDPR', sub:'12 controls · 3 gaps', pct:88, color:'#0f9d6e' },
+  { name:'SOC 2 Type II', sub:'18 controls · 2 gaps', pct:82, color:'#2563eb' },
+  { name:'ISO 27001', sub:'24 controls · 5 gaps', pct:74, color:'#c87f0a' },
+  { name:'PCI DSS', sub:'9 controls · 1 gap', pct:91, color:'#0f9d6e' },
+  { name:'CCPA / CPRA', sub:'8 controls · 3 gaps', pct:69, color:'#c87f0a' },
+  { name:'SOX ITGC', sub:'15 controls · 0 gaps', pct:96, color:'#0f9d6e' }
+];
+
+const FEED = [
+  { ic:'doc', txt:'AI extracted <b>6 key fields</b> from <b>DPA — Northwind Cloud</b> and flagged a deprecated SCC clause.', time:'3 min ago' },
+  { ic:'flag', txt:'AI routed <b>Marketing Email Disclosure</b> to <b>Marcus Webb</b> — missing postal address in 4 templates.', time:'18 min ago' },
+  { ic:'check', txt:'AI auto-cleared <b>HR Retention Schedule</b> — all 18 categories passed retention checks.', time:'41 min ago' },
+  { ic:'score', txt:'AI re-scored vendor <b>Aperture Analytics</b> to <b>79</b> after detecting an aged SOC 2 report.', time:'1 hr ago' },
+  { ic:'doc', txt:'AI classified <b>Incident 0612</b> as <b>Phishing / Credential</b> and computed a 81h notification window.', time:'2 hr ago' },
+  { ic:'check', txt:'AI verified <b>Cookie Consent Banner</b> blocks non-essential cookies pre-consent — cleared.', time:'3 hr ago' },
+  { ic:'flag', txt:'AI detected a <b>liability cap below policy floor</b> in MSA — Helix Logistics.', time:'4 hr ago' }
+];
+
+/* ============================ HELPERS ============================ */
+const $ = s => document.querySelector(s);
+const sevMeta = {
+  critical:{ label:'Critical', cls:'b-crit', rk:'#dc2626', rkbg:'rgba(220,38,38,.10)' },
+  high:    { label:'High',     cls:'b-high', rk:'#c87f0a', rkbg:'rgba(200,127,10,.12)' },
+  medium:  { label:'Medium',   cls:'b-med',  rk:'#2563eb', rkbg:'rgba(37,99,235,.10)' },
+  low:     { label:'Low',      cls:'b-low',  rk:'#0f9d6e', rkbg:'rgba(15,157,110,.12)' }
+};
+const typeIcon = {
+  Vendor:'V', Contract:'C', Policy:'P', Disclosure:'D', Incident:'I'
+};
+function confColor(c){ return c>=90?'#0f9d6e':c>=75?'#c87f0a':'#dc2626'; }
+function confBg(c){ return c>=90?'rgba(15,157,110,.12)':c>=75?'rgba(200,127,10,.14)':'rgba(220,38,38,.10)'; }
+function checkMeta(s){
+  if(s==='pass') return { c:'#0f9d6e', bg:'rgba(15,157,110,.12)', ico:'<path d="M5 12l4 4 10-10" stroke="#0f9d6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' };
+  if(s==='warn') return { c:'#c87f0a', bg:'rgba(200,127,10,.14)', ico:'<path d="M12 7v6M12 16v.5" stroke="#c87f0a" stroke-width="2" stroke-linecap="round"/>' };
+  return { c:'#dc2626', bg:'rgba(220,38,38,.10)', ico:'<path d="M7 7l10 10M17 7L7 17" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>' };
+}
+const feedIcon = {
+  doc:'<svg viewBox="0 0 24 24" fill="none"><path d="M7 3h7l4 4v14H7V3z" stroke="#4f46e5" stroke-width="1.5"/><path d="M14 3v4h4" stroke="#4f46e5" stroke-width="1.5"/></svg>',
+  flag:'<svg viewBox="0 0 24 24" fill="none"><path d="M6 21V4h11l-2 4 2 4H6" stroke="#c87f0a" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10" stroke="#0f9d6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  score:'<svg viewBox="0 0 24 24" fill="none"><path d="M3 17l5-5 4 3 8-8" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+/* ============================ STATE ============================ */
+let riskFilter = 'all';
+let typeFilter = 'all';
+let searchTerm = '';
+
+/* ============================ RENDER QUEUE ============================ */
+function matches(r){
+  if(riskFilter==='critical' && r.sev!=='critical') return false;
+  if(riskFilter==='high' && r.sev!=='high') return false;
+  if(riskFilter==='needs' && r.status!=='Needs Review') return false;
+  if(typeFilter!=='all' && r.type!==typeFilter) return false;
+  if(searchTerm){
+    const hay = (r.title+' '+r.id+' '+r.owner+' '+r.framework+' '+r.type).toLowerCase();
+    if(!hay.includes(searchTerm)) return false;
+  }
+  return true;
+}
+
+function renderQueue(){
+  const q = $('#queue');
+  const list = RECORDS.filter(matches).sort((a,b)=>b.score-a.score);
+  q.innerHTML = '';
+  if(list.length===0){ $('#queueEmpty').classList.remove('hidden'); q.classList.add('hidden'); return; }
+  $('#queueEmpty').classList.add('hidden'); q.classList.remove('hidden');
+  list.forEach(r=>{
+    const m = sevMeta[r.sev];
+    const statusBadge = r.status==='Needs Review'
+      ? '<span class="badge b-gray"><span class="dotstat" style="background:#c87f0a"></span>Needs Review</span>'
+      : '<span class="badge b-gray"><span class="dotstat" style="background:#0f9d6e"></span>Cleared</span>';
+    const row = document.createElement('div');
+    row.className = 'qrow';
+    row.dataset.id = r.id;
+    row.innerHTML = `
+      <div class="rk" style="background:${m.rkbg};color:${m.rk}">${typeIcon[r.type]}</div>
+      <div style="min-width:0">
+        <div class="qtitle">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.title}</span>
+          <span class="badge ${m.cls}">${m.label}</span>
+        </div>
+        <div class="qmeta">
+          <span>${r.id}</span>
+          <span>· <b>${r.framework}</b></span>
+          <span>· ${r.owner}</span>
+          <span>· ${r.date}</span>
+          <span>${statusBadge}</span>
+        </div>
+      </div>
+      <div class="risk-score">
+        <div class="num" style="color:${m.rk}">${r.score}</div>
+        <div class="lbl">risk</div>
+      </div>`;
+    row.addEventListener('click', ()=>openDrawer(r.id));
+    q.appendChild(row);
+  });
+}
+
+/* ============================ FRAMEWORKS ============================ */
+function renderFrameworks(){
+  const el = $('#frameworks');
+  el.innerHTML = FRAMEWORKS.map(f=>`
+    <div class="fwrow">
+      <div style="min-width:0">
+        <div class="fname"><span class="dotstat" style="background:${f.color}"></span>${f.name}</div>
+        <div class="fsub">${f.sub}</div>
+        <div class="bar"><span style="width:${f.pct}%;background:${f.color}"></span></div>
+      </div>
+      <div class="fwval"><div class="pct" style="color:${f.color}">${f.pct}%</div></div>
+    </div>`).join('');
+}
+
+/* ============================ FEED ============================ */
+function renderFeed(){
+  const el = $('#feed');
+  el.innerHTML = FEED.map(f=>`
+    <div class="fitem">
+      <div class="fdot">${feedIcon[f.ic]}</div>
+      <div>
+        <div class="ftxt">${f.txt}</div>
+        <div class="ftime">${f.time}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ============================ DRAWER ============================ */
+function gaugeSVG(score, color){
+  const r=40, c=2*Math.PI*r, off=c*(1-score/100);
+  return `<svg width="104" height="104" viewBox="0 0 104 104">
+    <circle cx="52" cy="52" r="${r}" fill="none" stroke="#e6e9ee" stroke-width="9"/>
+    <circle cx="52" cy="52" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 52 52)"/>
+    <text x="52" y="50" text-anchor="middle" fill="#1f2937" font-size="24" font-weight="700">${score}</text>
+    <text x="52" y="66" text-anchor="middle" fill="#8a93a6" font-size="10" letter-spacing="1">RISK SCORE</text>
+  </svg>`;
+}
+
+function openDrawer(id){
+  const r = RECORDS.find(x=>x.id===id);
+  if(!r) return;
+  const m = sevMeta[r.sev];
+  document.querySelectorAll('.qrow').forEach(el=>el.classList.toggle('sel', el.dataset.id===id));
+
+  const dRk = $('#dRk');
+  dRk.style.background = m.rkbg; dRk.style.color = m.rk; dRk.textContent = typeIcon[r.type];
+  $('#dTitle').textContent = r.title;
+  $('#dSub').innerHTML = `${r.id} · ${r.type} · <b style="color:var(--text-2)">${r.framework}</b> · Owner ${r.owner}`;
+
+  const passCount = r.checks.filter(c=>c.s==='pass').length;
+  const failCount = r.checks.filter(c=>c.s==='fail').length;
+
+  $('#dBody').innerHTML = `
+    <div class="ai-card">
+      <div class="ai-top">
+        <span class="badge b-ai"><svg viewBox="0 0 24 24" fill="none" width="12" style="margin-right:-1px"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z" stroke="#4f46e5" stroke-width="1.5" stroke-linejoin="round"/></svg>AI Assessment</span>
+        <span class="badge ${m.cls}">${m.label} risk</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text-3)">${r.date}</span>
+      </div>
+      <div class="ai-gauge">
+        <div style="flex:none">${gaugeSVG(r.score, m.rk)}</div>
+        <div class="verdict">${r.verdict}</div>
+      </div>
+    </div>
+
+    <h3 class="sec-title">Extracted Fields · confidence-scored</h3>
+    <div class="field-extract">
+      ${r.fields.map(f=>`
+        <div class="fe-row">
+          <div class="fk">${f.k}</div>
+          <div class="fv">${f.v}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="meter-mini"><span style="width:${f.c}%;background:${confColor(f.c)}"></span></span>
+            <span class="conf" style="background:${confBg(f.c)};color:${confColor(f.c)}">${f.c}%</span>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <h3 class="sec-title">Control Checklist · ${passCount} passed · ${failCount} failed</h3>
+    <div class="checklist">
+      ${r.checks.map(c=>{ const cm=checkMeta(c.s); return `
+        <div class="ck">
+          <div class="cico" style="background:${cm.bg}"><svg viewBox="0 0 24 24" fill="none" width="14">${cm.ico}</svg></div>
+          <div class="ctxt">${c.t}<div class="csub">${c.d}</div></div>
+        </div>`;}).join('')}
+    </div>
+
+    <h3 class="sec-title">Resolution</h3>
+    <div class="dactions">
+      <button class="btn primary" data-act="approve"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Approve &amp; Sign Off</button>
+      <button class="btn danger" data-act="escalate"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l9 16H3L12 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Escalate</button>
+      <button class="btn" data-act="reanalyze"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0114-5M20 12a8 8 0 01-14 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M18 3v4h-4M6 21v-4h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Re-analyze</button>
+    </div>`;
+
+  $('#dBody').querySelectorAll('[data-act]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const a = btn.dataset.act;
+      if(a==='approve'){ toast('Signed off — '+r.id+' marked compliant'); closeDrawer(); }
+      else if(a==='escalate'){ toast('Escalated '+r.id+' to legal review'); }
+      else { toast('AI re-analysis queued for '+r.id); }
+    });
+  });
+
+  $('#scrim').classList.add('open');
+  $('#drawer').classList.add('open');
+}
+function closeDrawer(){
+  $('#scrim').classList.remove('open');
+  $('#drawer').classList.remove('open');
+  document.querySelectorAll('.qrow').forEach(el=>el.classList.remove('sel'));
+}
+
+/* ============================ TOAST ============================ */
+let toastTimer;
+function toast(msg){
+  $('#toastTxt').textContent = msg;
+  $('#toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>$('#toast').classList.remove('show'), 2600);
+}
+
+/* ============================ EVENTS ============================ */
+$('#riskTabs').addEventListener('click', e=>{
+  const t = e.target.closest('.tab'); if(!t) return;
+  $('#riskTabs').querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); riskFilter = t.dataset.f; renderQueue();
+});
+$('#typeSeg').addEventListener('click', e=>{
+  const p = e.target.closest('.pill'); if(!p) return;
+  $('#typeSeg').querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+  p.classList.add('active'); typeFilter = p.dataset.t; renderQueue();
+});
+$('#globalSearch').addEventListener('input', e=>{
+  searchTerm = e.target.value.trim().toLowerCase(); renderQueue();
+});
+$('#dClose').addEventListener('click', closeDrawer);
+$('#scrim').addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+document.querySelectorAll('.nav-item').forEach(n=>{
+  n.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+    n.classList.add('active');
+  });
+});
+
+/* ============================ INIT ============================ */
+renderQueue();
+renderFrameworks();
+renderFeed();
+</script>
+</body>
+</html>

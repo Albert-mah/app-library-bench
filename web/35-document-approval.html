@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Signoff — Document Approval Workflow</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Document Approval Workflow (Signoff)",
+  "prefix": "doc_",
+  "collections": {
+    "doc_doctypes": {"titleField":"name","fields":{"name":"input","code":"input","retention_years":"integer","requires_legal":"boolean","default_sla_hours":"integer"}},
+    "doc_signers": {"titleField":"name","fields":{"name":"input","email":"email","title":"input","department":"select:legal|finance|hr|operations|executive|procurement","avatar_color":"input"}},
+    "doc_documents": {
+      "titleField":"title",
+      "fields":{
+        "doc_no":"input",
+        "title":"input",
+        "summary":"textarea",
+        "doctype":"select:nda|msa|sow|policy|offer_letter|po|invoice|expense",
+        "version":"input",
+        "amount":"number",
+        "stage":"select:drafting|internal_review|legal_review|pending_signoff|signed|rejected|archived",
+        "priority":"select:low|normal|high|urgent",
+        "risk":"select:low|medium|high",
+        "current_step":"integer",
+        "due_at":"datetime",
+        "submitted_at":"datetime"
+      },
+      "relations":{
+        "doctype_ref":"m2o doc_doctypes (fk doctype_id)",
+        "owner":"m2o doc_signers (fk owner_id)",
+        "approvals":"o2m doc_approvals (fk document_id)"
+      }
+    },
+    "doc_approvals": {
+      "titleField":"step_name",
+      "fields":{
+        "step_order":"integer",
+        "step_name":"input",
+        "role":"select:reviewer|legal|approver|signer",
+        "decision":"select:pending|approved|rejected|delegated|skipped",
+        "comment":"textarea",
+        "acted_at":"datetime"
+      },
+      "relations":{
+        "document":"m2o doc_documents (fk document_id)",
+        "signer":"m2o doc_signers (fk signer_id)"
+      }
+    }
+  },
+  "page": {
+    "name": "Approval Desk",
+    "layout": "kpi-strip = 4 native Chart/statistic | pipeline = native Kanban(doc_documents groupBy stage) + JS card | documents = native Table(doc_documents) + JS lead column + status JSColumn | timeline = native List(doc_approvals of selected doc) + JS item (sign-off timeline)",
+    "regions": [
+      {"id":"kpi","block":"4x native Chart (statistic / number cards)","collection":"doc_documents","intent":"approval throughput at a glance","cards":["Awaiting my signoff (count where stage=pending_signoff)","In legal review","Overdue (due_at < now & stage not in signed/rejected/archived)","Signed this week"]},
+      {"id":"pipeline","block":"native Kanban (doc_documents, groupBy=stage) — card body is a JS card field","intent":"approval pipeline by stage, drag to advance","columns":["drafting","internal_review","legal_review","pending_signoff","signed"],"card":["doc_no + priority dot","title 2-line clamp","doctype tag + amount","owner avatar","SLA countdown chip (due_at) — turns red when overdue","step progress dots (current_step / total)"],"behaviors":["native drag advances stage → fires status-transition workflow"]},
+      {"id":"documents","block":"native Table (doc_documents) + JS lead column + status JSColumn","intent":"full register, sortable + cross-filtered by pipeline column click","columns":["JS lead column: doc_no over title + doctype tag","owner avatar+name","version","amount (currency)","JS stage pill column","JS risk badge column","SLA / due column (relative, red when overdue)","row JSRecordAction: Approve / Reject / Delegate"],"behaviors":["clicking a pipeline column pushes addFilterGroup(stage) to this table","row action writes doc_approvals + advances doc_documents.stage (workflow)"]},
+      {"id":"timeline","block":"native List (doc_approvals where document_id = selected) + JS item","intent":"sign-off / audit timeline for the focused document","sort":"step_order asc","item":["step rail node (approved=green check / rejected=red x / pending=pulsing dot / current=ring)","step_name + role","signer avatar + name + title","decision pill + relative acted_at","comment line"],"binds":"ctx.openView / selecting a Kanban card or table row sets the document filterByTk"}
+    ]
+  },
+  "workflows": [
+    {
+      "name": "doc_route_on_submit",
+      "type": "collection event (doc_documents, after create OR stage drafting→internal_review)",
+      "trigger": "record submitted",
+      "purpose": "build the approval chain for the document from its doctype, then route to the first reviewer",
+      "nodes": [
+        {"node":"query","do":"load doc_doctypes by doctype to read requires_legal + default_sla_hours"},
+        {"node":"calculation / set due_at","do":"due_at = submitted_at + default_sla_hours"},
+        {"node":"create (loop)","do":"materialize doc_approvals rows: step 1 reviewer (owner's manager), step 2 legal (ONLY if doctype.requires_legal OR amount > 50000), step 3 approver, step 4 signer"},
+        {"node":"condition (branch)","cond":"amount > 50000 OR risk = high","branches":{"true":"insert an extra 'Executive approval' step before signer","false":"skip"}},
+        {"node":"update","do":"doc_documents.stage = internal_review, current_step = 1"},
+        {"node":"notify","do":"in-app + email to step-1 reviewer"}
+      ],
+      "ai_node_suggestions": [
+        "llm node 'risk-classify': read title+summary+amount → output risk(low|medium|high) + one-line rationale, write doc_documents.risk before the branch (lets the >50k OR risk=high gate use a model judgement, not just amount).",
+        "llm node 'clause-extract' for NDA/MSA/SOW: pull governing-law, term, liability-cap, auto-renew into doc_documents.summary so legal reviewers see a digest first.",
+        "llm node 'route-suggest': given doctype + amount + risk, recommend which signer fills each step (writes doc_approvals.signer_id as a suggestion the owner can override)."
+      ]
+    },
+    {
+      "name": "doc_on_decision",
+      "type": "collection event (doc_approvals, after update where decision changes from pending)",
+      "trigger": "a reviewer approves / rejects / delegates a step",
+      "purpose": "advance or halt the chain based on the decision",
+      "nodes": [
+        {"node":"condition (branch on decision)","branches":{
+          "approved":"is this the last step? → true: doc_documents.stage = signed, fill all signatures; false: current_step += 1, set next step's signer, notify next signer",
+          "rejected":"doc_documents.stage = rejected; mark remaining steps skipped; notify owner with the rejection comment",
+          "delegated":"reassign this step's signer to the delegate, keep current_step, notify delegate"
+        }},
+        {"node":"update","do":"stamp doc_approvals.acted_at = now on the acting step"}
+      ],
+      "ai_node_suggestions": [
+        "llm node 'reject-summarize': when rejected, condense all reviewer comments into a single actionable revision list written back to doc_documents.summary so the owner knows exactly what to fix.",
+        "llm node 'comment-sentiment': flag 'approved with concerns' style comments so an approval that hides a soft objection still surfaces to the owner."
+      ]
+    },
+    {
+      "name": "doc_sla_escalation",
+      "type": "schedule (every 1 hour)",
+      "trigger": "cron 0 * * * *",
+      "purpose": "find steps that blew the SLA and escalate / nudge",
+      "nodes": [
+        {"node":"query","do":"doc_documents where stage NOT IN (signed,rejected,archived) AND due_at < now"},
+        {"node":"loop + condition","do":"hours_overdue > 0 and < 24 → nudge current signer; >= 24 → escalate to signer's manager + flag priority=urgent"},
+        {"node":"update","do":"raise priority, write an audit note"}
+      ],
+      "ai_node_suggestions": [
+        "llm node 'escalation-draft': write a short, context-aware nudge/escalation message per document (what it is, why it matters, who's blocking) instead of a generic 'you have a pending task' template."
+      ]
+    }
+  ],
+  "interactions": [
+    "click a pipeline (Kanban) column header → cross-filters the documents table to that stage",
+    "drag a Kanban card across columns → status transition, fires doc_on_decision-style update",
+    "select a card / table row → loads that document's sign-off timeline on the right",
+    "row Approve/Reject/Delegate → writes doc_approvals + advances doc_documents.stage",
+    "SLA chips/columns recompute relative to due_at and turn red when overdue"
+  ],
+  "jsKernels": [
+    "Kanban JS card (doc_no, priority dot, doctype tag, owner avatar, SLA chip, step progress dots)",
+    "Table JS lead column (doc_no + title + doctype tag) + JS stage pill + JS risk badge + relative SLA column",
+    "sign-off timeline JS item (rail node states + decision pill + relative time)"
+  ],
+  "notes": "Container/content rule: every data region is a NATIVE block (Kanban for the pipeline, Table for the register, List for the timeline, Chart statistics for the KPI strip); the custom look (SLA chips, stage pills, rail nodes) is reproduced with JS columns/fields/items nested INSIDE those native blocks — never a freestanding full-page JSBlock. The three workflows are the demo's point: doc_route_on_submit (build chain + branch on amount/risk), doc_on_decision (advance/halt), doc_sla_escalation (schedule nudge). AI nodes are advisory llm nodes that write a field, not replacements for the deterministic routing logic."
+}
+</script>
+<style>
+  :root{
+    --indigo:#4f46e5; --indigo-soft:#eef2ff; --indigo-line:#c7d2fe; --indigo-deep:#3730a3;
+    --ink:#0f172a; --ink-2:#475569; --ink-3:#94a3b8; --ink-4:#cbd5e1;
+    --line:#eef1f6; --line-2:#e2e8f0; --bg:#f1f3f9; --card:#fff;
+    --green:#16a34a; --green-soft:#dcfce7; --green-line:#bbf7d0;
+    --amber:#d97706; --amber-soft:#fef3c7;
+    --red:#dc2626; --red-soft:#fee2e2; --red-line:#fecaca;
+    --sky:#0284c7; --sky-soft:#e0f2fe;
+    --violet:#7c3aed; --violet-soft:#f3e8ff;
+    --slate:#64748b; --slate-soft:#f1f5f9;
+    --r:12px; --r-sm:8px;
+    --shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 20px rgba(15,23,42,.06);
+    --shadow-lg:0 12px 32px rgba(15,23,42,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:13.5px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1440px;margin:0 auto;min-height:100vh;background:var(--bg)}
+
+  /* ---------------- top bar ---------------- */
+  .topbar{
+    height:58px;background:var(--card);border-bottom:1px solid var(--line-2);
+    display:flex;align-items:center;gap:20px;padding:0 26px;position:sticky;top:0;z-index:40;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:750;font-size:16.5px;letter-spacing:-.3px}
+  .brand .glyph{
+    width:30px;height:30px;border-radius:9px;
+    background:linear-gradient(135deg,var(--indigo),#818cf8);
+    display:grid;place-items:center;color:#fff;font-size:16px;font-weight:800;
+    box-shadow:0 3px 10px rgba(79,70,229,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:1px}
+  .topnav{display:flex;gap:3px;margin-left:10px}
+  .topnav a{padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:550}
+  .topnav a.on{background:var(--indigo-soft);color:var(--indigo)}
+  .topnav a:not(.on):hover{background:var(--slate-soft)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .searchbox{display:flex;align-items:center;gap:8px;background:var(--slate-soft);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;width:230px;color:var(--ink-3);font-size:12.5px}
+  .searchbox input{border:none;background:none;outline:none;font-family:inherit;font-size:12.5px;color:var(--ink);flex:1}
+  .icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line-2);background:#fff;cursor:pointer;
+    display:grid;place-items:center;font-size:15px;color:var(--ink-2);position:relative}
+  .icon-btn:hover{background:var(--slate-soft)}
+  .icon-btn .dot{position:absolute;top:6px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--indigo-deep),#6366f1);
+    color:#fff;display:grid;place-items:center;font-weight:650;font-size:12.5px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:12.5px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------------- page head ---------------- */
+  .page-head{padding:22px 26px 0;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+  .page-head h1{font-size:21px;font-weight:750;letter-spacing:-.4px}
+  .page-head p{color:var(--ink-3);font-size:13px;margin-top:3px}
+  .head-actions{display:flex;gap:9px}
+  .btn{border:none;border-radius:9px;padding:9px 15px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    transition:.13s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--indigo);color:#fff;box-shadow:0 3px 10px rgba(79,70,229,.3)}
+  .btn-primary:hover{background:var(--indigo-deep)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:var(--ink-4)}
+
+  /* ---------------- KPI strip ---------------- */
+  .kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:18px 26px 4px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:16px 18px;box-shadow:var(--shadow);
+    position:relative;overflow:hidden}
+  .kpi .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .kpi .lbl{font-size:11.5px;font-weight:650;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3)}
+  .kpi .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px}
+  .kpi.k1 .ic{background:var(--indigo-soft);color:var(--indigo)}
+  .kpi.k2 .ic{background:var(--violet-soft);color:var(--violet)}
+  .kpi.k3 .ic{background:var(--red-soft);color:var(--red)}
+  .kpi.k4 .ic{background:var(--green-soft);color:var(--green)}
+  .kpi .val{font-size:28px;font-weight:780;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
+  .kpi .sub{font-size:11.5px;color:var(--ink-3);margin-top:7px;display:flex;align-items:center;gap:5px}
+  .kpi .trend{font-weight:650}
+  .kpi .trend.up{color:var(--green)} .kpi .trend.down{color:var(--red)}
+  .kpi .spark{position:absolute;right:0;bottom:0;width:90px;height:34px;opacity:.5}
+
+  /* ---------------- main 3-pane grid ---------------- */
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;padding:18px 26px 28px;align-items:start}
+  .col-main{display:flex;flex-direction:column;gap:18px;min-width:0}
+
+  /* ---------------- pipeline (kanban) ---------------- */
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow)}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+  .panel-head h2{font-size:15px;font-weight:700;letter-spacing:-.2px}
+  .panel-head .hint{font-size:11.5px;color:var(--ink-3)}
+  .panel-head .right{margin-left:auto;display:flex;gap:6px}
+  .seg{display:flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+  .seg button{border:none;background:#fff;padding:6px 11px;font-family:inherit;font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer}
+  .seg button.on{background:var(--indigo);color:#fff}
+
+  .board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:14px;overflow-x:auto}
+  .lane{padding:0 7px;border-right:1px dashed var(--line-2)}
+  .lane:last-child{border-right:none}
+  .lane-head{display:flex;align-items:center;gap:8px;padding:4px 4px 11px;cursor:pointer;user-select:none}
+  .lane-head .swatch{width:9px;height:9px;border-radius:3px;flex:none}
+  .lane-head .nm{font-size:12px;font-weight:700;color:var(--ink);letter-spacing:-.1px}
+  .lane-head .cnt{margin-left:auto;font-size:11px;font-weight:700;background:var(--slate-soft);color:var(--ink-2);
+    border-radius:9px;padding:1px 8px;min-width:22px;text-align:center}
+  .lane.active .lane-head{position:relative}
+  .lane.active .lane-head::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:2px;background:var(--indigo);border-radius:2px}
+  .lane-body{display:flex;flex-direction:column;gap:9px;min-height:60px}
+
+  .kc{background:#fff;border:1px solid var(--line-2);border-radius:10px;padding:11px;cursor:pointer;transition:.13s;
+    position:relative;box-shadow:0 1px 1px rgba(15,23,42,.03)}
+  .kc:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-color:var(--indigo-line)}
+  .kc.sel{border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo-soft)}
+  .kc-top{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+  .kc-no{font-size:10.5px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums;letter-spacing:.2px}
+  .kc-pri{width:7px;height:7px;border-radius:50%;margin-left:auto;flex:none}
+  .pri-urgent{background:var(--red)} .pri-high{background:var(--amber)} .pri-normal{background:var(--sky)} .pri-low{background:var(--ink-4)}
+  .kc-title{font-size:12.5px;font-weight:650;color:var(--ink);line-height:1.35;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:8px}
+  .kc-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+  .dtype{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;letter-spacing:.3px;text-transform:uppercase}
+  .dt-nda{background:var(--indigo-soft);color:var(--indigo)} .dt-msa{background:var(--violet-soft);color:var(--violet)}
+  .dt-sow{background:var(--sky-soft);color:var(--sky)} .dt-policy{background:var(--slate-soft);color:var(--slate)}
+  .dt-offer_letter{background:var(--green-soft);color:var(--green)} .dt-po{background:var(--amber-soft);color:var(--amber)}
+  .dt-invoice{background:#fce7f3;color:#be185d} .dt-expense{background:#ecfeff;color:#0e7490}
+  .kc-amt{font-size:11px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .kc-foot{display:flex;align-items:center;gap:8px}
+  .ava-sm{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:9.5px;font-weight:700;flex:none}
+  .sla{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
+    padding:2px 8px;border-radius:7px;font-variant-numeric:tabular-nums}
+  .sla.ok{background:var(--green-soft);color:var(--green)}
+  .sla.warn{background:var(--amber-soft);color:var(--amber)}
+  .sla.over{background:var(--red-soft);color:var(--red)}
+  .sla.done{background:var(--slate-soft);color:var(--slate)}
+  .steps{display:flex;gap:3px;margin-top:9px}
+  .steps .s{flex:1;height:4px;border-radius:3px;background:var(--line-2)}
+  .steps .s.done{background:var(--green)} .steps .s.cur{background:var(--indigo)} .steps .s.rej{background:var(--red)}
+  .lane-empty{font-size:11px;color:var(--ink-3);text-align:center;padding:18px 8px;border:1.5px dashed var(--line-2);border-radius:9px}
+
+  /* ---------------- documents table ---------------- */
+  .table-tools{display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .filter-note{font-size:12px;color:var(--ink-2);background:var(--indigo-soft);color:var(--indigo);border:1px solid var(--indigo-line);
+    padding:4px 10px;border-radius:8px;font-weight:600;display:none;align-items:center;gap:7px}
+  .filter-note.show{display:inline-flex}
+  .filter-note .x{cursor:pointer;font-weight:800;opacity:.7}
+  .filter-note .x:hover{opacity:1}
+  .table-tools .spacer{margin-left:auto;font-size:11.5px;color:var(--ink-3)}
+  table{width:100%;border-collapse:collapse}
+  thead th{text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);
+    padding:10px 14px;border-bottom:1px solid var(--line-2);background:#fafbfd;white-space:nowrap}
+  thead th.num{text-align:right}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr{cursor:pointer;transition:.1s}
+  tbody tr:hover{background:var(--indigo-soft)}
+  tbody tr.sel{background:var(--indigo-soft)}
+  tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--indigo)}
+  .lead .no{font-size:10.5px;color:var(--ink-3);font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+  .lead .ti{font-size:13px;font-weight:650;color:var(--ink);display:flex;align-items:center;gap:7px;margin-top:1px;max-width:330px}
+  .lead .ti .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .owner{display:flex;align-items:center;gap:8px}
+  .owner .who{line-height:1.2}
+  .owner .who b{font-size:12px;font-weight:600;color:var(--ink)}
+  .owner .who span{font-size:10.5px;color:var(--ink-3)}
+  .ver{font-size:11.5px;color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
+  .amt{font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+  .amt.muted{color:var(--ink-3);font-weight:500}
+  .stage-pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:11px;letter-spacing:.2px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .stage-pill .d{width:6px;height:6px;border-radius:50%}
+  .sg-drafting{background:var(--slate-soft);color:var(--slate)} .sg-drafting .d{background:var(--slate)}
+  .sg-internal_review{background:var(--sky-soft);color:var(--sky)} .sg-internal_review .d{background:var(--sky)}
+  .sg-legal_review{background:var(--violet-soft);color:var(--violet)} .sg-legal_review .d{background:var(--violet)}
+  .sg-pending_signoff{background:var(--amber-soft);color:var(--amber)} .sg-pending_signoff .d{background:var(--amber)}
+  .sg-signed{background:var(--green-soft);color:var(--green)} .sg-signed .d{background:var(--green)}
+  .sg-rejected{background:var(--red-soft);color:var(--red)} .sg-rejected .d{background:var(--red)}
+  .sg-archived{background:#f1f5f9;color:var(--ink-3)} .sg-archived .d{background:var(--ink-3)}
+  .risk{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;text-transform:uppercase;letter-spacing:.3px}
+  .risk-low{background:var(--green-soft);color:var(--green)} .risk-medium{background:var(--amber-soft);color:var(--amber)} .risk-high{background:var(--red-soft);color:var(--red)}
+  .due{font-size:11.5px;font-weight:650;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:5px}
+  .due.over{color:var(--red)} .due.warn{color:var(--amber)} .due.ok{color:var(--ink-2)} .due.done{color:var(--ink-3)}
+  .row-acts{display:flex;gap:5px;opacity:0;transition:.12s}
+  tbody tr:hover .row-acts{opacity:1}
+  .ra{border:1px solid var(--line-2);background:#fff;border-radius:7px;padding:4px 8px;font-size:11px;font-weight:650;cursor:pointer;color:var(--ink-2)}
+  .ra.ok:hover{border-color:var(--green-line);background:var(--green-soft);color:var(--green)}
+  .ra.no:hover{border-color:var(--red-line);background:var(--red-soft);color:var(--red)}
+  .ra.dg:hover{border-color:var(--indigo-line);background:var(--indigo-soft);color:var(--indigo)}
+
+  /* ---------------- right: sign-off timeline ---------------- */
+  .col-side{position:sticky;top:74px;display:flex;flex-direction:column;gap:18px}
+  .doc-card{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .doc-hero{padding:16px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--indigo-soft),#fff)}
+  .doc-hero .no{font-size:11px;font-weight:700;color:var(--indigo);font-variant-numeric:tabular-nums;letter-spacing:.3px}
+  .doc-hero h3{font-size:15.5px;font-weight:750;letter-spacing:-.3px;margin:4px 0 8px;line-height:1.3}
+  .doc-hero .row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .doc-summary{padding:13px 18px;font-size:12px;color:var(--ink-2);line-height:1.55;border-bottom:1px solid var(--line);background:#fcfdff}
+  .doc-stat{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line)}
+  .doc-stat .c{padding:11px 14px;border-right:1px solid var(--line);text-align:center}
+  .doc-stat .c:last-child{border-right:none}
+  .doc-stat .c .v{font-size:14.5px;font-weight:750;font-variant-numeric:tabular-nums}
+  .doc-stat .c .k{font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+
+  .tl-head{display:flex;align-items:center;gap:8px;padding:13px 18px 9px}
+  .tl-head h4{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-2)}
+  .tl-head .of{margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:600}
+  .timeline{padding:0 18px 16px;position:relative}
+  .tl-item{display:flex;gap:13px;position:relative;padding-bottom:16px}
+  .tl-item:last-child{padding-bottom:0}
+  .tl-rail{display:flex;flex-direction:column;align-items:center;flex:none}
+  .tl-node{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff;z-index:2;flex:none}
+  .tl-node.approved{background:var(--green)} .tl-node.rejected{background:var(--red)}
+  .tl-node.delegated{background:var(--indigo)}
+  .tl-node.pending{background:#fff;border:2px dashed var(--ink-4);color:var(--ink-3)}
+  .tl-node.current{background:#fff;border:2.5px solid var(--indigo);color:var(--indigo);box-shadow:0 0 0 4px var(--indigo-soft)}
+  .tl-node.current .pulse{width:9px;height:9px;border-radius:50%;background:var(--indigo);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.4}}
+  .tl-line{width:2px;flex:1;background:var(--line-2);margin:3px 0}
+  .tl-item.approved .tl-line,.tl-item.delegated .tl-line{background:var(--green-line)}
+  .tl-item:last-child .tl-line{display:none}
+  .tl-body{flex:1;min-width:0;padding-top:1px}
+  .tl-step{display:flex;align-items:center;gap:8px}
+  .tl-step .nm{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .tl-role{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);
+    border:1px solid var(--line-2);border-radius:5px;padding:1px 5px}
+  .tl-signer{display:flex;align-items:center;gap:8px;margin-top:7px}
+  .tl-signer .who{line-height:1.2}
+  .tl-signer .who b{font-size:11.5px;font-weight:600}
+  .tl-signer .who span{font-size:10.5px;color:var(--ink-3)}
+  .tl-dec{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+  .dec-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px;letter-spacing:.2px}
+  .dec-approved{background:var(--green-soft);color:var(--green)}
+  .dec-rejected{background:var(--red-soft);color:var(--red)}
+  .dec-pending{background:var(--amber-soft);color:var(--amber)}
+  .dec-delegated{background:var(--indigo-soft);color:var(--indigo)}
+  .dec-skipped{background:var(--slate-soft);color:var(--ink-3)}
+  .tl-when{font-size:10px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .tl-comment{margin-top:8px;font-size:11.5px;color:var(--ink-2);line-height:1.5;background:var(--slate-soft);
+    border-radius:8px;padding:8px 10px;border-left:2px solid var(--line-2)}
+  .tl-comment.rej{background:var(--red-soft);border-left-color:var(--red-line)}
+  .tl-act{display:flex;gap:8px;padding:13px 18px;border-top:1px solid var(--line);background:#fafbfd}
+  .tl-act .btn{flex:1;justify-content:center;padding:9px}
+  .btn-ok{background:var(--green);color:#fff} .btn-ok:hover{background:#15803d}
+  .btn-no{background:#fff;border:1px solid var(--red-line);color:var(--red)} .btn-no:hover{background:var(--red-soft)}
+
+  /* ---------------- workflow strip ---------------- */
+  .wf-card{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .wf-head{display:flex;align-items:center;gap:9px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .wf-head .glyph{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--violet),#a78bfa);
+    display:grid;place-items:center;color:#fff;font-size:14px}
+  .wf-head h4{font-size:13.5px;font-weight:700}
+  .wf-head p{font-size:11px;color:var(--ink-3)}
+  .wf-flow{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+  .wf{border:1px solid var(--line-2);border-radius:10px;padding:11px 12px;background:#fcfdff}
+  .wf-name{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .wf-name .tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:6px}
+  .tg-event{background:var(--sky-soft);color:var(--sky)} .tg-sched{background:var(--violet-soft);color:var(--violet)}
+  .wf-name b{font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;color:var(--ink)}
+  .wf-nodes{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .nd{font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:7px;background:#fff;border:1px solid var(--line-2);color:var(--ink-2);white-space:nowrap}
+  .nd.ai{background:var(--indigo-soft);border-color:var(--indigo-line);color:var(--indigo)}
+  .nd.cond{background:var(--amber-soft);border-color:#fde68a;color:var(--amber)}
+  .arr{color:var(--ink-4);font-size:11px}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:550;
+    box-shadow:var(--shadow-lg);transition:.25s;z-index:60;display:flex;align-items:center;gap:9px;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+
+  @media(max-width:1180px){
+    .grid{grid-template-columns:1fr}
+    .col-side{position:static}
+    .kpi-strip{grid-template-columns:repeat(2,1fr)}
+    .board{grid-template-columns:repeat(3,minmax(180px,1fr))}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ TOP BAR ============ -->
+  <header class="topbar">
+    <div class="brand"><span class="glyph">✓</span>Signoff <small>approvals</small></div>
+    <nav class="topnav">
+      <a href="#" class="on">Approval Desk</a>
+      <a href="#">Documents</a>
+      <a href="#">Templates</a>
+      <a href="#">Workflows</a>
+      <a href="#">Audit Log</a>
+    </nav>
+    <div class="top-right">
+      <div class="searchbox">🔍<input placeholder="Search documents…"></div>
+      <button class="icon-btn">🔔<span class="dot"></span></button>
+      <div class="acct">
+        <div class="ava">PM</div>
+        <div class="who"><b>Priya Menon</b><br><span>General Counsel</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ PAGE HEAD ============ -->
+  <div class="page-head">
+    <div>
+      <h1>Approval Desk</h1>
+      <p>Route, review, and sign every document — one auditable pipeline.</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn btn-ghost">⤓ Export register</button>
+      <button class="btn btn-primary">＋ New document</button>
+    </div>
+  </div>
+
+  <!-- ============ KPI STRIP ============ -->
+  <div class="kpi-strip">
+    <div class="kpi k1">
+      <div class="top"><span class="lbl">Awaiting my signoff</span><span class="ic">✍️</span></div>
+      <div class="val">7</div>
+      <div class="sub"><span class="trend up">▲ 2</span> vs yesterday · 2 due today</div>
+      <svg class="spark" viewBox="0 0 90 34" preserveAspectRatio="none"><polyline fill="none" stroke="#4f46e5" stroke-width="2" points="0,26 15,22 30,24 45,14 60,18 75,9 90,12"/></svg>
+    </div>
+    <div class="kpi k2">
+      <div class="top"><span class="lbl">In legal review</span><span class="ic">⚖️</span></div>
+      <div class="val">12</div>
+      <div class="sub"><span class="trend down">▼ 3</span> cleared this week</div>
+      <svg class="spark" viewBox="0 0 90 34" preserveAspectRatio="none"><polyline fill="none" stroke="#7c3aed" stroke-width="2" points="0,12 15,16 30,10 45,18 60,15 75,22 90,20"/></svg>
+    </div>
+    <div class="kpi k3">
+      <div class="top"><span class="lbl">Overdue (SLA breach)</span><span class="ic">⏰</span></div>
+      <div class="val">3</div>
+      <div class="sub"><span class="trend down">▲ 1</span> escalated to managers</div>
+      <svg class="spark" viewBox="0 0 90 34" preserveAspectRatio="none"><polyline fill="none" stroke="#dc2626" stroke-width="2" points="0,20 15,18 30,22 45,16 60,20 75,12 90,8"/></svg>
+    </div>
+    <div class="kpi k4">
+      <div class="top"><span class="lbl">Signed this week</span><span class="ic">📑</span></div>
+      <div class="val">41</div>
+      <div class="sub"><span class="trend up">▲ 18%</span> · avg cycle 1.9 days</div>
+      <svg class="spark" viewBox="0 0 90 34" preserveAspectRatio="none"><polyline fill="none" stroke="#16a34a" stroke-width="2" points="0,28 15,24 30,20 45,22 60,14 75,10 90,6"/></svg>
+    </div>
+  </div>
+
+  <!-- ============ MAIN GRID ============ -->
+  <div class="grid">
+    <div class="col-main">
+
+      <!-- PIPELINE (KANBAN) -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Approval pipeline</h2>
+          <span class="hint">Click a column to filter the register · drag to advance a stage</span>
+          <div class="right">
+            <div class="seg">
+              <button class="on">Pipeline</button>
+              <button>My queue</button>
+            </div>
+          </div>
+        </div>
+        <div class="board" id="board"></div>
+      </section>
+
+      <!-- DOCUMENTS TABLE -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Document register</h2>
+          <span class="hint">Sortable · cross-filtered by pipeline</span>
+        </div>
+        <div class="table-tools">
+          <span class="filter-note" id="filterNote">Filtered to <b id="filterStage"></b><span class="x" id="clearFilter">×</span></span>
+          <span class="spacer" id="rowCount"></span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Owner</th>
+              <th>Ver</th>
+              <th class="num">Amount</th>
+              <th>Stage</th>
+              <th>Risk</th>
+              <th>SLA / Due</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </section>
+    </div>
+
+    <!-- RIGHT: SIGN-OFF TIMELINE + WORKFLOWS -->
+    <aside class="col-side">
+      <div class="doc-card" id="docCard"></div>
+
+      <div class="wf-card">
+        <div class="wf-head">
+          <span class="glyph">⚡</span>
+          <div><h4>Workflows driving this desk</h4><p>3 automations · 2 AI nodes suggested</p></div>
+        </div>
+        <div class="wf-flow">
+          <div class="wf">
+            <div class="wf-name"><span class="tag tg-event">on submit</span><b>doc_route_on_submit</b></div>
+            <div class="wf-nodes">
+              <span class="nd">query doctype</span><span class="arr">→</span>
+              <span class="nd">set SLA due</span><span class="arr">→</span>
+              <span class="nd">build chain</span><span class="arr">→</span>
+              <span class="nd cond">if &gt;$50k / high risk</span><span class="arr">→</span>
+              <span class="nd ai">✦ AI risk-classify</span><span class="arr">→</span>
+              <span class="nd">→ reviewer</span>
+            </div>
+          </div>
+          <div class="wf">
+            <div class="wf-name"><span class="tag tg-event">on decision</span><b>doc_on_decision</b></div>
+            <div class="wf-nodes">
+              <span class="nd cond">approved / rejected / delegated</span><span class="arr">→</span>
+              <span class="nd">advance or halt</span><span class="arr">→</span>
+              <span class="nd ai">✦ AI reject-summarize</span><span class="arr">→</span>
+              <span class="nd">notify next</span>
+            </div>
+          </div>
+          <div class="wf">
+            <div class="wf-name"><span class="tag tg-sched">hourly</span><b>doc_sla_escalation</b></div>
+            <div class="wf-nodes">
+              <span class="nd">find overdue</span><span class="arr">→</span>
+              <span class="nd cond">&gt;24h?</span><span class="arr">→</span>
+              <span class="nd">escalate + urgent</span><span class="arr">→</span>
+              <span class="nd ai">✦ AI escalation-draft</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- reference data ----------
+  var STAGES = [
+    {key:"drafting",        label:"Drafting",        color:"#64748b"},
+    {key:"internal_review", label:"Internal review", color:"#0284c7"},
+    {key:"legal_review",    label:"Legal review",    color:"#7c3aed"},
+    {key:"pending_signoff", label:"Pending signoff", color:"#d97706"},
+    {key:"signed",          label:"Signed",          color:"#16a34a"}
+  ];
+  var STAGE_LABEL = {drafting:"Drafting",internal_review:"Internal review",legal_review:"Legal review",
+    pending_signoff:"Pending signoff",signed:"Signed",rejected:"Rejected",archived:"Archived"};
+
+  var SIGNERS = {
+    pm: {name:"Priya Menon",      title:"General Counsel",      color:"#3730a3"},
+    dl: {name:"Diego Lara",       title:"VP Finance",           color:"#0284c7"},
+    sk: {name:"Sara Kwon",        title:"Legal Counsel",        color:"#7c3aed"},
+    tn: {name:"Tomás Núñez",      title:"Procurement Lead",     color:"#d97706"},
+    rf: {name:"Rachel Foley",     title:"HR Director",          color:"#16a34a"},
+    mw: {name:"Marcus Webb",      title:"COO",                  color:"#be185d"},
+    ay: {name:"Ayşe Yıldız",      title:"Eng Manager",          color:"#0e7490"},
+    bj: {name:"Brandon Jin",      title:"Account Exec",         color:"#9333ea"},
+    el: {name:"Elena Rossi",      title:"Finance Analyst",      color:"#0891b2"}
+  };
+
+  // ---------- documents + their approval chains ----------
+  var DOCS = [
+    {
+      id:1, no:"DOC-2026-0418", title:"Mutual NDA — Brightloom Analytics", dtype:"nda", ver:"v2.1",
+      amount:null, stage:"legal_review", priority:"high", risk:"medium", owner:"bj",
+      summary:"Two-way confidentiality agreement ahead of the Brightloom data-partnership pilot. Governing law: Delaware. Term 3 years, survival 5. Sara flagged the carve-out clause.",
+      submitted:"2026-06-04 09:12", due:"2026-06-07 18:00", curStep:2,
+      chain:[
+        {order:1,name:"Owner submission",  role:"reviewer", signer:"bj", decision:"approved",  when:"Jun 4 · 09:12", comment:null},
+        {order:2,name:"Legal review",      role:"legal",    signer:"sk", decision:"pending",   when:null,           comment:"Reviewing the IP carve-out — Section 4.2 is broader than our standard. Will revert by EOD."},
+        {order:3,name:"Counsel approval",  role:"approver", signer:"pm", decision:"pending",   when:null,           comment:null},
+        {order:4,name:"Signature",         role:"signer",   signer:"mw", decision:"pending",   when:null,           comment:null}
+      ]
+    },
+    {
+      id:2, no:"DOC-2026-0421", title:"Master Services Agreement — Vantage Cloud", dtype:"msa", ver:"v1.4",
+      amount:248000, stage:"pending_signoff", priority:"urgent", risk:"high", owner:"tn",
+      summary:"3-year MSA for managed cloud infrastructure, $248k annual commit with auto-renewal. Exceeds $50k threshold → executive approval inserted. Liability cap negotiated to 12 months of fees.",
+      submitted:"2026-06-02 14:30", due:"2026-06-07 12:00", curStep:4,
+      chain:[
+        {order:1,name:"Procurement review", role:"reviewer", signer:"tn", decision:"approved", when:"Jun 2 · 14:55", comment:"Pricing matches the RFP award. Cleared to proceed."},
+        {order:2,name:"Legal review",       role:"legal",    signer:"sk", decision:"approved", when:"Jun 3 · 11:20", comment:"Liability cap and indemnity acceptable after redline. Approved."},
+        {order:3,name:"Executive approval", role:"approver", signer:"mw", decision:"approved", when:"Jun 5 · 16:40", comment:"Approved — within FY budget. Proceed to signature."},
+        {order:4,name:"Signature",          role:"signer",   signer:"pm", decision:"pending",  when:null,            comment:"Awaiting counter-signature; vendor copy already executed."}
+      ]
+    },
+    {
+      id:3, no:"DOC-2026-0423", title:"Statement of Work — Helix Mobile Rebuild", dtype:"sow", ver:"v3.0",
+      amount:86500, stage:"internal_review", priority:"normal", risk:"medium", owner:"ay",
+      summary:"Fixed-bid SOW for the Helix mobile app rebuild, 14-week engagement. Milestone-based billing. Awaiting engineering lead sign-off on scope before legal.",
+      submitted:"2026-06-05 10:05", due:"2026-06-09 18:00", curStep:1,
+      chain:[
+        {order:1,name:"Eng lead review", role:"reviewer", signer:"ay", decision:"pending",  when:null,           comment:"Confirming the milestone 3 acceptance criteria with the client before I approve."},
+        {order:2,name:"Legal review",    role:"legal",    signer:"sk", decision:"pending",  when:null,           comment:null},
+        {order:3,name:"Budget approval", role:"approver", signer:"dl", decision:"pending",  when:null,           comment:null},
+        {order:4,name:"Signature",       role:"signer",   signer:"pm", decision:"pending",  when:null,           comment:null}
+      ]
+    },
+    {
+      id:4, no:"DOC-2026-0410", title:"Remote Work Policy 2026 — v4", dtype:"policy", ver:"v4.0",
+      amount:null, stage:"signed", priority:"low", risk:"low", owner:"rf",
+      summary:"Annual refresh of the remote-work policy. No legal review required (internal policy). Approved and published to the handbook.",
+      submitted:"2026-05-28 08:00", due:"2026-06-03 18:00", curStep:3,
+      chain:[
+        {order:1,name:"HR review",        role:"reviewer", signer:"rf", decision:"approved", when:"May 28 · 09:30", comment:"Updated the hybrid-day language per the leadership offsite."},
+        {order:2,name:"People approval",  role:"approver", signer:"mw", decision:"approved", when:"May 30 · 13:10", comment:"Approved."},
+        {order:3,name:"Signature",        role:"signer",   signer:"mw", decision:"approved", when:"Jun 1 · 10:00",  comment:"Published to handbook v2026.2."}
+      ]
+    },
+    {
+      id:5, no:"DOC-2026-0425", title:"Offer Letter — Senior Backend Engineer", dtype:"offer_letter", ver:"v1.0",
+      amount:165000, stage:"pending_signoff", priority:"high", risk:"low", owner:"rf",
+      summary:"Offer for the Sr. Backend role, $165k base + equity. Approved by hiring manager and finance; awaiting counter-signature to release to candidate.",
+      submitted:"2026-06-05 15:20", due:"2026-06-07 17:00", curStep:3,
+      chain:[
+        {order:1,name:"Hiring manager",  role:"reviewer", signer:"ay", decision:"approved", when:"Jun 5 · 16:00", comment:"Strong candidate — band confirmed at L5."},
+        {order:2,name:"Comp approval",   role:"approver", signer:"dl", decision:"approved", when:"Jun 6 · 09:15", comment:"Within band. Equity grant approved."},
+        {order:3,name:"Signature",       role:"signer",   signer:"rf", decision:"pending",  when:null,            comment:"Ready to release once HRD signs."}
+      ]
+    },
+    {
+      id:6, no:"DOC-2026-0408", title:"Purchase Order — Datacenter Hardware Q3", dtype:"po", ver:"v1.2",
+      amount:512000, stage:"rejected", priority:"high", risk:"high", owner:"tn",
+      summary:"PO for Q3 datacenter refresh, $512k. Rejected at finance — exceeds the quarterly capex envelope; to be re-scoped and resubmitted.",
+      submitted:"2026-05-30 11:00", due:"2026-06-04 18:00", curStep:2,
+      chain:[
+        {order:1,name:"Procurement review", role:"reviewer", signer:"tn", decision:"approved", when:"May 30 · 11:40", comment:"Vendor and specs verified."},
+        {order:2,name:"Finance approval",   role:"approver", signer:"dl", decision:"rejected", when:"Jun 2 · 14:25",  comment:"Exceeds Q3 capex envelope by $190k. Split into two POs or defer the GPU tier to Q4 and resubmit."},
+        {order:3,name:"Executive approval", role:"approver", signer:"mw", decision:"skipped",  when:null,             comment:null},
+        {order:4,name:"Signature",          role:"signer",   signer:"pm", decision:"skipped",  when:null,             comment:null}
+      ]
+    },
+    {
+      id:7, no:"DOC-2026-0426", title:"Vendor Invoice — Lumio Design Studio", dtype:"invoice", ver:"v1.0",
+      amount:18400, stage:"internal_review", priority:"normal", risk:"low", owner:"el",
+      summary:"Invoice for the Q2 brand-refresh deliverables. Matched against PO-2026-0331; awaiting cost-center owner sign-off before payment run.",
+      submitted:"2026-06-06 08:45", due:"2026-06-10 18:00", curStep:1,
+      chain:[
+        {order:1,name:"3-way match",       role:"reviewer", signer:"el", decision:"pending",  when:null,           comment:"PO + GR matched, confirming the late-delivery credit line."},
+        {order:2,name:"Cost-center owner", role:"approver", signer:"mw", decision:"pending",  when:null,           comment:null},
+        {order:3,name:"AP signature",      role:"signer",   signer:"dl", decision:"pending",  when:null,           comment:null}
+      ]
+    },
+    {
+      id:8, no:"DOC-2026-0427", title:"Expense Report — Q2 Sales Offsite", dtype:"expense", ver:"v1.0",
+      amount:9320, stage:"drafting", priority:"low", risk:"low", owner:"bj",
+      summary:"Consolidated expense report for the Q2 sales offsite (travel, venue, meals). Still attaching the final dinner receipts before submission.",
+      submitted:"2026-06-06 17:10", due:"2026-06-12 18:00", curStep:0,
+      chain:[
+        {order:1,name:"Manager review",  role:"reviewer", signer:"mw", decision:"pending", when:null, comment:null},
+        {order:2,name:"Finance approval",role:"approver", signer:"el", decision:"pending", when:null, comment:null},
+        {order:3,name:"Reimbursement",   role:"signer",   signer:"dl", decision:"pending", when:null, comment:null}
+      ]
+    },
+    {
+      id:9, no:"DOC-2026-0419", title:"Mutual NDA — Cedar & Pine Logistics", dtype:"nda", ver:"v1.0",
+      amount:null, stage:"legal_review", priority:"normal", risk:"low", owner:"bj",
+      summary:"Standard mutual NDA for an inbound logistics integration discussion. On our paper, no redlines expected — quick legal pass.",
+      submitted:"2026-06-05 13:40", due:"2026-06-08 18:00", curStep:2,
+      chain:[
+        {order:1,name:"Owner submission", role:"reviewer", signer:"bj", decision:"approved", when:"Jun 5 · 13:40", comment:null},
+        {order:2,name:"Legal review",     role:"legal",    signer:"sk", decision:"pending",  when:null,            comment:"Our standard template — expect a same-day approval."},
+        {order:3,name:"Signature",        role:"signer",   signer:"pm", decision:"pending",  when:null,            comment:null}
+      ]
+    },
+    {
+      id:10, no:"DOC-2026-0412", title:"SOW — Data Migration Phase 2", dtype:"sow", ver:"v2.2",
+      amount:64000, stage:"signed", priority:"normal", risk:"medium", owner:"ay",
+      summary:"Phase-2 data migration SOW, fully executed last week. Kept on the desk for the audit trail; archives Friday.",
+      submitted:"2026-05-26 09:00", due:"2026-06-01 18:00", curStep:4,
+      chain:[
+        {order:1,name:"Eng lead review",  role:"reviewer", signer:"ay", decision:"approved", when:"May 26 · 10:15", comment:"Scope and cutover plan look good."},
+        {order:2,name:"Legal review",     role:"legal",    signer:"sk", decision:"approved", when:"May 27 · 14:00", comment:"Approved, no changes."},
+        {order:3,name:"Budget approval",  role:"approver", signer:"dl", decision:"approved", when:"May 28 · 11:30", comment:"Within engagement budget."},
+        {order:4,name:"Signature",        role:"signer",   signer:"pm", decision:"approved", when:"May 29 · 16:20", comment:"Both parties executed."}
+      ]
+    },
+    {
+      id:11, no:"DOC-2026-0428", title:"Master Services Agreement — Northwind SaaS", dtype:"msa", ver:"v1.0",
+      amount:41000, stage:"drafting", priority:"normal", risk:"low", owner:"tn",
+      summary:"New MSA for the Northwind reporting tool, $41k/yr — below the executive threshold so it routes legal → approver → signer. Drafting the order form now.",
+      submitted:"2026-06-06 16:30", due:"2026-06-11 18:00", curStep:0,
+      chain:[
+        {order:1,name:"Procurement review", role:"reviewer", signer:"tn", decision:"pending", when:null, comment:null},
+        {order:2,name:"Legal review",       role:"legal",    signer:"sk", decision:"pending", when:null, comment:null},
+        {order:3,name:"Budget approval",    role:"approver", signer:"dl", decision:"pending", when:null, comment:null},
+        {order:4,name:"Signature",          role:"signer",   signer:"pm", decision:"pending", when:null, comment:null}
+      ]
+    },
+    {
+      id:12, no:"DOC-2026-0415", title:"Offer Letter — Product Designer", dtype:"offer_letter", ver:"v1.1",
+      amount:128000, stage:"internal_review", priority:"normal", risk:"low", owner:"rf",
+      summary:"Offer for the Product Designer role, $128k base. Hiring manager reviewing the leveling note before comp approval.",
+      submitted:"2026-06-05 17:50", due:"2026-06-08 17:00", curStep:1,
+      chain:[
+        {order:1,name:"Hiring manager", role:"reviewer", signer:"ay", decision:"pending",  when:null,            comment:"Confirming L4 vs L5 with the panel debrief."},
+        {order:2,name:"Comp approval",  role:"approver", signer:"dl", decision:"pending",  when:null,            comment:null},
+        {order:3,name:"Signature",      role:"signer",   signer:"rf", decision:"pending",  when:null,            comment:null}
+      ]
+    }
+  ];
+
+  // ---------- "now" for SLA math ----------
+  var NOW = new Date("2026-06-07T10:00:00");
+  function parseDT(s){ return new Date(s.replace(" ","T")+":00"); }
+  function slaInfo(doc){
+    var done = doc.stage==="signed"||doc.stage==="archived";
+    var dead = doc.stage==="rejected";
+    if(dead) return {cls:"done",txt:"Rejected"};
+    if(done) return {cls:"done",txt:"Done"};
+    var due = parseDT(doc.due);
+    var diffH = Math.round((due-NOW)/3600000);
+    if(diffH < 0){
+      var od = Math.abs(diffH);
+      return {cls:"over", txt:(od>=24? Math.round(od/24)+"d":od+"h")+" over"};
+    }
+    if(diffH <= 24) return {cls:"warn", txt:"in "+diffH+"h"};
+    return {cls:"ok", txt:"in "+Math.round(diffH/24)+"d"};
+  }
+  function initials(key){ return SIGNERS[key].name.split(" ").map(function(w){return w[0];}).join("").slice(0,2); }
+
+  // ---------- state ----------
+  var activeStage = null;     // pipeline filter
+  var selectedId = 2;         // focused doc for the timeline
+
+  // ---------- render: KANBAN board ----------
+  function renderBoard(){
+    var board = document.getElementById("board");
+    board.innerHTML = "";
+    STAGES.forEach(function(st){
+      var docs = DOCS.filter(function(d){return d.stage===st.key;});
+      var lane = document.createElement("div");
+      lane.className = "lane" + (activeStage===st.key?" active":"");
+      var head = '<div class="lane-head" data-stage="'+st.key+'">'+
+        '<span class="swatch" style="background:'+st.color+'"></span>'+
+        '<span class="nm">'+st.label+'</span>'+
+        '<span class="cnt">'+docs.length+'</span></div>';
+      var body = '<div class="lane-body">';
+      if(docs.length===0){
+        body += '<div class="lane-empty">No documents</div>';
+      } else {
+        docs.forEach(function(d){
+          var total = d.chain.length;
+          var sla = slaInfo(d);
+          var stepsHtml = "";
+          for(var i=0;i<total;i++){
+            var cls="";
+            if(i < d.curStep) cls="done";
+            else if(i===d.curStep && d.stage!=="rejected") cls="cur";
+            stepsHtml += '<span class="s '+cls+'"></span>';
+          }
+          var amt = d.amount!=null ? '<span class="kc-amt">$'+d.amount.toLocaleString()+'</span>' : '';
+          body += '<div class="kc'+(d.id===selectedId?" sel":"")+'" data-id="'+d.id+'">'+
+            '<div class="kc-top"><span class="kc-no">'+d.no+'</span><span class="kc-pri pri-'+d.priority+'"></span></div>'+
+            '<div class="kc-title">'+esc(d.title)+'</div>'+
+            '<div class="kc-meta"><span class="dtype dt-'+d.dtype+'">'+d.dtype.replace("_"," ")+'</span>'+amt+'</div>'+
+            '<div class="kc-foot">'+
+              '<span class="ava-sm" style="background:'+SIGNERS[d.owner].color+'">'+initials(d.owner)+'</span>'+
+              '<span class="sla '+sla.cls+'">⏱ '+sla.txt+'</span>'+
+            '</div>'+
+            '<div class="steps">'+stepsHtml+'</div>'+
+          '</div>';
+        });
+      }
+      body += '</div>';
+      lane.innerHTML = head + body;
+      board.appendChild(lane);
+    });
+  }
+
+  // ---------- render: TABLE ----------
+  function renderTable(){
+    var tbody = document.getElementById("tbody");
+    tbody.innerHTML = "";
+    var rows = DOCS.filter(function(d){ return !activeStage || d.stage===activeStage; });
+    // sort: overdue first, then by due ascending, done last
+    rows.sort(function(a,b){
+      var ra=rank(a), rb=rank(b);
+      if(ra!==rb) return ra-rb;
+      return parseDT(a.due)-parseDT(b.due);
+    });
+    document.getElementById("rowCount").textContent = rows.length + " of " + DOCS.length + " documents";
+
+    rows.forEach(function(d){
+      var sla = slaInfo(d);
+      var dueCls = sla.cls==="done"?"done":(sla.cls==="over"?"over":(sla.cls==="warn"?"warn":"ok"));
+      var amt = d.amount!=null
+        ? '<td class="amt">$'+d.amount.toLocaleString()+'</td>'
+        : '<td class="amt muted">—</td>';
+      var canAct = d.stage!=="signed" && d.stage!=="rejected" && d.stage!=="archived";
+      var acts = canAct
+        ? '<div class="row-acts">'+
+            '<button class="ra ok" data-act="approve" data-id="'+d.id+'">Approve</button>'+
+            '<button class="ra no" data-act="reject" data-id="'+d.id+'">Reject</button>'+
+            '<button class="ra dg" data-act="delegate" data-id="'+d.id+'">Delegate</button>'+
+          '</div>'
+        : '<span style="font-size:11px;color:var(--ink-3);font-weight:600">'+(d.stage==="signed"?"✓ Closed":d.stage==="rejected"?"✕ Closed":"Archived")+'</span>';
+      var tr = document.createElement("tr");
+      tr.className = (d.id===selectedId?"sel":"");
+      tr.dataset.id = d.id;
+      tr.innerHTML =
+        '<td class="lead"><div class="no">'+d.no+'</div>'+
+          '<div class="ti"><span class="dtype dt-'+d.dtype+'">'+d.dtype.replace("_"," ")+'</span><span class="nm">'+esc(d.title)+'</span></div></td>'+
+        '<td><div class="owner"><span class="ava-sm" style="background:'+SIGNERS[d.owner].color+'">'+initials(d.owner)+'</span>'+
+          '<div class="who"><b>'+SIGNERS[d.owner].name+'</b><br><span>'+SIGNERS[d.owner].title+'</span></div></div></td>'+
+        '<td><span class="ver">'+d.ver+'</span></td>'+
+        amt+
+        '<td><span class="stage-pill sg-'+d.stage+'"><span class="d"></span>'+STAGE_LABEL[d.stage]+'</span></td>'+
+        '<td><span class="risk risk-'+d.risk+'">'+d.risk+'</span></td>'+
+        '<td><span class="due '+dueCls+'">'+(sla.cls==="over"?"⏰ ":sla.cls==="warn"?"⏱ ":"")+sla.txt+'</span></td>'+
+        '<td style="text-align:right">'+acts+'</td>';
+      tbody.appendChild(tr);
+    });
+  }
+  function rank(d){
+    if(d.stage==="signed"||d.stage==="rejected"||d.stage==="archived") return 3;
+    var s=slaInfo(d);
+    if(s.cls==="over") return 0;
+    if(s.cls==="warn") return 1;
+    return 2;
+  }
+
+  // ---------- render: SIGN-OFF TIMELINE ----------
+  function renderDocCard(){
+    var d = DOCS.filter(function(x){return x.id===selectedId;})[0] || DOCS[0];
+    var card = document.getElementById("docCard");
+    var approved = d.chain.filter(function(s){return s.decision==="approved";}).length;
+    var total = d.chain.length;
+    var sla = slaInfo(d);
+
+    var heroAmt = d.amount!=null ? '<span class="kc-amt" style="font-size:12px">$'+d.amount.toLocaleString()+'</span>' : '';
+
+    var tl = '';
+    d.chain.forEach(function(s){
+      var dec = s.decision;
+      var nodeCls, nodeContent;
+      var isCurrent = (dec==="pending" && s.order-1===d.curStep && d.stage!=="rejected" && d.stage!=="drafting");
+      if(dec==="approved"){ nodeCls="approved"; nodeContent="✓"; }
+      else if(dec==="rejected"){ nodeCls="rejected"; nodeContent="✕"; }
+      else if(dec==="delegated"){ nodeCls="delegated"; nodeContent="⇄"; }
+      else if(dec==="skipped"){ nodeCls="pending"; nodeContent="–"; }
+      else if(isCurrent){ nodeCls="current"; nodeContent='<span class="pulse"></span>'; }
+      else { nodeCls="pending"; nodeContent=s.order; }
+
+      var decLabel = {approved:"Approved",rejected:"Rejected",pending:isCurrent?"Awaiting":"Queued",delegated:"Delegated",skipped:"Skipped"}[dec];
+      var decCls = {approved:"dec-approved",rejected:"dec-rejected",pending:"dec-pending",delegated:"dec-delegated",skipped:"dec-skipped"}[dec];
+
+      var commentHtml = s.comment ? '<div class="tl-comment'+(dec==="rejected"?" rej":"")+'">'+esc(s.comment)+'</div>' : '';
+      var whenHtml = s.when ? '<span class="tl-when">'+s.when+'</span>' : '';
+
+      tl += '<div class="tl-item '+nodeCls+'">'+
+        '<div class="tl-rail"><div class="tl-node '+nodeCls+'">'+nodeContent+'</div><div class="tl-line"></div></div>'+
+        '<div class="tl-body">'+
+          '<div class="tl-step"><span class="nm">'+s.name+'</span><span class="tl-role">'+s.role+'</span></div>'+
+          '<div class="tl-signer">'+
+            '<span class="ava-sm" style="background:'+SIGNERS[s.signer].color+'">'+initials(s.signer)+'</span>'+
+            '<div class="who"><b>'+SIGNERS[s.signer].name+'</b><br><span>'+SIGNERS[s.signer].title+'</span></div>'+
+            '<div class="tl-dec"><span class="dec-pill '+decCls+'">'+decLabel+'</span>'+whenHtml+'</div>'+
+          '</div>'+
+          commentHtml+
+        '</div>'+
+      '</div>';
+    });
+
+    var actBar = (d.stage!=="signed"&&d.stage!=="rejected"&&d.stage!=="archived")
+      ? '<div class="tl-act">'+
+          '<button class="btn btn-ok" data-act="approve" data-id="'+d.id+'">✓ Approve step</button>'+
+          '<button class="btn btn-no" data-act="reject" data-id="'+d.id+'">Reject</button>'+
+        '</div>'
+      : '';
+
+    card.innerHTML =
+      '<div class="doc-hero">'+
+        '<div class="no">'+d.no+' · '+d.ver+'</div>'+
+        '<h3>'+esc(d.title)+'</h3>'+
+        '<div class="row">'+
+          '<span class="dtype dt-'+d.dtype+'">'+d.dtype.replace("_"," ")+'</span>'+
+          '<span class="stage-pill sg-'+d.stage+'"><span class="d"></span>'+STAGE_LABEL[d.stage]+'</span>'+
+          '<span class="risk risk-'+d.risk+'">'+d.risk+' risk</span>'+
+          heroAmt+
+        '</div>'+
+      '</div>'+
+      '<div class="doc-summary">'+esc(d.summary)+'</div>'+
+      '<div class="doc-stat">'+
+        '<div class="c"><div class="v">'+approved+'/'+total+'</div><div class="k">Steps</div></div>'+
+        '<div class="c"><div class="v" style="color:var(--'+(sla.cls==="over"?"red":sla.cls==="warn"?"amber":sla.cls==="done"?"ink-3":"green")+')">'+sla.txt+'</div><div class="k">SLA</div></div>'+
+        '<div class="c"><div class="v" style="text-transform:capitalize">'+d.priority+'</div><div class="k">Priority</div></div>'+
+      '</div>'+
+      '<div class="tl-head"><h4>Sign-off timeline</h4><span class="of">'+approved+' of '+total+' complete</span></div>'+
+      '<div class="timeline">'+tl+'</div>'+
+      actBar;
+  }
+
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  // ---------- interactions ----------
+  document.getElementById("board").addEventListener("click", function(e){
+    var head = e.target.closest(".lane-head");
+    if(head){
+      var st = head.dataset.stage;
+      activeStage = (activeStage===st? null : st);
+      syncFilterNote();
+      renderBoard(); renderTable();
+      return;
+    }
+    var kc = e.target.closest(".kc");
+    if(kc){
+      selectedId = +kc.dataset.id;
+      renderBoard(); renderTable(); renderDocCard();
+      flash("Loaded "+DOCS.filter(function(d){return d.id===selectedId;})[0].no);
+    }
+  });
+
+  document.getElementById("tbody").addEventListener("click", function(e){
+    var btn = e.target.closest(".ra");
+    if(btn){
+      e.stopPropagation();
+      handleAction(+btn.dataset.id, btn.dataset.act);
+      return;
+    }
+    var tr = e.target.closest("tr");
+    if(tr && tr.dataset.id){
+      selectedId = +tr.dataset.id;
+      renderBoard(); renderTable(); renderDocCard();
+    }
+  });
+
+  document.getElementById("docCard").addEventListener("click", function(e){
+    var btn = e.target.closest(".btn[data-act]");
+    if(btn) handleAction(+btn.dataset.id, btn.dataset.act);
+  });
+
+  document.getElementById("clearFilter").addEventListener("click", function(){
+    activeStage = null; syncFilterNote(); renderBoard(); renderTable();
+  });
+
+  function syncFilterNote(){
+    var note = document.getElementById("filterNote");
+    if(activeStage){
+      note.classList.add("show");
+      document.getElementById("filterStage").textContent = STAGE_LABEL[activeStage];
+    } else {
+      note.classList.remove("show");
+    }
+  }
+
+  // ---------- action engine (simulates the doc_on_decision workflow) ----------
+  var STAGE_ORDER = ["drafting","internal_review","legal_review","pending_signoff","signed"];
+  function handleAction(id, act){
+    var d = DOCS.filter(function(x){return x.id===id;})[0];
+    if(!d) return;
+    var step = d.chain[d.curStep];
+    if(act==="approve"){
+      if(step){ step.decision="approved"; step.when="Jun 7 · 10:00"; if(!step.comment) step.comment="Approved via Approval Desk."; }
+      // advance
+      var isLast = d.curStep >= d.chain.length-1;
+      if(isLast){
+        d.stage="signed";
+        d.chain.forEach(function(s){ if(s.decision==="pending"){ s.decision="approved"; s.when="Jun 7 · 10:00"; } });
+        flash("✓ "+d.no+" fully signed");
+      } else {
+        d.curStep++;
+        // advance the document stage to the next pipeline stage if it exists
+        var idx = STAGE_ORDER.indexOf(d.stage);
+        if(idx>=0 && idx < STAGE_ORDER.length-1 && d.stage!=="pending_signoff"){
+          d.stage = STAGE_ORDER[idx+1];
+        } else if(d.stage!=="pending_signoff" && idx===-1){
+          d.stage="internal_review";
+        }
+        if(d.curStep === d.chain.length-1) d.stage="pending_signoff";
+        flash("Step approved → routed to "+SIGNERS[d.chain[d.curStep].signer].name);
+      }
+    } else if(act==="reject"){
+      if(step){ step.decision="rejected"; step.when="Jun 7 · 10:00"; if(!step.comment) step.comment="Rejected — returned to owner for revision."; }
+      for(var i=d.curStep+1;i<d.chain.length;i++) d.chain[i].decision="skipped";
+      d.stage="rejected";
+      flash("✕ "+d.no+" rejected — owner notified");
+    } else if(act==="delegate"){
+      flash("⇄ Step delegated — kept at current stage");
+    }
+    syncFilterNote(); renderBoard(); renderTable();
+    if(selectedId!==id){ selectedId=id; }
+    renderDocCard();
+  }
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- init ----------
+  renderBoard(); renderTable(); renderDocCard();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Document Approval: an approval pipeline, a document ledger, and sign-off (workflow-driven). Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/35-document-approval.html
+</script>
+</body>
+</html>

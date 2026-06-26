@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Internal Knowledge Base</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --ink:#1e293b;
+    --ink-soft:#475569;
+    --ink-mute:#94a3b8;
+    --line:#e7eaee;
+    --line-soft:#eef1f4;
+    --teal:#0d9488;
+    --teal-dark:#0f766e;
+    --teal-tint:#ccfbf1;
+    --teal-tint-soft:#f0fdfa;
+    --amber:#d97706;
+    --amber-tint:#fef3c7;
+    --rose:#e11d48;
+    --rose-tint:#ffe4e6;
+    --violet:#7c3aed;
+    --violet-tint:#ede9fe;
+    --blue:#2563eb;
+    --blue-tint:#dbeafe;
+    --green:#16a34a;
+    --green-tint:#dcfce7;
+    --shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+    --shadow-lg:0 12px 40px rgba(15,23,42,.16);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;cursor:pointer;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#dfe3e8;border-radius:8px;border:2px solid var(--bg);}
+  ::-webkit-scrollbar-thumb:hover{background:#cdd3da;}
+
+  /* ===== Top bar ===== */
+  .topbar{
+    height:58px;background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:18px;padding:0 22px;position:sticky;top:0;z-index:40;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:-.01em;}
+  .brand .logo{
+    width:30px;height:30px;border-radius:9px;
+    background:linear-gradient(135deg,var(--teal),var(--teal-dark));
+    display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(13,148,136,.3);
+  }
+  .brand small{display:block;font-weight:500;color:var(--ink-mute);font-size:11px;letter-spacing:.02em;}
+  .topsearch{
+    flex:1;max-width:520px;position:relative;
+  }
+  .topsearch input{
+    width:100%;height:38px;border:1px solid var(--line);border-radius:11px;
+    padding:0 14px 0 38px;font-size:13px;background:#fbfcfd;color:var(--ink);outline:none;transition:.15s;
+  }
+  .topsearch input:focus{border-color:var(--teal);background:#fff;box-shadow:0 0 0 3px rgba(13,148,136,.12);}
+  .topsearch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-mute);}
+  .topsearch .kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--ink-mute);
+    border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:#fff;}
+  .top-actions{display:flex;align-items:center;gap:10px;margin-left:auto;}
+  .btn{
+    border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+    height:36px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:600;
+    display:inline-flex;align-items:center;gap:7px;transition:.15s;white-space:nowrap;
+  }
+  .btn:hover{border-color:#cfd5dc;background:#fafbfc;}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 12px rgba(13,148,136,.25);}
+  .btn.primary:hover{background:var(--teal-dark);border-color:var(--teal-dark);}
+  .avatar{
+    width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#2563eb);
+    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;
+  }
+
+  /* ===== Layout ===== */
+  .layout{display:grid;grid-template-columns:266px 1fr 312px;gap:0;min-height:calc(100vh - 58px);}
+  @media(max-width:1180px){.layout{grid-template-columns:248px 1fr;}.railR{display:none;}}
+  @media(max-width:860px){.layout{grid-template-columns:1fr;}.tree-pane{display:none;}}
+
+  /* ===== Left tree ===== */
+  .tree-pane{
+    background:var(--panel);border-right:1px solid var(--line);padding:18px 14px;
+    position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto;
+  }
+  .tree-head{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-mute);
+    padding:4px 8px;margin-bottom:6px;}
+  .space{margin-bottom:4px;}
+  .space-row{
+    display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:9px;cursor:pointer;
+    font-size:13px;font-weight:600;color:var(--ink-soft);transition:.12s;user-select:none;
+  }
+  .space-row:hover{background:#f5f7f9;}
+  .space-row.open{color:var(--ink);}
+  .space-ic{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .space-row .chev{margin-left:auto;color:var(--ink-mute);transition:transform .15s;}
+  .space-row.open .chev{transform:rotate(90deg);}
+  .space-count{font-size:11px;color:var(--ink-mute);font-weight:600;background:#f1f4f6;border-radius:20px;padding:1px 8px;}
+  .children{display:none;padding:2px 0 4px 14px;margin-left:14px;border-left:1px solid var(--line-soft);}
+  .space.open .children{display:block;}
+  .leaf{
+    display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;cursor:pointer;
+    font-size:12.5px;color:var(--ink-soft);transition:.12s;
+  }
+  .leaf:hover{background:#f5f7f9;color:var(--ink);}
+  .leaf.active{background:var(--teal-tint-soft);color:var(--teal-dark);font-weight:600;}
+  .leaf .dot{width:6px;height:6px;border-radius:50%;background:var(--ink-mute);flex-shrink:0;}
+  .leaf.active .dot{background:var(--teal);}
+  .tree-foot{margin-top:14px;padding:12px;border-radius:12px;
+    background:linear-gradient(135deg,#f0fdfa,#fbffff);border:1px solid var(--teal-tint);}
+  .tree-foot h5{margin:0 0 4px;font-size:12px;color:var(--teal-dark);display:flex;align-items:center;gap:6px;}
+  .tree-foot p{margin:0;font-size:11.5px;color:var(--ink-soft);line-height:1.45;}
+
+  /* ===== Center ===== */
+  .main{padding:24px 30px 60px;max-width:860px;}
+  .crumbs{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-mute);margin-bottom:14px;flex-wrap:wrap;}
+  .crumbs a{color:var(--ink-mute);text-decoration:none;}
+  .crumbs a:hover{color:var(--teal);}
+  .crumbs .sep{color:#cdd3da;}
+
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;}
+  .tab{
+    padding:9px 14px;font-size:13px;font-weight:600;color:var(--ink-mute);cursor:pointer;
+    border-bottom:2px solid transparent;margin-bottom:-1px;transition:.12s;display:flex;align-items:center;gap:7px;
+  }
+  .tab:hover{color:var(--ink-soft);}
+  .tab.active{color:var(--teal-dark);border-bottom-color:var(--teal);}
+  .tab .pill{font-size:10.5px;background:#f1f4f6;color:var(--ink-mute);border-radius:20px;padding:1px 7px;font-weight:700;}
+  .tab.active .pill{background:var(--teal-tint);color:var(--teal-dark);}
+
+  .view{display:none;}
+  .view.show{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  /* article reader */
+  .art-head h1{font-size:27px;letter-spacing:-.02em;margin:0 0 10px;line-height:1.18;}
+  .art-meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:var(--ink-mute);font-size:12.5px;margin-bottom:8px;}
+  .art-meta .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#0d9488,#2563eb);
+    color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;}
+  .tagrow{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 4px;}
+  .tag{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:20px;background:#f1f4f6;color:var(--ink-soft);}
+  .tag.teal{background:var(--teal-tint-soft);color:var(--teal-dark);}
+
+  /* AI freshness banner */
+  .ai-fresh{
+    margin:18px 0 6px;border:1px solid var(--teal-tint);background:linear-gradient(120deg,#f0fdfa,#fbfffe);
+    border-radius:13px;padding:14px 16px;display:flex;gap:13px;align-items:flex-start;
+  }
+  .ai-fresh .spark{width:34px;height:34px;border-radius:10px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--teal),var(--teal-dark));display:flex;align-items:center;justify-content:center;color:#fff;
+    box-shadow:0 4px 12px rgba(13,148,136,.3);}
+  .ai-fresh h4{margin:0 0 3px;font-size:13px;color:var(--teal-dark);display:flex;align-items:center;gap:8px;}
+  .ai-fresh p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
+  .conf{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;}
+  .conf.hi{background:var(--green-tint);color:#166534;}
+  .conf.mid{background:var(--amber-tint);color:#92400e;}
+  .conf.lo{background:var(--rose-tint);color:#9f1239;}
+
+  .prose{margin-top:22px;color:var(--ink);}
+  .prose h2{font-size:18px;letter-spacing:-.01em;margin:30px 0 10px;scroll-margin-top:74px;}
+  .prose h2:first-child{margin-top:6px;}
+  .prose p{margin:0 0 14px;color:var(--ink-soft);font-size:14px;line-height:1.68;}
+  .prose ul{margin:0 0 14px;padding-left:20px;color:var(--ink-soft);}
+  .prose li{margin-bottom:7px;line-height:1.6;}
+  .prose code{background:#f1f4f6;border-radius:5px;padding:1px 6px;font-size:12.5px;color:var(--teal-dark);
+    font-family:"SF Mono",Menlo,Consolas,monospace;}
+  .callout{border-left:3px solid var(--teal);background:var(--teal-tint-soft);border-radius:0 10px 10px 0;
+    padding:12px 16px;margin:16px 0;font-size:13px;color:var(--ink-soft);}
+  .callout.warn{border-left-color:var(--amber);background:#fffbeb;}
+  .steptable{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;}
+  .steptable th{text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-mute);
+    padding:8px 12px;border-bottom:1px solid var(--line);}
+  .steptable td{padding:10px 12px;border-bottom:1px solid var(--line-soft);color:var(--ink-soft);vertical-align:top;}
+  .steptable tr:hover td{background:#fafbfc;}
+
+  .art-foot{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .helpful{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);}
+  .vote{border:1px solid var(--line);background:#fff;border-radius:9px;height:34px;padding:0 12px;font-size:13px;
+    display:inline-flex;align-items:center;gap:6px;color:var(--ink-soft);font-weight:600;}
+  .vote:hover{border-color:var(--teal);color:var(--teal-dark);}
+  .vote.on{background:var(--teal-tint-soft);border-color:var(--teal-tint);color:var(--teal-dark);}
+
+  /* card grids (browse / recent) */
+  .filterbar{display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap;}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 13px;font-size:12.5px;font-weight:600;
+    color:var(--ink-soft);transition:.12s;display:inline-flex;align-items:center;gap:6px;}
+  .chip:hover{border-color:#cfd5dc;}
+  .chip.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .chip .n{font-size:10.5px;opacity:.8;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:14px;}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;cursor:pointer;
+    transition:.15s;display:flex;flex-direction:column;gap:9px;position:relative;overflow:hidden;
+  }
+  .card:hover{border-color:#d4dadf;box-shadow:var(--shadow);transform:translateY(-2px);}
+  .card .ctop{display:flex;align-items:center;gap:8px;}
+  .card .cic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .card h3{margin:0;font-size:14px;letter-spacing:-.01em;line-height:1.35;}
+  .card p{margin:0;font-size:12px;color:var(--ink-mute);line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .card .cfoot{display:flex;align-items:center;gap:9px;margin-top:auto;font-size:11px;color:var(--ink-mute);padding-top:4px;}
+  .card .cfoot .dotv{width:3px;height:3px;border-radius:50%;background:#cdd3da;}
+  .status{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;}
+  .status.ok{background:var(--green-tint);color:#166534;}
+  .status.review{background:var(--amber-tint);color:#92400e;}
+  .status.stale{background:var(--rose-tint);color:#9f1239;}
+  .status.draft{background:#eef2f7;color:#475569;}
+  .empty{text-align:center;padding:60px 20px;color:var(--ink-mute);}
+  .empty svg{margin-bottom:12px;color:#cbd3db;}
+  .empty h4{margin:0 0 5px;color:var(--ink-soft);font-size:15px;}
+
+  /* AI activity feed */
+  .feed{display:flex;flex-direction:column;}
+  .feed-item{display:flex;gap:13px;padding:14px 2px;border-bottom:1px solid var(--line-soft);}
+  .feed-item:last-child{border-bottom:none;}
+  .feed-ic{width:32px;height:32px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .feed-bd{flex:1;min-width:0;}
+  .feed-bd .ft{font-size:13px;color:var(--ink);margin:0 0 3px;}
+  .feed-bd .ft b{font-weight:700;}
+  .feed-bd .fm{font-size:11.5px;color:var(--ink-mute);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .feed-reason{margin-top:7px;font-size:12px;color:var(--ink-soft);background:#f8fafb;border:1px solid var(--line-soft);
+    border-radius:9px;padding:8px 11px;line-height:1.5;}
+
+  /* health / gaps panel with chart */
+  .panelcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;}
+  .panelcard h3{margin:0 0 2px;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .panelcard .sub{font-size:12px;color:var(--ink-mute);margin:0 0 14px;}
+  .barrow{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+  .barrow .lbl{font-size:12px;color:var(--ink-soft);width:120px;flex-shrink:0;font-weight:500;}
+  .bartrack{flex:1;height:9px;background:#eef1f4;border-radius:20px;overflow:hidden;}
+  .barfill{height:100%;border-radius:20px;transition:width .8s cubic-bezier(.22,1,.36,1);}
+  .barrow .val{font-size:11.5px;font-weight:700;color:var(--ink-soft);width:34px;text-align:right;}
+  .donutwrap{display:flex;align-items:center;gap:20px;}
+  .donut-legend{display:flex;flex-direction:column;gap:9px;flex:1;}
+  .leg{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);}
+  .leg .sw{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+  .leg b{margin-left:auto;color:var(--ink);}
+
+  /* ===== Right rail ===== */
+  .railR{background:var(--panel);border-left:1px solid var(--line);padding:22px 18px;position:sticky;top:58px;
+    height:calc(100vh - 58px);overflow-y:auto;}
+  .rail-sec{margin-bottom:24px;}
+  .rail-sec h4{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-mute);
+    margin:0 0 11px;display:flex;align-items:center;gap:7px;}
+  .toc a{display:block;font-size:12.5px;color:var(--ink-soft);text-decoration:none;padding:5px 11px;border-radius:8px;
+    border-left:2px solid transparent;margin-bottom:1px;transition:.12s;}
+  .toc a:hover{background:#f5f7f9;color:var(--ink);}
+  .toc a.on{border-left-color:var(--teal);color:var(--teal-dark);background:var(--teal-tint-soft);font-weight:600;}
+  .toc a.sub{padding-left:24px;font-size:12px;color:var(--ink-mute);}
+
+  .relrow{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;}
+  .relrow:last-child{border-bottom:none;}
+  .relrow:hover .rt{color:var(--teal-dark);}
+  .relrow .rc{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .relrow .rt{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--ink);transition:.12s;}
+  .relrow .rm{font-size:11px;color:var(--ink-mute);}
+
+  .contrib{display:flex;align-items:center;gap:10px;padding:7px 0;}
+  .contrib .av{width:30px;height:30px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;flex-shrink:0;}
+  .contrib .ci .nm{font-size:12.5px;font-weight:600;}
+  .contrib .ci .role{font-size:11px;color:var(--ink-mute);}
+  .contrib .cnt{margin-left:auto;font-size:11px;color:var(--ink-mute);font-weight:600;}
+
+  /* ===== Drawer ===== */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.32);backdrop-filter:blur(2px);opacity:0;pointer-events:none;
+    transition:.22s;z-index:60;}
+  .scrim.show{opacity:1;pointer-events:auto;}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:520px;max-width:94vw;background:var(--panel);z-index:70;
+    box-shadow:var(--shadow-lg);transform:translateX(100%);transition:transform .28s cubic-bezier(.22,1,.36,1);
+    display:flex;flex-direction:column;}
+  .drawer.show{transform:none;}
+  .dr-head{padding:20px 22px;border-bottom:1px solid var(--line);}
+  .dr-head .dr-top{display:flex;align-items:flex-start;gap:12px;}
+  .dr-head h2{margin:8px 0 6px;font-size:19px;letter-spacing:-.01em;line-height:1.25;}
+  .dr-close{margin-left:auto;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;
+    display:flex;align-items:center;justify-content:center;color:var(--ink-mute);flex-shrink:0;}
+  .dr-close:hover{background:#f5f7f9;color:var(--ink);}
+  .dr-body{padding:20px 22px;overflow-y:auto;flex:1;}
+  .dr-sec{margin-bottom:22px;}
+  .dr-sec h5{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin:0 0 10px;}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:9px 12px;font-size:13px;}
+  .kv .k{color:var(--ink-mute);}
+  .kv .v{color:var(--ink);font-weight:500;}
+
+  /* AI extract panel inside drawer */
+  .extract{border:1px solid var(--teal-tint);border-radius:12px;overflow:hidden;}
+  .extract-hd{background:linear-gradient(120deg,#f0fdfa,#fbfffe);padding:12px 14px;display:flex;align-items:center;gap:9px;
+    border-bottom:1px solid var(--teal-tint);}
+  .extract-hd h5{margin:0;color:var(--teal-dark);text-transform:none;letter-spacing:0;font-size:13px;}
+  .ex-field{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line-soft);}
+  .ex-field:last-child{border-bottom:none;}
+  .ex-field .exk{font-size:12px;color:var(--ink-mute);width:108px;flex-shrink:0;}
+  .ex-field .exv{font-size:13px;color:var(--ink);font-weight:600;flex:1;}
+  .ex-field .conf{margin-left:auto;}
+  .review-btns{display:flex;gap:8px;margin-top:14px;}
+  .review-btns .btn{flex:1;justify-content:center;}
+
+  .gen-draft{background:#f8fafb;border:1px dashed var(--line);border-radius:12px;padding:14px;font-size:13px;
+    color:var(--ink-soft);line-height:1.6;position:relative;}
+  .gen-draft .gtag{position:absolute;top:-9px;left:12px;background:var(--violet);color:#fff;font-size:10px;font-weight:700;
+    padding:2px 9px;border-radius:20px;}
+  .gen-draft p{margin:6px 0;}
+
+  .badge-soft{font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;background:#f1f4f6;color:var(--ink-soft);}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+    padding:11px 18px;border-radius:11px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);opacity:0;
+    pointer-events:none;transition:.25s;z-index:90;display:flex;align-items:center;gap:9px;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ===== TOP BAR ===== -->
+<div class="topbar">
+  <div class="brand">
+    <span class="logo">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </span>
+    <span>Atlas KB<small>AI Internal Knowledge Base</small></span>
+  </div>
+  <div class="topsearch">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="search" placeholder="Search the handbook — try 'VPN', 'PTO', 'incident'..." />
+    <span class="kbd">⌘K</span>
+  </div>
+  <div class="top-actions">
+    <button class="btn" onclick="toast('AI is re-indexing 4 new docs…')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+      Re-index
+    </button>
+    <button class="btn primary" onclick="toast('New doc — AI will suggest tags & TOC')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      New doc
+    </button>
+    <div class="avatar">AM</div>
+  </div>
+</div>
+
+<!-- ===== LAYOUT ===== -->
+<div class="layout">
+
+  <!-- LEFT TREE -->
+  <aside class="tree-pane" id="tree">
+    <div class="tree-head">Spaces</div>
+    <!-- spaces injected -->
+    <div id="spaces"></div>
+    <div class="tree-foot">
+      <h5>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"/></svg>
+        AI Librarian
+      </h5>
+      <p>Auto-tags new pages, flags stale content, and answers questions from across 248 docs. <b>96%</b> coverage.</p>
+    </div>
+  </aside>
+
+  <!-- CENTER -->
+  <main class="main">
+    <div class="crumbs">
+      <a href="#" onclick="return false">People &amp; HR</a><span class="sep">/</span>
+      <a href="#" onclick="return false">Time Off</a><span class="sep">/</span>
+      <span id="crumb-leaf">Paid Time Off Policy</span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-view="article">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>
+        Reader
+      </div>
+      <div class="tab" data-view="browse">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Browse <span class="pill" id="browse-n">26</span>
+      </div>
+      <div class="tab" data-view="recent">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Recently updated
+      </div>
+      <div class="tab" data-view="ai">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"/></svg>
+        AI activity
+      </div>
+    </div>
+
+    <!-- VIEW: ARTICLE -->
+    <section class="view show" id="view-article">
+      <div class="art-head">
+        <h1>Paid Time Off (PTO) Policy</h1>
+        <div class="art-meta">
+          <span><span class="av">DM</span>&nbsp; Maintained by <b style="color:var(--ink-soft)">Dana Mercer</b></span>
+          <span>Updated Jun 22, 2026</span>
+          <span>9 min read</span>
+          <span class="status ok">Verified</span>
+        </div>
+        <div class="tagrow">
+          <span class="tag teal">People &amp; HR</span>
+          <span class="tag">policy</span>
+          <span class="tag">benefits</span>
+          <span class="tag">us &amp; emea</span>
+        </div>
+      </div>
+
+      <div class="ai-fresh">
+        <span class="spark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"/></svg>
+        </span>
+        <div>
+          <h4>AI freshness check <span class="conf hi">98% confident</span></h4>
+          <p>This page was cross-checked against the 2026 benefits handbook and the latest Workday sync. All accrual rates and carryover limits match the source of truth. Next auto-review scheduled for <b>Sep 1, 2026</b>.</p>
+        </div>
+      </div>
+
+      <div class="prose" id="prose">
+        <h2 id="s-overview">Overview</h2>
+        <p>Atlas offers a flexible paid time off program covering vacation, personal days, and sick leave. PTO accrues per pay period and is available to all full-time employees from their first day. This policy applies to all global entities; regional addenda are linked at the bottom.</p>
+        <div class="callout">
+          <b>Quick answer:</b> Full-time employees accrue <code>1.67</code> days of PTO per month (20 days / year). Up to <b>5 unused days</b> carry over into the next calendar year.
+        </div>
+
+        <h2 id="s-accrual">Accrual &amp; carryover</h2>
+        <p>Accrual begins on your start date and is granted at the end of each monthly pay period. Carryover is capped to keep balances healthy and encourage rest.</p>
+        <table class="steptable">
+          <thead><tr><th>Tenure</th><th>Annual PTO</th><th>Monthly accrual</th><th>Carryover cap</th></tr></thead>
+          <tbody>
+            <tr><td>0–2 years</td><td>20 days</td><td>1.67 days</td><td>5 days</td></tr>
+            <tr><td>3–5 years</td><td>25 days</td><td>2.08 days</td><td>7 days</td></tr>
+            <tr><td>6+ years</td><td>28 days</td><td>2.33 days</td><td>10 days</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="s-request">How to request time off</h2>
+        <p>All time off is requested and approved in Workday. Submit at least the notice period below so your manager and team can plan coverage.</p>
+        <ul>
+          <li><b>1–2 days</b> — submit at least 3 business days in advance.</li>
+          <li><b>3+ consecutive days</b> — submit at least 2 weeks in advance.</li>
+          <li><b>Sick leave</b> — notify your manager as early as possible; no advance approval required.</li>
+        </ul>
+        <div class="callout warn">
+          <b>Note:</b> Blackout windows apply during quarter-end close (last week of Mar / Jun / Sep / Dec) for Finance and RevOps teams.
+        </div>
+
+        <h2 id="s-regional">Regional addenda</h2>
+        <p>Local statutory minimums always override this policy where they are more generous. See the EMEA and APAC addenda for country-specific public holidays and sick-pay rules.</p>
+        <ul>
+          <li>EMEA — statutory minimum 25 days; UK adds 8 bank holidays.</li>
+          <li>APAC — Singapore 14 days, Japan grants increase with tenure.</li>
+        </ul>
+      </div>
+
+      <div class="art-foot">
+        <div class="helpful">Was this helpful?</div>
+        <button class="vote" id="voteUp" onclick="vote('up')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/></svg>
+          Yes <span id="upN" style="opacity:.7">142</span>
+        </button>
+        <button class="vote" id="voteDn" onclick="vote('dn')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88z"/></svg>
+          No <span id="dnN" style="opacity:.7">3</span>
+        </button>
+        <button class="btn" style="margin-left:auto" onclick="openAsk()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"/></svg>
+          Ask AI about this doc
+        </button>
+      </div>
+    </section>
+
+    <!-- VIEW: BROWSE -->
+    <section class="view" id="view-browse">
+      <div class="filterbar" id="chips"></div>
+      <div class="grid" id="cards"></div>
+      <div class="empty" id="emptyBrowse" style="display:none">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <h4>No docs match this filter</h4>
+        <p>Try another space, or ask the AI Librarian to draft one.</p>
+      </div>
+    </section>
+
+    <!-- VIEW: RECENT -->
+    <section class="view" id="view-recent">
+      <div class="panelcard">
+        <h3>Library health</h3>
+        <p class="sub">AI-monitored across all spaces · updated 6 minutes ago</p>
+        <div id="bars"></div>
+      </div>
+      <div class="grid" id="recentCards"></div>
+    </section>
+
+    <!-- VIEW: AI ACTIVITY -->
+    <section class="view" id="view-ai">
+      <div class="panelcard">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"/></svg>
+          What the AI Librarian did this week
+        </h3>
+        <p class="sub">Auto-tagging, freshness checks, gap detection &amp; answer routing run continuously in the background.</p>
+        <div class="donutwrap">
+          <svg width="132" height="132" viewBox="0 0 42 42" id="donut"></svg>
+          <div class="donut-legend" id="donutLegend"></div>
+        </div>
+      </div>
+      <div class="panelcard">
+        <h3>Activity feed</h3>
+        <p class="sub">Newest first · each action is reviewable</p>
+        <div class="feed" id="feed"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- RIGHT RAIL -->
+  <aside class="railR" id="railR">
+    <div class="rail-sec">
+      <h4>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h9"/></svg>
+        On this page
+      </h4>
+      <nav class="toc" id="toc">
+        <a href="#s-overview" class="on">Overview</a>
+        <a href="#s-accrual">Accrual &amp; carryover</a>
+        <a href="#s-request">How to request time off</a>
+        <a href="#s-regional">Regional addenda</a>
+      </nav>
+    </div>
+
+    <div class="rail-sec">
+      <h4>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+        AI suggested related
+      </h4>
+      <div id="related"></div>
+    </div>
+
+    <div class="rail-sec">
+      <h4>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Contributors
+      </h4>
+      <div id="contributors"></div>
+    </div>
+  </aside>
+</div>
+
+<!-- ===== DRAWER ===== -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div class="dr-top">
+      <span class="card-ic-slot" id="drIc"></span>
+      <button class="dr-close" onclick="closeDrawer()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <h2 id="drTitle">—</h2>
+    <div class="art-meta" style="margin:0">
+      <span id="drSpace" class="tag teal">Space</span>
+      <span id="drStatus" class="status ok">Verified</span>
+      <span id="drUpd">Updated —</span>
+    </div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+</aside>
+
+<div class="toast" id="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+/* ============ DATA ============ */
+var spaceMeta = {
+  hr:     {name:"People & HR",       color:"#0d9488", tint:"#f0fdfa", ic:"users"},
+  eng:    {name:"Engineering",       color:"#2563eb", tint:"#dbeafe", ic:"code"},
+  it:     {name:"IT & Security",     color:"#7c3aed", tint:"#ede9fe", ic:"shield"},
+  sales:  {name:"Sales & RevOps",    color:"#d97706", tint:"#fef3c7", ic:"trend"},
+  ops:    {name:"Operations",        color:"#e11d48", tint:"#ffe4e6", ic:"box"}
+};
+
+var docs = [
+  {id:1,  space:"hr",   title:"Paid Time Off (PTO) Policy", excerpt:"Accrual rates, carryover caps and how to request time off in Workday.", status:"ok", upd:"Jun 22", views:"4.1k", owner:"Dana Mercer", min:9},
+  {id:2,  space:"hr",   title:"Parental Leave Guide", excerpt:"Eligibility, paid weeks by region, and the handoff checklist for managers.", status:"ok", upd:"Jun 18", views:"1.8k", owner:"Dana Mercer", min:7},
+  {id:3,  space:"hr",   title:"Performance Review Cycle", excerpt:"Timeline, calibration rules and how self-reviews feed manager ratings.", status:"review", upd:"May 30", views:"2.6k", owner:"Priya Nair", min:11},
+  {id:4,  space:"hr",   title:"Remote Work Stipend", excerpt:"Monthly home-office allowance, eligible items and the reimbursement flow.", status:"ok", upd:"Jun 09", views:"3.3k", owner:"Dana Mercer", min:4},
+  {id:5,  space:"eng",  title:"Service Deployment Runbook", excerpt:"Blue-green rollout, canary gates and the rollback command reference.", status:"ok", upd:"Jun 21", views:"5.7k", owner:"Leo Tanaka", min:14},
+  {id:6,  space:"eng",  title:"On-call Escalation Policy", excerpt:"Severity matrix, paging tiers and the 15-minute acknowledgement rule.", status:"ok", upd:"Jun 20", views:"3.9k", owner:"Leo Tanaka", min:6},
+  {id:7,  space:"eng",  title:"Code Review Standards", excerpt:"What reviewers must check, SLA for first response, and merge gates.", status:"review", upd:"Apr 12", views:"4.4k", owner:"Sam Okoro", min:8},
+  {id:8,  space:"eng",  title:"Local Dev Environment Setup", excerpt:"Toolchain, container bootstrap and common 'it won't start' fixes.", status:"stale", upd:"Jan 28", views:"6.2k", owner:"Sam Okoro", min:12},
+  {id:9,  space:"eng",  title:"Feature Flag Lifecycle", excerpt:"Naming, rollout %, cleanup deadlines and how to avoid flag debt.", status:"ok", upd:"Jun 15", views:"2.1k", owner:"Leo Tanaka", min:6},
+  {id:10, space:"it",   title:"VPN & Remote Access", excerpt:"Connect from anywhere, MFA enrollment and split-tunnel troubleshooting.", status:"ok", upd:"Jun 19", views:"7.8k", owner:"Marco Vidal", min:5},
+  {id:11, space:"it",   title:"Security Incident Response", excerpt:"How to report, severity grading and the first-hour containment steps.", status:"ok", upd:"Jun 17", views:"3.0k", owner:"Marco Vidal", min:10},
+  {id:12, space:"it",   title:"Laptop Provisioning", excerpt:"Standard images, MDM enrollment and what new hires receive on day one.", status:"review", upd:"May 04", views:"2.4k", owner:"Ivy Chen", min:5},
+  {id:13, space:"it",   title:"Password & MFA Standards", excerpt:"Minimum length, rotation policy and approved authenticator apps.", status:"stale", upd:"Dec 11", views:"5.1k", owner:"Marco Vidal", min:4},
+  {id:14, space:"it",   title:"Data Classification Policy", excerpt:"Public, internal, confidential, restricted — handling rules for each.", status:"ok", upd:"Jun 10", views:"1.6k", owner:"Ivy Chen", min:9},
+  {id:15, space:"sales",title:"Discount Approval Matrix", excerpt:"Who can approve what, by deal size and margin threshold.", status:"ok", upd:"Jun 23", views:"2.9k", owner:"Hana Sato", min:6},
+  {id:16, space:"sales",title:"CRM Hygiene Playbook", excerpt:"Required fields, stage definitions and weekly pipeline review prep.", status:"review", upd:"May 19", views:"1.9k", owner:"Hana Sato", min:8},
+  {id:17, space:"sales",title:"Quote-to-Cash Process", excerpt:"From signed order to invoice — handoffs across Sales, Finance and Legal.", status:"ok", upd:"Jun 12", views:"2.2k", owner:"Diego Ramos", min:11},
+  {id:18, space:"sales",title:"Competitive Battlecards", excerpt:"Positioning vs top 4 competitors, with objection-handling scripts.", status:"ok", upd:"Jun 16", views:"4.7k", owner:"Hana Sato", min:7},
+  {id:19, space:"ops",  title:"Vendor Onboarding Checklist", excerpt:"Due diligence, security review and the contract sign-off sequence.", status:"ok", upd:"Jun 14", views:"1.3k", owner:"Nora Vance", min:6},
+  {id:20, space:"ops",  title:"Office Access & Badging", excerpt:"Building hours, visitor policy and how to request a temporary badge.", status:"ok", upd:"Jun 08", views:"2.0k", owner:"Nora Vance", min:4},
+  {id:21, space:"ops",  title:"Expense Reimbursement", excerpt:"Spending limits, receipt rules and the 30-day submission window.", status:"review", upd:"Apr 27", views:"3.6k", owner:"Diego Ramos", min:6},
+  {id:22, space:"ops",  title:"Procurement Request Flow", excerpt:"Raise a request, get budget approval and track delivery to receipt.", status:"draft", upd:"Jun 24", views:"0.2k", owner:"Nora Vance", min:5},
+  {id:23, space:"hr",   title:"Code of Conduct", excerpt:"Expected behavior, reporting channels and the non-retaliation pledge.", status:"ok", upd:"Jun 05", views:"3.1k", owner:"Priya Nair", min:8},
+  {id:24, space:"eng",  title:"API Versioning Guidelines", excerpt:"Semver rules, deprecation windows and breaking-change communication.", status:"ok", upd:"Jun 11", views:"2.7k", owner:"Sam Okoro", min:7},
+  {id:25, space:"it",   title:"SaaS App Request Process", excerpt:"How to request a new tool, the security questionnaire and approval SLA.", status:"ok", upd:"Jun 13", views:"1.1k", owner:"Ivy Chen", min:4},
+  {id:26, space:"sales",title:"Territory & Quota Rules", excerpt:"Account assignment, named-account rules and mid-year adjustments.", status:"draft", upd:"Jun 24", views:"0.1k", owner:"Diego Ramos", min:9}
+];
+
+var related = [
+  {space:"hr",   t:"Remote Work Stipend", m:"94% match"},
+  {space:"hr",   t:"Parental Leave Guide", m:"89% match"},
+  {space:"ops",  t:"Expense Reimbursement", m:"82% match"},
+  {space:"hr",   t:"Code of Conduct", m:"78% match"}
+];
+
+var contributors = [
+  {nm:"Dana Mercer", role:"People Ops", c:"31 edits", col:"#0d9488"},
+  {nm:"Priya Nair", role:"HR Business Partner", c:"12 edits", col:"#7c3aed"},
+  {nm:"AI Librarian", role:"Automated", c:"6 fixes", col:"#2563eb"}
+];
+
+var feed = [
+  {kind:"tag", title:"Auto-tagged <b>Procurement Request Flow</b>", who:"AI Librarian", time:"8 min ago",
+   reason:"Detected vendor + budget + approval terminology. Suggested tags: <b>procurement</b>, <b>finance</b>, <b>approval</b> — confidence 91%.", conf:"hi"},
+  {kind:"stale", title:"Flagged <b>Local Dev Environment Setup</b> as stale", who:"AI Librarian", time:"42 min ago",
+   reason:"Last edited 148 days ago and references a deprecated toolchain version. Routed to <b>Sam Okoro</b> for review.", conf:"mid"},
+  {kind:"answer", title:"Answered 3 questions from <b>#ask-it</b>", who:"AI Librarian", time:"1 hr ago",
+   reason:"Resolved 'how do I reset MFA?' citing <b>VPN & Remote Access</b> §4. Marked helpful by 3 of 3 askers.", conf:"hi"},
+  {kind:"gap", title:"Detected a content gap: <b>Contractor offboarding</b>", who:"AI Librarian", time:"3 hr ago",
+   reason:"14 unanswered searches this month with no matching doc. Drafted an outline for People Ops to review.", conf:"mid"},
+  {kind:"route", title:"Re-routed ownership of <b>Password & MFA Standards</b>", who:"AI Librarian", time:"5 hr ago",
+   reason:"Previous owner left the team. Reassigned to <b>Marco Vidal</b> based on edit history and space membership.", conf:"hi"},
+  {kind:"dupe", title:"Merged 2 near-duplicate pages on <b>badge access</b>", who:"AI Librarian", time:"yesterday",
+   reason:"92% text overlap with <b>Office Access & Badging</b>. Kept the canonical page, redirected the duplicate.", conf:"hi"}
+];
+
+/* ============ ICONS ============ */
+function icSvg(name,size){
+  size = size||16;
+  var p = {
+    users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    code:'<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
+    shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>',
+    box:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
+    doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'
+  };
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(p[name]||p.doc)+'</svg>';
+}
+function statusMeta(s){
+  return ({
+    ok:{c:"ok",t:"Verified"}, review:{c:"review",t:"Needs review"},
+    stale:{c:"stale",t:"Stale"}, draft:{c:"draft",t:"Draft"}
+  })[s];
+}
+
+/* ============ TREE ============ */
+function buildTree(){
+  var host = document.getElementById('spaces');
+  var html = '';
+  Object.keys(spaceMeta).forEach(function(key, i){
+    var m = spaceMeta[key];
+    var ds = docs.filter(function(d){return d.space===key;});
+    var openCls = i===0 ? ' open' : '';
+    html += '<div class="space'+openCls+'" data-space="'+key+'">';
+    html += '  <div class="space-row'+openCls+'" onclick="toggleSpace(this)">';
+    html += '    <span class="space-ic" style="background:'+m.tint+';color:'+m.color+'">'+icSvg(m.ic,15)+'</span>';
+    html += '    <span>'+m.name+'</span>';
+    html += '    <span class="space-count">'+ds.length+'</span>';
+    html += '    <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>';
+    html += '  </div>';
+    html += '  <div class="children">';
+    ds.forEach(function(d){
+      var act = d.id===1 ? ' active' : '';
+      html += '<div class="leaf'+act+'" data-id="'+d.id+'" onclick="leafClick(this,'+d.id+')"><span class="dot"></span><span>'+d.title+'</span></div>';
+    });
+    html += '  </div></div>';
+  });
+  host.innerHTML = html;
+}
+function toggleSpace(row){
+  var sp = row.parentElement;
+  sp.classList.toggle('open');
+  row.classList.toggle('open');
+}
+function leafClick(el, id){
+  document.querySelectorAll('.leaf').forEach(function(l){l.classList.remove('active');});
+  el.classList.add('active');
+  var d = docs.find(function(x){return x.id===id;});
+  if(d){ openDrawer(d); }
+}
+
+/* ============ TABS ============ */
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click', function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+    t.classList.add('active');
+    document.querySelectorAll('.view').forEach(function(v){v.classList.remove('show');});
+    document.getElementById('view-'+t.dataset.view).classList.add('show');
+  });
+});
+
+/* ============ BROWSE ============ */
+var activeFilter = 'all';
+function buildChips(){
+  var host = document.getElementById('chips');
+  var html = '<button class="chip active" data-f="all" onclick="setFilter(this,\'all\')">All spaces <span class="n">'+docs.length+'</span></button>';
+  Object.keys(spaceMeta).forEach(function(k){
+    var n = docs.filter(function(d){return d.space===k;}).length;
+    html += '<button class="chip" data-f="'+k+'" onclick="setFilter(this,\''+k+'\')">'+spaceMeta[k].name+' <span class="n">'+n+'</span></button>';
+  });
+  host.innerHTML = html;
+}
+function setFilter(el,f){
+  document.querySelectorAll('#chips .chip').forEach(function(c){c.classList.remove('active');});
+  el.classList.add('active');
+  activeFilter = f;
+  renderCards();
+}
+function cardHtml(d){
+  var m = spaceMeta[d.space];
+  var st = statusMeta(d.status);
+  return '<div class="card" onclick="openDrawer('+d.id+')">'+
+    '<div class="ctop"><span class="cic" style="background:'+m.tint+';color:'+m.color+'">'+icSvg(m.ic,16)+'</span>'+
+      '<span class="badge-soft" style="background:'+m.tint+';color:'+m.color+'">'+m.name+'</span></div>'+
+    '<h3>'+d.title+'</h3>'+
+    '<p>'+d.excerpt+'</p>'+
+    '<div class="cfoot"><span class="status '+st.c+'">'+st.t+'</span><span class="dotv"></span><span>'+d.views+' views</span><span class="dotv"></span><span>Upd '+d.upd+'</span></div>'+
+  '</div>';
+}
+function renderCards(){
+  var src = activeFilter==='all' ? docs : docs.filter(function(d){return d.space===activeFilter;});
+  var q = (document.getElementById('search').value||'').toLowerCase().trim();
+  if(q){ src = src.filter(function(d){return (d.title+' '+d.excerpt+' '+d.owner).toLowerCase().indexOf(q)>-1;}); }
+  var host = document.getElementById('cards');
+  if(src.length===0){ host.innerHTML=''; document.getElementById('emptyBrowse').style.display='block'; return; }
+  document.getElementById('emptyBrowse').style.display='none';
+  host.innerHTML = src.map(cardHtml).join('');
+}
+
+/* ============ RECENT ============ */
+function buildRecent(){
+  var sorted = docs.slice().sort(function(a,b){ return monthVal(b.upd)-monthVal(a.upd); }).slice(0,9);
+  document.getElementById('recentCards').innerHTML = sorted.map(cardHtml).join('');
+  var bars = [
+    {l:"Verified & fresh", v:71, c:"#16a34a"},
+    {l:"Needs review", v:18, c:"#d97706"},
+    {l:"Stale (>120d)", v:8, c:"#e11d48"},
+    {l:"Drafts", v:3, c:"#94a3b8"}
+  ];
+  document.getElementById('bars').innerHTML = bars.map(function(b){
+    return '<div class="barrow"><span class="lbl">'+b.l+'</span><div class="bartrack"><div class="barfill" style="width:0%;background:'+b.c+'" data-w="'+b.v+'"></div></div><span class="val">'+b.v+'%</span></div>';
+  }).join('');
+}
+function monthVal(s){
+  var mo = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  var p = s.split(' '); return mo[p[0]]*100 + parseInt(p[1],10);
+}
+
+/* ============ AI ACTIVITY ============ */
+function buildDonut(){
+  var data = [
+    {l:"Auto-tagged", v:34, c:"#0d9488"},
+    {l:"Freshness checks", v:28, c:"#2563eb"},
+    {l:"Questions answered", v:22, c:"#7c3aed"},
+    {l:"Gaps & merges", v:16, c:"#d97706"}
+  ];
+  var total = data.reduce(function(a,b){return a+b.v;},0);
+  var svg = document.getElementById('donut');
+  var s = '<circle cx="21" cy="21" r="15.915" fill="none" stroke="#eef1f4" stroke-width="5"/>';
+  var off = 25;
+  data.forEach(function(d){
+    var pct = d.v/total*100;
+    s += '<circle cx="21" cy="21" r="15.915" fill="none" stroke="'+d.c+'" stroke-width="5" stroke-dasharray="'+pct+' '+(100-pct)+'" stroke-dashoffset="'+off+'" stroke-linecap="round"/>';
+    off = off - pct;
+  });
+  s += '<text x="21" y="20.5" text-anchor="middle" font-size="6.5" font-weight="700" fill="#1e293b">128</text>';
+  s += '<text x="21" y="26" text-anchor="middle" font-size="2.6" fill="#94a3b8">actions</text>';
+  svg.innerHTML = s;
+  document.getElementById('donutLegend').innerHTML = data.map(function(d){
+    return '<div class="leg"><span class="sw" style="background:'+d.c+'"></span>'+d.l+' <b>'+d.v+'</b></div>';
+  }).join('');
+}
+function feedIcon(kind){
+  var map = {
+    tag:{c:"#0d9488",t:"#f0fdfa",p:'<path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/>'},
+    stale:{c:"#d97706",t:"#fef3c7",p:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'},
+    answer:{c:"#7c3aed",t:"#ede9fe",p:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'},
+    gap:{c:"#e11d48",t:"#ffe4e6",p:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>'},
+    route:{c:"#2563eb",t:"#dbeafe",p:'<path d="m9 18 6-6-6-6"/><path d="M3 12h12"/>'},
+    dupe:{c:"#0f766e",t:"#ccfbf1",p:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'}
+  };
+  var x = map[kind]||map.tag;
+  return {bg:x.t,fg:x.c,svg:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+x.p+'</svg>'};
+}
+function buildFeed(){
+  document.getElementById('feed').innerHTML = feed.map(function(f){
+    var ic = feedIcon(f.kind);
+    return '<div class="feed-item">'+
+      '<span class="feed-ic" style="background:'+ic.bg+';color:'+ic.fg+'">'+ic.svg+'</span>'+
+      '<div class="feed-bd"><p class="ft">'+f.title+'</p>'+
+        '<div class="fm"><span>'+f.who+'</span><span class="dotv" style="width:3px;height:3px;border-radius:50%;background:#cdd3da;display:inline-block"></span><span>'+f.time+'</span><span class="conf '+f.conf+'">'+(f.conf==='hi'?'high confidence':'review suggested')+'</span></div>'+
+        '<div class="feed-reason">'+f.reason+'</div>'+
+      '</div></div>';
+  }).join('');
+}
+
+/* ============ RIGHT RAIL ============ */
+function buildRail(){
+  document.getElementById('related').innerHTML = related.map(function(r){
+    var m = spaceMeta[r.space];
+    return '<div class="relrow" onclick="openByTitle(\''+r.t.replace(/'/g,"\\'")+'\')">'+
+      '<span class="rc" style="background:'+m.tint+';color:'+m.color+'">'+icSvg(m.ic,14)+'</span>'+
+      '<div><div class="rt">'+r.t+'</div><div class="rm">'+m.name+' · '+r.m+'</div></div></div>';
+  }).join('');
+  document.getElementById('contributors').innerHTML = contributors.map(function(c){
+    var init = c.nm.split(' ').map(function(w){return w[0];}).join('').slice(0,2);
+    return '<div class="contrib"><span class="av" style="background:'+c.col+'">'+init+'</span>'+
+      '<div class="ci"><div class="nm">'+c.nm+'</div><div class="role">'+c.role+'</div></div><span class="cnt">'+c.c+'</span></div>';
+  }).join('');
+}
+
+/* ============ DRAWER ============ */
+function openByTitle(t){
+  var d = docs.find(function(x){return x.title===t;});
+  if(d) openDrawer(d); else toast('Opening "'+t+'"…');
+}
+function openDrawer(d){
+  if(typeof d==='number'){ d = docs.find(function(x){return x.id===d;}); }
+  if(!d) return;
+  var m = spaceMeta[d.space]; var st = statusMeta(d.status);
+  document.getElementById('drIc').innerHTML = '<span class="cic" style="width:40px;height:40px;border-radius:11px;background:'+m.tint+';color:'+m.color+';display:flex;align-items:center;justify-content:center">'+icSvg(m.ic,20)+'</span>';
+  document.getElementById('drTitle').textContent = d.title;
+  document.getElementById('drSpace').textContent = m.name;
+  document.getElementById('drSpace').style.background = m.tint;
+  document.getElementById('drSpace').style.color = m.color;
+  var ss = document.getElementById('drStatus');
+  ss.className = 'status '+st.c; ss.textContent = st.t;
+  document.getElementById('drUpd').textContent = 'Updated '+d.upd;
+
+  var conf = d.status==='ok' ? {c:'hi',t:'97% fresh'} : d.status==='review' ? {c:'mid',t:'72% fresh'} : d.status==='stale' ? {c:'lo',t:'41% fresh'} : {c:'mid',t:'draft'};
+  var body = '';
+
+  // AI extracted summary panel
+  body += '<div class="dr-sec"><div class="extract">'+
+    '<div class="extract-hd"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z"/></svg>'+
+      '<h5>AI extracted summary</h5><span class="conf '+conf.c+'" style="margin-left:auto">'+conf.t+'</span></div>'+
+    '<div class="ex-field"><span class="exk">Doc type</span><span class="exv">'+(d.status==='draft'?'Draft procedure':'Policy / Procedure')+'</span><span class="conf hi">96%</span></div>'+
+    '<div class="ex-field"><span class="exk">Owner</span><span class="exv">'+d.owner+'</span><span class="conf hi">99%</span></div>'+
+    '<div class="ex-field"><span class="exk">Read time</span><span class="exv">'+d.min+' min</span><span class="conf hi">100%</span></div>'+
+    '<div class="ex-field"><span class="exk">Suggested tags</span><span class="exv">'+suggestTags(d).join(' · ')+'</span><span class="conf mid">88%</span></div>'+
+  '</div></div>';
+
+  // generated TL;DR
+  body += '<div class="dr-sec"><h5>AI-generated TL;DR</h5>'+
+    '<div class="gen-draft"><span class="gtag">Generated</span><p>'+genTldr(d)+'</p></div>'+
+    '<div class="review-btns"><button class="btn primary" onclick="toast(\'Summary accepted &amp; pinned\')">Accept</button>'+
+      '<button class="btn" onclick="toast(\'Sent to '+d.owner+' to refine\')">Send to owner</button>'+
+      '<button class="btn" onclick="toast(\'Regenerating…\')">Regenerate</button></div></div>';
+
+  // key facts
+  body += '<div class="dr-sec"><h5>Key facts</h5><div class="kv">'+
+    '<span class="k">Space</span><span class="v">'+m.name+'</span>'+
+    '<span class="k">Views (90d)</span><span class="v">'+d.views+'</span>'+
+    '<span class="k">Status</span><span class="v">'+st.t+'</span>'+
+    '<span class="k">Last updated</span><span class="v">'+d.upd+', 2026</span>'+
+    '<span class="k">Next AI review</span><span class="v">'+nextReview(d)+'</span>'+
+  '</div></div>';
+
+  body += '<div class="dr-sec"><button class="btn" style="width:100%;justify-content:center" onclick="goReader(\''+d.title.replace(/'/g,"\\'")+'\')">'+
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'+
+    'Open in reader</button></div>';
+
+  document.getElementById('drBody').innerHTML = body;
+  document.getElementById('drawer').classList.add('show');
+  document.getElementById('scrim').classList.add('show');
+}
+function suggestTags(d){
+  var base = {hr:['policy','benefits','people'],eng:['runbook','engineering','process'],it:['security','access','it'],sales:['revops','sales','process'],ops:['operations','process','finance']};
+  return base[d.space];
+}
+function genTldr(d){
+  var map = {
+    1:"Full-time staff accrue 1.67 days of PTO per month (20/year), with up to 5 days carryover. Requests go through Workday; 3+ day absences need two weeks' notice.",
+    5:"Deploys use blue-green with a canary gate at 5% traffic for 10 minutes before full rollout. If error rate exceeds 1%, the runbook's one-command rollback restores the previous release.",
+    10:"Connect via the corporate VPN client with MFA. Most 'no connection' issues are split-tunnel or expired certificates — re-enroll MFA and restart the client to resolve."
+  };
+  return map[d.id] || ("This "+(d.status==='draft'?'draft ':'')+"page in "+spaceMeta[d.space].name+" covers "+d.excerpt.charAt(0).toLowerCase()+d.excerpt.slice(1)+" The AI Librarian condensed it into a quick reference; accept to pin this summary to the top of the page.");
+}
+function nextReview(d){
+  return d.status==='ok' ? 'Sep 1, 2026' : d.status==='review' ? 'Overdue — flagged' : d.status==='stale' ? 'Overdue — owner notified' : 'On publish';
+}
+function goReader(t){
+  closeDrawer();
+  document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+  document.querySelector('.tab[data-view="article"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('show');});
+  document.getElementById('view-article').classList.add('show');
+  document.querySelector('.main').scrollIntoView({behavior:'smooth',block:'start'});
+  toast('Opened "'+t+'" in reader');
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('show');
+  document.getElementById('scrim').classList.remove('show');
+}
+
+/* ============ MISC ============ */
+function vote(dir){
+  var up=document.getElementById('voteUp'), dn=document.getElementById('voteDn');
+  up.classList.remove('on'); dn.classList.remove('on');
+  if(dir==='up'){ up.classList.add('on'); toast('Thanks — marked helpful'); }
+  else { dn.classList.add('on'); toast('Noted — routed to the owner for review'); }
+}
+function openAsk(){
+  document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+  document.querySelector('.tab[data-view="ai"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('show');});
+  document.getElementById('view-ai').classList.add('show');
+  toast('AI Librarian is reading this doc…');
+}
+var toastT;
+function toast(msg){
+  document.getElementById('toastMsg').textContent = msg;
+  var el = document.getElementById('toast'); el.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('show'); }, 2200);
+}
+
+/* search -> jump to browse */
+document.getElementById('search').addEventListener('input', function(){
+  if(this.value.trim()){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});
+    document.querySelector('.tab[data-view="browse"]').classList.add('active');
+    document.querySelectorAll('.view').forEach(function(v){v.classList.remove('show');});
+    document.getElementById('view-browse').classList.add('show');
+  }
+  renderCards();
+});
+document.addEventListener('keydown', function(e){
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); document.getElementById('search').focus(); }
+  if(e.key==='Escape'){ closeDrawer(); }
+});
+
+/* TOC scrollspy */
+function initScrollspy(){
+  var links = document.querySelectorAll('#toc a');
+  var heads = Array.prototype.map.call(links,function(a){return document.querySelector(a.getAttribute('href'));});
+  document.querySelector('.main').addEventListener('scroll',function(){},{passive:true});
+  window.addEventListener('scroll', function(){
+    var y = window.scrollY + 120; var cur = 0;
+    heads.forEach(function(h,i){ if(h && h.offsetTop<=y) cur=i; });
+    links.forEach(function(a,i){ a.classList.toggle('on', i===cur); });
+  }, {passive:true});
+  links.forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var t = document.querySelector(a.getAttribute('href'));
+      if(t){ window.scrollTo({top:t.offsetTop-80,behavior:'smooth'}); }
+    });
+  });
+}
+
+/* animate bars when recent shown */
+var barsAnimated=false;
+function maybeAnimateBars(){
+  if(barsAnimated) return;
+  setTimeout(function(){
+    document.querySelectorAll('#bars .barfill').forEach(function(b){ b.style.width=b.dataset.w+'%'; });
+  }, 60);
+  barsAnimated=true;
+}
+document.querySelector('.tab[data-view="recent"]').addEventListener('click', maybeAnimateBars);
+
+/* ============ INIT ============ */
+buildTree();
+buildChips();
+renderCards();
+buildRecent();
+buildDonut();
+buildFeed();
+buildRail();
+initScrollspy();
+document.getElementById('browse-n').textContent = docs.length;
+</script>
+</body>
+</html>

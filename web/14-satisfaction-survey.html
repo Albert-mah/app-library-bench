@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employee Satisfaction Survey — Results Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #6366f1;
+    --primary-light: #e0e7ff;
+    --primary-dark: #4338ca;
+    --success: #10b981;
+    --success-light: #d1fae5;
+    --warning: #f59e0b;
+    --warning-light: #fef3c7;
+    --danger: #ef4444;
+    --danger-light: #fee2e2;
+    --info: #06b6d4;
+    --info-light: #cffafe;
+
+    --gray-1: #f8f9fa;
+    --gray-2: #f0f2f5;
+    --gray-3: #e8eaed;
+    --gray-4: #d1d5db;
+    --gray-5: #9ca3af;
+    --gray-6: #6b7280;
+    --gray-7: #4b5563;
+    --gray-8: #374151;
+    --gray-9: #1f2937;
+
+    --chart-1: #6366f1;
+    --chart-2: #10b981;
+    --chart-3: #f59e0b;
+    --chart-4: #ef4444;
+    --chart-5: #06b6d4;
+    --chart-6: #8b5cf6;
+    --chart-7: #ec4899;
+
+    --radius: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow: 0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.06);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #f5f6fa;
+    color: var(--gray-8);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: #fff;
+    border-bottom: 1px solid var(--gray-3);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .topbar-icon {
+    width: 32px; height: 32px;
+    background: var(--primary);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .topbar-icon svg { fill: #fff; }
+  .topbar-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--gray-9);
+  }
+  .topbar-subtitle {
+    font-size: 12px;
+    color: var(--gray-5);
+    margin-left: 8px;
+  }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .filter-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--gray-4);
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--gray-7);
+    cursor: pointer;
+    background: #fff;
+    transition: all .15s;
+  }
+  .filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+  .filter-chip.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); font-weight: 500; }
+  .btn-export {
+    padding: 6px 16px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .15s;
+  }
+  .btn-export:hover { background: var(--primary-dark); }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 28px 32px 48px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--gray-5);
+    margin-bottom: 14px;
+  }
+
+  /* ── CARD BASE ── */
+  .card {
+    background: #fff;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-3);
+  }
+
+  /* ── HERO METRICS ROW ── */
+  .hero-row {
+    display: grid;
+    grid-template-columns: 280px 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* eNPS Gauge */
+  .enps-card {
+    padding: 28px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .enps-card::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 140px; height: 140px;
+    background: radial-gradient(circle, rgba(99,102,241,.08) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .enps-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--gray-5);
+    margin-bottom: 16px;
+    align-self: flex-start;
+  }
+  .gauge-wrap {
+    position: relative;
+    width: 180px;
+    height: 100px;
+    margin-bottom: 12px;
+  }
+  .gauge-wrap svg {
+    width: 180px;
+    height: 110px;
+    overflow: visible;
+  }
+  .gauge-value {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+  .gauge-number {
+    font-size: 38px;
+    font-weight: 700;
+    color: var(--primary);
+    line-height: 1;
+    display: block;
+  }
+  .gauge-unit {
+    font-size: 12px;
+    color: var(--gray-5);
+    font-weight: 400;
+  }
+  .enps-breakdown {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+    width: 100%;
+    justify-content: center;
+  }
+  .enps-segment {
+    text-align: center;
+  }
+  .enps-seg-pct {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .enps-seg-lbl {
+    font-size: 11px;
+    color: var(--gray-5);
+    margin-top: 2px;
+  }
+  .seg-promoter { color: var(--success); }
+  .seg-passive  { color: var(--warning); }
+  .seg-detractor{ color: var(--danger); }
+
+  /* Big Stat cards */
+  .stat-card {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .stat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .stat-name {
+    font-size: 13px;
+    color: var(--gray-6);
+    font-weight: 500;
+  }
+  .stat-icon-box {
+    width: 36px; height: 36px;
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stat-icon-box.green  { background: var(--success-light); }
+  .stat-icon-box.purple { background: var(--primary-light); }
+  .stat-icon-box.amber  { background: var(--warning-light); }
+  .stat-number {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--gray-9);
+    line-height: 1;
+  }
+  .stat-number span { font-size: 20px; font-weight: 500; color: var(--gray-6); }
+  .stat-delta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .stat-delta.up   { color: var(--success); }
+  .stat-delta.down { color: var(--danger); }
+  .stat-sub {
+    font-size: 12px;
+    color: var(--gray-5);
+  }
+  .mini-sparkline {
+    height: 40px;
+    margin-top: 4px;
+  }
+
+  /* ── MIDDLE CHARTS GRID ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .chart-card { padding: 24px; }
+  .chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-9);
+    margin-bottom: 4px;
+  }
+  .chart-subtitle {
+    font-size: 12px;
+    color: var(--gray-5);
+    margin-bottom: 20px;
+  }
+
+  /* Dimension Bar Chart */
+  .dim-bars { display: flex; flex-direction: column; gap: 16px; }
+  .dim-row { display: flex; flex-direction: column; gap: 5px; }
+  .dim-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .dim-name {
+    font-size: 13px;
+    color: var(--gray-7);
+    font-weight: 500;
+  }
+  .dim-score-num {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gray-9);
+  }
+  .dim-bar-bg {
+    height: 8px;
+    background: var(--gray-2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .dim-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+    position: relative;
+  }
+  .dim-bar-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: rgba(255,255,255,.5);
+    border-radius: 0 4px 4px 0;
+  }
+  .dim-change {
+    font-size: 11px;
+    color: var(--gray-5);
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .dim-change.up   { color: var(--success); }
+  .dim-change.down { color: var(--danger); }
+
+  /* Trend SVG */
+  .trend-chart { width: 100%; height: 160px; }
+  .trend-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--gray-6);
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  /* Second row */
+  .charts-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* Department heatmap */
+  .dept-heatmap { overflow-x: auto; }
+  .heatmap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .heatmap-table th {
+    padding: 6px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--gray-6);
+    white-space: nowrap;
+    font-size: 11px;
+  }
+  .heatmap-table th:first-child { text-align: left; }
+  .heatmap-table td {
+    padding: 6px 8px;
+    text-align: center;
+    border-radius: 4px;
+  }
+  .heatmap-table td:first-child {
+    text-align: left;
+    font-weight: 500;
+    color: var(--gray-7);
+    white-space: nowrap;
+  }
+  .hm-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 28px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  /* Sentiment donut */
+  .sentiment-wrap {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .sentiment-donut { flex-shrink: 0; }
+  .sentiment-legend { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .sent-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .sent-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: var(--gray-2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .sent-bar {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .sent-label {
+    font-size: 12px;
+    color: var(--gray-6);
+    min-width: 60px;
+  }
+  .sent-pct {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-8);
+    min-width: 34px;
+    text-align: right;
+  }
+
+  /* ── FEEDBACK CARDS ROW ── */
+  .feedback-section { margin-bottom: 24px; }
+  .feedback-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .feedback-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--gray-2);
+    padding: 3px;
+    border-radius: 8px;
+  }
+  .ftab {
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-6);
+    cursor: pointer;
+    transition: all .15s;
+    border: none;
+    background: transparent;
+  }
+  .ftab.active {
+    background: #fff;
+    color: var(--gray-9);
+    box-shadow: var(--shadow-sm);
+  }
+  .feedback-count {
+    font-size: 12px;
+    color: var(--gray-5);
+  }
+
+  .feedback-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .feedback-card {
+    padding: 18px 20px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--gray-3);
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: box-shadow .15s, transform .15s;
+    cursor: default;
+  }
+  .feedback-card:hover {
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+  }
+  .feedback-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .feedback-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .tag {
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .tag-positive  { background: var(--success-light); color: #065f46; }
+  .tag-negative  { background: var(--danger-light);  color: #991b1b; }
+  .tag-neutral   { background: var(--gray-2); color: var(--gray-6); }
+  .tag-dim {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 500;
+  }
+  .feedback-role {
+    font-size: 11px;
+    color: var(--gray-5);
+  }
+  .feedback-text {
+    font-size: 13px;
+    color: var(--gray-7);
+    line-height: 1.6;
+    flex: 1;
+  }
+  .feedback-text mark {
+    background: #fef9c3;
+    color: #713f12;
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+  .feedback-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--gray-2);
+  }
+  .feedback-dept {
+    font-size: 11px;
+    color: var(--gray-5);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .feedback-score {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .star {
+    font-size: 11px;
+    color: var(--gray-3);
+  }
+  .star.filled { color: var(--warning); }
+
+  /* ── QUESTION DISTRIBUTION ── */
+  .qdist-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .qdist-card {
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--gray-3);
+    background: #fff;
+  }
+  .qdist-question {
+    font-size: 12px;
+    color: var(--gray-7);
+    margin-bottom: 12px;
+    line-height: 1.4;
+    min-height: 34px;
+  }
+  .qdist-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .qdist-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .qdist-label {
+    font-size: 10px;
+    color: var(--gray-5);
+    width: 20px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .qdist-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--gray-2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .qdist-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .qdist-pct {
+    font-size: 10px;
+    color: var(--gray-5);
+    width: 24px;
+    text-align: right;
+  }
+  .qdist-avg {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--gray-5);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .qdist-avg strong {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gray-9);
+    line-height: 1;
+  }
+
+  /* ── PAGE FOOTER ── */
+  .page-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--gray-3);
+  }
+  .footer-info {
+    font-size: 12px;
+    color: var(--gray-5);
+  }
+  .footer-actions { display: flex; gap: 10px; }
+  .btn-ghost {
+    padding: 6px 14px;
+    border: 1px solid var(--gray-4);
+    border-radius: var(--radius);
+    background: #fff;
+    color: var(--gray-7);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* pulse animation for eNPS */
+  @keyframes gaugePulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: .7; }
+  }
+  .gauge-glow { animation: gaugePulse 3s ease-in-out infinite; }
+
+  /* tooltip */
+  [data-tip] { position: relative; cursor: default; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--gray-9);
+    color: #fff;
+    font-size: 11px;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 200;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════ TOP BAR ══════════════════════════════════════ -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    </div>
+    <span class="topbar-title">Employee Satisfaction Dashboard</span>
+    <span class="topbar-subtitle">Q1 2026 · Annual Survey</span>
+  </div>
+  <div class="topbar-right">
+    <div class="filter-chip active">All Departments</div>
+    <div class="filter-chip">Full-time</div>
+    <div class="filter-chip">2024–2026 ▾</div>
+    <button class="btn-export">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export PDF
+    </button>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════ MAIN ══════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ── HERO ROW ── -->
+  <div class="section-label">Key Indicators</div>
+  <div class="hero-row">
+
+    <!-- eNPS Gauge -->
+    <div class="card enps-card">
+      <div class="enps-label">eNPS Score</div>
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 180 100" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="45%" stop-color="#f59e0b"/>
+              <stop offset="80%" stop-color="#10b981"/>
+            </linearGradient>
+          </defs>
+          <!-- Track arc (half circle) -->
+          <path d="M 18 95 A 72 72 0 0 1 162 95" fill="none" stroke="#f0f2f5" stroke-width="14" stroke-linecap="round"/>
+          <!-- Fill arc — eNPS 42 out of 100 range (-100 to 100), normalized to 0-1 = (42+100)/200 = 0.71 -->
+          <!-- circumference of half-circle r=72: π×72 ≈ 226. 0.71 × 226 ≈ 160.5 -->
+          <path d="M 18 95 A 72 72 0 0 1 162 95" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round"
+                stroke-dasharray="160 226" class="gauge-glow"/>
+          <!-- Needle -->
+          <line x1="90" y1="95" x2="90" y2="32"
+                stroke="var(--gray-9)" stroke-width="2.5" stroke-linecap="round"
+                transform="rotate(-13, 90, 95)"/>
+          <circle cx="90" cy="95" r="5" fill="var(--gray-9)"/>
+          <!-- Range labels -->
+          <text x="12" y="112" font-size="9" fill="#9ca3af" font-family="sans-serif">-100</text>
+          <text x="82" y="20"  font-size="9" fill="#9ca3af" font-family="sans-serif" text-anchor="middle">0</text>
+          <text x="164" y="112" font-size="9" fill="#9ca3af" font-family="sans-serif" text-anchor="end">+100</text>
+        </svg>
+        <div class="gauge-value">
+          <span class="gauge-number">42</span>
+          <span class="gauge-unit">↑ from 35 last quarter</span>
+        </div>
+      </div>
+      <div class="enps-breakdown">
+        <div class="enps-segment" data-tip="Score 9–10">
+          <div class="enps-seg-pct seg-promoter">61%</div>
+          <div class="enps-seg-lbl">Promoters</div>
+        </div>
+        <div class="enps-segment" data-tip="Score 7–8">
+          <div class="enps-seg-pct seg-passive">20%</div>
+          <div class="enps-seg-lbl">Passives</div>
+        </div>
+        <div class="enps-segment" data-tip="Score 0–6">
+          <div class="enps-seg-pct seg-detractor">19%</div>
+          <div class="enps-seg-lbl">Detractors</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overall Satisfaction -->
+    <div class="card stat-card">
+      <div class="stat-header">
+        <span class="stat-name">Overall Satisfaction</span>
+        <div class="stat-icon-box purple">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--primary)"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        </div>
+      </div>
+      <div class="stat-number">3.9<span>/5</span></div>
+      <div class="stat-delta up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+        +0.3 vs Q4 2025
+      </div>
+      <div class="stat-sub">Company-wide average across all dimensions</div>
+      <svg class="mini-sparkline" viewBox="0 0 160 40" preserveAspectRatio="none">
+        <polyline points="0,32 27,30 53,26 80,28 107,22 133,18 160,14"
+                  fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round"/>
+        <polyline points="0,32 27,30 53,26 80,28 107,22 133,18 160,14 160,40 0,40"
+                  fill="rgba(99,102,241,.07)" stroke="none"/>
+        <circle cx="160" cy="14" r="3" fill="var(--primary)"/>
+      </svg>
+    </div>
+
+    <!-- Response Rate -->
+    <div class="card stat-card">
+      <div class="stat-header">
+        <span class="stat-name">Response Rate</span>
+        <div class="stat-icon-box green">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--success)"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+        </div>
+      </div>
+      <div class="stat-number">84<span>%</span></div>
+      <div class="stat-delta up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+        +11pp vs last year
+      </div>
+      <div class="stat-sub">328 of 390 employees responded</div>
+      <!-- Radial fill bar -->
+      <svg viewBox="0 0 160 44" style="height:44px;margin-top:4px">
+        <rect x="0" y="18" width="160" height="8" rx="4" fill="var(--gray-2)"/>
+        <rect x="0" y="18" width="134" height="8" rx="4" fill="var(--success)"/>
+        <text x="136" y="26" font-size="11" fill="var(--success)" font-family="sans-serif" dominant-baseline="middle">84%</text>
+      </svg>
+    </div>
+
+    <!-- Engagement Index -->
+    <div class="card stat-card">
+      <div class="stat-header">
+        <span class="stat-name">Engagement Index</span>
+        <div class="stat-icon-box amber">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--warning)"><path d="M13 2.05V2c0-1.1-.9-2-2-2s-2 .9-2 2v.05C4.86 2.55 2 5.81 2 9.8v8c0 .55.45 1 1 1h18c.55 0 1-.45 1-1v-8c0-3.99-2.86-7.25-9-7.75zM12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm-7-4V9.8c0-3.51 2.48-6.41 6-6.91V4c0 .55.45 1 1 1s1-.45 1-1v-.11c3.52.5 6 3.4 6 6.91V18H5z"/></svg>
+        </div>
+      </div>
+      <div class="stat-number">72<span>%</span></div>
+      <div class="stat-delta up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+        +5pp vs Q4 2025
+      </div>
+      <div class="stat-sub">Actively engaged employees</div>
+      <!-- Stacked bar -->
+      <svg viewBox="0 0 160 44" style="height:44px;margin-top:4px">
+        <rect x="0" y="18" width="115" height="8" rx="0" fill="var(--warning)" rx="4"/>
+        <rect x="115" y="18" width="28" height="8" fill="#d1fae5"/>
+        <rect x="143" y="18" width="17" height="8" rx="0" fill="var(--danger-light)" style="border-radius:0 4px 4px 0"/>
+        <text x="4"   y="40" font-size="10" fill="var(--warning)" font-family="sans-serif">72% Engaged</text>
+        <text x="100" y="40" font-size="10" fill="var(--gray-5)" font-family="sans-serif">18%</text>
+        <text x="143" y="40" font-size="10" fill="var(--gray-4)" font-family="sans-serif">10%</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── CHARTS ROW 1 ── -->
+  <div class="section-label">Dimension Analysis</div>
+  <div class="charts-grid">
+
+    <!-- Dimension Scores Bar -->
+    <div class="card chart-card">
+      <div class="chart-title">Scores by Dimension</div>
+      <div class="chart-subtitle">Average score (1–5 scale) · Q1 2026 vs Q4 2025</div>
+      <div class="dim-bars" id="dimBars"></div>
+    </div>
+
+    <!-- Trend over time -->
+    <div class="card chart-card">
+      <div class="chart-title">Satisfaction Trend</div>
+      <div class="chart-subtitle">Overall & eNPS index, last 6 surveys</div>
+      <svg class="trend-chart" id="trendChart" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="trend-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--chart-1)"></div>Overall Score</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--chart-2)"></div>eNPS / 10</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--chart-3)"></div>Engagement %</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CHARTS ROW 2 ── -->
+  <div class="charts-grid-2">
+
+    <!-- Department Heatmap -->
+    <div class="card chart-card">
+      <div class="chart-title">Department × Dimension Heatmap</div>
+      <div class="chart-subtitle">Average score per cell · darker = higher</div>
+      <div class="dept-heatmap" id="heatmapWrap"></div>
+    </div>
+
+    <!-- Sentiment Distribution -->
+    <div class="card chart-card">
+      <div class="chart-title">Open-Text Sentiment Distribution</div>
+      <div class="chart-subtitle">NLP classification of 328 free-text responses</div>
+      <div class="sentiment-wrap" id="sentWrap">
+        <div class="sentiment-donut">
+          <svg width="140" height="140" viewBox="0 0 140 140">
+            <!-- Donut segments: Positive 52%, Mixed 28%, Negative 20% -->
+            <!-- r=52, cx=70, cy=70; circumference=2π×52≈326.7 -->
+            <!-- Positive: 326.7×0.52=169.9, gap=156.8 -->
+            <circle cx="70" cy="70" r="52" fill="none" stroke="var(--success)"     stroke-width="22"
+                    stroke-dasharray="169.9 156.8" stroke-dashoffset="81.7" transform="rotate(-90 70 70)"/>
+            <!-- Mixed: 326.7×0.28=91.5, offset after positive -->
+            <circle cx="70" cy="70" r="52" fill="none" stroke="var(--warning)"     stroke-width="22"
+                    stroke-dasharray="91.5 235.2" stroke-dashoffset="163.3" transform="rotate(-90 70 70)"/>
+            <!-- Negative: 326.7×0.20=65.3 -->
+            <circle cx="70" cy="70" r="52" fill="none" stroke="var(--danger)"      stroke-width="22"
+                    stroke-dasharray="65.3 261.4" stroke-dashoffset="255.2" transform="rotate(-90 70 70)"/>
+            <text x="70" y="66" text-anchor="middle" font-size="22" font-weight="700" fill="var(--gray-9)" font-family="sans-serif">52%</text>
+            <text x="70" y="82" text-anchor="middle" font-size="11" fill="var(--gray-5)" font-family="sans-serif">Positive</text>
+          </svg>
+        </div>
+        <div class="sentiment-legend">
+          <div class="sent-row">
+            <span class="sent-label" style="color:var(--success)">● Positive</span>
+            <div class="sent-bar-wrap"><div class="sent-bar" style="width:52%;background:var(--success)"></div></div>
+            <span class="sent-pct">52%</span>
+          </div>
+          <div class="sent-row">
+            <span class="sent-label" style="color:var(--warning)">● Mixed</span>
+            <div class="sent-bar-wrap"><div class="sent-bar" style="width:28%;background:var(--warning)"></div></div>
+            <span class="sent-pct">28%</span>
+          </div>
+          <div class="sent-row">
+            <span class="sent-label" style="color:var(--danger)">● Negative</span>
+            <div class="sent-bar-wrap"><div class="sent-bar" style="width:20%;background:var(--danger)"></div></div>
+            <span class="sent-pct">20%</span>
+          </div>
+          <div style="height:1px;background:var(--gray-2);margin:4px 0"></div>
+          <div style="font-size:12px;color:var(--gray-6);line-height:1.6">
+            Top themes:<br>
+            <span style="color:var(--success);font-weight:500">Growth opportunities</span>,
+            <span style="color:var(--success);font-weight:500">team collaboration</span><br>
+            <span style="color:var(--danger);font-weight:500">Work-life balance</span>,
+            <span style="color:var(--danger);font-weight:500">compensation</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── QUESTION DISTRIBUTION ── -->
+  <div class="section-label">Question Score Distribution</div>
+  <div class="qdist-grid" id="qdistGrid"></div>
+
+  <!-- ── OPEN FEEDBACK ── -->
+  <div class="feedback-section">
+    <div class="feedback-header">
+      <div>
+        <div class="section-label" style="margin-bottom:0">Representative Feedback</div>
+        <span class="feedback-count">Showing 9 of 328 responses · curated by relevance score</span>
+      </div>
+      <div class="feedback-tabs">
+        <button class="ftab active" onclick="showFeedback('all',this)">All</button>
+        <button class="ftab" onclick="showFeedback('positive',this)">Positive</button>
+        <button class="ftab" onclick="showFeedback('negative',this)">Needs Attention</button>
+      </div>
+    </div>
+    <div class="feedback-grid" id="feedbackGrid"></div>
+  </div>
+
+  <!-- Footer -->
+  <div class="page-footer">
+    <span class="footer-info">Survey period: Feb 1 – Feb 28, 2026 · Conducted by People Analytics Team · Confidential</span>
+    <div class="footer-actions">
+      <button class="btn-ghost">View Raw Data</button>
+      <button class="btn-ghost">Action Plans</button>
+      <button class="btn-export" style="font-size:13px">Share Report</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════
+//  MOCK DATA
+// ═══════════════════════════════════════════════
+
+const DIMS = [
+  { name: "Work-Life Balance",       score: 3.5, prev: 3.2, color: "#6366f1" },
+  { name: "Management & Leadership", score: 4.1, prev: 3.9, color: "#10b981" },
+  { name: "Growth & Development",    score: 3.7, prev: 3.6, color: "#f59e0b" },
+  { name: "Compensation & Benefits", score: 3.4, prev: 3.5, color: "#ef4444" },
+  { name: "Team Collaboration",      score: 4.3, prev: 4.1, color: "#06b6d4" },
+  { name: "Company Culture",         score: 3.9, prev: 3.7, color: "#8b5cf6" },
+  { name: "Role Clarity",            score: 4.0, prev: 3.8, color: "#ec4899" },
+];
+
+const TREND = {
+  labels: ["Q4 '24", "Q1 '25", "Q2 '25", "Q3 '25", "Q4 '25", "Q1 '26"],
+  overall:    [3.4, 3.5, 3.6, 3.6, 3.6, 3.9],
+  enps_norm:  [2.8, 2.9, 3.0, 3.2, 3.5, 4.2],
+  engagement: [3.2, 3.3, 3.5, 3.5, 3.4, 3.6],
+};
+
+const DEPTS = ["Engineering", "Sales", "Marketing", "HR", "Finance"];
+const DEPT_SCORES = {
+  "Engineering": [3.4, 4.3, 3.9, 3.6, 4.5, 4.0, 4.1],
+  "Sales":       [3.1, 3.8, 3.6, 3.2, 4.1, 3.7, 3.8],
+  "Marketing":   [3.7, 4.2, 3.8, 3.5, 4.4, 4.1, 4.0],
+  "HR":          [4.0, 4.4, 4.1, 3.9, 4.6, 4.3, 4.2],
+  "Finance":     [3.3, 3.9, 3.5, 3.3, 3.9, 3.6, 3.7],
+};
+
+const QDIST_DATA = [
+  { q: "I feel comfortable raising concerns with my manager", avg: 3.8,
+    dist: [{label:"5",pct:38},{label:"4",pct:30},{label:"3",pct:17},{label:"2",pct:10},{label:"1",pct:5}] },
+  { q: "My workload is manageable on a regular basis", avg: 3.4,
+    dist: [{label:"5",pct:28},{label:"4",pct:26},{label:"3",pct:21},{label:"2",pct:16},{label:"1",pct:9}] },
+  { q: "I see a clear path for career growth here", avg: 3.6,
+    dist: [{label:"5",pct:32},{label:"4",pct:29},{label:"3",pct:20},{label:"2",pct:12},{label:"1",pct:7}] },
+  { q: "I would recommend this company as a great place to work", avg: 4.1,
+    dist: [{label:"5",pct:46},{label:"4",pct:28},{label:"3",pct:14},{label:"2",pct:8},{label:"1",pct:4}] },
+];
+
+const FEEDBACK_DATA = [
+  { sentiment: "positive", dims: ["Team Collaboration","Company Culture"],
+    role: "Senior Engineer", dept: "Engineering", score: 5,
+    text: "The team dynamic here is genuinely exceptional. We have <mark>high trust</mark> and the freedom to take ownership of projects end-to-end. I've learned more in the past year than the previous three combined." },
+  { sentiment: "positive", dims: ["Management & Leadership"],
+    role: "Product Manager", dept: "Marketing", score: 5,
+    text: "My manager is highly <mark>transparent about strategy</mark> and actually acts on feedback. 1-on-1s are meaningful — she comes prepared and follows through on commitments." },
+  { sentiment: "positive", dims: ["Growth & Development"],
+    role: "Data Analyst", dept: "Finance", score: 4,
+    text: "The internal learning budget has been a game-changer. I completed two certifications this year fully sponsored by the company, and there are stretch projects readily available." },
+  { sentiment: "negative", dims: ["Work-Life Balance"],
+    role: "Account Executive", dept: "Sales", score: 2,
+    text: "The expectation to be <mark>always-on</mark> is unsustainable. I regularly work past 10pm and weekends. Leadership acknowledges this in all-hands but nothing concrete has changed in six months." },
+  { sentiment: "negative", dims: ["Compensation & Benefits"],
+    role: "UI Designer", dept: "Marketing", score: 2,
+    text: "Compensation reviews haven't kept up with inflation or market rates. I've seen peers leave for <mark>30–40% higher pay</mark> elsewhere. Benefits package is decent but base salary lags significantly." },
+  { sentiment: "negative", dims: ["Role Clarity","Growth & Development"],
+    role: "Support Specialist", dept: "HR", score: 2,
+    text: "Promotions feel opaque — there's no documented criteria and decisions seem arbitrary. I've asked twice about the process and received <mark>vague answers</mark>." },
+  { sentiment: "neutral", dims: ["Company Culture"],
+    role: "Recruiter", dept: "HR", score: 3,
+    text: "Culture is good at the team level but inconsistent across departments. Some teams are highly collaborative while others operate in silos. A cross-functional initiative would help bridge this gap." },
+  { sentiment: "neutral", dims: ["Management & Leadership"],
+    role: "Software Engineer", dept: "Engineering", score: 3,
+    text: "Mid-level management is hit or miss. Some directors are fantastic coaches; others seem disconnected from day-to-day realities. The variance makes it hard to give a single rating." },
+  { sentiment: "neutral", dims: ["Work-Life Balance","Compensation & Benefits"],
+    role: "Financial Analyst", dept: "Finance", score: 3,
+    text: "The job itself is interesting and the team is great. The work-life balance and pay are average for the industry — nothing exceptional but not a dealbreaker either." },
+];
+
+// ═══════════════════════════════════════════════
+//  RENDER: DIMENSION BARS
+// ═══════════════════════════════════════════════
+function renderDimBars() {
+  const container = document.getElementById('dimBars');
+  DIMS.forEach(d => {
+    const pct = (d.score / 5) * 100;
+    const diff = (d.score - d.prev).toFixed(1);
+    const dirClass = diff >= 0 ? 'up' : 'down';
+    const arrow = diff >= 0 ? '↑' : '↓';
+    container.innerHTML += `
+      <div class="dim-row">
+        <div class="dim-meta">
+          <span class="dim-name">${d.name}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="dim-change ${dirClass}" data-tip="vs Q4 2025">${arrow} ${Math.abs(diff)}</span>
+            <span class="dim-score-num">${d.score.toFixed(1)}</span>
+          </div>
+        </div>
+        <div class="dim-bar-bg">
+          <div class="dim-bar-fill" style="width:${pct}%;background:${d.color}"></div>
+        </div>
+      </div>`;
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER: TREND SVG
+// ═══════════════════════════════════════════════
+function renderTrend() {
+  const svg = document.getElementById('trendChart');
+  const W = 320, H = 160, PAD = { t: 12, b: 28, l: 10, r: 10 };
+  const iW = W - PAD.l - PAD.r;
+  const iH = H - PAD.t - PAD.b;
+  const n = TREND.labels.length;
+
+  const yMin = 2.4, yMax = 4.8;
+  const xOf = i => PAD.l + (i / (n - 1)) * iW;
+  const yOf = v => PAD.t + (1 - (v - yMin) / (yMax - yMin)) * iH;
+
+  // Grid lines
+  let html = '';
+  [2.5, 3.0, 3.5, 4.0, 4.5].forEach(v => {
+    const y = yOf(v);
+    html += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="#f0f2f5" stroke-width="1"/>`;
+    html += `<text x="${PAD.l - 2}" y="${y + 4}" text-anchor="end" font-size="9" fill="#d1d5db" font-family="sans-serif">${v.toFixed(1)}</text>`;
+  });
+
+  // X labels
+  TREND.labels.forEach((lbl, i) => {
+    html += `<text x="${xOf(i)}" y="${H - 4}" text-anchor="middle" font-size="9" fill="#9ca3af" font-family="sans-serif">${lbl}</text>`;
+  });
+
+  const drawLine = (series, color, dashed) => {
+    const pts = series.map((v, i) => `${xOf(i)},${yOf(v)}`).join(' ');
+    const area = series.map((v, i) => `${xOf(i)},${yOf(v)}`).join(' ') +
+                 ` ${xOf(n-1)},${yOf(yMin)} ${xOf(0)},${yOf(yMin)}`;
+    if (!dashed) {
+      html += `<polyline points="${area}" fill="${color}" fill-opacity=".07" stroke="none"/>`;
+    }
+    html += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${dashed ? 1.5 : 2}"
+             ${dashed ? 'stroke-dasharray="4 3"' : ''} stroke-linejoin="round"/>`;
+    series.forEach((v, i) => {
+      html += `<circle cx="${xOf(i)}" cy="${yOf(v)}" r="${i === n - 1 ? 4 : 3}" fill="${color}" stroke="#fff" stroke-width="1.5"/>`;
+    });
+  };
+
+  drawLine(TREND.overall, 'var(--chart-1)', false);
+  drawLine(TREND.enps_norm, 'var(--chart-2)', false);
+  drawLine(TREND.engagement, 'var(--chart-3)', true);
+
+  svg.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER: HEATMAP
+// ═══════════════════════════════════════════════
+function heatColor(v) {
+  // 1–5 → light purple to deep indigo
+  const stops = [
+    [1.0, [254,252,253]],
+    [2.5, [224,231,255]],
+    [3.5, [165,180,252]],
+    [4.2, [99,102,241]],
+    [5.0, [55,48,163]],
+  ];
+  const t = (v - 1) / 4;
+  // simple 3-stop interp
+  let r, g, b;
+  if (t < 0.5) {
+    const f = t / 0.5;
+    r = Math.round(stops[0][1][0] + f * (stops[2][1][0] - stops[0][1][0]));
+    g = Math.round(stops[0][1][1] + f * (stops[2][1][1] - stops[0][1][1]));
+    b = Math.round(stops[0][1][2] + f * (stops[2][1][2] - stops[0][1][2]));
+  } else {
+    const f = (t - 0.5) / 0.5;
+    r = Math.round(stops[2][1][0] + f * (stops[4][1][0] - stops[2][1][0]));
+    g = Math.round(stops[2][1][1] + f * (stops[4][1][1] - stops[2][1][1]));
+    b = Math.round(stops[2][1][2] + f * (stops[4][1][2] - stops[2][1][2]));
+  }
+  const textDark = t > 0.65;
+  return { bg: `rgb(${r},${g},${b})`, text: textDark ? '#fff' : 'var(--gray-8)' };
+}
+
+function renderHeatmap() {
+  const shortDims = ["WLB","Mgmt","Growth","Comp","Collab","Culture","Clarity"];
+  let html = '<table class="heatmap-table"><thead><tr><th>Dept</th>';
+  shortDims.forEach(d => { html += `<th>${d}</th>`; });
+  html += '</tr></thead><tbody>';
+  DEPTS.forEach(dept => {
+    html += `<tr><td>${dept}</td>`;
+    DEPT_SCORES[dept].forEach(v => {
+      const c = heatColor(v);
+      html += `<td><div class="hm-cell" style="background:${c.bg};color:${c.text}">${v.toFixed(1)}</div></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('heatmapWrap').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER: QUESTION DISTRIBUTION
+// ═══════════════════════════════════════════════
+function renderQDist() {
+  const grid = document.getElementById('qdistGrid');
+  const ratingColors = { "5": "#10b981", "4": "#6366f1", "3": "#f59e0b", "2": "#f97316", "1": "#ef4444" };
+  QDIST_DATA.forEach(q => {
+    const barsHtml = q.dist.map(d => `
+      <div class="qdist-row">
+        <span class="qdist-label">${d.label}</span>
+        <div class="qdist-bg"><div class="qdist-fill" style="width:${d.pct}%;background:${ratingColors[d.label]}"></div></div>
+        <span class="qdist-pct">${d.pct}%</span>
+      </div>`).join('');
+    grid.innerHTML += `
+      <div class="qdist-card">
+        <div class="qdist-question">${q.q}</div>
+        <div class="qdist-bars">${barsHtml}</div>
+        <div class="qdist-avg"><strong>${q.avg.toFixed(1)}</strong> avg score</div>
+      </div>`;
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER: FEEDBACK CARDS
+// ═══════════════════════════════════════════════
+function renderFeedbackCards(filter) {
+  const grid = document.getElementById('feedbackGrid');
+  let data = FEEDBACK_DATA;
+  if (filter === 'positive') data = FEEDBACK_DATA.filter(f => f.sentiment === 'positive');
+  if (filter === 'negative') data = FEEDBACK_DATA.filter(f => f.sentiment === 'negative');
+
+  const tagClass = { positive: 'tag-positive', negative: 'tag-negative', neutral: 'tag-neutral' };
+  const tagLabel = { positive: '+ Positive', negative: '− Concern', neutral: '~ Neutral' };
+
+  grid.innerHTML = data.map(f => {
+    const stars = Array.from({length:5}, (_,i) =>
+      `<span class="star${i < f.score ? ' filled' : ''}">★</span>`).join('');
+    const dimTags = f.dims.map(d => `<span class="tag tag-dim">${d}</span>`).join('');
+    return `
+      <div class="feedback-card">
+        <div class="feedback-meta">
+          <div class="feedback-tags">
+            <span class="tag ${tagClass[f.sentiment]}">${tagLabel[f.sentiment]}</span>
+          </div>
+          <span class="feedback-role">${f.role}</span>
+        </div>
+        <p class="feedback-text">${f.text}</p>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">${dimTags}</div>
+        <div class="feedback-footer">
+          <span class="feedback-dept">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            ${f.dept}
+          </span>
+          <div class="feedback-score">${stars}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function showFeedback(filter, btn) {
+  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderFeedbackCards(filter);
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+renderDimBars();
+renderTrend();
+renderHeatmap();
+renderQDist();
+renderFeedbackCards('all');
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Satisfaction Survey: an eNPS gauge, a dimension heatmap, and a grid of feedback cards. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/14-satisfaction-survey.html
+</script>
+</body>
+</html>

@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stockpoint — Asset Inventory</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Asset Inventory (Stockpoint)",
+  "prefix": "ais_",
+  "archetype": "location-tree facet + asset-card grid + in-stock status stats",
+  "collections": {
+    "ais_locations": {
+      "titleField": "name",
+      "tree": "self-referencing (adjacency list)",
+      "fields": {
+        "name": "input",
+        "code": "input",
+        "kind": "select:site|zone|aisle|rack|bin",
+        "capacity": "integer"
+      },
+      "relations": {
+        "parent": "m2o ais_locations (fk parent_id) — self relation builds the tree"
+      }
+    },
+    "ais_categories": {
+      "titleField": "name",
+      "fields": { "name": "input", "color": "select", "icon": "input" }
+    },
+    "ais_assets": {
+      "titleField": "name",
+      "fields": {
+        "name": "input",
+        "asset_tag": "input",
+        "serial_no": "input",
+        "sku": "input",
+        "qty": "integer",
+        "min_qty": "integer",
+        "unit_cost": "number",
+        "status": "select:in_stock|reserved|checked_out|in_repair|retired",
+        "condition": "select:new|good|fair|poor",
+        "last_seen_at": "datetime",
+        "thumb_note": "input"
+      },
+      "relations": {
+        "location": "m2o ais_locations (fk location_id)",
+        "category": "m2o ais_categories (fk category_id)"
+      }
+    }
+  },
+  "page": {
+    "name": "Inventory",
+    "layout": "3-pane: left = native Tree (ais_locations) facet | center = stat tiles (event-flow aggregate) + native GridCard/List of ais_assets with JSField card | right = Details (single ais_asset)",
+    "regions": [
+      {
+        "id": "location-tree",
+        "block": "native Tree block (ais_locations)",
+        "intent": "browse / drill into storage locations; clicking a node filters the asset grid",
+        "content": ["self-relation tree node = name + code", "per-node in-stock count badge", "kind icon (site/zone/aisle/rack/bin)"],
+        "behaviors": ["cross-block filter — clicking a node pushes addFilterGroup(location.id within subtree) to ais_assets resource + refresh"]
+      },
+      {
+        "id": "status-stats",
+        "block": "stat tiles driven by event-flow aggregate over the ais_assets resource (NOT static)",
+        "intent": "in-stock status statistics for the current location scope",
+        "content": ["In stock / Reserved / Checked out / In repair counts", "total asset value", "below-min (low stock) count"],
+        "behaviors": ["recompute when tree filter or facet pills change"]
+      },
+      {
+        "id": "asset-grid",
+        "block": "native GridCard block (ais_assets) + JSField (whole-record card) — remove sibling native fields + showLabel:false",
+        "intent": "asset cards grid, fills width and reflows",
+        "card": ["category color top-stripe", "asset thumbnail placeholder + condition dot", "name + asset_tag", "location breadcrumb", "qty / min_qty with low-stock warning", "status pill"],
+        "behaviors": ["CSS auto-fill grid repeat(auto-fill,minmax(260px,1fr))", "facet pills (status/category) push addFilterGroup + refresh", "search box cross-filters by name/tag/serial", "click card → ctx.openView(<Details ViewActionModel uid>, {filterByTk})"]
+      },
+      {
+        "id": "asset-detail",
+        "block": "native Details block (single ais_asset)",
+        "intent": "selected asset detail drawer",
+        "content": ["large thumb + status", "asset_tag / serial / sku", "location path", "qty vs min", "unit cost / total value", "condition + last seen", "check-out / move / adjust qty actions"],
+        "behaviors": ["bound to the card clicked in asset-grid via filterByTk"]
+      }
+    ]
+  },
+  "interactions": [
+    "click tree location node → grid + stats filter to that subtree",
+    "status / category facet pills cross-filter the grid + recompute stats",
+    "search box filters grid by name / asset_tag / serial",
+    "click asset card → opens Details drawer (same record)",
+    "low-stock (qty < min_qty) badged on card + counted in stats"
+  ],
+  "jsKernels": [
+    "Tree node JS render (count badge + kind icon)",
+    "GridCard JSField whole-record asset card",
+    "stat-tile aggregate (event-flow over the filtered resource)"
+  ],
+  "notes": "Container/content rule: every data region is a NATIVE block — Tree for ais_locations, GridCard (or List) for ais_assets, Details for the single asset; reproduce the custom look with JS field cards / JS tree node render nested INSIDE them. The location facet is a real native Tree using the ais_locations self relation (parent_id), NOT a hand-rolled JSBlock. Status statistics are an event-flow aggregate over the live filtered ais_assets resource, not hardcoded numbers. Do not rebuild the page as a freestanding JSBlock."
+}
+</script>
+<style>
+  :root{
+    /* inventory / logistics archetype — teal + slate, warehouse-pro */
+    --teal:#0d9488; --teal-soft:#ecfdf9; --teal-line:#99e6d8; --teal-ink:#0b7a70;
+    --ink:#0f172a; --ink-2:#475569; --ink-3:#94a3b8; --ink-4:#cbd5e1;
+    --line:#eef1f5; --line-2:#e2e8f0; --bg:#f4f6f9; --card:#fff;
+    --green:#16a34a; --green-soft:#f0fdf4; --green-line:#bbf7d0;
+    --amber:#d97706; --amber-soft:#fffbeb; --amber-line:#fde68a;
+    --blue:#2563eb; --blue-soft:#eff6ff;
+    --violet:#7c3aed; --violet-soft:#f5f3ff;
+    --red:#dc2626; --red-soft:#fef2f2;
+    --slate:#64748b;
+    --r:11px; --r-sm:8px;
+    --shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
+    --shadow-lg:0 12px 34px rgba(15,23,42,.13);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{min-width:1440px}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:20px; padding:0 24px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; letter-spacing:-.3px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--teal),#2dd4bf);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 3px 10px rgba(13,148,136,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:3px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--teal-soft);color:var(--teal-ink)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .global-search{
+    position:relative;
+  }
+  .global-search input{
+    width:230px;border:1px solid var(--line-2);background:#fafbfc;border-radius:9px;
+    padding:8px 12px 8px 32px;font-family:inherit;font-size:13px;outline:none;transition:.13s;color:var(--ink);
+  }
+  .global-search input:focus{border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-soft);background:#fff}
+  .global-search .gs-ic{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:13px}
+  .icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line-2);background:#fff;cursor:pointer;
+    display:grid;place-items:center;font-size:15px;color:var(--ink-2);position:relative}
+  .icon-btn:hover{border-color:var(--teal-line);color:var(--teal-ink);background:var(--teal-soft)}
+  .icon-btn .ndot{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:9px;background:var(--red);
+    color:#fff;font-size:9.5px;font-weight:700;display:grid;place-items:center;padding:0 4px;border:2px solid #fff}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0d9488,#22d3ee);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- 3-pane workspace ---------- */
+  .workspace{
+    display:grid; grid-template-columns: 264px minmax(0,1fr) 360px; gap:0;
+    height:calc(100vh - 56px); min-height:680px;
+  }
+
+  /* ===== LEFT: location tree ===== */
+  .tree-pane{
+    background:var(--card); border-right:1px solid var(--line-2); overflow:auto; display:flex; flex-direction:column;
+  }
+  .tree-head{padding:16px 18px 10px;position:sticky;top:0;background:var(--card);z-index:3}
+  .tree-head h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3)}
+  .tree-head .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .tree-head .add{width:24px;height:24px;border-radius:7px;border:1px solid var(--line-2);background:#fff;cursor:pointer;
+    color:var(--teal-ink);font-size:15px;line-height:1;display:grid;place-items:center}
+  .tree-head .add:hover{background:var(--teal-soft);border-color:var(--teal-line)}
+  .tree-search{position:relative}
+  .tree-search input{width:100%;border:1px solid var(--line-2);background:#fafbfc;border-radius:8px;
+    padding:7px 10px 7px 28px;font-family:inherit;font-size:12.5px;outline:none}
+  .tree-search input:focus{border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-soft);background:#fff}
+  .tree-search .ts-ic{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:12px}
+  .tree-body{padding:6px 8px 20px;flex:1}
+
+  .tnode{
+    display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;cursor:pointer;
+    font-size:13px;color:var(--ink-2);position:relative;user-select:none;transition:.1s;
+  }
+  .tnode:hover{background:var(--line)}
+  .tnode.on{background:var(--teal-soft);color:var(--teal-ink);font-weight:600}
+  .tnode.on .tn-count{background:var(--teal);color:#fff}
+  .tn-caret{width:14px;flex:none;color:var(--ink-3);font-size:10px;transition:transform .15s;text-align:center}
+  .tn-caret.open{transform:rotate(90deg)}
+  .tn-caret.leaf{visibility:hidden}
+  .tn-ic{width:18px;height:18px;border-radius:5px;flex:none;display:grid;place-items:center;font-size:11px;
+    background:var(--line);color:var(--slate)}
+  .tnode.on .tn-ic{background:#fff;color:var(--teal-ink)}
+  .tn-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tn-code{font-size:10.5px;color:var(--ink-3);font-weight:500;font-variant-numeric:tabular-nums}
+  .tnode.on .tn-code{color:var(--teal)}
+  .tn-count{font-size:10.5px;font-weight:700;background:var(--line-2);color:var(--ink-2);
+    border-radius:9px;padding:1px 7px;min-width:20px;text-align:center;font-variant-numeric:tabular-nums}
+  .tchildren{margin-left:13px;border-left:1px solid var(--line-2);padding-left:4px}
+  .tchildren.hidden{display:none}
+
+  .tree-foot{padding:12px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3);background:#fafbfc;
+    display:flex;align-items:center;justify-content:space-between}
+  .tree-foot b{color:var(--ink-2)}
+
+  /* ===== CENTER: stats + grid ===== */
+  .grid-pane{overflow:auto;padding:0;display:flex;flex-direction:column;background:var(--bg)}
+  .gp-head{padding:18px 24px 0;position:sticky;top:0;background:var(--bg);z-index:5}
+  .breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);margin-bottom:4px}
+  .breadcrumb b{color:var(--ink-2);font-weight:600}
+  .breadcrumb .sep{color:var(--ink-4)}
+  .gp-title{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px}
+  .gp-title h1{font-size:20px;font-weight:700;letter-spacing:-.4px}
+  .gp-title .sub{font-size:12.5px;color:var(--ink-3);margin-bottom:2px}
+
+  /* stat tiles */
+  .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+  .stat{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:13px 14px;
+    box-shadow:0 1px 2px rgba(15,23,42,.03);position:relative;overflow:hidden;
+  }
+  .stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ink-4)}
+  .stat.s-instock::before{background:var(--green)}
+  .stat.s-reserved::before{background:var(--violet)}
+  .stat.s-out::before{background:var(--blue)}
+  .stat.s-repair::before{background:var(--amber)}
+  .stat.s-value::before{background:var(--teal)}
+  .stat.s-low::before{background:var(--red)}
+  .stat .lbl{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:5px}
+  .stat .val{font-size:23px;font-weight:800;letter-spacing:-.6px;margin-top:5px;font-variant-numeric:tabular-nums}
+  .stat .delta{font-size:11px;color:var(--ink-3);margin-top:2px;font-weight:500}
+  .stat.s-low .val{color:var(--red)}
+  .stat.s-value .val{color:var(--teal-ink)}
+
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .facets{display:flex;gap:6px;flex-wrap:wrap}
+  .facet{
+    font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:5px 11px;border-radius:18px;
+    border:1px solid var(--line-2);background:#fff;display:flex;align-items:center;gap:6px;transition:.1s;
+  }
+  .facet:hover{border-color:var(--ink-4)}
+  .facet.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .facet .dot{width:7px;height:7px;border-radius:50%}
+  .facet .fc{font-size:10.5px;opacity:.6;font-variant-numeric:tabular-nums}
+  .facet.on .fc{opacity:.85}
+  .tb-spacer{margin-left:auto}
+  .grid-search{position:relative}
+  .grid-search input{width:200px;border:1px solid var(--line-2);background:#fff;border-radius:9px;
+    padding:7px 11px 7px 30px;font-family:inherit;font-size:12.5px;outline:none}
+  .grid-search input:focus{border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-soft)}
+  .grid-search .gs-ic{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:12px}
+  .seg{display:flex;border:1px solid var(--line-2);border-radius:9px;overflow:hidden;background:#fff}
+  .seg button{border:none;background:#fff;padding:7px 11px;cursor:pointer;font-size:13px;color:var(--ink-3);line-height:1}
+  .seg button.on{background:var(--teal-soft);color:var(--teal-ink)}
+  .seg button:not(:last-child){border-right:1px solid var(--line-2)}
+  .btn{border:none;border-radius:9px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.13s;display:flex;align-items:center;gap:6px}
+  .btn-primary{background:var(--teal);color:#fff;box-shadow:0 2px 8px rgba(13,148,136,.3)}
+  .btn-primary:hover{background:var(--teal-ink)}
+
+  /* card grid */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding:0 24px 28px}
+  .acard{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden;cursor:pointer;
+    box-shadow:0 1px 2px rgba(15,23,42,.03);transition:.13s;position:relative;display:flex;flex-direction:column;
+  }
+  .acard:hover{box-shadow:var(--shadow);transform:translateY(-2px);border-color:var(--teal-line)}
+  .acard.sel{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-soft),var(--shadow)}
+  .ac-stripe{height:4px;width:100%}
+  .ac-thumb{height:118px;background:#f1f5f9;display:grid;place-items:center;position:relative;overflow:hidden}
+  .ac-thumb .ph{font-size:38px;opacity:.85}
+  .ac-cond{position:absolute;top:9px;left:9px;display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;
+    background:rgba(255,255,255,.92);backdrop-filter:blur(4px);border-radius:7px;padding:3px 8px;color:var(--ink-2);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .ac-cond .cd{width:7px;height:7px;border-radius:50%}
+  .ac-low{position:absolute;top:9px;right:9px;font-size:10px;font-weight:800;background:var(--red);color:#fff;
+    border-radius:7px;padding:3px 8px;letter-spacing:.3px;box-shadow:0 2px 6px rgba(220,38,38,.4)}
+  .ac-body{padding:12px 13px 13px;flex:1;display:flex;flex-direction:column}
+  .ac-cat{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+  .ac-name{font-size:14px;font-weight:700;letter-spacing:-.2px;line-height:1.3;margin-bottom:3px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ac-tag{font-size:11.5px;color:var(--ink-3);font-family:ui-monospace,Menlo,monospace;margin-bottom:9px}
+  .ac-loc{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-2);margin-bottom:11px}
+  .ac-loc .pin{color:var(--ink-3)}
+  .ac-loc .path{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ac-foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
+  .ac-qty{font-size:12.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .ac-qty span{font-size:11px;color:var(--ink-3);font-weight:500}
+  .ac-qty.low{color:var(--red)}
+  .pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:11px;letter-spacing:.2px;white-space:nowrap}
+  .p-in_stock{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line)}
+  .p-reserved{background:var(--violet-soft);color:var(--violet)}
+  .p-checked_out{background:var(--blue-soft);color:var(--blue)}
+  .p-in_repair{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line)}
+  .p-retired{background:var(--line);color:var(--ink-3)}
+
+  .empty-grid{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)}
+  .empty-grid .big{font-size:40px;margin-bottom:10px;opacity:.5}
+  .empty-grid b{display:block;color:var(--ink-2);font-size:15px;margin-bottom:4px}
+
+  /* ===== RIGHT: detail drawer ===== */
+  .detail-pane{
+    background:var(--card);border-left:1px solid var(--line-2);overflow:auto;display:flex;flex-direction:column;
+  }
+  .dp-empty{flex:1;display:grid;place-items:center;text-align:center;color:var(--ink-3);padding:30px}
+  .dp-empty .big{font-size:46px;opacity:.4;margin-bottom:12px}
+  .dp-empty b{display:block;color:var(--ink-2);font-size:14px;margin-bottom:4px}
+  .dp-empty p{font-size:12.5px;max-width:200px}
+
+  .dp-thumb{height:170px;background:linear-gradient(135deg,#e0f2fe,#ccfbf1);display:grid;place-items:center;position:relative;flex:none}
+  .dp-thumb .big{font-size:62px;opacity:.85}
+  .dp-thumb .dp-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:8px;border:none;
+    background:rgba(255,255,255,.9);cursor:pointer;font-size:15px;color:var(--ink-2);display:grid;place-items:center}
+  .dp-thumb .dp-close:hover{background:#fff;color:var(--ink)}
+  .dp-stat-badge{position:absolute;bottom:12px;left:14px}
+  .dp-body{padding:16px 18px;flex:1}
+  .dp-cat{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+  .dp-name{font-size:18px;font-weight:700;letter-spacing:-.3px;line-height:1.3;margin-bottom:3px}
+  .dp-tag{font-size:12px;color:var(--ink-3);font-family:ui-monospace,Menlo,monospace;margin-bottom:16px}
+
+  .dp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-bottom:18px;
+    border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden}
+  .dp-cell{padding:11px 13px;border-bottom:1px solid var(--line)}
+  .dp-cell:nth-last-child(-n+2){border-bottom:none}
+  .dp-cell .k{font-size:11px;color:var(--ink-3);font-weight:600;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
+  .dp-cell .v{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .dp-cell .v.mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;font-weight:500}
+  .dp-cell .v.low{color:var(--red)}
+
+  .dp-loc{background:var(--teal-soft);border:1px solid var(--teal-line);border-radius:var(--r);padding:12px 14px;margin-bottom:18px}
+  .dp-loc .k{font-size:11px;color:var(--teal-ink);font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
+  .dp-loc .path{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);flex-wrap:wrap}
+  .dp-loc .seg{background:#fff;border:1px solid var(--teal-line);border-radius:7px;padding:2px 8px;font-size:12px}
+  .dp-loc .arr{color:var(--teal);font-size:11px}
+
+  .dp-meter{margin-bottom:18px}
+  .dp-meter .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .dp-meter .top .k{font-size:12px;font-weight:600;color:var(--ink-2)}
+  .dp-meter .top .n{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+  .dp-meter .bar{height:8px;border-radius:5px;background:var(--line-2);overflow:hidden}
+  .dp-meter .bar i{display:block;height:100%;border-radius:5px;background:var(--green);transition:.3s}
+  .dp-meter.low .bar i{background:var(--red)}
+  .dp-meter .min{font-size:11px;color:var(--ink-3);margin-top:4px}
+  .dp-meter.low .min{color:var(--red);font-weight:600}
+
+  .dp-actions{padding:14px 18px;border-top:1px solid var(--line);background:#fafbfc;display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .dp-actions .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2);justify-content:center}
+  .dp-actions .btn-ghost:hover{border-color:var(--teal-line);color:var(--teal-ink);background:var(--teal-soft)}
+  .dp-actions .full{grid-column:1/-1}
+
+  .dp-history{padding:0 18px 18px}
+  .dp-history h3{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);margin-bottom:10px}
+  .hist-item{display:flex;gap:10px;padding-bottom:13px;position:relative}
+  .hist-item::before{content:"";position:absolute;left:5px;top:16px;bottom:-3px;width:1.5px;background:var(--line-2)}
+  .hist-item:last-child::before{display:none}
+  .hist-dot{width:11px;height:11px;border-radius:50%;flex:none;margin-top:3px;border:2px solid #fff;box-shadow:0 0 0 1px var(--line-2);z-index:1}
+  .hist-dot.t-in{background:var(--green)} .hist-dot.t-out{background:var(--blue)}
+  .hist-dot.t-move{background:var(--teal)} .hist-dot.t-adj{background:var(--amber)} .hist-dot.t-repair{background:var(--violet)}
+  .hist-c b{font-size:12.5px;font-weight:600;color:var(--ink);display:block}
+  .hist-c span{font-size:11.5px;color:var(--ink-3)}
+  .hist-c em{font-style:normal;color:var(--ink-2)}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:var(--shadow-lg);transition:.25s;z-index:60;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">◳</span>Stockpoint <small>asset inventory</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Inventory</a>
+    <a href="#">Locations</a>
+    <a href="#">Movements</a>
+    <a href="#">Reports</a>
+    <a href="#">Audit</a>
+  </nav>
+  <div class="top-right">
+    <div class="global-search">
+      <span class="gs-ic">⌕</span>
+      <input type="text" placeholder="Search all assets…" disabled>
+    </div>
+    <button class="icon-btn" title="Low-stock alerts">⚠<span class="ndot" id="alertDot">5</span></button>
+    <button class="icon-btn" title="Scan asset tag">▦</button>
+    <div class="acct">
+      <div class="ava">RK</div>
+      <div class="who"><b>Rosa Klein</b><br><span>Meridian Logistics</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ============ LEFT: LOCATION TREE ============ -->
+  <aside class="tree-pane">
+    <div class="tree-head">
+      <div class="row">
+        <h2>Locations</h2>
+        <button class="add" title="Add location">+</button>
+      </div>
+      <div class="tree-search">
+        <span class="ts-ic">⌕</span>
+        <input type="text" id="treeSearch" placeholder="Filter locations…">
+      </div>
+    </div>
+    <div class="tree-body" id="treeBody"></div>
+    <div class="tree-foot">
+      <span><b id="locCount">0</b> locations</span>
+      <span><b id="totalAssets">0</b> assets total</span>
+    </div>
+  </aside>
+
+  <!-- ============ CENTER: STATS + ASSET GRID ============ -->
+  <section class="grid-pane">
+    <div class="gp-head">
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="gp-title">
+        <h1 id="scopeName">All locations</h1>
+        <span class="sub" id="scopeSub"></span>
+      </div>
+
+      <!-- stat tiles (event-flow aggregate over filtered resource) -->
+      <div class="stats" id="stats"></div>
+
+      <!-- toolbar -->
+      <div class="toolbar">
+        <div class="facets" id="statusFacets"></div>
+        <div class="tb-spacer"></div>
+        <div class="grid-search">
+          <span class="gs-ic">⌕</span>
+          <input type="text" id="gridSearch" placeholder="Name, tag, serial…">
+        </div>
+        <div class="seg" id="catSeg">
+          <button class="on" data-cat="all" title="All categories">All</button>
+        </div>
+        <button class="btn btn-primary" id="addAsset">+ Add asset</button>
+      </div>
+    </div>
+
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <!-- ============ RIGHT: ASSET DETAIL ============ -->
+  <aside class="detail-pane" id="detailPane">
+    <div class="dp-empty" id="dpEmpty">
+      <div>
+        <div class="big">◳</div>
+        <b>No asset selected</b>
+        <p>Click any asset card to see its full record, location path, stock level and movement history.</p>
+      </div>
+    </div>
+    <div id="dpContent" style="display:none;flex:1;display:none;flex-direction:column"></div>
+  </aside>
+
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- categories ---------- */
+  var CATS = {
+    laptop:   {name:"Laptops",     color:"#2563eb", icon:"💻"},
+    monitor:  {name:"Monitors",    color:"#0d9488", icon:"🖥️"},
+    network:  {name:"Networking",  color:"#7c3aed", icon:"📡"},
+    power:    {name:"Power tools",  color:"#d97706", icon:"🔧"},
+    safety:   {name:"Safety gear",  color:"#dc2626", icon:"🦺"},
+    forklift: {name:"Forklifts",    color:"#16a34a", icon:"🚜"},
+    pallet:   {name:"Handling",     color:"#0891b2", icon:"📦"},
+    scanner:  {name:"Scanners",     color:"#db2777", icon:"📟"}
+  };
+
+  /* ---------- location tree (self-relation) ---------- */
+  var LOCATIONS = [
+    {id:1,  parent:null, name:"Meridian DC-1",   code:"DC1",       kind:"site"},
+      {id:2,  parent:1,  name:"Receiving Zone",  code:"DC1-RCV",   kind:"zone"},
+        {id:3,  parent:2, name:"Aisle R-A",      code:"R-A",       kind:"aisle"},
+        {id:4,  parent:2, name:"Aisle R-B",      code:"R-B",       kind:"aisle"},
+      {id:5,  parent:1,  name:"Storage Zone",    code:"DC1-STO",   kind:"zone"},
+        {id:6,  parent:5, name:"Rack S-12",      code:"S-12",      kind:"rack"},
+          {id:7,  parent:6, name:"Bin S-12-A",   code:"S-12-A",    kind:"bin"},
+          {id:8,  parent:6, name:"Bin S-12-B",   code:"S-12-B",    kind:"bin"},
+        {id:9,  parent:5, name:"Rack S-13",      code:"S-13",      kind:"rack"},
+      {id:10, parent:1,  name:"Equipment Bay",   code:"DC1-EQP",   kind:"zone"},
+    {id:11, parent:null, name:"Riverside Hub",   code:"RVH",       kind:"site"},
+      {id:12, parent:11, name:"Cold Storage",    code:"RVH-CLD",   kind:"zone"},
+      {id:13, parent:11, name:"Tool Crib",       code:"RVH-TLC",   kind:"zone"},
+        {id:14, parent:13, name:"Cabinet C-1",   code:"C-1",       kind:"rack"},
+        {id:15, parent:13, name:"Cabinet C-2",   code:"C-2",       kind:"rack"},
+    {id:16, parent:null, name:"IT Office",       code:"ITO",       kind:"site"},
+      {id:17, parent:16, name:"Server Room",     code:"ITO-SRV",   kind:"zone"},
+      {id:18, parent:16, name:"Help Desk Store", code:"ITO-HDS",   kind:"zone"}
+  ];
+  var KIND_IC = {site:"🏢", zone:"▦", aisle:"⫼", rack:"☰", bin:"▢"};
+
+  /* ---------- assets ---------- */
+  var ASSETS = [
+    {id:1, name:"Dell Latitude 7450", cat:"laptop", tag:"AST-100231", serial:"DLT7450-9KQ2", sku:"LAP-DEL-7450", loc:18, qty:14, min:8,  cost:1380, status:"in_stock",    cond:"new",  seen:"2026-06-06 09:12"},
+    {id:2, name:"MacBook Pro 14 M4",  cat:"laptop", tag:"AST-100244", serial:"MBP14-7T3X",   sku:"LAP-APL-MBP14", loc:18, qty:3,  min:5,  cost:1999, status:"in_stock",    cond:"new",  seen:"2026-06-05 16:40"},
+    {id:3, name:"Dell U2723QE 27\"",  cat:"monitor",tag:"AST-100302", serial:"DU2723-1182",  sku:"MON-DEL-U27",   loc:18, qty:22, min:10, cost:540,  status:"in_stock",    cond:"good", seen:"2026-06-06 08:05"},
+    {id:4, name:"LG UltraFine 32\"",  cat:"monitor",tag:"AST-100318", serial:"LGUF32-0093",  sku:"MON-LG-UF32",   loc:17, qty:6,  min:4,  cost:790,  status:"reserved",    cond:"good", seen:"2026-06-04 11:22"},
+    {id:5, name:"Cisco Catalyst 9300",cat:"network",tag:"AST-100410", serial:"CC9300-44A1",  sku:"NET-CSC-9300",  loc:17, qty:4,  min:2,  cost:4200, status:"in_stock",    cond:"new",  seen:"2026-06-03 14:51"},
+    {id:6, name:"Ubiquiti AP-Pro",    cat:"network",tag:"AST-100425", serial:"UAP-PRO-7720", sku:"NET-UBI-APP",   loc:17, qty:1,  min:6,  cost:189,  status:"in_stock",    cond:"good", seen:"2026-06-02 10:09"},
+    {id:7, name:"Bosch GBH Rotary",   cat:"power",  tag:"AST-100512", serial:"BGBH-5521",    sku:"PWR-BSH-GBH",   loc:14, qty:9,  min:4,  cost:320,  status:"in_stock",    cond:"good", seen:"2026-06-06 07:30"},
+    {id:8, name:"Makita Impact Drill",cat:"power",  tag:"AST-100528", serial:"MKID-3390",    sku:"PWR-MKT-ID",    loc:14, qty:2,  min:6,  cost:215,  status:"checked_out", cond:"fair", seen:"2026-06-05 13:18"},
+    {id:9, name:"Hi-Vis Vest (XL)",   cat:"safety", tag:"AST-100604", serial:"HVV-XL-bulk",  sku:"SFT-VST-XL",    loc:15, qty:48, min:20, cost:18,   status:"in_stock",    cond:"new",  seen:"2026-06-06 06:55"},
+    {id:10,name:"Steel-Toe Boots 10", cat:"safety", tag:"AST-100619", serial:"STB-10-bulk",  sku:"SFT-BOT-10",    loc:15, qty:7,  min:12, cost:64,   status:"in_stock",    cond:"good", seen:"2026-06-04 09:40"},
+    {id:11,name:"Toyota 8FBE Forklift",cat:"forklift",tag:"AST-100701",serial:"T8FBE-2208",  sku:"FRK-TOY-8FBE",  loc:10, qty:3,  min:2,  cost:28500,status:"in_stock",    cond:"good", seen:"2026-06-05 17:02"},
+    {id:12,name:"Crown Pallet Jack",  cat:"forklift",tag:"AST-100716",serial:"CRPJ-1145",    sku:"FRK-CRN-PJ",    loc:10, qty:1,  min:3,  cost:1850, status:"in_repair",   cond:"poor", seen:"2026-06-01 15:33"},
+    {id:13,name:"Euro Pallet 1200",   cat:"pallet", tag:"AST-100803", serial:"EUP-1200-blk", sku:"HDL-PAL-EU",    loc:3,  qty:120,min:60, cost:14,   status:"in_stock",    cond:"good", seen:"2026-06-06 08:48"},
+    {id:14,name:"Stretch-Wrap Roll",  cat:"pallet", tag:"AST-100817", serial:"SWR-500-blk",  sku:"HDL-WRP-500",   loc:4,  qty:5,  min:25, cost:32,   status:"in_stock",    cond:"good", seen:"2026-06-05 11:15"},
+    {id:15,name:"Zebra TC52 Scanner", cat:"scanner",tag:"AST-100905", serial:"ZTC52-6614",   sku:"SCN-ZBR-TC52",  loc:2,  qty:11, min:6,  cost:1290, status:"in_stock",    cond:"new",  seen:"2026-06-06 09:01"},
+    {id:16,name:"Honeywell CT60 Gun", cat:"scanner",tag:"AST-100921", serial:"HCT60-2230",   sku:"SCN-HNW-CT60",  loc:2,  qty:4,  min:4,  cost:1150, status:"reserved",    cond:"good", seen:"2026-06-04 14:27"},
+    {id:17,name:"Lenovo ThinkPad X1",  cat:"laptop", tag:"AST-100255",serial:"LTPX1-8841",   sku:"LAP-LNV-X1",    loc:7,  qty:8,  min:5,  cost:1620, status:"in_stock",    cond:"good", seen:"2026-06-06 08:33"},
+    {id:18,name:"Netgear M4300 Switch",cat:"network",tag:"AST-100438",serial:"NGM4300-0521", sku:"NET-NTG-M43",   loc:9,  qty:2,  min:2,  cost:2400, status:"in_stock",    cond:"good", seen:"2026-06-03 10:44"},
+    {id:19,name:"DeWalt Angle Grinder",cat:"power", tag:"AST-100541", serial:"DWAG-7712",    sku:"PWR-DEW-AG",    loc:14, qty:6,  min:4,  cost:145,  status:"in_stock",    cond:"good", seen:"2026-06-05 09:50"},
+    {id:20,name:"Hard Hat (white)",   cat:"safety", tag:"AST-100631", serial:"HHW-bulk",     sku:"SFT-HAT-WHT",   loc:15, qty:33, min:15, cost:22,   status:"in_stock",    cond:"new",  seen:"2026-06-06 07:11"},
+    {id:21,name:"Raymond Reach Truck",cat:"forklift",tag:"AST-100722",serial:"RAYRT-3301",   sku:"FRK-RAY-RT",    loc:10, qty:2,  min:1,  cost:34200,status:"checked_out", cond:"good", seen:"2026-06-05 16:09"},
+    {id:22,name:"HP EliteBook 840",   cat:"laptop", tag:"AST-100267", serial:"HPEB840-5520", sku:"LAP-HP-EB840",  loc:8,  qty:5,  min:6,  cost:1240, status:"in_stock",    cond:"fair", seen:"2026-06-04 13:02"},
+    {id:23,name:"Samsung 49\" Ultra",  cat:"monitor",tag:"AST-100329",serial:"SM49U-1140",   sku:"MON-SAM-49U",   loc:17, qty:2,  min:2,  cost:1100, status:"in_stock",    cond:"new",  seen:"2026-06-03 15:20"},
+    {id:24,name:"Pallet Wrap Dispenser",cat:"pallet",tag:"AST-100828",serial:"PWD-220",      sku:"HDL-DSP-220",   loc:4,  qty:3,  min:2,  cost:88,   status:"in_stock",    cond:"good", seen:"2026-06-05 12:40"},
+    {id:25,name:"Datalogic Memor 10", cat:"scanner",tag:"AST-100933", serial:"DLM10-7741",   sku:"SCN-DTL-M10",   loc:2,  qty:6,  min:4,  cost:980,  status:"in_stock",    cond:"good", seen:"2026-06-06 08:15"},
+    {id:26,name:"Cisco Meraki MX67",  cat:"network",tag:"AST-100451", serial:"CMX67-0099",   sku:"NET-MRK-MX67",  loc:17, qty:3,  min:2,  cost:595,  status:"reserved",    cond:"new",  seen:"2026-06-04 10:30"},
+    {id:27,name:"Fire Extinguisher 6kg",cat:"safety",tag:"AST-100648",serial:"FE6-bulk",     sku:"SFT-EXT-6K",    loc:12, qty:9,  min:8,  cost:74,   status:"in_stock",    cond:"good", seen:"2026-06-02 09:18"},
+    {id:28,name:"Crown Walkie Stacker",cat:"forklift",tag:"AST-100731",serial:"CRWS-2090",   sku:"FRK-CRN-WS",    loc:10, qty:1,  min:1,  cost:9800, status:"in_repair",   cond:"fair", seen:"2026-05-30 14:00"},
+    {id:29,name:"Apple Studio Display",cat:"monitor",tag:"AST-100341", serial:"ASD-2261",    sku:"MON-APL-SD",    loc:18, qty:4,  min:3,  cost:1599, status:"in_stock",    cond:"new",  seen:"2026-06-06 09:05"},
+    {id:30,name:"Milwaukee M18 Set",  cat:"power",   tag:"AST-100557", serial:"MM18-4412",   sku:"PWR-MIL-M18",   loc:15, qty:2,  min:3,  cost:480,  status:"checked_out", cond:"good", seen:"2026-06-05 15:55"}
+  ];
+
+  /* ---------- movement history (sampled per asset by id parity for variety) ---------- */
+  function historyFor(a){
+    var base=[
+      {t:"in",     who:"Receiving · Dock 2", when:"2026-06-06 09:12", note:"+"+Math.max(2,Math.round(a.qty*0.3))+" received (PO-"+(4400+a.id)+")"},
+      {t:"move",   who:"Rosa Klein",         when:"2026-06-05 14:30", note:"Moved to "+codePath(a.loc).slice(-1)[0]},
+      {t:"out",    who:"Field crew #"+(a.id%7+1), when:"2026-06-04 11:08", note:"−"+Math.max(1,Math.round(a.qty*0.1))+" checked out"},
+      {t:"adj",    who:"Cycle count",        when:"2026-06-02 08:00", note:"Adjusted from "+(a.qty+1)+" → "+a.qty},
+      {t:"repair", who:"Maintenance",        when:"2026-05-28 16:20", note:"Inspection passed"}
+    ];
+    return a.id%2===0 ? base : base.slice(0,4);
+  }
+
+  /* ---------- helpers ---------- */
+  var byId={}; LOCATIONS.forEach(function(l){byId[l.id]=l; l.children=[];});
+  LOCATIONS.forEach(function(l){ if(l.parent!=null) byId[l.parent].children.push(l); });
+  var roots = LOCATIONS.filter(function(l){return l.parent==null;});
+
+  function descendants(id){ // returns set of id + all descendant ids
+    var out={}, stack=[id];
+    while(stack.length){ var cur=stack.pop(); out[cur]=true; (byId[cur].children||[]).forEach(function(c){stack.push(c.id);}); }
+    return out;
+  }
+  function countAt(id){ var set=descendants(id); return ASSETS.filter(function(a){return set[a.loc];}).length; }
+  function pathOf(id){ var p=[],c=byId[id]; while(c){p.unshift(c);c=c.parent!=null?byId[c.parent]:null;} return p; }
+  function codePath(id){ return pathOf(id).map(function(n){return n.code;}); }
+
+  var STATUS = {
+    in_stock:    {name:"In stock",    color:"#16a34a"},
+    reserved:    {name:"Reserved",    color:"#7c3aed"},
+    checked_out: {name:"Checked out", color:"#2563eb"},
+    in_repair:   {name:"In repair",   color:"#d97706"},
+    retired:     {name:"Retired",     color:"#94a3b8"}
+  };
+  var COND = {new:{name:"New",color:"#16a34a"}, good:{name:"Good",color:"#0d9488"}, fair:{name:"Fair",color:"#d97706"}, poor:{name:"Poor",color:"#dc2626"}};
+
+  /* ---------- state ---------- */
+  var sel = {loc:null, status:"all", cat:"all", q:""};
+  var selectedAsset = null;
+
+  /* ---------- TREE render ---------- */
+  function renderTree(){
+    var host=document.getElementById("treeBody"); host.innerHTML="";
+    roots.forEach(function(r){ host.appendChild(treeNode(r,0)); });
+    document.getElementById("locCount").textContent = LOCATIONS.length;
+    document.getElementById("totalAssets").textContent = ASSETS.reduce(function(s,a){return s+a.qty;},0).toLocaleString();
+  }
+  function treeNode(node, depth){
+    var wrap=document.createElement("div");
+    var row=document.createElement("div");
+    row.className="tnode"+(sel.loc===node.id?" on":"");
+    var hasKids = node.children && node.children.length;
+    row.innerHTML =
+      '<span class="tn-caret '+(hasKids?"open":"leaf")+'">▶</span>'+
+      '<span class="tn-ic">'+KIND_IC[node.kind]+'</span>'+
+      '<span class="tn-name">'+node.name+'</span>'+
+      '<span class="tn-code">'+node.code+'</span>'+
+      '<span class="tn-count">'+countAt(node.id)+'</span>';
+    row.addEventListener("click", function(e){
+      if(e.target.classList.contains("tn-caret") && hasKids){
+        e.target.classList.toggle("open");
+        kids.classList.toggle("hidden");
+        return;
+      }
+      sel.loc = (sel.loc===node.id)? null : node.id;
+      renderTree(); renderAll();
+    });
+    wrap.appendChild(row);
+    var kids=null;
+    if(hasKids){
+      kids=document.createElement("div"); kids.className="tchildren";
+      node.children.forEach(function(c){ kids.appendChild(treeNode(c,depth+1)); });
+      wrap.appendChild(kids);
+    }
+    return wrap;
+  }
+
+  /* ---------- FILTER ---------- */
+  function filtered(){
+    var set = sel.loc!=null ? descendants(sel.loc) : null;
+    var q = sel.q.trim().toLowerCase();
+    return ASSETS.filter(function(a){
+      if(set && !set[a.loc]) return false;
+      if(sel.status!=="all" && a.status!==sel.status) return false;
+      if(sel.cat!=="all" && a.cat!==sel.cat) return false;
+      if(q && (a.name+" "+a.tag+" "+a.serial+" "+a.sku).toLowerCase().indexOf(q)<0) return false;
+      return true;
+    });
+  }
+  // for stats: ignore status facet (so the status tiles always show the full breakdown of the loc/cat/q scope)
+  function scopeForStats(){
+    var set = sel.loc!=null ? descendants(sel.loc) : null;
+    var q = sel.q.trim().toLowerCase();
+    return ASSETS.filter(function(a){
+      if(set && !set[a.loc]) return false;
+      if(sel.cat!=="all" && a.cat!==sel.cat) return false;
+      if(q && (a.name+" "+a.tag+" "+a.serial+" "+a.sku).toLowerCase().indexOf(q)<0) return false;
+      return true;
+    });
+  }
+
+  /* ---------- STATS (event-flow aggregate) ---------- */
+  function renderStats(){
+    var scope = scopeForStats();
+    var by={in_stock:0,reserved:0,checked_out:0,in_repair:0,retired:0};
+    var value=0, low=0;
+    scope.forEach(function(a){ by[a.status]=(by[a.status]||0)+1; value+=a.qty*a.cost; if(a.qty<a.min) low++; });
+    var tiles=[
+      {cls:"s-instock", lbl:"In stock",    val:by.in_stock,  d:"available units"},
+      {cls:"s-reserved",lbl:"Reserved",    val:by.reserved,  d:"held for orders"},
+      {cls:"s-out",     lbl:"Checked out", val:by.checked_out,d:"with field crews"},
+      {cls:"s-repair",  lbl:"In repair",   val:by.in_repair, d:"out of service"},
+      {cls:"s-value",   lbl:"Stock value", val:"$"+(value>=1000?(value/1000).toFixed(value>=100000?0:1)+"k":value), d:scope.length+" line items"},
+      {cls:"s-low",     lbl:"Below min",   val:low,          d:"need reorder"}
+    ];
+    document.getElementById("stats").innerHTML = tiles.map(function(t){
+      return '<div class="stat '+t.cls+'"><div class="lbl">'+t.lbl+'</div><div class="val">'+t.val+'</div><div class="delta">'+t.d+'</div></div>';
+    }).join("");
+    document.getElementById("alertDot").textContent = ASSETS.filter(function(a){return a.qty<a.min;}).length;
+  }
+
+  /* ---------- STATUS FACETS ---------- */
+  function renderFacets(){
+    var scope = scopeForStats();
+    var counts={all:scope.length};
+    Object.keys(STATUS).forEach(function(s){counts[s]=scope.filter(function(a){return a.status===s;}).length;});
+    var order=["all","in_stock","reserved","checked_out","in_repair"];
+    document.getElementById("statusFacets").innerHTML = order.map(function(s){
+      var label = s==="all" ? "All" : STATUS[s].name;
+      var dot = s==="all" ? "" : '<span class="dot" style="background:'+STATUS[s].color+'"></span>';
+      return '<div class="facet'+(sel.status===s?" on":"")+'" data-s="'+s+'">'+dot+label+' <span class="fc">'+(counts[s]||0)+'</span></div>';
+    }).join("");
+  }
+
+  /* ---------- CATEGORY SEGMENT ---------- */
+  function renderCatSeg(){
+    var seg=document.getElementById("catSeg");
+    var html='<button class="'+(sel.cat==="all"?"on":"")+'" data-cat="all" title="All categories">All</button>';
+    Object.keys(CATS).forEach(function(k){
+      html+='<button class="'+(sel.cat===k?"on":"")+'" data-cat="'+k+'" title="'+CATS[k].name+'">'+CATS[k].icon+'</button>';
+    });
+    seg.innerHTML=html;
+  }
+
+  /* ---------- BREADCRUMB / SCOPE ---------- */
+  function renderScope(){
+    var bc=document.getElementById("breadcrumb");
+    var name=document.getElementById("scopeName");
+    var sub=document.getElementById("scopeSub");
+    if(sel.loc==null){
+      bc.innerHTML='<b>All locations</b>';
+      name.textContent="All locations";
+    } else {
+      var p=pathOf(sel.loc);
+      bc.innerHTML = p.map(function(n,i){
+        return (i>0?'<span class="sep">/</span>':'')+'<b>'+n.name+'</b>';
+      }).join(" ");
+      name.textContent = byId[sel.loc].name+" "+KIND_IC[byId[sel.loc].kind];
+    }
+    var n=filtered().length;
+    sub.textContent = n+" asset"+(n===1?"":"s")+" shown";
+  }
+
+  /* ---------- CARD GRID ---------- */
+  function renderCards(){
+    var host=document.getElementById("cards");
+    var list=filtered();
+    if(list.length===0){
+      host.innerHTML='<div class="empty-grid"><div class="big">⊘</div><b>No assets match</b><div>Clear a filter or pick a different location.</div></div>';
+      return;
+    }
+    host.innerHTML="";
+    list.forEach(function(a){
+      var c=CATS[a.cat], low=a.qty<a.min;
+      var leaf=byId[a.loc];
+      var card=document.createElement("div");
+      card.className="acard"+(selectedAsset===a.id?" sel":"");
+      card.innerHTML=
+        '<div class="ac-stripe" style="background:'+c.color+'"></div>'+
+        '<div class="ac-thumb">'+
+          '<span class="ph">'+c.icon+'</span>'+
+          '<span class="ac-cond"><span class="cd" style="background:'+COND[a.cond].color+'"></span>'+COND[a.cond].name+'</span>'+
+          (low?'<span class="ac-low">LOW STOCK</span>':'')+
+        '</div>'+
+        '<div class="ac-body">'+
+          '<div class="ac-cat" style="color:'+c.color+'">'+c.name+'</div>'+
+          '<div class="ac-name">'+a.name+'</div>'+
+          '<div class="ac-tag">'+a.tag+'</div>'+
+          '<div class="ac-loc"><span class="pin">📍</span><span class="path">'+leaf.name+' · '+leaf.code+'</span></div>'+
+          '<div class="ac-foot">'+
+            '<div class="ac-qty'+(low?" low":"")+'">'+a.qty+' <span>/ min '+a.min+'</span></div>'+
+            '<span class="pill p-'+a.status+'">'+STATUS[a.status].name+'</span>'+
+          '</div>'+
+        '</div>';
+      card.addEventListener("click", function(){ openDetail(a.id); });
+      host.appendChild(card);
+    });
+  }
+
+  /* ---------- DETAIL DRAWER ---------- */
+  function openDetail(id){
+    selectedAsset=id; renderCards();
+    var a=ASSETS.filter(function(x){return x.id===id;})[0];
+    var c=CATS[a.cat], low=a.qty<a.min, total=a.qty*a.cost;
+    document.getElementById("dpEmpty").style.display="none";
+    var dc=document.getElementById("dpContent");
+    dc.style.display="flex";
+    var path=pathOf(a.loc);
+    var ratio=Math.min(a.qty/Math.max(a.min*2,1),1);
+    dc.innerHTML=
+      '<div class="dp-thumb" style="background:linear-gradient(135deg,'+hexA(c.color,.12)+','+hexA(c.color,.04)+')">'+
+        '<span class="big">'+c.icon+'</span>'+
+        '<button class="dp-close" id="dpClose">✕</button>'+
+        '<span class="dp-stat-badge"><span class="pill p-'+a.status+'">'+STATUS[a.status].name+'</span></span>'+
+      '</div>'+
+      '<div class="dp-body">'+
+        '<div class="dp-cat" style="color:'+c.color+'">'+c.name+'</div>'+
+        '<div class="dp-name">'+a.name+'</div>'+
+        '<div class="dp-tag">'+a.tag+'</div>'+
+
+        '<div class="dp-grid">'+
+          cell("Serial no.", a.serial, true)+
+          cell("SKU", a.sku, true)+
+          cell("Condition", COND[a.cond].name)+
+          cell("Last seen", a.seen.split(" ")[1]+" · "+a.seen.split(" ")[0].slice(5))+
+          cell("Unit cost", "$"+a.cost.toLocaleString())+
+          cell("Total value", "$"+total.toLocaleString())+
+        '</div>'+
+
+        '<div class="dp-loc">'+
+          '<div class="k">Location path</div>'+
+          '<div class="path">'+path.map(function(n,i){
+            return (i>0?'<span class="arr">→</span>':'')+'<span class="seg">'+n.name+'</span>';
+          }).join("")+'</div>'+
+        '</div>'+
+
+        '<div class="dp-meter'+(low?" low":"")+'">'+
+          '<div class="top"><span class="k">Stock level</span><span class="n'+(low?"":"")+'" style="color:'+(low?"#dc2626":"#16a34a")+'">'+a.qty+' on hand</span></div>'+
+          '<div class="bar"><i style="width:'+(ratio*100).toFixed(0)+'%"></i></div>'+
+          '<div class="min">'+(low?"⚠ Below minimum of "+a.min+" — reorder suggested":"Minimum "+a.min+" · "+(a.qty-a.min)+" above floor")+'</div>'+
+        '</div>'+
+      '</div>'+
+
+      '<div class="dp-actions">'+
+        '<button class="btn btn-primary full" data-act="checkout">Check out</button>'+
+        '<button class="btn btn-ghost" data-act="move">Move</button>'+
+        '<button class="btn btn-ghost" data-act="adjust">Adjust qty</button>'+
+      '</div>'+
+
+      '<div class="dp-history">'+
+        '<h3>Movement history</h3>'+
+        historyFor(a).map(function(h){
+          return '<div class="hist-item"><span class="hist-dot t-'+h.t+'"></span>'+
+            '<div class="hist-c"><b>'+h.note+'</b><span><em>'+h.who+'</em> · '+h.when+'</span></div></div>';
+        }).join("")+
+      '</div>';
+
+    document.getElementById("dpClose").onclick=closeDetail;
+    dc.querySelectorAll("[data-act]").forEach(function(b){
+      b.onclick=function(){
+        var act=b.dataset.act;
+        flash({checkout:"Checked out — qty −1",move:"Move-asset dialog",adjust:"Adjust-quantity dialog"}[act]);
+      };
+    });
+  }
+  function closeDetail(){
+    selectedAsset=null; renderCards();
+    document.getElementById("dpContent").style.display="none";
+    document.getElementById("dpEmpty").style.display="grid";
+  }
+  function cell(k,v,mono){ return '<div class="dp-cell"><div class="k">'+k+'</div><div class="v'+(mono?" mono":"")+'">'+v+'</div></div>'; }
+  function hexA(hex,a){
+    var n=parseInt(hex.slice(1),16),r=n>>16&255,g=n>>8&255,b=n&255;
+    return "rgba("+r+","+g+","+b+","+a+")";
+  }
+
+  /* ---------- EVENTS ---------- */
+  document.getElementById("statusFacets").addEventListener("click",function(e){
+    var f=e.target.closest(".facet"); if(!f) return;
+    sel.status=f.dataset.s; renderFacets(); renderCards(); renderScope();
+  });
+  document.getElementById("catSeg").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    sel.cat=b.dataset.cat; renderCatSeg(); renderAll();
+  });
+  document.getElementById("gridSearch").addEventListener("input",function(e){
+    sel.q=e.target.value; renderAll();
+  });
+  document.getElementById("treeSearch").addEventListener("input",function(e){
+    var q=e.target.value.trim().toLowerCase();
+    document.querySelectorAll(".tnode").forEach(function(n){
+      var txt=n.querySelector(".tn-name").textContent.toLowerCase()+" "+n.querySelector(".tn-code").textContent.toLowerCase();
+      n.style.display = (!q||txt.indexOf(q)>-1) ? "" : "none";
+    });
+  });
+  document.getElementById("addAsset").onclick=function(){flash("New-asset form (ais_assets create)");};
+
+  function renderAll(){ renderStats(); renderFacets(); renderCatSeg(); renderScope(); renderCards(); }
+
+  /* ---------- toast ---------- */
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2000); }
+
+  /* ---------- init ---------- */
+  renderTree(); renderAll();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Asset Inventory: a location-tree facet, a grid of asset cards, and statistics. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/22-asset-inventory.html
+</script>
+</body>
+</html>

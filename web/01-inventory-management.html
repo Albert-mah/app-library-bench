@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stockpile — Inventory Analytics</title>
+<style>
+  :root{
+    --accent:#1677ff;
+    --accent-soft:#e6f0ff;
+    --accent-deep:#0958d9;
+    --text:rgba(0,0,0,.88);
+    --text-2:rgba(0,0,0,.65);
+    --text-3:rgba(0,0,0,.45);
+    --border:#d9d9d9;
+    --split:rgba(5,5,5,.06);
+    --bg:#f5f5f5;
+    --card:#fff;
+    --radius:8px;
+    --shadow:0 1px 2px rgba(0,0,0,.03),0 1px 6px -1px rgba(0,0,0,.04),0 2px 4px rgba(0,0,0,.03);
+    --green:#52c41a; --green-bg:#f6ffed; --green-bd:#b7eb8f;
+    --red:#ff4d4f;   --red-bg:#fff2f0;  --red-bd:#ffccc7;
+    --gold:#faad14;  --gold-bg:#fffbe6; --gold-bd:#ffe58f;
+    --purple:#722ed1; --cyan:#13c2c2; --magenta:#eb2f96;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,'Segoe UI',Roboto,'PingFang SC',system-ui,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:14px;
+    line-height:1.5715;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- TOP NAV ---------- */
+  .topbar{
+    height:60px;
+    background:var(--card);
+    border-bottom:1px solid var(--split);
+    display:flex;
+    align-items:center;
+    padding:0 24px;
+    position:sticky;top:0;z-index:50;
+    box-shadow:0 1px 0 rgba(0,0,0,.02);
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.3px;}
+  .brand .logo{
+    width:30px;height:30px;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),#69b1ff);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:800;font-size:15px;
+    box-shadow:0 2px 6px rgba(22,119,255,.35);
+  }
+  .brand small{color:var(--text-3);font-weight:500;font-size:11px;display:block;margin-top:-2px;}
+  .nav{display:flex;gap:4px;margin:0 auto;}
+  .nav a{
+    text-decoration:none;color:var(--text-2);
+    padding:8px 16px;border-radius:6px;font-weight:500;
+    position:relative;transition:.15s;
+  }
+  .nav a:hover{color:var(--text);background:rgba(0,0,0,.03);}
+  .nav a.active{color:var(--accent);background:var(--accent-soft);}
+  .nav a.active::after{
+    content:"";position:absolute;left:16px;right:16px;bottom:-19px;height:2px;background:var(--accent);border-radius:2px;
+  }
+  .topright{display:flex;align-items:center;gap:14px;}
+  .iconbtn{
+    width:34px;height:34px;border-radius:7px;border:1px solid var(--split);
+    background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    color:var(--text-2);position:relative;transition:.15s;font-size:16px;
+  }
+  .iconbtn:hover{border-color:var(--accent);color:var(--accent);}
+  .iconbtn .dot{position:absolute;top:6px;right:7px;width:7px;height:7px;background:var(--red);border-radius:50%;border:1.5px solid #fff;}
+  .user{display:flex;align-items:center;gap:9px;cursor:pointer;padding:3px 8px 3px 4px;border-radius:20px;transition:.15s;}
+  .user:hover{background:rgba(0,0,0,.03);}
+  .avatar{
+    width:32px;height:32px;border-radius:50%;
+    background:linear-gradient(135deg,#722ed1,#eb2f96);
+    color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:13px;
+  }
+  .user .meta{line-height:1.2;}
+  .user .meta b{font-size:13px;font-weight:600;}
+  .user .meta span{font-size:11px;color:var(--text-3);display:block;}
+
+  /* ---------- PAGE ---------- */
+  .page{max-width:1320px;margin:0 auto;padding:24px;}
+  .pagehead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:14px;}
+  .pagehead h1{font-size:24px;font-weight:700;margin:0;letter-spacing:-.5px;}
+  .pagehead p{margin:4px 0 0;color:var(--text-3);font-size:13px;}
+  .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .seg{display:inline-flex;background:#fff;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+  .seg button{
+    border:0;background:transparent;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--text-2);
+    border-right:1px solid var(--split);transition:.12s;font-family:inherit;
+  }
+  .seg button:last-child{border-right:0;}
+  .seg button.on{background:var(--accent);color:#fff;}
+  .seg button:not(.on):hover{background:var(--accent-soft);color:var(--accent);}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;
+    padding:7px 15px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text);
+    font-family:inherit;transition:.15s;
+  }
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 2px 6px rgba(22,119,255,.25);}
+  .btn.primary:hover{background:var(--accent-deep);color:#fff;}
+
+  /* ---------- GRID ---------- */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--split);}
+  .card-pad{padding:18px 20px;}
+  .card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;gap:10px;}
+  .card-h h3{margin:0;font-size:15px;font-weight:600;}
+  .card-h .sub{font-size:12px;color:var(--text-3);}
+  .tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:1px 8px;border-radius:10px;font-weight:500;line-height:18px;}
+  .tag.up{color:var(--green);background:var(--green-bg);border:1px solid var(--green-bd);}
+  .tag.down{color:var(--red);background:var(--red-bg);border:1px solid var(--red-bd);}
+  .tag.warn{color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-bd);}
+  .tag.info{color:var(--accent);background:var(--accent-soft);border:1px solid #91caff;}
+
+  .c12{grid-column:span 12;} .c8{grid-column:span 8;} .c7{grid-column:span 7;}
+  .c6{grid-column:span 6;} .c5{grid-column:span 5;} .c4{grid-column:span 4;} .c3{grid-column:span 3;}
+
+  /* ---------- STAT STRIP ---------- */
+  .stat{position:relative;overflow:hidden;}
+  .stat .lbl{font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:6px;}
+  .stat .lbl .ic{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .stat .val{font-size:26px;font-weight:700;letter-spacing:-.5px;margin-top:10px;}
+  .stat .val small{font-size:13px;color:var(--text-3);font-weight:500;}
+  .stat .foot{margin-top:6px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-3);}
+  .spark{position:absolute;right:14px;bottom:14px;opacity:.85;}
+
+  /* ---------- AREA CHART ---------- */
+  .chartwrap{position:relative;width:100%;}
+  .chart-legend{display:flex;gap:18px;align-items:center;}
+  .chart-legend .li{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);cursor:pointer;user-select:none;}
+  .chart-legend .sw{width:10px;height:10px;border-radius:3px;}
+  .chart-legend .li.off{opacity:.35;}
+  svg{display:block;overflow:visible;}
+  .gridline{stroke:var(--split);stroke-width:1;}
+  .axislbl{fill:var(--text-3);font-size:11px;}
+  .tipdot{transition:.1s;}
+  .tooltip{
+    position:absolute;pointer-events:none;background:rgba(0,0,0,.85);color:#fff;
+    padding:8px 11px;border-radius:6px;font-size:12px;transform:translate(-50%,-115%);
+    white-space:nowrap;opacity:0;transition:opacity .12s;z-index:5;box-shadow:0 4px 12px rgba(0,0,0,.2);
+  }
+  .tooltip b{font-size:13px;}
+  .tooltip .row{display:flex;align-items:center;gap:6px;margin-top:3px;color:rgba(255,255,255,.85);}
+  .tooltip .row .sw{width:8px;height:8px;border-radius:2px;}
+
+  /* ---------- DONUT ---------- */
+  .donut-wrap{display:flex;align-items:center;gap:20px;}
+  .donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+  .donut-center b{font-size:22px;font-weight:700;}
+  .donut-center span{font-size:11px;color:var(--text-3);}
+  .cat-list{flex:1;display:flex;flex-direction:column;gap:11px;min-width:0;}
+  .cat-row{display:grid;grid-template-columns:10px 1fr auto;gap:9px;align-items:center;font-size:13px;cursor:pointer;}
+  .cat-row .nm{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cat-row:hover .nm{color:var(--text);}
+  .cat-row .vv{font-weight:600;font-variant-numeric:tabular-nums;}
+  .cat-row .pct{color:var(--text-3);font-size:12px;margin-left:6px;}
+  .cat-bar{grid-column:2/4;height:5px;border-radius:3px;background:var(--split);margin-top:2px;overflow:hidden;}
+  .cat-bar i{display:block;height:100%;border-radius:3px;}
+
+  /* ---------- REORDER LIST ---------- */
+  .alert-list{display:flex;flex-direction:column;}
+  .alert-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--split);}
+  .alert-item:last-child{border-bottom:0;padding-bottom:2px;}
+  .alert-item .sku{
+    width:42px;height:42px;border-radius:8px;background:#fafafa;border:1px solid var(--split);
+    display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+  }
+  .alert-item .info{flex:1;min-width:0;}
+  .alert-item .info b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .alert-item .info span{font-size:12px;color:var(--text-3);}
+  .lvl{margin-top:5px;height:5px;border-radius:3px;background:#f0f0f0;overflow:hidden;}
+  .lvl i{display:block;height:100%;border-radius:3px;}
+  .alert-item .qty{text-align:right;flex-shrink:0;}
+  .alert-item .qty b{font-size:14px;display:block;}
+  .alert-item .qty span{font-size:11px;color:var(--text-3);}
+  .mini-btn{border:1px solid var(--accent);color:var(--accent);background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;transition:.15s;flex-shrink:0;}
+  .mini-btn:hover{background:var(--accent);color:#fff;}
+  .mini-btn:disabled{cursor:default;}
+
+  /* ---------- TABLE ---------- */
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;font-size:12px;color:var(--text-3);font-weight:500;
+    padding:8px 12px;border-bottom:1px solid var(--split);white-space:nowrap;
+  }
+  thead th.num,tbody td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  tbody td{padding:11px 12px;border-bottom:1px solid var(--split);font-size:13px;}
+  tbody tr:last-child td{border-bottom:0;}
+  tbody tr{transition:background .12s;}
+  tbody tr:hover{background:#fafcff;}
+  .prod{display:flex;align-items:center;gap:10px;}
+  .prod .ic{width:30px;height:30px;border-radius:7px;background:#fafafa;border:1px solid var(--split);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+  .prod b{font-size:13px;display:block;}
+  .prod span{font-size:11px;color:var(--text-3);}
+  .bar-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end;}
+  .bar-cell .track{width:64px;height:6px;background:var(--split);border-radius:3px;overflow:hidden;}
+  .bar-cell .track i{display:block;height:100%;background:var(--accent);border-radius:3px;}
+  .dotmark{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+  .footnote{padding:11px 20px;border-top:1px solid var(--split);font-size:12px;color:var(--text-3);display:flex;justify-content:space-between;align-items:center;}
+  .link{color:var(--accent);cursor:pointer;text-decoration:none;}
+  .link:hover{text-decoration:underline;}
+
+  /* supplier widget */
+  .supp{display:flex;flex-direction:column;gap:14px;}
+  .supp-row{display:grid;grid-template-columns:1fr auto;gap:6px;font-size:13px;}
+  .supp-row .top{display:flex;justify-content:space-between;align-items:center;grid-column:1/3;}
+  .supp-row .nm{font-weight:500;}
+  .supp-row .track{grid-column:1/3;height:7px;background:var(--split);border-radius:4px;overflow:hidden;}
+  .supp-row .track i{display:block;height:100%;border-radius:4px;}
+
+  @media(max-width:1080px){
+    .c8,.c7,.c6,.c5{grid-column:span 12;}
+    .c4,.c3{grid-column:span 6;}
+    .nav{display:none;}
+  }
+  @media(max-width:620px){.c4,.c3{grid-column:span 12;}}
+</style>
+</head>
+<body>
+
+<!-- ===== TOP NAV ===== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">S</div>
+    <div>Stockpile<small>Inventory Analytics</small></div>
+  </div>
+  <nav class="nav">
+    <a href="#" class="active">Overview</a>
+    <a href="#">Products</a>
+    <a href="#">Suppliers</a>
+    <a href="#">Purchase Orders</a>
+    <a href="#">Movements</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="topright">
+    <button class="iconbtn" title="Search">⌕</button>
+    <button class="iconbtn" title="Notifications"><span class="dot"></span>◔</button>
+    <div class="user">
+      <div class="avatar">AD</div>
+      <div class="meta"><b>Ava Doyle</b><span>Inventory Lead</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <div class="pagehead">
+    <div>
+      <h1>Inventory Overview</h1>
+      <p>Central Warehouse · DAL-01 &nbsp;·&nbsp; Last synced 4 minutes ago</p>
+    </div>
+    <div class="controls">
+      <div class="seg" id="periodSeg">
+        <button data-p="7">7D</button>
+        <button data-p="30" class="on">30D</button>
+        <button data-p="90">90D</button>
+        <button data-p="365">12M</button>
+      </div>
+      <button class="btn">Export</button>
+      <button class="btn primary">+ New Purchase Order</button>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ===== STAT STRIP ===== -->
+    <div class="card c3 card-pad stat">
+      <div class="lbl"><span class="ic" style="background:var(--accent-soft);color:var(--accent)">$</span> Stock Value</div>
+      <div class="val" id="kpiValue">$2.84<small>M</small></div>
+      <div class="foot"><span class="tag up">▲ 6.2%</span> vs prev. period</div>
+      <svg class="spark" width="74" height="30" viewBox="0 0 74 30">
+        <polyline fill="none" stroke="#1677ff" stroke-width="2" points="0,22 12,18 24,20 36,12 48,14 60,6 74,8"/>
+      </svg>
+    </div>
+    <div class="card c3 card-pad stat">
+      <div class="lbl"><span class="ic" style="background:#f9f0ff;color:#722ed1">⛁</span> Total SKUs</div>
+      <div class="val">1,486</div>
+      <div class="foot"><span class="tag up">▲ 24</span> new this period</div>
+      <svg class="spark" width="74" height="30" viewBox="0 0 74 30">
+        <polyline fill="none" stroke="#722ed1" stroke-width="2" points="0,20 12,21 24,16 36,17 48,11 60,12 74,7"/>
+      </svg>
+    </div>
+    <div class="card c3 card-pad stat">
+      <div class="lbl"><span class="ic" style="background:var(--gold-bg);color:var(--gold)">⚑</span> Low Stock</div>
+      <div class="val" style="color:var(--gold)">38</div>
+      <div class="foot"><span class="tag down">▲ 9</span> need reorder</div>
+      <svg class="spark" width="74" height="30" viewBox="0 0 74 30">
+        <polyline fill="none" stroke="#faad14" stroke-width="2" points="0,14 12,16 24,11 36,15 48,9 60,12 74,5"/>
+      </svg>
+    </div>
+    <div class="card c3 card-pad stat">
+      <div class="lbl"><span class="ic" style="background:#e6fffb;color:#13c2c2">⟳</span> Turnover Rate</div>
+      <div class="val">4.7<small>×</small></div>
+      <div class="foot"><span class="tag up">▲ 0.4×</span> annualized</div>
+      <svg class="spark" width="74" height="30" viewBox="0 0 74 30">
+        <polyline fill="none" stroke="#13c2c2" stroke-width="2" points="0,18 12,15 24,17 36,11 48,13 60,8 74,9"/>
+      </svg>
+    </div>
+
+    <!-- ===== BIG AREA CHART ===== -->
+    <div class="card c8 card-pad">
+      <div class="card-h" style="margin-bottom:14px">
+        <div>
+          <h3>Stock Value Trend</h3>
+          <div class="sub">Inventory valuation vs. units on hand</div>
+        </div>
+        <div class="chart-legend" id="legend">
+          <div class="li" data-s="value"><span class="sw" style="background:#1677ff"></span> Stock value</div>
+          <div class="li" data-s="units"><span class="sw" style="background:#13c2c2"></span> Units on hand</div>
+        </div>
+      </div>
+      <div class="chartwrap" id="chartWrap">
+        <svg id="areaChart" width="100%" height="280" viewBox="0 0 860 280" preserveAspectRatio="none"></svg>
+        <div class="tooltip" id="tip"></div>
+      </div>
+    </div>
+
+    <!-- ===== DONUT CATEGORY ===== -->
+    <div class="card c4 card-pad">
+      <div class="card-h" style="margin-bottom:16px">
+        <div><h3>Value by Category</h3><div class="sub">Share of $2.84M</div></div>
+      </div>
+      <div class="donut-wrap">
+        <div style="position:relative;width:130px;height:130px;flex-shrink:0">
+          <svg width="130" height="130" viewBox="0 0 42 42" id="donut"></svg>
+          <div class="donut-center"><b>6</b><span>categories</span></div>
+        </div>
+        <div class="cat-list" id="catList"></div>
+      </div>
+    </div>
+
+    <!-- ===== LOW STOCK / REORDER ALERTS ===== -->
+    <div class="card c5 card-pad">
+      <div class="card-h" style="margin-bottom:8px">
+        <div><h3>Reorder Alerts</h3><div class="sub">Below safety threshold</div></div>
+        <span class="tag warn">⚑ 38 items</span>
+      </div>
+      <div class="alert-list" id="alertList"></div>
+      <div style="margin-top:14px;text-align:center"><a class="link" href="#">View all 38 alerts →</a></div>
+    </div>
+
+    <!-- ===== TOP MOVERS TABLE ===== -->
+    <div class="card c7">
+      <div class="card-pad" style="padding-bottom:6px">
+        <div class="card-h">
+          <div><h3>Top Movers</h3><div class="sub">By units moved this period</div></div>
+          <div class="seg" id="moverSeg">
+            <button data-m="out" class="on">Outbound</button>
+            <button data-m="in">Inbound</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:0 8px">
+        <table id="moverTable">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Status</th>
+              <th class="num">On Hand</th>
+              <th class="num">Moved</th>
+              <th class="num" style="width:130px">Velocity</th>
+            </tr>
+          </thead>
+          <tbody id="moverBody"></tbody>
+        </table>
+      </div>
+      <div class="footnote">
+        <span>Showing top 6 of 1,486 products</span>
+        <a class="link" href="#">Open full report →</a>
+      </div>
+    </div>
+
+    <!-- ===== SUPPLIER PERFORMANCE ===== -->
+    <div class="card c5 card-pad">
+      <div class="card-h" style="margin-bottom:16px">
+        <div><h3>Supplier On-Time Rate</h3><div class="sub">Fulfillment performance · last 30 days</div></div>
+      </div>
+      <div class="supp" id="suppList"></div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+/* ============ MOCK DATA ============ */
+const SERIES = {
+  7:  {labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+       value:[2.61,2.66,2.62,2.71,2.74,2.79,2.84],
+       units:[41.2,41.0,40.4,41.6,42.1,42.9,43.4]},
+  30: {labels:['W1','W5','W9','W13','W17','W21','W25','W29'],
+       value:[2.55,2.49,2.58,2.63,2.60,2.71,2.78,2.84],
+       units:[39.8,38.9,40.1,41.0,40.4,42.0,42.6,43.4]},
+  90: {labels:['Mar','','Apr','','May','','Jun',''],
+       value:[2.31,2.40,2.44,2.52,2.58,2.66,2.74,2.84],
+       units:[37.1,38.0,38.4,39.6,40.2,41.3,42.4,43.4]},
+  365:{labels:['Jul','Sep','Nov','Jan','Mar','May','Jun',''],
+       value:[1.92,2.05,2.21,2.34,2.49,2.66,2.75,2.84],
+       units:[32.4,34.1,35.9,37.2,39.0,41.0,42.2,43.4]},
+};
+const KPI = {7:'$2.84',30:'$2.84',90:'$2.84',365:'$2.84'};
+
+const CATS = [
+  {nm:'Electronics', v:0.97, c:'#1677ff'},
+  {nm:'Components',  v:0.61, c:'#13c2c2'},
+  {nm:'Accessories', v:0.44, c:'#722ed1'},
+  {nm:'Packaging',   v:0.36, c:'#faad14'},
+  {nm:'Tools',       v:0.28, c:'#eb2f96'},
+  {nm:'Consumables', v:0.18, c:'#52c41a'},
+];
+
+const ALERTS = [
+  {ic:'🔌',nm:'USB-C 100W Cable',  sku:'SKU-EL-2291', on:14, min:60, sup:'Anker Direct',   c:'#ff4d4f'},
+  {ic:'🔋',nm:'18650 Li-ion Cell', sku:'SKU-CM-0843', on:48, min:150,sup:'Voltaic Co.',    c:'#faad14'},
+  {ic:'🖱️',nm:'Wireless Mouse M3', sku:'SKU-AC-1180', on:22, min:80, sup:'Logi Wholesale', c:'#ff4d4f'},
+  {ic:'📦',nm:'Shipping Box L',     sku:'SKU-PK-0017', on:90, min:200,sup:'BoxWorks',       c:'#faad14'},
+  {ic:'🔧',nm:'Torque Driver T15',  sku:'SKU-TL-3302', on:6,  min:25, sup:'IronGrip Mfg',   c:'#ff4d4f'},
+];
+
+const MOVERS = {
+  out:[
+    {ic:'🎧',nm:'ANC Headphones X2', sku:'SKU-EL-1042',st:'In stock',sc:'#52c41a',on:312,mv:1840,vel:.94},
+    {ic:'🔌',nm:'USB-C 100W Cable',  sku:'SKU-EL-2291',st:'Low',     sc:'#faad14',on:14, mv:1610,vel:.83},
+    {ic:'⌨️',nm:'Mech Keyboard K8',  sku:'SKU-AC-0773',st:'In stock',sc:'#52c41a',on:188,mv:1290,vel:.71},
+    {ic:'🖱️',nm:'Wireless Mouse M3', sku:'SKU-AC-1180',st:'Low',     sc:'#faad14',on:22, mv:1105,vel:.62},
+    {ic:'📷',nm:'Webcam 4K Pro',     sku:'SKU-EL-0560',st:'In stock',sc:'#52c41a',on:240,mv:940, vel:.54},
+    {ic:'🔋',nm:'Power Bank 20K',    sku:'SKU-EL-0991',st:'In stock',sc:'#52c41a',on:410,mv:870, vel:.49},
+  ],
+  in:[
+    {ic:'📦',nm:'Shipping Box L',    sku:'SKU-PK-0017',st:'Reorder', sc:'#1677ff',on:90, mv:2400,vel:.96},
+    {ic:'🔋',nm:'18650 Li-ion Cell', sku:'SKU-CM-0843',st:'Reorder', sc:'#1677ff',on:48, mv:1800,vel:.78},
+    {ic:'🎧',nm:'ANC Headphones X2', sku:'SKU-EL-1042',st:'Received',sc:'#52c41a',on:312,mv:1500,vel:.66},
+    {ic:'🔧',nm:'Torque Driver T15', sku:'SKU-TL-3302',st:'Reorder', sc:'#1677ff',on:6,  mv:900, vel:.42},
+    {ic:'⌨️',nm:'Mech Keyboard K8',  sku:'SKU-AC-0773',st:'Received',sc:'#52c41a',on:188,mv:760, vel:.36},
+    {ic:'📷',nm:'Webcam 4K Pro',     sku:'SKU-EL-0560',st:'Received',sc:'#52c41a',on:240,mv:610, vel:.29},
+  ]
+};
+
+const SUPPLIERS = [
+  {nm:'Anker Direct',   rate:97, orders:142, c:'#52c41a'},
+  {nm:'Voltaic Co.',    rate:91, orders:88,  c:'#52c41a'},
+  {nm:'Logi Wholesale', rate:84, orders:120, c:'#faad14'},
+  {nm:'BoxWorks',       rate:78, orders:64,  c:'#faad14'},
+  {nm:'IronGrip Mfg',   rate:69, orders:37,  c:'#ff4d4f'},
+];
+
+/* ============ AREA CHART ============ */
+const W=860,H=280,PADL=8,PADR=8,PADT=18,PADB=28;
+const PW=W-PADL-PADR, PH=H-PADT-PADB;
+const visible={value:true,units:true};
+let curPeriod=30;
+
+function buildChart(p){
+  curPeriod=p;
+  const d=SERIES[p];
+  const svg=document.getElementById('areaChart');
+  const vMax=Math.max(...d.value)*1.08, vMin=Math.min(...d.value)*0.92;
+  const uMax=Math.max(...d.units)*1.08, uMin=Math.min(...d.units)*0.90;
+  const n=d.labels.length;
+  const X=i=> PADL + (PW*(i/(n-1)));
+  const Yv=v=> PADT + PH*(1-(v-vMin)/(vMax-vMin));
+  const Yu=v=> PADT + PH*(1-(v-uMin)/(uMax-uMin));
+
+  let h=`<defs><linearGradient id="gval" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1677ff" stop-opacity=".26"/>
+      <stop offset="100%" stop-color="#1677ff" stop-opacity="0"/>
+    </linearGradient></defs>`;
+  for(let g=0;g<=4;g++){
+    const y=PADT+PH*g/4;
+    h+=`<line class="gridline" x1="${PADL}" x2="${W-PADR}" y1="${y}" y2="${y}"/>`;
+  }
+  d.labels.forEach((lb,i)=>{ if(lb.trim())h+=`<text class="axislbl" x="${X(i)}" y="${H-8}" text-anchor="middle">${lb}</text>`; });
+
+  if(visible.value){
+    let line=`M ${X(0)} ${Yv(d.value[0])}`;
+    d.value.forEach((v,i)=>{ if(i>0)line+=` L ${X(i)} ${Yv(v)}`; });
+    let area=line+` L ${X(n-1)} ${PADT+PH} L ${X(0)} ${PADT+PH} Z`;
+    h+=`<path d="${area}" fill="url(#gval)"/>`;
+    h+=`<path d="${line}" fill="none" stroke="#1677ff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    d.value.forEach((v,i)=>{ h+=`<circle class="tipdot" cx="${X(i)}" cy="${Yv(v)}" r="3.5" fill="#fff" stroke="#1677ff" stroke-width="2"/>`; });
+  }
+  if(visible.units){
+    let lp=`M ${X(0)} ${Yu(d.units[0])}`;
+    d.units.forEach((v,i)=>{ if(i>0)lp+=` L ${X(i)} ${Yu(v)}`; });
+    h+=`<path d="${lp}" fill="none" stroke="#13c2c2" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>`;
+    d.units.forEach((v,i)=>{ h+=`<circle class="tipdot" cx="${X(i)}" cy="${Yu(v)}" r="3" fill="#13c2c2"/>`; });
+  }
+  d.labels.forEach((lb,i)=>{
+    const x0= i===0?PADL:(X(i-1)+X(i))/2;
+    const x1= i===n-1?W-PADR:(X(i)+X(i+1))/2;
+    h+=`<rect class="hovercol" data-i="${i}" x="${x0}" y="${PADT}" width="${x1-x0}" height="${PH}" fill="transparent"/>`;
+  });
+  svg.innerHTML=h;
+  wireTip(d,X,Yv);
+}
+
+function wireTip(d,X,Yv){
+  const tip=document.getElementById('tip');
+  const svg=document.getElementById('areaChart');
+  svg.querySelectorAll('.hovercol').forEach(col=>{
+    col.addEventListener('mousemove',()=>{
+      const i=+col.dataset.i;
+      const rect=svg.getBoundingClientRect();
+      const px=(X(i)/W)*rect.width;
+      const py=(Yv(d.value[i])/H)*rect.height;
+      tip.style.left=px+'px'; tip.style.top=py+'px'; tip.style.opacity=1;
+      tip.innerHTML=`<b>${(d.labels[i]||('Period '+(i+1))).trim()||('Period '+(i+1))}</b>
+        <div class="row"><span class="sw" style="background:#1677ff"></span>Value &nbsp;<b>$${d.value[i].toFixed(2)}M</b></div>
+        <div class="row"><span class="sw" style="background:#13c2c2"></span>Units &nbsp;<b>${d.units[i].toFixed(1)}k</b></div>`;
+    });
+    col.addEventListener('mouseleave',()=>{tip.style.opacity=0;});
+  });
+}
+
+document.getElementById('legend').querySelectorAll('.li').forEach(li=>{
+  li.addEventListener('click',()=>{
+    const s=li.dataset.s;
+    if(visible[s] && Object.values(visible).filter(Boolean).length===1) return;
+    visible[s]=!visible[s];
+    li.classList.toggle('off',!visible[s]);
+    buildChart(curPeriod);
+  });
+});
+
+document.getElementById('periodSeg').querySelectorAll('button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#periodSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    buildChart(+b.dataset.p);
+    document.getElementById('kpiValue').innerHTML=KPI[b.dataset.p]+'<small>M</small>';
+  });
+});
+
+/* ============ DONUT ============ */
+function buildDonut(){
+  const total=CATS.reduce((s,c)=>s+c.v,0);
+  const svg=document.getElementById('donut');
+  const R=15.9155, C=2*Math.PI*R;
+  let off=0,h='';
+  CATS.forEach(c=>{
+    const len=(c.v/total)*C;
+    h+=`<circle r="${R}" cx="21" cy="21" fill="transparent" stroke="${c.c}" stroke-width="6"
+         stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}"
+         stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 21 21)"/>`;
+    off+=len;
+  });
+  svg.innerHTML=h;
+  document.getElementById('catList').innerHTML=CATS.map(c=>{
+    const pct=Math.round(c.v/total*100);
+    return `<div class="cat-row">
+      <span style="width:10px;height:10px;border-radius:3px;background:${c.c}"></span>
+      <span class="nm">${c.nm}<span class="pct">${pct}%</span></span>
+      <span class="vv">$${c.v.toFixed(2)}M</span>
+      <div class="cat-bar"><i style="width:${pct}%;background:${c.c}"></i></div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ REORDER ALERTS ============ */
+function buildAlerts(){
+  document.getElementById('alertList').innerHTML=ALERTS.map(a=>{
+    const pct=Math.min(100,Math.round(a.on/a.min*100));
+    return `<div class="alert-item">
+      <div class="sku">${a.ic}</div>
+      <div class="info">
+        <b>${a.nm}</b>
+        <span>${a.sku} · ${a.sup}</span>
+        <div class="lvl"><i style="width:${pct}%;background:${a.c}"></i></div>
+      </div>
+      <div class="qty"><b style="color:${a.c}">${a.on}</b><span>min ${a.min}</span></div>
+      <button class="mini-btn">Reorder</button>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.mini-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      b.textContent='Ordered ✓'; b.style.background='#52c41a'; b.style.borderColor='#52c41a'; b.style.color='#fff'; b.disabled=true;
+    });
+  });
+}
+
+/* ============ MOVERS TABLE ============ */
+function buildMovers(mode){
+  const rows=MOVERS[mode];
+  const max=Math.max(...rows.map(r=>r.mv));
+  document.getElementById('moverBody').innerHTML=rows.map(r=>`
+    <tr>
+      <td><div class="prod"><div class="ic">${r.ic}</div><div><b>${r.nm}</b><span>${r.sku}</span></div></div></td>
+      <td><span class="dotmark" style="background:${r.sc}"></span>${r.st}</td>
+      <td class="num">${r.on.toLocaleString()}</td>
+      <td class="num"><b>${r.mv.toLocaleString()}</b></td>
+      <td class="num"><div class="bar-cell"><div class="track"><i style="width:${Math.round(r.mv/max*100)}%"></i></div><span style="width:34px;display:inline-block;text-align:right">${Math.round(r.vel*100)}%</span></div></td>
+    </tr>`).join('');
+}
+document.getElementById('moverSeg').querySelectorAll('button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#moverSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); buildMovers(b.dataset.m);
+  });
+});
+
+/* ============ SUPPLIERS ============ */
+function buildSuppliers(){
+  document.getElementById('suppList').innerHTML=SUPPLIERS.map(s=>`
+    <div class="supp-row">
+      <div class="top">
+        <span class="nm">${s.nm} <span style="color:var(--text-3);font-weight:400;font-size:12px">· ${s.orders} orders</span></span>
+        <span style="font-weight:700;color:${s.c}">${s.rate}%</span>
+      </div>
+      <div class="track"><i style="width:${s.rate}%;background:${s.c}"></i></div>
+    </div>`).join('');
+}
+
+/* ============ INIT ============ */
+buildChart(30);
+buildDonut();
+buildAlerts();
+buildMovers('out');
+buildSuppliers();
+</script>
+<!-- repro-foot:begin -->
+<details class="repro-foot">
+  <summary class="repro-foot__sum">📋 Reproduce in NocoBase</summary>
+  <div class="repro-foot__body">
+    <p class="repro-foot__hint">Send the prompt below (with the prototype link) to a Claude Code that has the <code>nocobase-prototype-repro</code> skill installed to reproduce this module in NocoBase.</p>
+    <button class="repro-foot__btn" type="button" data-prompt="Build an inventory management system in NocoBase: an items ledger + stock-in/out records, with a home dashboard (low-stock alerts, in/out trend).
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/01-inventory-management.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.">Copy</button>
+    <pre class="repro-foot__pre">Build an inventory management system in NocoBase: an items ledger + stock-in/out records, with a home dashboard (low-stock alerts, in/out trend).
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/01-inventory-management.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.</pre>
+  </div>
+</details>
+<style>
+.repro-foot{margin:40px 16px;padding:0;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#334155}
+.repro-foot__sum{cursor:pointer;list-style:none;padding:14px 18px;font-weight:600;color:#0f172a;user-select:none}
+.repro-foot__sum::-webkit-details-marker{display:none}
+.repro-foot__sum::before{content:"▸ ";color:#94a3b8}
+.repro-foot[open] .repro-foot__sum::before{content:"▾ "}
+.repro-foot__body{padding:0 18px 18px}
+.repro-foot__hint{margin:0 0 10px;color:#64748b;font-size:13px}
+.repro-foot__btn{appearance:none;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;margin-bottom:10px}
+.repro-foot__btn:hover{background:#f1f5f9}
+.repro-foot__btn.ok{border-color:#16a34a;color:#16a34a}
+.repro-foot__pre{margin:0;padding:12px 14px;background:#0f172a;color:#e2e8f0;border-radius:8px;white-space:pre-wrap;word-break:break-word;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+<script>
+(function(){
+  var b=document.currentScript.parentNode.querySelector('.repro-foot__btn');
+  if(!b)return;
+  b.addEventListener('click',function(){
+    var t=b.getAttribute('data-prompt');
+    function done(){var o=b.textContent;b.textContent='Copied \u2713';b.classList.add('ok');setTimeout(function(){b.textContent=o;b.classList.remove('ok')},1500)}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(done,fallback)
+    }else{fallback()}
+    function fallback(){
+      var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.focus();ta.select();
+      try{document.execCommand('copy')}catch(e){}
+      document.body.removeChild(ta);done()
+    }
+  })
+})();
+</script>
+<!-- repro-foot:end -->
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Inventory Management: inbound/outbound linkage, status transitions, and summary charts. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/01-inventory-management.html
+</script>
+</body>
+</html>

@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tracewave — Delivery Tracking Board</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Delivery Tracking (Tracewave)",
+  "prefix": "dlv_",
+  "collections": {
+    "dlv_carriers": {"titleField":"name","fields":{"name":"input","code":"input","service_level":"select:standard|express|same_day|freight","contact_phone":"input","is_active":"boolean"}},
+    "dlv_drivers": {"titleField":"name","fields":{"name":"input","phone":"input","vehicle_plate":"input","zone":"input"},"relations":{"carrier":"m2o dlv_carriers (fk carrier_id)"}},
+    "dlv_shipments": {"titleField":"tracking_no","fields":{"tracking_no":"input","recipient":"input","destination_city":"input","destination_addr":"textarea","weight_kg":"number","cod_amount":"number","service_level":"select:standard|express|same_day|freight","status":"select:pending|picked_up|in_transit|out_for_delivery|delivered|exception","eta":"datetime","shipped_at":"datetime","delivered_at":"datetime","lat":"number","lng":"number","attempts":"integer"},"relations":{"carrier":"m2o dlv_carriers (fk carrier_id)","driver":"m2o dlv_drivers (fk driver_id)"}},
+    "dlv_events": {"titleField":"note","fields":{"note":"input","event_type":"select:scan|depart|arrive|attempt|delivered|exception","location":"input","occurred_at":"datetime"},"relations":{"shipment":"m2o dlv_shipments (fk shipment_id)"}}
+  },
+  "page": {
+    "name": "Delivery Board",
+    "layout": "top KPI strip (native Chart/number widgets) | center status-pipeline = Kanban over dlv_shipments grouped by status with a JS map-style tracking card | right rail = carrier-performance native Chart + native List of latest dlv_events",
+    "regions": [
+      {"id":"kpi","block":"row of native number/Chart widgets over dlv_shipments","intent":"fleet-wide delivery KPIs","content":["in transit count","out for delivery count","delivered today count","exceptions count","on-time %"]},
+      {"id":"pipeline","block":"Kanban (dlv_shipments) grouped by status — columns pending/picked_up/in_transit/out_for_delivery/delivered/exception","intent":"status pipeline board","card":"one JS card field (map-style tracking card): mini route line with progress dot, tracking_no, recipient + destination city, carrier badge, ETA countdown, COD chip, attempts badge","behaviors":["native drag = status transition write-back","click card -> ctx.openView(detail, {filterByTk})"]},
+      {"id":"carrier_perf","block":"native Chart (bar) over dlv_shipments grouped by carrier","intent":"carrier performance — on-time vs late vs exception per carrier","series":["on_time","late","exception"]},
+      {"id":"feed","block":"native List + JS item over dlv_events","collection":"dlv_events","intent":"live scan/event feed","sort":"occurred_at desc","card":["event_type icon","note + location","relative time"]}
+    ]
+  },
+  "interactions": ["drag shipment card across status columns writes dlv_shipments.status","status filter pills push addFilterGroup to the Kanban resource + refresh","carrier filter cross-filters the pipeline","click tracking card opens shipment detail popup","map tracking card progress dot derives from status"],
+  "jsKernels": ["map-style tracking card (Kanban JS card field): route polyline + progress + countdown","event-feed JS item"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (Kanban for the status pipeline, Chart for KPIs + carrier performance, List for the event feed). The map-style look of each tracking card is a Kanban JS card field (card field limit 2 -> use JS), NOT a freestanding full-page JSBlock. Status transitions are native Kanban drag write-back. Carrier performance is a real native Chart grouped by carrier, not a hand-drawn SVG block. Seed/display values are English."
+}
+</script>
+<style>
+  :root{
+    --brand:#0958d9; --brand-2:#1677ff; --brand-soft:#e6f0ff; --brand-line:#9ec5ff;
+    --teal:#13a8a8; --teal-soft:#e6fffb;
+    --ink:#181c22; --ink-2:#525a66; --ink-3:#8c94a3;
+    --line:#eef1f5; --line-2:#e2e7ee; --bg:#f4f6f9; --card:#fff;
+    --pending:#8c94a3; --pending-soft:#f2f4f7;
+    --picked:#722ed1; --picked-soft:#f4ecff;
+    --transit:#1677ff; --transit-soft:#e6f0ff;
+    --ofd:#fa8c16; --ofd-soft:#fff4e6;
+    --delivered:#52c41a; --delivered-soft:#f0fae8;
+    --exception:#ff4d4f; --exception-soft:#fff1f0;
+    --gold:#faad14; --r:11px;
+    --shadow:0 1px 2px rgba(16,30,54,.04), 0 6px 18px rgba(16,30,54,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 22px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16.5px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--brand),#3b82f6);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 2px 9px rgba(9,88,217,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--brand-soft);color:var(--brand)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .searchbox{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:8px;padding:7px 12px;width:240px;color:var(--ink-3);font-size:13px}
+  .searchbox input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;width:100%;color:var(--ink)}
+  .chip-live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);
+    background:#f6ffed;border:1px solid #d9f7be;padding:5px 10px;border-radius:20px;white-space:nowrap}
+  .chip-live i{width:7px;height:7px;border-radius:50%;background:var(--delivered);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0958d9,#36cfc9);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- layout ---------- */
+  .page{padding:18px 22px 24px}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:15px 16px;
+    box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--brand)}
+  .kpi.k-transit::after{background:var(--transit)} .kpi.k-ofd::after{background:var(--ofd)}
+  .kpi.k-delivered::after{background:var(--delivered)} .kpi.k-exception::after{background:var(--exception)}
+  .kpi.k-ontime::after{background:var(--teal)}
+  .kpi .klbl{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .kpi .knum{font-size:28px;font-weight:700;letter-spacing:-.5px;margin-top:7px;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:8px}
+  .kpi .ktrend{font-size:11.5px;font-weight:600;color:var(--delivered)}
+  .kpi .ktrend.down{color:var(--exception)}
+  .kpi .kbar{margin-top:11px;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+  .kpi .kbar i{display:block;height:100%;border-radius:3px;background:var(--teal)}
+  .kpi .ksub{margin-top:9px;font-size:11.5px;color:var(--ink-3)}
+
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .filters{display:flex;gap:6px;flex-wrap:wrap}
+  .fpill{font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:6px 12px;border-radius:18px;
+    border:1px solid var(--line-2);background:var(--card);display:flex;align-items:center;gap:6px;transition:.13s}
+  .fpill:hover{border-color:var(--brand-line)}
+  .fpill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .fpill .dot{width:8px;height:8px;border-radius:50%}
+  .toolbar .sp{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .carrier-sel{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
+  .carrier-sel select{font-family:inherit;font-size:12.5px;border:1px solid var(--line-2);border-radius:8px;
+    padding:6px 10px;background:var(--card);outline:none;color:var(--ink)}
+  .btn{border:none;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.13s}
+  .btn-primary{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(9,88,217,.3)}
+  .btn-primary:hover{background:#0747ad}
+
+  /* ---------- main split ---------- */
+  .split{display:grid;grid-template-columns:minmax(0,1fr) 332px;gap:16px;align-items:start}
+
+  /* ---------- pipeline / kanban ---------- */
+  .board{display:flex;gap:13px;overflow-x:auto;padding-bottom:8px}
+  .col{flex:0 0 256px;background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);
+    display:flex;flex-direction:column;max-height:calc(100vh - 290px)}
+  .col-head{padding:12px 13px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);
+    border-radius:var(--r) var(--r) 0 0;z-index:2}
+  .col-head .row{display:flex;align-items:center;gap:8px}
+  .col-tag{width:9px;height:9px;border-radius:50%;flex:none}
+  .col-name{font-size:13px;font-weight:700;letter-spacing:-.1px}
+  .col-n{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink-2);background:var(--line);border-radius:10px;padding:1px 9px}
+  .col-meta{font-size:11px;color:var(--ink-3);margin-top:5px}
+  .col-body{padding:10px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px;min-height:60px}
+  .col.drag-over .col-body{background:var(--brand-soft);outline:2px dashed var(--brand-line);outline-offset:-6px;border-radius:8px}
+
+  /* map-style tracking card */
+  .tcard{background:var(--card);border:1px solid var(--line-2);border-radius:10px;padding:11px 12px 12px;
+    box-shadow:0 1px 2px rgba(16,30,54,.04);cursor:grab;position:relative;transition:.13s;border-left:3px solid var(--line-2)}
+  .tcard:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+  .tcard.dragging{opacity:.5;cursor:grabbing}
+  .tcard.s-pending{border-left-color:var(--pending)} .tcard.s-picked_up{border-left-color:var(--picked)}
+  .tcard.s-in_transit{border-left-color:var(--transit)} .tcard.s-out_for_delivery{border-left-color:var(--ofd)}
+  .tcard.s-delivered{border-left-color:var(--delivered)} .tcard.s-exception{border-left-color:var(--exception)}
+  .tc-top{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+  .tc-no{font-size:12px;font-weight:700;color:var(--ink);letter-spacing:.2px;font-variant-numeric:tabular-nums}
+  .tc-carrier{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#fff;
+    border-radius:6px;padding:2px 7px}
+  /* mini map / route */
+  .tc-map{position:relative;height:54px;border-radius:8px;overflow:hidden;margin-bottom:9px;
+    background:
+      linear-gradient(rgba(22,119,255,.04),rgba(22,119,255,.04)),
+      repeating-linear-gradient(0deg, #eef3fb 0 1px, transparent 1px 13px),
+      repeating-linear-gradient(90deg, #eef3fb 0 1px, transparent 1px 13px),
+      #f7fafe;
+    border:1px solid var(--line)}
+  .tc-map svg{position:absolute;inset:0;width:100%;height:100%}
+  .tc-route{fill:none;stroke:var(--line-2);stroke-width:2.5;stroke-dasharray:4 4}
+  .tc-progress{fill:none;stroke:var(--transit);stroke-width:2.5;stroke-linecap:round}
+  .tc-pin{position:absolute;transform:translate(-50%,-100%);font-size:13px;line-height:1}
+  .tc-pin.origin{transform:translate(-50%,-50%)}
+  .tc-dot{position:absolute;width:11px;height:11px;border-radius:50%;background:var(--transit);
+    border:2.5px solid #fff;box-shadow:0 0 0 2px rgba(22,119,255,.25);transform:translate(-50%,-50%)}
+  .tc-dot.pulse{animation:dotpulse 1.6s infinite}
+  @keyframes dotpulse{0%,100%{box-shadow:0 0 0 2px rgba(22,119,255,.25)}50%{box-shadow:0 0 0 6px rgba(22,119,255,.08)}}
+  .tc-eta-badge{position:absolute;top:5px;right:5px;background:rgba(24,28,34,.82);color:#fff;font-size:10px;
+    font-weight:700;border-radius:6px;padding:2px 7px;backdrop-filter:blur(2px)}
+  .tc-recipient{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
+  .tc-route-txt{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:5px;margin-bottom:9px}
+  .tc-route-txt b{color:var(--ink-2);font-weight:600}
+  .tc-foot{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:9px;display:flex;align-items:center;gap:4px}
+  .chip.cod{background:var(--teal-soft);color:#08807e}
+  .chip.svc{background:var(--brand-soft);color:var(--brand)}
+  .chip.wt{background:var(--pending-soft);color:var(--ink-2)}
+  .chip.att{background:var(--exception-soft);color:var(--exception)}
+  .tc-driver{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink-3)}
+  .tc-driver .ava{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#0958d9,#36cfc9);
+    color:#fff;display:grid;place-items:center;font-weight:700;font-size:8px}
+  .col-empty{font-size:11.5px;color:var(--ink-3);text-align:center;padding:18px 8px;border:1.5px dashed var(--line-2);
+    border-radius:9px;background:#fcfdfe}
+
+  /* ---------- right rail ---------- */
+  .rail{display:flex;flex-direction:column;gap:16px;position:sticky;top:74px}
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow)}
+  .panel-head{padding:14px 16px 11px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+  .panel-head h3{font-size:14px;font-weight:700;letter-spacing:-.1px}
+  .panel-head .tip{margin-left:auto;font-size:11px;color:var(--ink-3)}
+  .panel-body{padding:14px 16px}
+
+  /* carrier performance chart (stacked horizontal bars) */
+  .perf-row{margin-bottom:13px}
+  .perf-row:last-child{margin-bottom:0}
+  .perf-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .perf-name{font-size:12.5px;font-weight:600;color:var(--ink)}
+  .perf-name small{color:var(--ink-3);font-weight:500;margin-left:4px}
+  .perf-score{margin-left:auto;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+  .perf-score.good{color:var(--delivered)} .perf-score.warn{color:var(--ofd)} .perf-score.bad{color:var(--exception)}
+  .perf-bar{height:9px;border-radius:5px;background:var(--line);display:flex;overflow:hidden}
+  .perf-bar i{height:100%}
+  .perf-bar i.on{background:var(--delivered)} .perf-bar i.late{background:var(--ofd)} .perf-bar i.exc{background:var(--exception)}
+  .perf-legend{display:flex;gap:14px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3)}
+  .perf-legend span{display:flex;align-items:center;gap:5px}
+  .perf-legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+
+  /* event feed */
+  .feed{max-height:340px;overflow-y:auto}
+  .ev{display:flex;gap:11px;padding:11px 16px;border-bottom:1px solid var(--line);position:relative}
+  .ev:last-child{border-bottom:none}
+  .ev-ic{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:13px}
+  .ev-ic.scan{background:var(--brand-soft);color:var(--brand)}
+  .ev-ic.depart{background:var(--picked-soft);color:var(--picked)}
+  .ev-ic.arrive{background:var(--teal-soft);color:#08807e}
+  .ev-ic.attempt{background:var(--ofd-soft);color:var(--ofd)}
+  .ev-ic.delivered{background:var(--delivered-soft);color:#3a9612}
+  .ev-ic.exception{background:var(--exception-soft);color:var(--exception)}
+  .ev-body{flex:1;min-width:0}
+  .ev-note{font-size:12.5px;color:var(--ink);font-weight:500;line-height:1.35}
+  .ev-note b{font-weight:700}
+  .ev-meta{font-size:11px;color:var(--ink-3);margin-top:2px;display:flex;align-items:center;gap:6px}
+  .ev-time{font-size:11px;color:var(--ink-3);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--brand-2)}
+
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d4dbe5;border-radius:6px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:#b6c0ce;background-clip:padding-box}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">◈</span>Tracewave <small>delivery board</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Board</a>
+    <a href="#">Shipments</a>
+    <a href="#">Carriers</a>
+    <a href="#">Routes</a>
+    <a href="#">Analytics</a>
+  </nav>
+  <div class="top-right">
+    <div class="searchbox">🔍 <input id="search" placeholder="Search tracking no, recipient…"></div>
+    <span class="chip-live"><i></i> Live · GPS syncing</span>
+    <div class="acct">
+      <div class="ava">DM</div>
+      <div class="who"><b>Dana Mercer</b><br><span>Dispatch · West Hub</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- ============ KPI STRIP ============ -->
+  <div class="kpis">
+    <div class="kpi k-transit">
+      <div class="klbl">🚚 In transit</div>
+      <div class="knum">186 <span class="ktrend">▲ 12</span></div>
+      <div class="ksub">across 7 active carriers</div>
+    </div>
+    <div class="kpi k-ofd">
+      <div class="klbl">📦 Out for delivery</div>
+      <div class="knum">94 <span class="ktrend">▲ 21</span></div>
+      <div class="ksub">31 drivers on route now</div>
+    </div>
+    <div class="kpi k-delivered">
+      <div class="klbl">✅ Delivered today</div>
+      <div class="knum">472 <span class="ktrend">▲ 8%</span></div>
+      <div class="ksub">target 510 · 92% to goal</div>
+    </div>
+    <div class="kpi k-exception">
+      <div class="klbl">⚠️ Exceptions</div>
+      <div class="knum">17 <span class="ktrend down">▲ 4</span></div>
+      <div class="ksub">9 failed attempts · 8 delayed</div>
+    </div>
+    <div class="kpi k-ontime">
+      <div class="klbl">⏱ On-time rate</div>
+      <div class="knum">96.3%</div>
+      <div class="kbar"><i style="width:96.3%"></i></div>
+      <div class="ksub">SLA threshold 95% · last 24h</div>
+    </div>
+  </div>
+
+  <!-- ============ TOOLBAR ============ -->
+  <div class="toolbar">
+    <div class="filters" id="statusFilters">
+      <span class="fpill on" data-f="all">All <span id="cntAll">0</span></span>
+      <span class="fpill" data-f="pending"><span class="dot" style="background:var(--pending)"></span>Pending</span>
+      <span class="fpill" data-f="picked_up"><span class="dot" style="background:var(--picked)"></span>Picked up</span>
+      <span class="fpill" data-f="in_transit"><span class="dot" style="background:var(--transit)"></span>In transit</span>
+      <span class="fpill" data-f="out_for_delivery"><span class="dot" style="background:var(--ofd)"></span>Out for delivery</span>
+      <span class="fpill" data-f="delivered"><span class="dot" style="background:var(--delivered)"></span>Delivered</span>
+      <span class="fpill" data-f="exception"><span class="dot" style="background:var(--exception)"></span>Exception</span>
+    </div>
+    <div class="sp">
+      <div class="carrier-sel">
+        <span>Carrier</span>
+        <select id="carrierSel">
+          <option value="all">All carriers</option>
+          <option value="SwiftLine">SwiftLine Express</option>
+          <option value="MetroFreight">MetroFreight</option>
+          <option value="BluePost">BluePost Logistics</option>
+          <option value="Velocity">Velocity Same-Day</option>
+          <option value="CargoNorth">CargoNorth Freight</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="newShip">＋ New shipment</button>
+    </div>
+  </div>
+
+  <!-- ============ MAIN SPLIT ============ -->
+  <div class="split">
+
+    <!-- ---- STATUS PIPELINE (KANBAN) ---- -->
+    <div class="board" id="board"></div>
+
+    <!-- ---- RIGHT RAIL ---- -->
+    <div class="rail">
+
+      <!-- carrier performance -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Carrier performance</h3>
+          <span class="tip">last 7 days</span>
+        </div>
+        <div class="panel-body" id="perf"></div>
+      </div>
+
+      <!-- live event feed -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Live tracking feed</h3>
+          <span class="tip" id="feedCount"></span>
+        </div>
+        <div class="feed" id="feed"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- status meta ----------
+  var STATUSES = [
+    {k:"pending",          name:"Pending pickup",   color:"var(--pending)",   prog:0.02, meta:"awaiting carrier scan"},
+    {k:"picked_up",        name:"Picked up",        color:"var(--picked)",    prog:0.22, meta:"scanned at origin"},
+    {k:"in_transit",       name:"In transit",       color:"var(--transit)",   prog:0.55, meta:"moving between hubs"},
+    {k:"out_for_delivery", name:"Out for delivery", color:"var(--ofd)",       prog:0.85, meta:"on the last mile"},
+    {k:"delivered",        name:"Delivered",        color:"var(--delivered)", prog:1.0,  meta:"signed / dropped"},
+    {k:"exception",        name:"Exception",        color:"var(--exception)", prog:0.6,  meta:"needs attention"}
+  ];
+  var SMETA = {}; STATUSES.forEach(function(s){SMETA[s.k]=s;});
+
+  var CARRIERS = {
+    SwiftLine:   {label:"SwiftLine",   color:"#1677ff"},
+    MetroFreight:{label:"MetroFreight",color:"#722ed1"},
+    BluePost:    {label:"BluePost",    color:"#0958d9"},
+    Velocity:    {label:"Velocity",    color:"#fa541c"},
+    CargoNorth:  {label:"CargoNorth",  color:"#08807e"}
+  };
+
+  // ---------- mock shipments (dlv_shipments) ----------
+  var SHIP = [
+    {no:"TW-48201", rec:"Aria Bennett",   from:"West Hub",     to:"Portland, OR",     carrier:"SwiftLine",   svc:"express",  status:"out_for_delivery", eta:"35 min", cod:0,    wt:2.4,  att:0, driver:"RG"},
+    {no:"TW-48198", rec:"Marcus Liu",     from:"West Hub",     to:"Seattle, WA",      carrier:"Velocity",    svc:"same_day", status:"out_for_delivery", eta:"1h 10m", cod:240,  wt:0.8,  att:1, driver:"PT"},
+    {no:"TW-48177", rec:"Elena Vargas",   from:"Central DC",   to:"Boise, ID",        carrier:"BluePost",    svc:"standard", status:"in_transit",       eta:"Tomorrow", cod:0,  wt:5.1,  att:0, driver:"KO"},
+    {no:"TW-48165", rec:"Theo Nakamura",  from:"East Hub",     to:"Reno, NV",         carrier:"MetroFreight",svc:"freight",  status:"in_transit",       eta:"Jun 9",  cod:0,    wt:84.0, att:0, driver:"DM"},
+    {no:"TW-48150", rec:"Priya Anand",    from:"West Hub",     to:"Sacramento, CA",   carrier:"SwiftLine",   svc:"express",  status:"in_transit",       eta:"6h",     cod:0,    wt:1.2,  att:0, driver:"RG"},
+    {no:"TW-48142", rec:"Owen Carter",    from:"Central DC",   to:"Salt Lake City, UT",carrier:"BluePost",   svc:"standard", status:"in_transit",       eta:"Tomorrow", cod:75, wt:3.6,  att:0, driver:"KO"},
+    {no:"TW-48133", rec:"Sofia Romano",   from:"South DC",     to:"Phoenix, AZ",      carrier:"CargoNorth",  svc:"freight",  status:"in_transit",       eta:"Jun 10", cod:0,    wt:142.0,att:0, driver:"JB"},
+    {no:"TW-48120", rec:"Liam O'Brien",   from:"West Hub",     to:"Eugene, OR",       carrier:"SwiftLine",   svc:"standard", status:"picked_up",        eta:"Jun 9",  cod:0,    wt:6.7,  att:0, driver:"RG"},
+    {no:"TW-48118", rec:"Hannah Kim",     from:"West Hub",     to:"Tacoma, WA",       carrier:"Velocity",    svc:"same_day", status:"picked_up",        eta:"4h",     cod:120,  wt:0.5,  att:0, driver:"PT"},
+    {no:"TW-48109", rec:"Diego Santos",   from:"East Hub",     to:"Las Vegas, NV",    carrier:"MetroFreight",svc:"freight",  status:"picked_up",        eta:"Jun 9",  cod:0,    wt:56.0, att:0, driver:"DM"},
+    {no:"TW-48095", rec:"Grace Whitfield",from:"Central DC",   to:"Bend, OR",         carrier:"BluePost",    svc:"standard", status:"pending",          eta:"—",      cod:0,    wt:2.1,  att:0, driver:""},
+    {no:"TW-48091", rec:"Noah Fitzgerald",from:"West Hub",     to:"Spokane, WA",      carrier:"SwiftLine",   svc:"express",  status:"pending",          eta:"—",      cod:60,   wt:1.9,  att:0, driver:""},
+    {no:"TW-48088", rec:"Maya Patel",     from:"South DC",     to:"Tucson, AZ",       carrier:"CargoNorth",  svc:"freight",  status:"pending",          eta:"—",      cod:0,    wt:97.0, att:0, driver:""},
+    {no:"TW-48041", rec:"Caleb Moore",    from:"West Hub",     to:"Beaverton, OR",    carrier:"SwiftLine",   svc:"express",  status:"delivered",        eta:"Delivered", cod:0, wt:1.1,  att:0, driver:"RG"},
+    {no:"TW-48038", rec:"Isabel Cruz",    from:"West Hub",     to:"Vancouver, WA",    carrier:"Velocity",    svc:"same_day", status:"delivered",        eta:"Delivered", cod:90,wt:0.7,  att:1, driver:"PT"},
+    {no:"TW-48022", rec:"Ethan Wallace",  from:"Central DC",   to:"Nampa, ID",        carrier:"BluePost",    svc:"standard", status:"delivered",        eta:"Delivered", cod:0, wt:4.3,  att:0, driver:"KO"},
+    {no:"TW-47990", rec:"Zoe Hampton",    from:"East Hub",     to:"Carson City, NV",  carrier:"MetroFreight",svc:"freight",  status:"delivered",        eta:"Delivered", cod:0, wt:71.0, att:0, driver:"DM"},
+    {no:"TW-47984", rec:"Julian Reyes",   from:"West Hub",     to:"Hillsboro, OR",    carrier:"SwiftLine",   svc:"express",  status:"exception",        eta:"Delayed",cod:0,    wt:2.8,  att:2, driver:"RG"},
+    {no:"TW-47971", rec:"Amara Johnson",  from:"South DC",     to:"Mesa, AZ",         carrier:"CargoNorth",  svc:"freight",  status:"exception",        eta:"Held",   cod:0,    wt:118.0,att:1, driver:"JB"},
+    {no:"TW-47960", rec:"Felix Andersen", from:"West Hub",     to:"Gresham, OR",      carrier:"Velocity",    svc:"same_day", status:"exception",        eta:"Failed", cod:180,  wt:0.6,  att:3, driver:"PT"}
+  ];
+
+  // ---------- mock events (dlv_events) ----------
+  var EVENTS = [
+    {type:"delivered", no:"TW-48041", note:"Delivered to <b>Caleb Moore</b>", loc:"Beaverton, OR", time:"2m ago"},
+    {type:"scan",      no:"TW-48201", note:"Out for delivery scan", loc:"Portland depot · driver RG", time:"6m ago"},
+    {type:"exception", no:"TW-47960", note:"Delivery failed — <b>3rd attempt</b>", loc:"Gresham, OR", time:"11m ago"},
+    {type:"arrive",    no:"TW-48150", note:"Arrived at sort facility", loc:"Sacramento Hub", time:"18m ago"},
+    {type:"attempt",   no:"TW-48198", note:"1st delivery attempt — no answer", loc:"Seattle, WA", time:"24m ago"},
+    {type:"depart",    no:"TW-48133", note:"Departed origin terminal", loc:"South DC · dock 4", time:"33m ago"},
+    {type:"scan",      no:"TW-48118", note:"Picked up from shipper", loc:"West Hub", time:"41m ago"},
+    {type:"arrive",    no:"TW-48177", note:"Linehaul arrived at hub", loc:"Boise transit hub", time:"52m ago"},
+    {type:"exception", no:"TW-47984", note:"Address correction needed", loc:"Hillsboro, OR", time:"1h ago"},
+    {type:"depart",    no:"TW-48165", note:"Freight departed on schedule", loc:"East Hub", time:"1h 14m ago"},
+    {type:"delivered", no:"TW-48038", note:"Delivered — COD <b>$90</b> collected", loc:"Vancouver, WA", time:"1h 32m ago"},
+    {type:"scan",      no:"TW-48109", note:"Pallet scanned at origin", loc:"East Hub · bay 2", time:"1h 48m ago"}
+  ];
+
+  // ---------- carrier performance (aggregated) ----------
+  var PERF = [
+    {name:"SwiftLine",    full:"SwiftLine Express",  total:312, on:298, late:11, exc:3,  score:95.5},
+    {name:"Velocity",     full:"Velocity Same-Day",  total:188, on:166, late:14, exc:8,  score:88.3},
+    {name:"BluePost",     full:"BluePost Logistics", total:241, on:233, late:6,  exc:2,  score:96.7},
+    {name:"MetroFreight", full:"MetroFreight",       total:97,  on:90,  late:5,  exc:2,  score:92.8},
+    {name:"CargoNorth",   full:"CargoNorth Freight", total:64,  on:57,  late:4,  exc:3,  score:89.1}
+  ];
+
+  // ---------- state ----------
+  var activeStatus = "all";
+  var activeCarrier = "all";
+  var searchTerm = "";
+
+  // ---------- helpers ----------
+  function visible(s){
+    if(activeCarrier!=="all" && s.carrier!==activeCarrier) return false;
+    if(searchTerm){
+      var t=searchTerm.toLowerCase();
+      if(s.no.toLowerCase().indexOf(t)<0 && s.rec.toLowerCase().indexOf(t)<0 && s.to.toLowerCase().indexOf(t)<0) return false;
+    }
+    return true;
+  }
+  function esc(x){return (""+x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  function svcLabel(v){return {standard:"Standard",express:"Express",same_day:"Same-day",freight:"Freight"}[v]||v;}
+
+  // ---------- KANBAN BOARD (status pipeline) ----------
+  // map-style tracking card = JS card field inside the native Kanban
+  function trackCardHTML(s){
+    var sm=SMETA[s.status], cr=CARRIERS[s.carrier];
+    var prog=sm.prog;
+    // route geometry: origin (8,40) -> dest (140,16); progress dot interpolated
+    var x1=8,y1=40,x2=140,y2=16;
+    var dx=x1+(x2-x1)*prog, dy=y1+(y2-y1)*prog;
+    var dashTotal=140; // approx length for dasharray progress
+    var pulse = (s.status==="in_transit"||s.status==="out_for_delivery")?" pulse":"";
+    var dotColor = sm.color;
+    var destPin = s.status==="delivered"?"📍":"🚩";
+    return ''+
+    '<div class="tc-top">'+
+      '<span class="tc-no">'+esc(s.no)+'</span>'+
+      '<span class="tc-carrier" style="background:'+cr.color+'">'+esc(cr.label)+'</span>'+
+    '</div>'+
+    '<div class="tc-map">'+
+      '<svg viewBox="0 0 148 54" preserveAspectRatio="none">'+
+        '<path class="tc-route" d="M'+x1+','+y1+' L'+x2+','+y2+'"/>'+
+        '<path class="tc-progress" d="M'+x1+','+y1+' L'+dx.toFixed(1)+','+dy.toFixed(1)+'" style="stroke:'+dotColor+'"/>'+
+      '</svg>'+
+      '<span class="tc-pin origin" style="left:'+(x1/148*100)+'%;top:'+(y1/54*100)+'%">⚪</span>'+
+      '<span class="tc-pin" style="left:'+(x2/148*100)+'%;top:'+((y2+12)/54*100)+'%">'+destPin+'</span>'+
+      '<span class="tc-dot'+pulse+'" style="left:'+(dx/148*100)+'%;top:'+(dy/54*100)+'%;background:'+dotColor+'"></span>'+
+      '<span class="tc-eta-badge">'+esc(s.eta)+'</span>'+
+    '</div>'+
+    '<div class="tc-recipient">'+esc(s.rec)+'</div>'+
+    '<div class="tc-route-txt"><b>'+esc(s.from)+'</b> → <b>'+esc(s.to)+'</b></div>'+
+    '<div class="tc-foot">'+
+      '<span class="chip svc">'+svcLabel(s.svc)+'</span>'+
+      (s.cod>0?'<span class="chip cod">COD $'+s.cod+'</span>':'')+
+      '<span class="chip wt">'+s.wt+' kg</span>'+
+      (s.att>0?'<span class="chip att">'+s.att+' attempt'+(s.att>1?'s':'')+'</span>':'')+
+      (s.driver?'<span class="tc-driver"><span class="ava">'+esc(s.driver)+'</span></span>':'')+
+    '</div>';
+  }
+
+  function renderBoard(){
+    var board=document.getElementById("board");
+    board.innerHTML="";
+    var cols = activeStatus==="all" ? STATUSES : STATUSES.filter(function(s){return s.k===activeStatus;});
+
+    cols.forEach(function(st){
+      var items=SHIP.filter(function(s){return s.status===st.k && visible(s);});
+      var col=document.createElement("div");
+      col.className="col"; col.dataset.status=st.k;
+      var head='<div class="col-head"><div class="row">'+
+        '<span class="col-tag" style="background:'+st.color+'"></span>'+
+        '<span class="col-name">'+st.name+'</span>'+
+        '<span class="col-n">'+items.length+'</span></div>'+
+        '<div class="col-meta">'+st.meta+'</div></div>';
+      var body='<div class="col-body">';
+      if(items.length===0){
+        body+='<div class="col-empty">No shipments here</div>';
+      } else {
+        items.forEach(function(s){
+          body+='<div class="tcard s-'+s.status+'" draggable="true" data-no="'+s.no+'">'+trackCardHTML(s)+'</div>';
+        });
+      }
+      body+='</div>';
+      col.innerHTML=head+body;
+      board.appendChild(col);
+    });
+
+    wireDnD();
+    wireCardClick();
+  }
+
+  // ---------- drag = native Kanban status write-back ----------
+  var dragNo=null;
+  function wireDnD(){
+    document.querySelectorAll(".tcard").forEach(function(card){
+      card.addEventListener("dragstart",function(){ dragNo=card.dataset.no; card.classList.add("dragging"); });
+      card.addEventListener("dragend",function(){ card.classList.remove("dragging"); dragNo=null;
+        document.querySelectorAll(".col").forEach(function(c){c.classList.remove("drag-over");}); });
+    });
+    document.querySelectorAll(".col").forEach(function(col){
+      col.addEventListener("dragover",function(e){ e.preventDefault(); col.classList.add("drag-over"); });
+      col.addEventListener("dragleave",function(){ col.classList.remove("drag-over"); });
+      col.addEventListener("drop",function(e){
+        e.preventDefault(); col.classList.remove("drag-over");
+        if(!dragNo) return;
+        var s=SHIP.filter(function(x){return x.no===dragNo;})[0];
+        var newStatus=col.dataset.status;
+        if(s && s.status!==newStatus){
+          s.status=newStatus;
+          s.prog=SMETA[newStatus].prog;
+          if(newStatus==="delivered"){ s.eta="Delivered"; }
+          else if(newStatus==="pending"){ s.eta="—"; }
+          flash(s.no+" → "+SMETA[newStatus].name);
+          renderBoard(); updateCounts();
+        }
+      });
+    });
+  }
+
+  function wireCardClick(){
+    document.querySelectorAll(".tcard").forEach(function(card){
+      card.addEventListener("click",function(){
+        var s=SHIP.filter(function(x){return x.no===card.dataset.no;})[0];
+        if(s) flash("Open "+s.no+" · "+s.rec+" → "+s.to);
+      });
+    });
+  }
+
+  // ---------- carrier performance chart ----------
+  function renderPerf(){
+    var host=document.getElementById("perf"); host.innerHTML="";
+    PERF.forEach(function(p){
+      var onPct=(p.on/p.total*100), latePct=(p.late/p.total*100), excPct=(p.exc/p.total*100);
+      var cls=p.score>=95?"good":(p.score>=90?"warn":"bad");
+      var row=document.createElement("div"); row.className="perf-row";
+      row.innerHTML=
+        '<div class="perf-top">'+
+          '<span class="perf-name">'+esc(p.full)+'<small>'+p.total+' shipments</small></span>'+
+          '<span class="perf-score '+cls+'">'+p.score.toFixed(1)+'%</span>'+
+        '</div>'+
+        '<div class="perf-bar">'+
+          '<i class="on" style="width:'+onPct+'%"></i>'+
+          '<i class="late" style="width:'+latePct+'%"></i>'+
+          '<i class="exc" style="width:'+excPct+'%"></i>'+
+        '</div>';
+      host.appendChild(row);
+    });
+    var leg=document.createElement("div"); leg.className="perf-legend";
+    leg.innerHTML='<span><i style="background:var(--delivered)"></i>On-time</span>'+
+      '<span><i style="background:var(--ofd)"></i>Late</span>'+
+      '<span><i style="background:var(--exception)"></i>Exception</span>';
+    host.appendChild(leg);
+  }
+
+  // ---------- event feed ----------
+  function evIcon(t){return {scan:"⊞",depart:"↗",arrive:"⊕",attempt:"✋",delivered:"✓",exception:"!"}[t]||"•";}
+  function renderFeed(){
+    var host=document.getElementById("feed"); host.innerHTML="";
+    EVENTS.forEach(function(e){
+      var ev=document.createElement("div"); ev.className="ev";
+      ev.innerHTML=
+        '<div class="ev-ic '+e.type+'">'+evIcon(e.type)+'</div>'+
+        '<div class="ev-body">'+
+          '<div class="ev-note">'+e.note+'</div>'+
+          '<div class="ev-meta"><b style="color:var(--ink-2);font-weight:600">'+esc(e.no)+'</b> · '+esc(e.loc)+'</div>'+
+        '</div>'+
+        '<div class="ev-time">'+esc(e.time)+'</div>';
+      host.appendChild(ev);
+    });
+    document.getElementById("feedCount").textContent=EVENTS.length+" events";
+  }
+
+  // ---------- counts ----------
+  function updateCounts(){
+    document.getElementById("cntAll").textContent=SHIP.filter(visible).length;
+  }
+
+  // ---------- filters ----------
+  document.getElementById("statusFilters").addEventListener("click",function(e){
+    var p=e.target.closest(".fpill"); if(!p) return;
+    document.querySelectorAll("#statusFilters .fpill").forEach(function(x){x.classList.remove("on");});
+    p.classList.add("on"); activeStatus=p.dataset.f; renderBoard();
+  });
+  document.getElementById("carrierSel").addEventListener("change",function(){
+    activeCarrier=this.value; renderBoard(); updateCounts();
+    flash(activeCarrier==="all"?"Showing all carriers":"Filtered to "+(CARRIERS[activeCarrier]?CARRIERS[activeCarrier].label:activeCarrier));
+  });
+  document.getElementById("search").addEventListener("input",function(){
+    searchTerm=this.value.trim(); renderBoard(); updateCounts();
+  });
+  document.getElementById("newShip").addEventListener("click",function(){ flash("New shipment form — create dlv_shipments record"); });
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- init ----------
+  renderBoard(); renderPerf(); renderFeed(); updateCounts();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Delivery Tracking: a status pipeline, map-style tracking cards, and performance metrics. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/24-delivery-tracking.html
+</script>
+</body>
+</html>

@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ReturnDesk — RMA &amp; Refund Pipeline</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Return Management (ReturnDesk)",
+  "prefix": "rma_",
+  "collections": {
+    "rma_warehouses": {"titleField":"name","fields":{"name":"input","code":"input","region":"input"}},
+    "rma_reasons": {"titleField":"label","fields":{"label":"input","code":"input","category":"select:defective|wrong_item|not_as_described|changed_mind|damaged_transit|warranty"}},
+    "rma_inspectors": {"titleField":"name","fields":{"name":"input","email":"input","is_active":"boolean"}},
+    "rma_requests": {
+      "titleField":"rma_no",
+      "fields":{
+        "rma_no":"input",
+        "order_no":"input",
+        "customer_name":"input",
+        "sku":"input",
+        "product_name":"input",
+        "qty":"integer",
+        "unit_price":"number",
+        "refund_amount":"number",
+        "status":"select:requested|approved|in_transit|received|inspecting|qc_pass|qc_fail|refunded|rejected|closed",
+        "qc_result":"select:pending|pass|partial|fail",
+        "refund_method":"select:original_payment|store_credit|exchange|none",
+        "refund_status":"select:not_started|processing|issued|declined",
+        "channel":"select:web|marketplace|retail|phone",
+        "priority":"select:low|normal|high",
+        "requested_at":"datetime",
+        "received_at":"datetime",
+        "resolved_at":"datetime",
+        "tracking_no":"input",
+        "carrier":"select:ups|fedex|dhl|usps",
+        "restock":"boolean",
+        "qc_notes":"textarea"
+      },
+      "relations":{
+        "warehouse":"m2o rma_warehouses (fk warehouse_id)",
+        "reason":"m2o rma_reasons (fk reason_id)",
+        "inspector":"m2o rma_inspectors (fk inspector_id)"
+      }
+    }
+  },
+  "page": {
+    "name": "RMA Pipeline",
+    "layout": "pipeline-header = JSBlock (status-stage funnel, data-less KPI strip) | rma-table = native Table (rma_requests) with JSColumn rich lead cell + JSColumn QC-result chip + JSColumn refund-progress bar | detail = native Details (single rma_requests) showing QC checklist + refund timeline, opened via ctx.openView",
+    "regions": [
+      {"id":"pipeline","block":"JSBlock — data-less status funnel + KPI strip","intent":"show RMA volume per pipeline stage + headline metrics","content":["7 stage cards (Requested→Approved→In transit→Received→Inspecting→QC→Refunded) with count + delta","KPI strip: open RMAs, refund $ this week, avg resolution days, QC pass rate"],"behaviors":["click a stage = cross-block filter pushing addFilterGroup(status) to rma_requests table + refresh"]},
+      {"id":"table","block":"native Table block (rma_requests)","collection":"rma_requests","intent":"the working RMA queue","sort":"requested_at desc","content":["JSColumn lead cell = rma_no + order/customer + product thumb + priority flag","status column = native select tag","JSColumn qc_result = pass/partial/fail chip with icon","JSColumn refund = progress bar (method + status + amount)","reason, warehouse, age columns"],"actions":["toolbar JSAction filter pills (All / Needs QC / Awaiting refund / Rejected)","row JSRecordAction: Approve, Start QC, Issue refund","row click = ctx.openView(detail)"]},
+      {"id":"detail","block":"native Details (single rma_requests) opened via ctx.openView","intent":"QC results + refund progress for one RMA","shows":["header: rma_no, customer, status","QC checklist (cosmetic / functional / packaging / accessories) with pass-fail","refund timeline: requested → approved → received → inspected → refunded","restock decision + inspector + notes"]}
+    ]
+  },
+  "interactions": ["click pipeline stage filters the RMA table (cross-block filter)","toolbar pills filter by workflow bucket","row actions advance status (Approve / Start QC / Issue refund) via UpdateAction or workflow","row/detail shows QC checklist + refund timeline"],
+  "jsKernels": ["pipeline funnel + KPI strip (data-less JSBlock)","table lead cell JSColumn","QC-result chip JSColumn","refund-progress bar JSColumn","detail QC checklist + refund timeline JS items"],
+  "notes": "Container/content rule: the RMA queue is a NATIVE Table of rma_requests; the rich lead cell, QC chip and refund bar are JSColumns nested inside it (not a freestanding JSBlock). Status advancement is a native UpdateAction / workflow, not custom fetch. The pipeline funnel is the one data-less custom visual, so it is the only JSBlock. The detail is a native Details block opened with ctx.openView(filterByTk)."
+}
+</script>
+<style>
+  :root{
+    --brand:#0958d9; --brand-soft:#e6f0ff; --brand-line:#91caff; --brand-deep:#003eb3;
+    --ink:#1f1f1f; --ink-2:#595959; --ink-3:#8c8c8c; --ink-4:#bfbfbf;
+    --line:#f0f0f0; --line-2:#e8e8e8; --bg:#f4f6fa; --card:#fff;
+    --green:#389e0d; --green-soft:#f6ffed; --green-line:#b7eb8f;
+    --gold:#d48806; --gold-soft:#fffbe6; --gold-line:#ffe58f;
+    --red:#cf1322; --red-soft:#fff1f0; --red-line:#ffccc7;
+    --purple:#531dab; --purple-soft:#f9f0ff; --cyan:#08979c; --cyan-soft:#e6fffb;
+    --r:10px;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 6px 18px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:13.5px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:54px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 22px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:9px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:27px;height:27px;border-radius:8px;
+    background:linear-gradient(135deg,var(--brand),#3c89ff);
+    display:grid;place-items:center;color:#fff;font-size:14px;font-weight:800;
+    box-shadow:0 2px 8px rgba(9,88,217,.35);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:8px}
+  .topnav a{padding:6px 12px;border-radius:7px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500}
+  .topnav a.on{background:var(--brand-soft);color:var(--brand)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .searchbox{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:8px;padding:6px 11px;width:230px;color:var(--ink-3);font-size:13px}
+  .searchbox input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;width:100%;color:var(--ink)}
+  .acct{display:flex;align-items:center;gap:7px}
+  .acct .ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#0958d9,#69b1ff);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.1}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- layout ---------- */
+  .page{max-width:1440px;margin:0 auto;padding:22px 26px 40px}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+  .page-head h1{font-size:21px;font-weight:700;letter-spacing:-.3px}
+  .page-head p{color:var(--ink-3);font-size:12.5px;margin-top:3px}
+  .head-actions{display:flex;gap:9px}
+  .btn{border:none;border-radius:8px;padding:9px 15px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.13s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(9,88,217,.28)}
+  .btn-primary:hover{background:var(--brand-deep)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#d9d9d9}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:15px 17px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi .k-top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .kpi .k-ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:none}
+  .kpi .k-lbl{font-size:11.5px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .kpi .k-val{font-size:26px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
+  .kpi .k-sub{font-size:11.5px;color:var(--ink-3);margin-top:6px;display:flex;align-items:center;gap:5px}
+  .k-up{color:var(--green);font-weight:700} .k-down{color:var(--red);font-weight:700}
+  .kpi .spark{position:absolute;right:14px;bottom:12px;display:flex;align-items:flex-end;gap:2px;height:26px}
+  .kpi .spark i{width:4px;border-radius:2px;background:var(--brand-line);opacity:.55}
+
+  /* ---------- pipeline funnel ---------- */
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow)}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .panel-head h2{font-size:14.5px;font-weight:700}
+  .panel-head .hint{font-size:11.5px;color:var(--ink-3)}
+  .pipeline{display:flex;gap:0;padding:16px 18px;overflow-x:auto}
+  .stage{flex:1;min-width:118px;cursor:pointer;position:relative;padding:0 4px}
+  .stage:not(:last-child)::after{content:"›";position:absolute;right:-6px;top:24px;color:var(--ink-4);font-size:18px;z-index:2}
+  .stage-card{border:1.5px solid var(--line-2);border-radius:9px;padding:11px 12px;background:#fcfcfd;transition:.14s;height:100%}
+  .stage:hover .stage-card{border-color:var(--brand-line);box-shadow:0 4px 12px rgba(9,88,217,.1)}
+  .stage.on .stage-card{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 4px 12px rgba(9,88,217,.14)}
+  .stage-name{font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.3px;display:flex;align-items:center;gap:5px;margin-bottom:8px}
+  .stage-name .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .stage-n{font-size:23px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .stage-delta{font-size:11px;font-weight:600;margin-top:3px}
+  .stage-bar{height:4px;border-radius:3px;background:var(--line);margin-top:9px;overflow:hidden}
+  .stage-bar i{display:block;height:100%;border-radius:3px}
+
+  /* ---------- table ---------- */
+  .table-wrap{margin-top:16px}
+  .tbl-toolbar{display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:5px 12px;border-radius:16px;border:1px solid var(--line-2);background:#fff;display:flex;align-items:center;gap:6px;transition:.12s}
+  .pill:hover{border-color:#d9d9d9}
+  .pill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .pill .badge{font-size:10.5px;background:var(--line);color:var(--ink-2);border-radius:9px;padding:0 6px;font-weight:700}
+  .pill.on .badge{background:rgba(255,255,255,.22);color:#fff}
+  .tbl-toolbar .spacer{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .mini-sel{font-size:12px;border:1px solid var(--line-2);border-radius:7px;padding:6px 10px;background:#fff;color:var(--ink-2);cursor:pointer}
+
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);font-weight:600;
+    text-align:left;padding:11px 14px;border-bottom:1px solid var(--line-2);background:#fafbfc;white-space:nowrap;position:sticky;top:0;z-index:3}
+  tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr{cursor:pointer;transition:background .1s}
+  tbody tr:hover{background:#fafbff}
+  tbody tr.sel{background:var(--brand-soft)}
+
+  /* lead cell */
+  .lead{display:flex;align-items:center;gap:11px}
+  .thumb{width:42px;height:42px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:19px;
+    background:linear-gradient(135deg,#e6f0ff,#f0f5ff);border:1px solid var(--line-2);position:relative}
+  .thumb .flag{position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;font-size:8px;
+    display:grid;place-items:center;color:#fff;font-weight:800;border:2px solid #fff}
+  .flag.high{background:var(--red)} .flag.normal{background:var(--gold)} .flag.low{background:var(--ink-4)}
+  .lead-main{min-width:0}
+  .lead-main .rno{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:7px}
+  .lead-main .rno .ch{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:5px;text-transform:uppercase;letter-spacing:.3px}
+  .ch.web{background:var(--brand-soft);color:var(--brand)} .ch.marketplace{background:var(--purple-soft);color:var(--purple)}
+  .ch.retail{background:var(--cyan-soft);color:var(--cyan)} .ch.phone{background:var(--gold-soft);color:var(--gold)}
+  .lead-main .sub{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .lead-main .prod{font-size:12px;color:var(--ink-2);margin-top:3px;max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* status tag */
+  .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:11px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .tag .d{width:6px;height:6px;border-radius:50%}
+  .s-requested{background:#f0f0f0;color:var(--ink-2)} .s-requested .d{background:var(--ink-3)}
+  .s-approved{background:var(--brand-soft);color:var(--brand)} .s-approved .d{background:var(--brand)}
+  .s-in_transit{background:var(--cyan-soft);color:var(--cyan)} .s-in_transit .d{background:var(--cyan)}
+  .s-received{background:var(--purple-soft);color:var(--purple)} .s-received .d{background:var(--purple)}
+  .s-inspecting{background:var(--gold-soft);color:var(--gold)} .s-inspecting .d{background:var(--gold)}
+  .s-qc_pass{background:var(--green-soft);color:var(--green)} .s-qc_pass .d{background:var(--green)}
+  .s-qc_fail{background:var(--red-soft);color:var(--red)} .s-qc_fail .d{background:var(--red)}
+  .s-refunded{background:var(--green-soft);color:var(--green)} .s-refunded .d{background:var(--green)}
+  .s-rejected{background:var(--red-soft);color:var(--red)} .s-rejected .d{background:var(--red)}
+  .s-closed{background:#f0f0f0;color:var(--ink-3)} .s-closed .d{background:var(--ink-4)}
+
+  /* QC chip */
+  .qc{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;white-space:nowrap}
+  .qc .ic{font-size:12px}
+  .qc-pass{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line)}
+  .qc-partial{background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-line)}
+  .qc-fail{background:var(--red-soft);color:var(--red);border:1px solid var(--red-line)}
+  .qc-pending{background:#fafafa;color:var(--ink-3);border:1px dashed var(--line-2)}
+
+  /* refund bar */
+  .refund{min-width:150px}
+  .refund-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+  .refund-amt{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .refund-meth{font-size:10.5px;color:var(--ink-3);font-weight:600}
+  .rbar{height:6px;border-radius:4px;background:var(--line);overflow:hidden;position:relative}
+  .rbar i{display:block;height:100%;border-radius:4px;transition:width .3s}
+  .rbar.issued i{background:linear-gradient(90deg,#52c41a,#389e0d)}
+  .rbar.processing i{background:linear-gradient(90deg,#69b1ff,#0958d9)}
+  .rbar.declined i{background:linear-gradient(90deg,#ff7875,#cf1322)}
+  .rbar.not_started i{background:var(--line-2)}
+  .refund-state{font-size:10.5px;font-weight:600;margin-top:4px}
+  .rs-issued{color:var(--green)} .rs-processing{color:var(--brand)} .rs-declined{color:var(--red)} .rs-not_started{color:var(--ink-3)}
+
+  .age{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+  .age.warn{color:var(--gold)} .age.over{color:var(--red)}
+  .cell-sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .reason-cell{font-size:12.5px;color:var(--ink-2)}
+  .reason-cell .rcat{font-size:10px;color:var(--ink-3);display:block;margin-top:1px}
+
+  .row-tools{display:flex;gap:4px;opacity:0;transition:.12s;justify-content:flex-end}
+  tbody tr:hover .row-tools{opacity:1}
+  .row-tools button{border:1px solid var(--line-2);background:#fff;border-radius:7px;padding:5px 9px;font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+  .row-tools button:hover{border-color:var(--brand-line);color:var(--brand);background:var(--brand-soft)}
+
+  /* ---------- detail drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.32);opacity:0;pointer-events:none;transition:.2s;z-index:50}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:448px;max-width:94vw;background:var(--card);
+    box-shadow:-12px 0 40px rgba(0,0,0,.18);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+    z-index:51;display:flex;flex-direction:column}
+  .drawer.show{transform:translateX(0)}
+  .dr-head{padding:18px 20px 16px;border-bottom:1px solid var(--line);position:relative}
+  .dr-close{position:absolute;top:16px;right:16px;width:30px;height:30px;border:none;background:var(--bg);border-radius:8px;cursor:pointer;font-size:15px;color:var(--ink-2)}
+  .dr-close:hover{background:var(--line)}
+  .dr-head .rno{font-size:18px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .dr-head .cust{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+  .dr-body{flex:1;overflow:auto;padding:18px 20px}
+  .dr-sec{margin-bottom:22px}
+  .dr-sec h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+  .dr-sec h3 .cnt{font-size:11px;color:var(--ink-2);background:var(--bg);border-radius:9px;padding:1px 8px}
+
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:13px 18px}
+  .f .fl{font-size:11px;color:var(--ink-3);font-weight:600;margin-bottom:3px}
+  .f .fv{font-size:13px;font-weight:600;color:var(--ink)}
+  .f .fv.mono{font-variant-numeric:tabular-nums}
+
+  /* QC checklist */
+  .qc-list{display:flex;flex-direction:column;gap:1px;background:var(--line);border-radius:9px;overflow:hidden;border:1px solid var(--line-2)}
+  .qc-item{display:flex;align-items:center;gap:11px;padding:11px 13px;background:#fff}
+  .qc-item .qci-ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:12px;color:#fff;flex:none;font-weight:800}
+  .qci-ic.pass{background:var(--green)} .qci-ic.fail{background:var(--red)} .qci-ic.na{background:var(--ink-4)}
+  .qc-item .qci-name{font-size:13px;font-weight:600;flex:1}
+  .qc-item .qci-note{font-size:11.5px;color:var(--ink-3)}
+  .qc-item .qci-res{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+  .qci-res.pass{color:var(--green)} .qci-res.fail{color:var(--red)} .qci-res.na{color:var(--ink-3)}
+
+  /* refund timeline */
+  .timeline{position:relative;padding-left:26px}
+  .timeline::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:var(--line-2)}
+  .tl{position:relative;padding-bottom:18px}
+  .tl:last-child{padding-bottom:0}
+  .tl .node{position:absolute;left:-22px;top:1px;width:18px;height:18px;border-radius:50%;border:2px solid #fff;
+    display:grid;place-items:center;font-size:9px;color:#fff;font-weight:800;box-shadow:0 0 0 1.5px var(--line-2)}
+  .tl.done .node{background:var(--green);box-shadow:0 0 0 1.5px var(--green-line)}
+  .tl.active .node{background:var(--brand);box-shadow:0 0 0 1.5px var(--brand-line);animation:tlpulse 1.8s infinite}
+  .tl.fail .node{background:var(--red);box-shadow:0 0 0 1.5px var(--red-line)}
+  .tl.todo .node{background:#fff;color:var(--ink-4);box-shadow:0 0 0 1.5px var(--line-2)}
+  @keyframes tlpulse{0%,100%{box-shadow:0 0 0 1.5px var(--brand-line)}50%{box-shadow:0 0 0 4px rgba(9,88,217,.18)}}
+  .tl .tl-title{font-size:13px;font-weight:600}
+  .tl.todo .tl-title{color:var(--ink-3)}
+  .tl .tl-meta{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .tl .tl-amt{font-size:12px;font-weight:700;color:var(--green);margin-top:3px}
+
+  .restock-row{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg);border-radius:9px;font-size:12.5px}
+  .restock-row .rk{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex:none}
+  .rk.yes{background:var(--green-soft);color:var(--green)} .rk.no{background:var(--red-soft);color:var(--red)}
+  .dr-notes{font-size:12.5px;color:var(--ink-2);line-height:1.55;background:var(--bg);border-radius:9px;padding:12px 14px}
+
+  .dr-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:9px}
+  .dr-foot .btn{flex:1;justify-content:center}
+
+  /* toast */
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--brand)}
+
+  @media(max-width:1180px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .lead-main .prod{max-width:160px}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">R</span>ReturnDesk <small>RMA</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Pipeline</a>
+    <a href="#">Inspections</a>
+    <a href="#">Refunds</a>
+    <a href="#">Analytics</a>
+    <a href="#">Settings</a>
+  </nav>
+  <div class="top-right">
+    <div class="searchbox">🔍 <input placeholder="Search RMA, order, SKU…"></div>
+    <div class="acct">
+      <div class="ava">LM</div>
+      <div class="who"><b>Lena Moretti</b><br><span>Returns Operations</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+  <div class="page-head">
+    <div>
+      <h1>Return Management</h1>
+      <p>Track every RMA from request through inspection to refund — one queue, one source of truth.</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn btn-ghost">⤓ Export</button>
+      <button class="btn btn-primary">＋ New RMA</button>
+    </div>
+  </div>
+
+  <!-- KPI strip -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="k-top">
+        <div class="k-ic" style="background:var(--brand-soft);color:var(--brand)">📦</div>
+        <span class="k-lbl">Open RMAs</span>
+      </div>
+      <div class="k-val">142</div>
+      <div class="k-sub"><span class="k-up">▲ 12</span> vs last week</div>
+      <div class="spark"><i style="height:40%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:70%"></i><i style="height:62%"></i><i style="height:88%"></i><i style="height:100%"></i></div>
+    </div>
+    <div class="kpi">
+      <div class="k-top">
+        <div class="k-ic" style="background:var(--green-soft);color:var(--green)">💲</div>
+        <span class="k-lbl">Refunded this week</span>
+      </div>
+      <div class="k-val">$38.4K</div>
+      <div class="k-sub"><span class="k-down">▼ 4%</span> vs prior week</div>
+      <div class="spark"><i style="height:80%"></i><i style="height:65%"></i><i style="height:90%"></i><i style="height:72%"></i><i style="height:60%"></i><i style="height:55%"></i><i style="height:48%"></i></div>
+    </div>
+    <div class="kpi">
+      <div class="k-top">
+        <div class="k-ic" style="background:var(--gold-soft);color:var(--gold)">⏱</div>
+        <span class="k-lbl">Avg resolution</span>
+      </div>
+      <div class="k-val">5.8 <span style="font-size:14px;color:var(--ink-3);font-weight:600">days</span></div>
+      <div class="k-sub"><span class="k-up">▼ 0.6d</span> faster than target</div>
+      <div class="spark"><i style="height:90%"></i><i style="height:78%"></i><i style="height:70%"></i><i style="height:66%"></i><i style="height:58%"></i><i style="height:52%"></i><i style="height:50%"></i></div>
+    </div>
+    <div class="kpi">
+      <div class="k-top">
+        <div class="k-ic" style="background:var(--cyan-soft);color:var(--cyan)">✓</div>
+        <span class="k-lbl">QC pass rate</span>
+      </div>
+      <div class="k-val">81.5%</div>
+      <div class="k-sub"><span class="k-up">▲ 2.3%</span> 18.5% restock-blocked</div>
+      <div class="spark"><i style="height:60%"></i><i style="height:68%"></i><i style="height:64%"></i><i style="height:75%"></i><i style="height:80%"></i><i style="height:85%"></i><i style="height:90%"></i></div>
+    </div>
+  </div>
+
+  <!-- pipeline funnel -->
+  <div class="panel">
+    <div class="panel-head">
+      <h2>RMA status pipeline</h2>
+      <span class="hint">Click a stage to filter the queue below</span>
+    </div>
+    <div class="pipeline" id="pipeline"></div>
+  </div>
+
+  <!-- table -->
+  <div class="panel table-wrap">
+    <div class="tbl-toolbar">
+      <div class="pills" id="bucketPills">
+        <span class="pill on" data-b="all">All <span class="badge" id="b-all">0</span></span>
+        <span class="pill" data-b="needs_qc">Needs QC <span class="badge" id="b-needs_qc">0</span></span>
+        <span class="pill" data-b="awaiting_refund">Awaiting refund <span class="badge" id="b-awaiting_refund">0</span></span>
+        <span class="pill" data-b="rejected">Rejected <span class="badge" id="b-rejected">0</span></span>
+      </div>
+      <div class="spacer">
+        <span id="filterNote" style="font-size:12px;color:var(--ink-3)"></span>
+        <select class="mini-sel"><option>Sort: Newest</option><option>Sort: Oldest</option><option>Sort: Refund amount</option><option>Sort: Age</option></select>
+      </div>
+    </div>
+    <div style="overflow:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>RMA / Order</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th>QC result</th>
+            <th>Refund progress</th>
+            <th>Age</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- detail drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <button class="dr-close" id="drClose">✕</button>
+    <div class="rno" id="drRno"></div>
+    <div class="cust" id="drCust"></div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot" id="drFoot"></div>
+</aside>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- reference data ----------
+  var STAGES = [
+    {key:"requested", name:"Requested", color:"#8c8c8c", n:34, delta:"+9"},
+    {key:"approved",  name:"Approved",  color:"#0958d9", n:21, delta:"+4"},
+    {key:"in_transit",name:"In transit",color:"#08979c", n:28, delta:"+6"},
+    {key:"received",  name:"Received",  color:"#531dab", n:19, delta:"+2"},
+    {key:"inspecting",name:"Inspecting",color:"#d48806", n:23, delta:"+5"},
+    {key:"qc_pass",   name:"QC done",   color:"#389e0d", n:17, delta:"+3"},
+    {key:"refunded",  name:"Refunded",  color:"#389e0d", n:46, delta:"+11"}
+  ];
+  var maxStage = Math.max.apply(null, STAGES.map(function(s){return s.n;}));
+
+  var STATUS_LABEL = {
+    requested:"Requested", approved:"Approved", in_transit:"In transit", received:"Received",
+    inspecting:"Inspecting", qc_pass:"QC pass", qc_fail:"QC fail", refunded:"Refunded",
+    rejected:"Rejected", closed:"Closed"
+  };
+  var REFUND_PCT = {not_started:8, processing:55, issued:100, declined:100};
+  var REFUND_LABEL = {not_started:"Not started", processing:"Processing", issued:"Issued", declined:"Declined"};
+  var QC_LABEL = {pending:"Pending", pass:"Pass", partial:"Partial", fail:"Fail"};
+  var QC_ICON = {pending:"…", pass:"✓", partial:"◐", fail:"✕"};
+  var CARRIER = {ups:"UPS", fedex:"FedEx", dhl:"DHL", usps:"USPS"};
+  var PROD_ICON = {Electronics:"🎧",Apparel:"👕",Home:"🛋️",Footwear:"👟",Beauty:"💄",Tools:"🔧",Toys:"🧸",Kitchen:"🍳",Outdoor:"🎒"};
+
+  // ---------- RMA rows ----------
+  var RMA = [
+    {rma:"RMA-24091", order:"SO-880142", cust:"Marcus Bell", sku:"AUD-HD650", prod:"Studio Wireless Headphones", cat:"Electronics", qty:1, price:329.00, refund:329.00, status:"inspecting", qc:"pending", method:"original_payment", refundState:"not_started", channel:"web", priority:"high", age:2, reason:"Defective on arrival", rcat:"defective", carrier:"ups", tracking:"1Z9988X44021", wh:"East DC", inspector:"Priya Shah", restock:false, notes:"Left earcup intermittent. Customer reports crackle at high volume. Awaiting bench test."},
+    {rma:"RMA-24088", order:"SO-879905", cust:"Elena Vasquez", sku:"APP-JKT-M", prod:"Alpine Shell Jacket — Medium", cat:"Apparel", qty:1, price:189.00, refund:189.00, status:"qc_pass", method:"original_payment", refundState:"processing", channel:"marketplace", priority:"normal", age:4, reason:"Changed mind", rcat:"changed_mind", carrier:"fedex", tracking:"7712 4490 8821", wh:"West DC", inspector:"Devon Carter", restock:true, notes:"Tags intact, unworn. Cleared for restock. Refund initiated to original card."},
+    {rma:"RMA-24085", order:"SO-879740", cust:"Hiroshi Tanaka", sku:"HOM-LMP-04", prod:"Arc Floor Lamp (Brass)", cat:"Home", qty:1, price:245.00, refund:0, status:"qc_fail", method:"none", refundState:"declined", channel:"web", priority:"normal", age:6, reason:"Damaged in transit", rcat:"damaged_transit", carrier:"dhl", tracking:"JD0145582210", wh:"East DC", inspector:"Priya Shah", restock:false, notes:"Shade cracked, base dented. Damage occurred pre-return — filing carrier claim, refund routed to claim not customer."},
+    {rma:"RMA-24080", order:"SO-879511", cust:"Amara Okafor", sku:"FTW-RUN-9", prod:"Trailrunner GTX — US 9", cat:"Footwear", qty:2, price:148.00, refund:296.00, status:"refunded", method:"original_payment", refundState:"issued", channel:"retail", priority:"low", age:8, reason:"Wrong size shipped", rcat:"wrong_item", carrier:"usps", tracking:"9405 5118 9921", wh:"West DC", inspector:"Marta Reyes", restock:true, notes:"Pick error confirmed. Both pairs unworn, restocked. Full refund issued, fee waived."},
+    {rma:"RMA-24078", order:"SO-879388", cust:"Liam Fitzgerald", sku:"ELE-TAB-11", prod:'Slate Tablet 11" 256GB', cat:"Electronics", qty:1, price:599.00, refund:599.00, status:"received", qc:"pending", method:"store_credit", refundState:"not_started", channel:"web", priority:"high", age:3, reason:"Not as described", rcat:"not_as_described", carrier:"ups", tracking:"1Z9988X41170", wh:"East DC", inspector:"Devon Carter", restock:false, notes:"Customer expected cellular variant, shipped Wi-Fi only. Verifying box contents before QC."},
+    {rma:"RMA-24074", order:"SO-879102", cust:"Sofia Ricci", sku:"BTY-SER-30", prod:"Vitamin C Serum 30ml", cat:"Beauty", qty:3, price:42.00, refund:84.00, status:"inspecting", qc:"partial", method:"original_payment", refundState:"processing", channel:"marketplace", priority:"normal", age:5, reason:"Defective seal", rcat:"defective", carrier:"fedex", tracking:"7712 4488 6650", wh:"West DC", inspector:"Marta Reyes", restock:false, notes:"1 of 3 unit seal broken — partial approval. 2 sealed units restockable, 1 to disposal."},
+    {rma:"RMA-24070", order:"SO-878944", cust:"Noah Kim", sku:"TLS-DRL-20", prod:"20V Brushless Drill Kit", cat:"Tools", qty:1, price:179.00, refund:179.00, status:"approved", qc:"pending", method:"exchange", refundState:"not_started", channel:"phone", priority:"normal", age:1, reason:"Warranty replacement", rcat:"warranty", carrier:"ups", tracking:"—", wh:"East DC", inspector:"—", restock:false, notes:"Within warranty. Replacement unit reserved. Awaiting inbound shipment of faulty unit."},
+    {rma:"RMA-24066", order:"SO-878701", cust:"Greta Lindholm", sku:"HOM-CHR-02", prod:"Linen Accent Chair (Sand)", cat:"Home", qty:1, price:420.00, refund:399.00, status:"in_transit", qc:"pending", method:"original_payment", refundState:"not_started", channel:"web", priority:"low", age:4, reason:"Changed mind", rcat:"changed_mind", carrier:"dhl", tracking:"JD0145579908", wh:"West DC", inspector:"—", restock:true, notes:"Bulky-item return picked up. $21 restocking fee applies per policy. In transit to West DC."},
+    {rma:"RMA-24061", order:"SO-878533", cust:"Carlos Mendez", sku:"KIT-PAN-12", prod:"Cast Iron Skillet Set (3pc)", cat:"Kitchen", qty:1, price:96.00, refund:96.00, status:"refunded", method:"store_credit", refundState:"issued", channel:"marketplace", priority:"low", age:9, reason:"Not as described", rcat:"not_as_described", carrier:"usps", tracking:"9405 5117 4432", wh:"East DC", inspector:"Priya Shah", restock:true, notes:"Listing photo mismatch acknowledged. Store credit issued + $10 goodwill. Restocked."},
+    {rma:"RMA-24055", order:"SO-878210", cust:"Yuki Sato", sku:"OUT-BKP-45", prod:"45L Trekking Backpack", cat:"Outdoor", qty:1, price:159.00, refund:0, status:"rejected", qc:"fail", method:"none", refundState:"declined", channel:"retail", priority:"normal", age:11, reason:"Changed mind", rcat:"changed_mind", carrier:"—", tracking:"—", wh:"West DC", inspector:"Marta Reyes", restock:false, notes:"Returned past 30-day window with heavy field use. Outside policy — return rejected, item shipped back to customer."},
+    {rma:"RMA-24050", order:"SO-877988", cust:"Aisha Rahman", sku:"TOY-BLD-500", prod:"Architect Building Set 500pc", cat:"Toys", qty:2, price:54.00, refund:108.00, status:"qc_pass", method:"original_payment", refundState:"processing", channel:"web", priority:"normal", age:6, reason:"Wrong item shipped", rcat:"wrong_item", carrier:"fedex", tracking:"7712 4485 2201", wh:"East DC", inspector:"Devon Carter", restock:true, notes:"Both sealed, factory condition. Pick error. Cleared, refund in processing."},
+    {rma:"RMA-24044", order:"SO-877640", cust:"Tom Becker", sku:"ELE-WCH-S2", prod:"FitPulse Smartwatch S2", cat:"Electronics", qty:1, price:249.00, refund:249.00, status:"requested", qc:"pending", method:"original_payment", refundState:"not_started", channel:"web", priority:"high", age:0, reason:"Defective on arrival", rcat:"defective", carrier:"—", tracking:"—", wh:"East DC", inspector:"—", restock:false, notes:"Just submitted — screen flicker on first boot. Pending approval + return label."}
+  ];
+
+  // ---------- helpers ----------
+  function money(n){ return "$" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function ageClass(a){ return a>=8 ? "over" : (a>=5 ? "warn" : ""); }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  // QC sub-results synthesized from row qc state
+  function qcChecks(r){
+    var base = {
+      pass:    [["Cosmetic condition","pass","No marks, retail-ready"],["Functional test","pass","All features verified"],["Packaging","pass","Original box & inserts"],["Accessories","pass","Complete"]],
+      partial: [["Cosmetic condition","pass","Minor, acceptable"],["Functional test","pass","Working units OK"],["Packaging","fail","1 unit seal broken"],["Accessories","pass","Complete"]],
+      fail:    [["Cosmetic condition","fail","Visible damage"],["Functional test","fail","Does not power / cracked"],["Packaging","fail","Damaged in transit"],["Accessories","na","Not assessed"]],
+      pending: [["Cosmetic condition","na","Awaiting inspection"],["Functional test","na","Queued for bench test"],["Packaging","na","Pending"],["Accessories","na","Pending"]]
+    };
+    var qc = r.qc || (r.status==="refunded" ? "pass" : "pending");
+    return base[qc] || base.pending;
+  }
+
+  // refund timeline steps
+  function refundSteps(r){
+    var steps = [
+      {t:"Request submitted", meta:"Customer opened RMA"},
+      {t:"Return approved",   meta:"Label issued · "+(r.carrier!=="—"?CARRIER[r.carrier]:"pending")},
+      {t:"Item received",     meta:"Scanned in at "+r.wh},
+      {t:"Inspection",        meta:"QC: "+(r.qc?QC_LABEL[r.qc]:"pending")},
+      {t:"Refund "+REFUND_LABEL[r.refundState].toLowerCase(), meta:REFUND_LABEL[r.refundState]+" · "+methodLabel(r.method), amt:r.refund>0?money(r.refund):null}
+    ];
+    var order = ["requested","approved","in_transit","received","inspecting","qc_pass","qc_fail","refunded","rejected","closed"];
+    var idx = order.indexOf(r.status);
+    // map status to how many steps are done
+    var done;
+    if(r.status==="requested") done=1;
+    else if(r.status==="approved"||r.status==="in_transit") done=2;
+    else if(r.status==="received") done=3;
+    else if(r.status==="inspecting") done=4; // inspection active
+    else if(r.status==="qc_pass") done=4;
+    else done=5;
+    var activeStep;
+    if(r.status==="inspecting") activeStep=3; // 0-based: inspection node active
+    else if(r.refundState==="processing") activeStep=4;
+    return steps.map(function(s,i){
+      var state;
+      if(r.status==="rejected"||r.status==="qc_fail"){
+        if(i<3) state="done"; else if(i===3) state="fail"; else state= (r.refundState==="declined"?"fail":"todo");
+      } else if(r.refundState==="issued" && i===4){ state="done"; }
+      else if(i<done) state="done";
+      else if(i===activeStep) state="active";
+      else state="todo";
+      return Object.assign({}, s, {state:state});
+    });
+  }
+  function methodLabel(m){ return {original_payment:"Original payment",store_credit:"Store credit",exchange:"Exchange",none:"No refund"}[m]; }
+
+  // ---------- pipeline render ----------
+  var activeStage = null;
+  (function renderPipeline(){
+    var host = document.getElementById("pipeline"); host.innerHTML="";
+    STAGES.forEach(function(s){
+      var el = document.createElement("div");
+      el.className="stage"+(activeStage===s.key?" on":"");
+      el.dataset.s=s.key;
+      var pct = Math.round(s.n/maxStage*100);
+      el.innerHTML =
+        '<div class="stage-card">'+
+          '<div class="stage-name"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</div>'+
+          '<div class="stage-n">'+s.n+'</div>'+
+          '<div class="stage-delta" style="color:'+(s.delta.charAt(0)==="+"?"var(--green)":"var(--red)")+'">'+s.delta+' this wk</div>'+
+          '<div class="stage-bar"><i style="width:'+pct+'%;background:'+s.color+'"></i></div>'+
+        '</div>';
+      host.appendChild(el);
+    });
+  })();
+
+  document.getElementById("pipeline").addEventListener("click", function(e){
+    var st = e.target.closest(".stage"); if(!st) return;
+    var key = st.dataset.s;
+    activeStage = (activeStage===key) ? null : key;
+    document.querySelectorAll(".stage").forEach(function(x){ x.classList.toggle("on", x.dataset.s===activeStage); });
+    // reset bucket pills to All when a stage is chosen
+    if(activeStage){ activeBucket="all"; syncPills(); }
+    renderTable();
+    flash(activeStage ? "Filtered to stage: "+ (STAGES.filter(function(s){return s.key===activeStage;})[0].name) : "Stage filter cleared");
+  });
+
+  // ---------- bucket pills ----------
+  var activeBucket = "all";
+  function bucketOf(r){
+    if(r.status==="rejected"||r.status==="qc_fail") return ["rejected"];
+    var arr=[];
+    if(r.status==="received"||r.status==="inspecting") arr.push("needs_qc");
+    if((r.status==="qc_pass"||r.status==="refunded"||r.status==="inspecting") && r.refundState!=="issued" && r.refundState!=="declined") arr.push("awaiting_refund");
+    if(r.status==="qc_pass" && r.refundState!=="issued") { if(arr.indexOf("awaiting_refund")<0) arr.push("awaiting_refund"); }
+    return arr;
+  }
+  function syncPills(){
+    document.querySelectorAll("#bucketPills .pill").forEach(function(p){ p.classList.toggle("on", p.dataset.b===activeBucket); });
+  }
+  document.getElementById("bucketPills").addEventListener("click", function(e){
+    var p = e.target.closest(".pill"); if(!p) return;
+    activeBucket = p.dataset.b;
+    if(activeBucket!=="all"){ activeStage=null; document.querySelectorAll(".stage").forEach(function(x){x.classList.remove("on");}); }
+    syncPills(); renderTable();
+  });
+
+  function updateBucketCounts(){
+    var counts = {all:RMA.length, needs_qc:0, awaiting_refund:0, rejected:0};
+    RMA.forEach(function(r){ bucketOf(r).forEach(function(b){ counts[b]++; }); });
+    Object.keys(counts).forEach(function(k){ var el=document.getElementById("b-"+k); if(el) el.textContent=counts[k]; });
+  }
+
+  // ---------- table render ----------
+  function visibleRows(){
+    return RMA.filter(function(r){
+      if(activeStage){
+        if(activeStage==="qc_pass") return (r.status==="qc_pass"||r.status==="qc_fail");
+        return r.status===activeStage;
+      }
+      if(activeBucket==="all") return true;
+      return bucketOf(r).indexOf(activeBucket)>-1;
+    });
+  }
+
+  function renderTable(){
+    var tb = document.getElementById("tbody"); tb.innerHTML="";
+    var rows = visibleRows();
+    var note = document.getElementById("filterNote");
+    note.textContent = rows.length + " of " + RMA.length + " RMAs";
+
+    if(rows.length===0){
+      tb.innerHTML='<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--ink-3)">No RMAs match this filter.</td></tr>';
+      return;
+    }
+
+    rows.forEach(function(r){
+      var tr = document.createElement("tr");
+      tr.dataset.rma=r.rma;
+      var qc = r.qc || (r.status==="refunded"?"pass":"pending");
+      var pct = REFUND_PCT[r.refundState];
+      var icon = PROD_ICON[r.cat] || "📦";
+
+      tr.innerHTML =
+        // lead
+        '<td><div class="lead">'+
+          '<div class="thumb">'+icon+'<span class="flag '+r.priority+'" title="'+r.priority+' priority">'+(r.priority==="high"?"!":(r.priority==="normal"?"~":"·"))+'</span></div>'+
+          '<div class="lead-main">'+
+            '<div class="rno">'+r.rma+' <span class="ch '+r.channel+'">'+r.channel+'</span></div>'+
+            '<div class="sub">'+r.order+' · '+esc(r.cust)+'</div>'+
+            '<div class="prod" title="'+esc(r.prod)+'">'+esc(r.prod)+' · ×'+r.qty+'</div>'+
+          '</div>'+
+        '</div></td>'+
+        // reason
+        '<td><div class="reason-cell">'+esc(r.reason)+'<span class="rcat">'+r.rcat.replace(/_/g," ")+'</span></div></td>'+
+        // status
+        '<td><span class="tag s-'+r.status+'"><span class="d"></span>'+STATUS_LABEL[r.status]+'</span></td>'+
+        // qc
+        '<td><span class="qc qc-'+qc+'"><span class="ic">'+QC_ICON[qc]+'</span>'+QC_LABEL[qc]+'</span></td>'+
+        // refund
+        '<td><div class="refund">'+
+          '<div class="refund-top"><span class="refund-amt">'+(r.refund>0?money(r.refund):"—")+'</span><span class="refund-meth">'+methodLabel(r.method)+'</span></div>'+
+          '<div class="rbar '+r.refundState+'"><i style="width:'+pct+'%"></i></div>'+
+          '<div class="refund-state rs-'+r.refundState+'">'+REFUND_LABEL[r.refundState]+'</div>'+
+        '</div></td>'+
+        // age
+        '<td><span class="age '+ageClass(r.age)+'">'+(r.age===0?"today":r.age+"d")+'</span><div class="cell-sub">'+r.wh+'</div></td>'+
+        // actions
+        '<td><div class="row-tools">'+actionsFor(r)+'</div></td>';
+
+      tr.addEventListener("click", function(ev){
+        var b = ev.target.closest("button");
+        if(b){ ev.stopPropagation(); doAction(b.dataset.act, r); return; }
+        openDetail(r);
+      });
+      tb.appendChild(tr);
+    });
+  }
+
+  function actionsFor(r){
+    var btns=[];
+    if(r.status==="requested") btns.push('<button data-act="approve">Approve</button>');
+    if(r.status==="received") btns.push('<button data-act="qc">Start QC</button>');
+    if((r.status==="qc_pass"||r.status==="inspecting") && r.refundState!=="issued") btns.push('<button data-act="refund">Issue refund</button>');
+    btns.push('<button data-act="open">Details</button>');
+    return btns.join("");
+  }
+
+  function doAction(act, r){
+    if(act==="open"){ openDetail(r); return; }
+    if(act==="approve"){ r.status="approved"; flash(r.rma+" approved — return label sent"); }
+    else if(act==="qc"){ r.status="inspecting"; r.qc="pending"; flash(r.rma+" moved to inspection"); }
+    else if(act==="refund"){ r.refundState="issued"; r.status="refunded"; flash("Refund "+(r.refund>0?money(r.refund):"")+" issued for "+r.rma); }
+    updateBucketCounts(); renderTable();
+  }
+
+  // ---------- detail drawer ----------
+  function openDetail(r){
+    document.querySelectorAll("#tbody tr").forEach(function(t){ t.classList.toggle("sel", t.dataset.rma===r.rma); });
+    var qc = r.qc || (r.status==="refunded"?"pass":"pending");
+    document.getElementById("drRno").innerHTML = r.rma + ' <span class="tag s-'+r.status+'"><span class="d"></span>'+STATUS_LABEL[r.status]+'</span>';
+    document.getElementById("drCust").textContent = esc(r.cust) + " · " + r.order + " · " + r.channel.charAt(0).toUpperCase()+r.channel.slice(1)+" channel";
+
+    var fields =
+      '<div class="dr-sec"><div class="fields">'+
+        '<div class="f"><div class="fl">Product</div><div class="fv">'+esc(r.prod)+'</div></div>'+
+        '<div class="f"><div class="fl">SKU</div><div class="fv mono">'+r.sku+'</div></div>'+
+        '<div class="f"><div class="fl">Quantity</div><div class="fv mono">'+r.qty+'</div></div>'+
+        '<div class="f"><div class="fl">Unit price</div><div class="fv mono">'+money(r.price)+'</div></div>'+
+        '<div class="f"><div class="fl">Reason</div><div class="fv">'+esc(r.reason)+'</div></div>'+
+        '<div class="f"><div class="fl">Warehouse</div><div class="fv">'+r.wh+'</div></div>'+
+        '<div class="f"><div class="fl">Carrier / Tracking</div><div class="fv mono">'+(r.carrier!=="—"?CARRIER[r.carrier]:"—")+' · '+r.tracking+'</div></div>'+
+        '<div class="f"><div class="fl">Inspector</div><div class="fv">'+esc(r.inspector)+'</div></div>'+
+      '</div></div>';
+
+    // QC checklist
+    var checks = qcChecks(r);
+    var qcHtml = '<div class="dr-sec"><h3>Quality inspection <span class="cnt">'+QC_LABEL[qc]+'</span></h3><div class="qc-list">';
+    checks.forEach(function(c){
+      var res=c[1];
+      qcHtml += '<div class="qc-item">'+
+        '<span class="qci-ic '+res+'">'+(res==="pass"?"✓":(res==="fail"?"✕":"–"))+'</span>'+
+        '<div style="flex:1"><div class="qci-name">'+c[0]+'</div><div class="qci-note">'+c[2]+'</div></div>'+
+        '<span class="qci-res '+res+'">'+(res==="na"?"N/A":res)+'</span>'+
+      '</div>';
+    });
+    qcHtml += '</div></div>';
+
+    // refund timeline
+    var steps = refundSteps(r);
+    var tlHtml = '<div class="dr-sec"><h3>Refund progress <span class="cnt">'+REFUND_LABEL[r.refundState]+'</span></h3><div class="timeline">';
+    steps.forEach(function(s){
+      var glyph = s.state==="done"?"✓":(s.state==="fail"?"✕":(s.state==="active"?"●":""));
+      tlHtml += '<div class="tl '+s.state+'"><span class="node">'+glyph+'</span>'+
+        '<div class="tl-title">'+s.t.charAt(0).toUpperCase()+s.t.slice(1)+'</div>'+
+        '<div class="tl-meta">'+s.meta+'</div>'+
+        (s.amt && s.state==="done" ? '<div class="tl-amt">'+s.amt+'</div>' : '')+
+      '</div>';
+    });
+    tlHtml += '</div></div>';
+
+    // restock + notes
+    var restockHtml = '<div class="dr-sec"><h3>Disposition</h3>'+
+      '<div class="restock-row"><span class="rk '+(r.restock?"yes":"no")+'">'+(r.restock?"♻":"✕")+'</span>'+
+        '<div><b>'+(r.restock?"Approved for restock":"Not restockable")+'</b><div style="color:var(--ink-3);font-size:11.5px;margin-top:1px">'+
+        (r.restock?"Unit returns to sellable inventory":"Routed to disposal / claim")+'</div></div></div>'+
+      '<div class="dr-notes" style="margin-top:11px">'+esc(r.notes)+'</div></div>';
+
+    document.getElementById("drBody").innerHTML = fields + qcHtml + tlHtml + restockHtml;
+
+    // footer actions
+    var foot=[];
+    if(r.status==="requested") foot.push('<button class="btn btn-primary" data-fact="approve">Approve return</button>');
+    else if(r.status==="received") foot.push('<button class="btn btn-primary" data-fact="qc">Start inspection</button>');
+    else if((r.status==="qc_pass"||r.status==="inspecting") && r.refundState!=="issued") foot.push('<button class="btn btn-primary" data-fact="refund">Issue refund</button>');
+    else foot.push('<button class="btn btn-primary" data-fact="close">Mark closed</button>');
+    foot.push('<button class="btn btn-ghost" data-fact="msg">Message customer</button>');
+    var f=document.getElementById("drFoot"); f.innerHTML=foot.join("");
+    f.querySelectorAll("button").forEach(function(b){
+      b.onclick=function(){
+        var fa=b.dataset.fact;
+        if(fa==="msg"){ flash("Message composer opened for "+esc(r.cust)); return; }
+        if(fa==="close"){ r.status="closed"; flash(r.rma+" marked closed"); }
+        else doAction(fa, r);
+        closeDetail();
+      };
+    });
+
+    document.getElementById("scrim").classList.add("show");
+    document.getElementById("drawer").classList.add("show");
+  }
+  function closeDetail(){
+    document.getElementById("scrim").classList.remove("show");
+    document.getElementById("drawer").classList.remove("show");
+    document.querySelectorAll("#tbody tr").forEach(function(t){ t.classList.remove("sel"); });
+  }
+  document.getElementById("drClose").onclick=closeDetail;
+  document.getElementById("scrim").onclick=closeDetail;
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeDetail(); });
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.innerHTML=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- init ----------
+  updateBucketCounts();
+  renderTable();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Return Management: an RMA funnel, QC results, and refund progress. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/44-return-management.html
+</script>
+</body>
+</html>

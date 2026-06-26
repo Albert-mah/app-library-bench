@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Field Service Management System</title>
+<style>
+  :root {
+    --bg: #0e141b;
+    --bg-soft: #131b24;
+    --panel: #18212c;
+    --panel-2: #1f2935;
+    --line: #2b3744;
+    --line-soft: #222d39;
+    --text: #e8eef4;
+    --text-dim: #9aa8b6;
+    --text-faint: #687889;
+    --accent: #f59e0b;        /* amber — primary */
+    --accent-2: #d97706;      /* deeper amber */
+    --green: #34d399;
+    --amber: #fbbf24;         /* caution / SLA-at-risk (distinct warm yellow) */
+    --red: #f87171;
+    --teal: #2dd4bf;
+    --pink: #f59e0b;
+    --shadow: 0 12px 40px rgba(0,0,0,.55);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  ::selection { background: rgba(245,158,11,.32); }
+
+  /* ===== Layout ===== */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    background: #111923;
+    border-right: 1px solid var(--line);
+    padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 4px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 6px 8px 18px; }
+  .brand .logo {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .brand .logo svg { width: 22px; height: 22px; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+  .brand .sub { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+
+  .nav-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--text-faint); padding: 16px 10px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 10px; color: var(--text-dim);
+    cursor: pointer; font-weight: 500; font-size: 13.5px; user-select: none;
+    transition: background .15s, color .15s;
+  }
+  .nav-item svg { width: 18px; height: 18px; opacity: .85; flex-shrink: 0; }
+  .nav-item:hover { background: rgba(255,255,255,.04); color: var(--text); }
+  .nav-item.active { background: linear-gradient(90deg, rgba(245,158,11,.16), rgba(245,158,11,.03)); color: #fff; box-shadow: inset 2px 0 0 var(--accent); }
+  .nav-item .badge { margin-left: auto; background: var(--accent); color: #1a1206; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 9px; }
+  .nav-item .badge.warn { background: var(--red); color: #fff; }
+
+  .sidebar-foot { margin-top: auto; padding: 12px 8px 4px; border-top: 1px solid var(--line-soft); }
+  .me { display: flex; align-items: center; gap: 10px; }
+  .me .ava { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#ff7eb6,#7c5cff); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .me .nm { font-size: 13px; font-weight: 600; }
+  .me .rl { font-size: 11px; color: var(--text-faint); }
+
+  /* Main */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 26px; border-bottom: 1px solid var(--line);
+    background: rgba(14,20,27,.82); backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .topbar h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .topbar .crumb { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+  .search {
+    margin-left: auto; position: relative; width: 300px;
+  }
+  .search input {
+    width: 100%; padding: 9px 12px 9px 36px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg-soft); color: var(--text);
+    font-size: 13px; outline: none;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(245,158,11,.14); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-faint); }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg-soft); color: var(--text-dim); display: grid; place-items: center;
+    cursor: pointer; position: relative;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .icon-btn .dot { position: absolute; top: 8px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg-soft); }
+
+  .content { padding: 22px 26px 40px; overflow-y: auto; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .kpi {
+    background: linear-gradient(160deg, var(--panel), var(--bg-soft));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px;
+    position: relative; overflow: hidden;
+  }
+  .kpi .glow { position: absolute; right: -34px; top: -34px; width: 96px; height: 96px; border-radius: 50%; filter: blur(26px); opacity: .10; }
+  .kpi .k-top { display: flex; align-items: center; justify-content: space-between; }
+  .kpi .k-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; }
+  .kpi .k-ico svg { width: 19px; height: 19px; }
+  .kpi .k-val { font-size: 27px; font-weight: 750; margin-top: 12px; letter-spacing: -.5px; }
+  .kpi .k-lbl { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+  .kpi .k-trend { font-size: 11.5px; margin-top: 9px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 7px; font-weight: 600; }
+  .trend-up { color: var(--green); background: rgba(52,211,153,.14); }
+  .trend-down { color: var(--red); background: rgba(248,113,113,.14); }
+  .trend-flat { color: var(--amber); background: rgba(251,191,36,.14); }
+
+  /* Grid main area */
+  .grid-2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; align-items: start; }
+
+  .card {
+    background: linear-gradient(170deg, var(--panel), var(--bg-soft));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 12px; padding: 15px 18px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .card-head h2 { font-size: 14.5px; margin: 0; font-weight: 700; }
+  .card-head .sub { font-size: 11.5px; color: var(--text-faint); }
+  .card-head .spacer { margin-left: auto; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; background: var(--bg-soft); padding: 3px; border-radius: 10px; border: 1px solid var(--line); }
+  .tab { padding: 6px 13px; border-radius: 8px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; font-weight: 600; user-select: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--panel-2); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+  .tab .cnt { opacity: .6; font-weight: 500; margin-left: 4px; }
+
+  /* Work order list */
+  .wo-list { padding: 8px; max-height: 620px; overflow-y: auto; }
+  .wo {
+    display: grid; grid-template-columns: 4px 1fr auto; gap: 0;
+    border: 1px solid var(--line-soft); border-radius: 11px; margin: 8px 6px;
+    background: var(--bg-soft); cursor: pointer; transition: border-color .15s, transform .12s, background .15s;
+    overflow: hidden;
+  }
+  .wo:hover { border-color: var(--accent); transform: translateX(2px); background: var(--panel); }
+  .wo .pri-bar { width: 4px; }
+  .wo-body { padding: 12px 14px; min-width: 0; }
+  .wo-meta { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; flex-wrap: wrap; }
+  .wo-id { font-size: 11.5px; color: var(--text-faint); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .wo-title { font-weight: 650; font-size: 14px; color: var(--text); }
+  .wo-desc { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wo-foot { display: flex; align-items: center; gap: 14px; margin-top: 9px; font-size: 11.5px; color: var(--text-faint); flex-wrap: wrap; }
+  .wo-foot .f { display: inline-flex; align-items: center; gap: 5px; }
+  .wo-foot svg { width: 13px; height: 13px; }
+  .wo-right { padding: 12px 14px; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 8px; }
+
+  .tech-chip { display: inline-flex; align-items: center; gap: 6px; }
+  .tech-chip .ava { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .tech-chip .nm { font-size: 12px; color: var(--text-dim); }
+  .unassigned { font-size: 12px; color: var(--amber); display: inline-flex; align-items: center; gap: 5px; }
+
+  /* Pills / badges */
+  .pill { font-size: 11px; font-weight: 700; padding: 2.5px 9px; border-radius: 20px; letter-spacing: .2px; white-space: nowrap; }
+  .pill-new { background: rgba(245,158,11,.16); color: #fbbf6b; }
+  .pill-progress { background: rgba(56,189,248,.15); color: #7dd3fc; }
+  .pill-scheduled { background: rgba(45,212,191,.15); color: #6ee7d6; }
+  .pill-hold { background: rgba(251,191,36,.15); color: var(--amber); }
+  .pill-done { background: rgba(52,211,153,.15); color: #6ee7b0; }
+  .pill-sla { background: rgba(248,113,113,.15); color: #fca5a5; }
+
+  .badge-pri { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .4px; }
+  .pri-critical { background: rgba(248,113,113,.18); color: #fca5a5; }
+  .pri-high { background: rgba(251,191,36,.16); color: var(--amber); }
+  .pri-medium { background: rgba(56,189,248,.16); color: #7dd3fc; }
+  .pri-low { background: rgba(154,168,182,.16); color: var(--text-dim); }
+
+  /* AI triage panel */
+  .ai-panel { position: relative; }
+  .ai-panel .card-head { background: linear-gradient(90deg, rgba(245,158,11,.10), rgba(245,158,11,.02)); }
+  .ai-spark { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; }
+  .ai-spark svg { width: 17px; height: 17px; }
+  .ai-body { padding: 16px 18px; }
+  .ai-compose {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  }
+  .ai-compose textarea {
+    width: 100%; border: none; background: transparent; color: var(--text); resize: none;
+    font-family: inherit; font-size: 13px; outline: none; min-height: 56px; line-height: 1.5;
+  }
+  .ai-compose textarea::placeholder { color: var(--text-faint); }
+  .ai-compose-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .attach-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-dim); background: var(--panel-2); border: 1px solid var(--line); padding: 4px 9px; border-radius: 8px; }
+  .attach-chip svg { width: 13px; height: 13px; color: var(--teal); }
+  .btn {
+    border: none; border-radius: 9px; padding: 8px 15px; font-weight: 650; font-size: 12.5px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 7px; font-family: inherit;
+    transition: filter .15s, transform .08s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 15px; height: 15px; }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #1a1206; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-ghost { background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--line); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+  .btn-sm { padding: 6px 11px; font-size: 11.5px; }
+
+  /* AI result */
+  .ai-result { margin-top: 16px; }
+  .ai-result.hidden { display: none; }
+  .ai-thinking { display: flex; align-items: center; gap: 9px; color: var(--text-dim); font-size: 12.5px; padding: 10px 2px; }
+  .ai-thinking .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .3; transform: scale(.8);} 50%{opacity:1; transform: scale(1.2);} }
+
+  .extract-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  .ex-field {
+    background: var(--bg); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px;
+  }
+  .ex-field .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-faint); }
+  .ex-field .val { font-size: 13.5px; font-weight: 600; margin-top: 3px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .conf { font-size: 10px; font-weight: 700; padding: 1.5px 7px; border-radius: 12px; }
+  .conf-hi { background: rgba(52,211,153,.16); color: var(--green); }
+  .conf-mid { background: rgba(251,191,36,.16); color: var(--amber); }
+  .conf-lo { background: rgba(248,113,113,.16); color: var(--red); }
+
+  .ai-verdict {
+    margin-top: 12px; background: linear-gradient(135deg, rgba(245,158,11,.09), rgba(245,158,11,.02));
+    border: 1px solid rgba(245,158,11,.28); border-radius: 12px; padding: 13px 14px;
+  }
+  .ai-verdict .vh { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .ai-verdict .vh .t { font-weight: 700; font-size: 13px; }
+  .ai-verdict .reason { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .rec-tech {
+    display: flex; align-items: center; gap: 11px; margin-top: 11px; padding: 10px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .rec-tech .ava { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff; }
+  .rec-tech .info .nm { font-weight: 650; font-size: 13px; }
+  .rec-tech .info .meta { font-size: 11.5px; color: var(--text-faint); }
+  .rec-tech .match { margin-left: auto; text-align: right; }
+  .rec-tech .match .pct { font-weight: 750; font-size: 17px; color: var(--green); }
+  .rec-tech .match .ml { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .6px; }
+
+  /* Right column cards */
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+
+  /* Tech roster */
+  .roster { padding: 6px 8px 10px; }
+  .tech-row {
+    display: flex; align-items: center; gap: 11px; padding: 10px; border-radius: 10px; cursor: pointer;
+  }
+  .tech-row:hover { background: var(--bg-soft); }
+  .tech-row .ava { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; position: relative; flex-shrink: 0; }
+  .tech-row .ava .st { position: absolute; bottom: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--panel); }
+  .st-avail { background: var(--green); }
+  .st-busy { background: var(--amber); }
+  .st-off { background: var(--text-faint); }
+  .tech-row .info { min-width: 0; flex: 1; }
+  .tech-row .info .nm { font-weight: 600; font-size: 13.5px; }
+  .tech-row .info .sk { font-size: 11.5px; color: var(--text-faint); }
+  .tech-row .load { text-align: right; }
+  .tech-row .load .num { font-size: 13px; font-weight: 700; }
+  .loadbar { width: 60px; height: 5px; border-radius: 3px; background: var(--line); margin-top: 4px; overflow: hidden; }
+  .loadbar i { display: block; height: 100%; border-radius: 3px; }
+
+  /* Activity feed */
+  .feed { padding: 6px 18px 14px; max-height: 320px; overflow-y: auto; }
+  .feed-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--line-soft); }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-ico { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; }
+  .feed-ico svg { width: 15px; height: 15px; }
+  .feed-ai { background: rgba(245,158,11,.16); color: var(--accent); }
+  .feed-sys { background: rgba(45,212,191,.14); color: var(--teal); }
+  .feed-usr { background: rgba(139,155,171,.14); color: var(--text-dim); }
+  .feed-txt { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+  .feed-txt b { color: var(--text); font-weight: 650; }
+  .feed-time { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .tag-ai { font-size: 9.5px; font-weight: 700; color: var(--accent); background: rgba(245,158,11,.14); padding: 1px 6px; border-radius: 6px; margin-left: 4px; letter-spacing: .3px; }
+
+  /* SLA / gauge chart card */
+  .gauge-wrap { display: flex; align-items: center; gap: 20px; padding: 18px; }
+  .donut { position: relative; width: 130px; height: 130px; flex-shrink: 0; }
+  .donut .cn { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .donut .cn .big { font-size: 26px; font-weight: 750; }
+  .donut .cn .sm { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .6px; }
+  .legend { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .legend .lg { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .legend .lg .sw { width: 11px; height: 11px; border-radius: 3px; }
+  .legend .lg .v { margin-left: auto; font-weight: 700; }
+
+  /* Bars chart */
+  .bars { padding: 16px 18px 20px; }
+  .bar-row { display: grid; grid-template-columns: 64px 1fr 36px; align-items: center; gap: 12px; margin-bottom: 11px; }
+  .bar-row .day { font-size: 12px; color: var(--text-dim); }
+  .bar-track { height: 9px; background: var(--line); border-radius: 5px; overflow: hidden; }
+  .bar-track i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+  .bar-row .n { font-size: 12px; font-weight: 700; text-align: right; }
+
+  /* Drawer */
+  .drawer-scrim { position: fixed; inset: 0; background: rgba(5,8,12,.6); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 50; }
+  .drawer-scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 520px; max-width: 94vw;
+    background: linear-gradient(180deg, var(--panel), var(--bg-soft));
+    border-left: 1px solid var(--line); box-shadow: var(--shadow);
+    transform: translateX(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+    z-index: 51; display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { padding: 20px 22px 16px; border-bottom: 1px solid var(--line); }
+  .drawer-head .dh-top { display: flex; align-items: flex-start; gap: 12px; }
+  .drawer-head .x { margin-left: auto; cursor: pointer; color: var(--text-faint); width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; }
+  .drawer-head .x:hover { background: var(--panel-2); color: var(--text); }
+  .drawer-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
+  .drawer-title { font-size: 18px; font-weight: 700; margin: 2px 0; }
+  .drawer-sub { font-size: 12px; color: var(--text-faint); font-family: ui-monospace, Menlo, monospace; }
+
+  .dsect { margin-bottom: 22px; }
+  .dsect h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-faint); margin: 0 0 11px; }
+  .dl { display: grid; grid-template-columns: 120px 1fr; gap: 7px 14px; font-size: 13px; }
+  .dl dt { color: var(--text-faint); }
+  .dl dd { margin: 0; color: var(--text); font-weight: 500; }
+
+  .ai-summary-box {
+    background: linear-gradient(135deg, rgba(245,158,11,.09), rgba(245,158,11,.02));
+    border: 1px solid rgba(245,158,11,.26); border-radius: 12px; padding: 14px;
+  }
+  .ai-summary-box .sb-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-weight: 700; font-size: 13px; }
+  .ai-summary-box .sb-head .ai-spark { width: 24px; height: 24px; border-radius: 7px; }
+  .ai-summary-box .sb-head .ai-spark svg { width: 13px; height: 13px; }
+  .ai-summary-box p { margin: 0 0 8px; font-size: 12.8px; color: var(--text-dim); line-height: 1.6; }
+  .ai-summary-box ul { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-dim); line-height: 1.7; }
+  .ai-summary-box ul b { color: var(--text); }
+
+  .timeline { position: relative; padding-left: 8px; }
+  .tl-item { position: relative; padding: 0 0 16px 22px; }
+  .tl-item::before { content: ""; position: absolute; left: 4px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(245,158,11,.18); }
+  .tl-item::after { content: ""; position: absolute; left: 8px; top: 16px; bottom: -2px; width: 1px; background: var(--line); }
+  .tl-item:last-child::after { display: none; }
+  .tl-item .tt { font-size: 13px; font-weight: 600; }
+  .tl-item .td { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+
+  .parts-list { display: flex; flex-direction: column; gap: 8px; }
+  .part {
+    display: flex; align-items: center; gap: 11px; padding: 9px 12px;
+    background: var(--bg); border: 1px solid var(--line-soft); border-radius: 10px; font-size: 13px;
+  }
+  .part .pico { width: 30px; height: 30px; border-radius: 8px; background: var(--panel-2); display: grid; place-items: center; }
+  .part .pico svg { width: 16px; height: 16px; color: var(--teal); }
+  .part .pq { margin-left: auto; color: var(--text-faint); font-size: 12px; }
+
+  .drawer-foot { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; gap: 10px; }
+  .drawer-foot .btn { flex: 1; justify-content: center; }
+
+  /* Empty state */
+  .empty { padding: 60px 20px; text-align: center; color: var(--text-faint); display: none; }
+  .empty svg { width: 48px; height: 48px; opacity: .4; margin-bottom: 12px; }
+  .empty .et { font-size: 15px; font-weight: 600; color: var(--text-dim); }
+  .empty .es { font-size: 12.5px; margin-top: 4px; }
+
+  /* Filter row */
+  .filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .seg { display: flex; gap: 3px; background: var(--bg-soft); padding: 3px; border-radius: 10px; border: 1px solid var(--line); }
+  .seg button { border: none; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--panel-2); color: #fff; }
+  .filter-spacer { margin-left: auto; }
+
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
+
+  @media (max-width: 1180px) { .grid-2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2,1fr);} }
+  @media (max-width: 720px) { .app { grid-template-columns: 1fr; } .sidebar { display: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <div>
+        <div class="name">FieldOps</div>
+        <div class="sub">现场服务管理系统</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Operations</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dispatch Board</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Work Orders<span class="badge warn">7</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Schedule</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>Live Map</div>
+
+    <div class="nav-label">Resources</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Technicians</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>Parts &amp; Inventory</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9M14 17H5M17 17a3 3 0 1 0 0 0M7 7a3 3 0 1 0 0 0"/></svg>Assets</div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>Analytics</div>
+
+    <div class="sidebar-foot">
+      <div class="me">
+        <div class="ava">DM</div>
+        <div>
+          <div class="nm">Dana Mercer</div>
+          <div class="rl">Lead Dispatcher</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Dispatch Board</h1>
+        <div class="crumb">Monday, June 23, 2026 · Northeast Region · 6 crews active</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="globalSearch" type="text" placeholder="Search work orders, customers, assets…" />
+      </div>
+      <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot"></span></div>
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>New Work Order</button>
+    </div>
+
+    <div class="content">
+      <!-- KPI row -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="glow" style="background:var(--accent)"></div>
+          <div class="k-top"><div class="k-ico" style="background:rgba(245,158,11,.15)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div></div>
+          <div class="k-val">47</div>
+          <div class="k-lbl">Open Work Orders</div>
+          <div class="k-trend trend-up"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 15l-6-6-6 6"/></svg>+8 today</div>
+        </div>
+        <div class="kpi">
+          <div class="glow" style="background:var(--green)"></div>
+          <div class="k-top"><div class="k-ico" style="background:rgba(63,214,140,.14)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></div></div>
+          <div class="k-val">94.2%</div>
+          <div class="k-lbl">SLA Compliance</div>
+          <div class="k-trend trend-up"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 15l-6-6-6 6"/></svg>+1.4% vs last wk</div>
+        </div>
+        <div class="kpi">
+          <div class="glow" style="background:var(--amber)"></div>
+          <div class="k-top"><div class="k-ico" style="background:rgba(255,184,77,.14)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div></div>
+          <div class="k-val">2h 18m</div>
+          <div class="k-lbl">Avg. Response Time</div>
+          <div class="k-trend trend-down"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 9l6 6 6-6"/></svg>-12m faster</div>
+        </div>
+        <div class="kpi">
+          <div class="glow" style="background:var(--accent-2)"></div>
+          <div class="k-top"><div class="k-ico" style="background:rgba(45,212,191,.14)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div></div>
+          <div class="k-val">81%</div>
+          <div class="k-lbl">First-Time Fix Rate</div>
+          <div class="k-trend trend-flat"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14"/></svg>steady</div>
+        </div>
+      </div>
+
+      <!-- Main grid -->
+      <div class="grid-2">
+        <!-- LEFT: Work order triage -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Incoming Work Orders</h2>
+              <div class="sub">Triage queue · auto-sorted by priority &amp; SLA risk</div>
+            </div>
+            <div class="spacer"></div>
+            <div class="tabs" id="statusTabs">
+              <div class="tab active" data-status="all">All <span class="cnt" id="cnt-all">14</span></div>
+              <div class="tab" data-status="New">New <span class="cnt" id="cnt-new">4</span></div>
+              <div class="tab" data-status="Scheduled">Scheduled <span class="cnt" id="cnt-scheduled">3</span></div>
+              <div class="tab" data-status="In Progress">Active <span class="cnt" id="cnt-progress">4</span></div>
+              <div class="tab" data-status="On Hold">Hold <span class="cnt" id="cnt-hold">1</span></div>
+            </div>
+          </div>
+
+          <div class="filter-row" style="padding: 12px 16px 0; margin-bottom:0;">
+            <div class="seg" id="priSeg">
+              <button class="on" data-pri="all">All priorities</button>
+              <button data-pri="Critical">Critical</button>
+              <button data-pri="High">High</button>
+              <button data-pri="Medium">Medium</button>
+            </div>
+            <div class="filter-spacer"></div>
+            <span style="font-size:11.5px;color:var(--text-faint)" id="resultCount"></span>
+          </div>
+
+          <div class="wo-list" id="woList"></div>
+          <div class="empty" id="woEmpty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <div class="et">No work orders match</div>
+            <div class="es">Try clearing a filter or switching tabs.</div>
+          </div>
+        </div>
+
+        <!-- RIGHT column -->
+        <div class="stack">
+          <!-- AI Intake -->
+          <div class="card ai-panel">
+            <div class="card-head">
+              <div class="ai-spark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.4h7.6z"/></svg></div>
+              <div>
+                <h2>AI Intake Assistant</h2>
+                <div class="sub">Paste a customer call note or upload a photo</div>
+              </div>
+            </div>
+            <div class="ai-body">
+              <div class="ai-compose">
+                <textarea id="aiInput">Customer called: rooftop HVAC unit at the Harbor Plaza office (3rd floor) is blowing warm air and making a loud grinding noise since this morning. Tenants complaining it's getting hot. They have a service contract. Need someone today if possible.</textarea>
+                <div class="ai-compose-foot">
+                  <span class="attach-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>nameplate_photo.jpg</span>
+                  <div style="margin-left:auto"></div>
+                  <button class="btn btn-primary" id="aiRunBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>Analyze &amp; Triage
+                  </button>
+                </div>
+              </div>
+
+              <div class="ai-result hidden" id="aiResult">
+                <div class="ai-thinking" id="aiThinking">
+                  <span class="pulse"></span> Reading note, extracting fields, matching technician…
+                </div>
+                <div id="aiOutput" style="display:none">
+                  <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-faint);margin:4px 2px 8px">Extracted fields</div>
+                  <div class="extract-grid">
+                    <div class="ex-field"><div class="lbl">Service Type</div><div class="val">HVAC Repair <span class="conf conf-hi">98%</span></div></div>
+                    <div class="ex-field"><div class="lbl">Asset</div><div class="val">Rooftop AHU-3 <span class="conf conf-mid">86%</span></div></div>
+                    <div class="ex-field"><div class="lbl">Location</div><div class="val">Harbor Plaza · Fl 3 <span class="conf conf-hi">96%</span></div></div>
+                    <div class="ex-field"><div class="lbl">Symptom</div><div class="val">Warm air + grinding <span class="conf conf-hi">94%</span></div></div>
+                    <div class="ex-field"><div class="lbl">Priority</div><div class="val">High <span class="conf conf-mid">88%</span></div></div>
+                    <div class="ex-field"><div class="lbl">Contract</div><div class="val">Active SLA · 4h <span class="conf conf-hi">99%</span></div></div>
+                  </div>
+
+                  <div class="ai-verdict">
+                    <div class="vh"><div class="ai-spark" style="width:22px;height:22px;border-radius:6px"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.4h7.6z"/></svg></div><span class="t">Recommended routing</span></div>
+                    <div class="reason">Grinding noise plus warm air points to a <b>failing condenser fan bearing</b> — a same-day risk given tenant complaints and an active 4-hour SLA. Likely parts: fan motor &amp; capacitor. Recommend dispatching an HVAC-certified tech with a rooftop access permit.</div>
+                    <div class="rec-tech">
+                      <div class="ava" style="background:linear-gradient(135deg,#4cc2ff,#2dd4bf)">MR</div>
+                      <div class="info">
+                        <div class="nm">Marcus Reyes</div>
+                        <div class="meta">HVAC L3 · 1.8 mi away · 2 open jobs</div>
+                      </div>
+                      <div class="match">
+                        <div class="pct">96%</div>
+                        <div class="ml">skill match</div>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:11px">
+                      <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center">Create &amp; Dispatch</button>
+                      <button class="btn btn-ghost btn-sm" id="aiReset">Edit fields</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Technician roster -->
+          <div class="card">
+            <div class="card-head">
+              <h2>Crew Availability</h2>
+              <div class="spacer"></div>
+              <span style="font-size:11.5px;color:var(--text-faint)">Live</span>
+            </div>
+            <div class="roster" id="roster"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- lower grid: charts + feed -->
+      <div class="grid-2" style="margin-top:16px">
+        <div class="stack">
+          <div class="card">
+            <div class="card-head"><h2>SLA Status Breakdown</h2><div class="spacer"></div><span style="font-size:11.5px;color:var(--text-faint)">This week · 47 orders</span></div>
+            <div class="gauge-wrap">
+              <div class="donut">
+                <svg viewBox="0 0 42 42" width="130" height="130">
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--line)" stroke-width="5"></circle>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--green)" stroke-width="5" stroke-dasharray="68 32" stroke-dashoffset="25" stroke-linecap="round"></circle>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--teal)" stroke-width="5" stroke-dasharray="20 80" stroke-dashoffset="-43" stroke-linecap="round"></circle>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--amber)" stroke-width="5" stroke-dasharray="8 92" stroke-dashoffset="-63" stroke-linecap="round"></circle>
+                  <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--red)" stroke-width="5" stroke-dasharray="4 96" stroke-dashoffset="-71" stroke-linecap="round"></circle>
+                </svg>
+                <div class="cn"><div><div class="big">94%</div><div class="sm">on track</div></div></div>
+              </div>
+              <div class="legend">
+                <div class="lg"><span class="sw" style="background:var(--green)"></span>Met / On track <span class="v">32</span></div>
+                <div class="lg"><span class="sw" style="background:var(--teal)"></span>Scheduled <span class="v">9</span></div>
+                <div class="lg"><span class="sw" style="background:var(--amber)"></span>At risk (&lt;1h) <span class="v">4</span></div>
+                <div class="lg"><span class="sw" style="background:var(--red)"></span>Breached <span class="v">2</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>Jobs Completed</h2><div class="spacer"></div><span style="font-size:11.5px;color:var(--text-faint)">Last 7 days</span></div>
+            <div class="bars">
+              <div class="bar-row"><span class="day">Mon</span><div class="bar-track"><i style="width:72%"></i></div><span class="n">18</span></div>
+              <div class="bar-row"><span class="day">Tue</span><div class="bar-track"><i style="width:88%"></i></div><span class="n">22</span></div>
+              <div class="bar-row"><span class="day">Wed</span><div class="bar-track"><i style="width:60%"></i></div><span class="n">15</span></div>
+              <div class="bar-row"><span class="day">Thu</span><div class="bar-track"><i style="width:96%"></i></div><span class="n">24</span></div>
+              <div class="bar-row"><span class="day">Fri</span><div class="bar-track"><i style="width:80%"></i></div><span class="n">20</span></div>
+              <div class="bar-row"><span class="day">Sat</span><div class="bar-track"><i style="width:40%"></i></div><span class="n">10</span></div>
+              <div class="bar-row"><span class="day">Today</span><div class="bar-track"><i style="width:52%"></i></div><span class="n">13</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity feed -->
+        <div class="card">
+          <div class="card-head"><h2>Activity Feed</h2><div class="spacer"></div><span class="pill pill-progress">Real-time</span></div>
+          <div class="feed" id="feed"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Drawer -->
+<div class="drawer-scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="dh-top">
+      <div id="dHeadPill"></div>
+      <div class="x" id="drawerClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </div>
+    </div>
+    <div class="drawer-title" id="dTitle">—</div>
+    <div class="drawer-sub" id="dSub">—</div>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" id="dReassign">Reassign</button>
+    <button class="btn btn-primary" id="dDispatch">Dispatch Crew</button>
+  </div>
+</aside>
+
+<script>
+/* ===== Seed data ===== */
+const techMap = {
+  MR: { name: "Marcus Reyes", color: "linear-gradient(135deg,#4cc2ff,#2dd4bf)" },
+  PL: { name: "Priya Laghari", color: "linear-gradient(135deg,#7c5cff,#ff7eb6)" },
+  TN: { name: "Theo Nakamura", color: "linear-gradient(135deg,#ffb84d,#ff6b6b)" },
+  SO: { name: "Sofia Okafor",  color: "linear-gradient(135deg,#3fd68c,#4cc2ff)" },
+  GV: { name: "Gabe Vance",    color: "linear-gradient(135deg,#ff7eb6,#ffb84d)" },
+  HM: { name: "Hana Mertens",  color: "linear-gradient(135deg,#2dd4bf,#7c5cff)" }
+};
+
+const orders = [
+  { id:"WO-4821", title:"Rooftop HVAC blowing warm air", customer:"Harbor Plaza Offices", type:"HVAC Repair", desc:"Condenser fan grinding + warm supply air, 3rd floor tenants affected.", status:"New", pri:"Critical", sla:"3h 41m", slaRisk:true, tech:null, addr:"480 Harbor Pkwy, Suite 300", asset:"Rooftop AHU-3 (Carrier 50TC)", created:"08:14 AM", phone:"(617) 555-0142",
+    aiSummary:"Symptoms strongly indicate a failing condenser fan bearing. Same-day priority due to active SLA and tenant heat complaints. Confidence the root cause is fan motor / capacitor: high.",
+    aiBullets:["Likely root cause: <b>condenser fan motor</b> nearing failure","Recommended parts staged: fan motor, run capacitor","Skill required: <b>HVAC L3 + rooftop permit</b>","SLA window closes <b>12:55 PM</b> — dispatch within 1h"],
+    parts:[["Condenser Fan Motor 1/3 HP","x1"],["Run Capacitor 45/5 µF","x1"],["Refrigerant Gauge Set","x1"]],
+    timeline:[["Call logged by intake","08:14 AM · Auto-transcribed"],["AI triaged → HVAC Repair (98%)","08:14 AM · AI"],["Awaiting dispatch","—"]] },
+
+  { id:"WO-4818", title:"Elevator door sensor fault", customer:"Cedar Ridge Medical", type:"Elevator", desc:"Car 2 doors re-opening intermittently, ADA compliance concern.", status:"In Progress", pri:"High", sla:"1h 06m", slaRisk:true, tech:"PL", addr:"22 Cedar Ridge Blvd", asset:"Otis Gen2 · Car 2", created:"Yesterday 4:50 PM", phone:"(781) 555-0199",
+    aiSummary:"Door reversal pattern matches a misaligned light curtain. Tech on-site since 9:10 AM. Parts confirmed available on van. Estimated wrap-up within the hour.",
+    aiBullets:["Pattern matched to <b>light curtain misalignment</b>","Van stock confirmed: edge sensor in inventory","ADA flag raised — escalate if not cleared by noon"],
+    parts:[["Door Edge Light Curtain","x1"],["Alignment Bracket Kit","x1"]],
+    timeline:[["Dispatched to Priya Laghari","Yesterday 5:02 PM"],["Arrived on-site","09:10 AM"],["Diagnostics in progress","09:35 AM"]] },
+
+  { id:"WO-4815", title:"Walk-in freezer not holding temp", customer:"Brightline Grocers #14", type:"Refrigeration", desc:"Freezer reading +12°F, product loss risk. After-hours emergency.", status:"In Progress", pri:"Critical", sla:"BREACHED", slaRisk:true, tech:"TN", addr:"905 Market St", asset:"Hussmann Walk-In FRZ-1", created:"Today 6:02 AM", phone:"(617) 555-0177",
+    aiSummary:"Temperature drift plus compressor short-cycling suggests a refrigerant leak or failed contactor. SLA already breached — product loss claim likely. Tech diagnosing now.",
+    aiBullets:["Root cause candidates: <b>refrigerant leak / contactor</b>","SLA breached at 7:02 AM — claims team notified","Estimated product-at-risk value: $3,200"],
+    parts:[["Compressor Contactor 40A","x1"],["Leak Detection Dye","x1"],["R-404A Refrigerant","x2"]],
+    timeline:[["Emergency call logged","06:02 AM"],["Dispatched to Theo Nakamura","06:18 AM"],["SLA breached","07:02 AM · System"],["On-site diagnosing","07:40 AM"]] },
+
+  { id:"WO-4810", title:"Quarterly fire panel inspection", customer:"Summit Tower", type:"Fire & Safety", desc:"Scheduled compliance inspection of main fire alarm panel.", status:"Scheduled", pri:"Medium", sla:"Tomorrow", slaRisk:false, tech:"SO", addr:"1 Summit Tower Plaza", asset:"Notifier NFS2-3030", created:"Jun 19", phone:"(617) 555-0120",
+    aiSummary:"Routine quarterly inspection. AI pre-filled the compliance checklist from the asset's last visit. No outstanding deficiencies expected based on history.",
+    aiBullets:["Auto-generated <b>NFPA 72 checklist</b> attached","Last inspection: clean, no deficiencies","Estimated duration: 90 minutes"],
+    parts:[["Smoke Detector Test Kit","x1"]],
+    timeline:[["Recurring inspection created","Jun 19 · Auto"],["Scheduled to Sofia Okafor","Jun 20"],["Reminder sent to customer","Today 7:00 AM"]] },
+
+  { id:"WO-4807", title:"Backup generator won't start", customer:"DataNorth Colo", type:"Generator", desc:"Standby diesel generator failing weekly self-test, fault code 14.", status:"New", pri:"High", sla:"5h 22m", slaRisk:false, tech:null, addr:"12 Industrial Loop", asset:"Cummins QSK60 · Gen-A", created:"Today 7:48 AM", phone:"(781) 555-0166",
+    aiSummary:"Fault code 14 maps to low coolant temperature / starting circuit. Critical infrastructure — recommend a generator-certified tech with diagnostic laptop. No same-day breach risk yet.",
+    aiBullets:["Fault 14 → <b>starting circuit / coolant sensor</b>","Critical infra — colo requires N+1 redundancy","Recommend tech: generator cert + ECU laptop"],
+    parts:[["Coolant Temp Sensor","x1"],["Starter Solenoid","x1"]],
+    timeline:[["Self-test fault reported via portal","07:48 AM"],["AI triaged → Generator (95%)","07:48 AM · AI"],["Awaiting dispatch","—"]] },
+
+  { id:"WO-4803", title:"Lobby lighting circuit tripping", customer:"Maplewood Apartments", type:"Electrical", desc:"Common-area breaker trips every few hours, residents in dark.", status:"New", pri:"Medium", sla:"7h 10m", slaRisk:false, tech:null, addr:"340 Maplewood Ave", asset:"Panel LP-2 · Circuit 7", created:"Today 8:30 AM", phone:"(617) 555-0188",
+    aiSummary:"Intermittent trips on a lighting circuit usually point to a ground fault or overloaded conductor. Medium priority — no safety hazard reported beyond lighting loss.",
+    aiBullets:["Likely <b>ground fault</b> on circuit 7","No exposed-wire hazard reported","Recommend megohmmeter test on arrival"],
+    parts:[["20A GFCI Breaker","x1"]],
+    timeline:[["Reported by property manager","08:30 AM"],["AI triaged → Electrical (91%)","08:30 AM · AI"],["Awaiting dispatch","—"]] },
+
+  { id:"WO-4799", title:"Boiler losing pressure overnight", customer:"Riverside School District", type:"Plumbing", desc:"Building B boiler pressure drops to zero, no hot water mornings.", status:"On Hold", pri:"High", sla:"On hold", slaRisk:false, tech:"GV", addr:"77 Riverside Dr, Bldg B", asset:"Weil-McLain 88 Series", created:"Jun 21", phone:"(508) 555-0133",
+    aiSummary:"On hold pending a replacement expansion tank backordered until Wednesday. AI flagged a likely waterlogged expansion tank as primary cause from the pressure-loss pattern.",
+    aiBullets:["Primary cause: <b>waterlogged expansion tank</b>","Part backordered — ETA Wed Jun 25","Temporary fix applied: manual refill schedule"],
+    parts:[["Expansion Tank #30","x1 (backorder)"],["Pressure Relief Valve","x1"]],
+    timeline:[["Reported by facilities","Jun 21 · 6:15 AM"],["Diagnosed by Gabe Vance","Jun 21 · 11:00 AM"],["Placed on hold — part backorder","Jun 21 · 2:30 PM"]] },
+
+  { id:"WO-4795", title:"Loading dock leveler stuck", customer:"Northbridge Logistics", type:"Mechanical", desc:"Hydraulic dock leveler stuck in raised position, blocking bay 4.", status:"Scheduled", pri:"Medium", sla:"Today 2 PM", slaRisk:false, tech:"HM", addr:"55 Northbridge Way", asset:"Blue Giant Dock 4", created:"Today 7:10 AM", phone:"(781) 555-0155",
+    aiSummary:"Stuck-raised hydraulic leveler typically indicates a stuck velocity fuse or low hydraulic fluid. Scheduled for the 2 PM window. Standard mechanical skill set sufficient.",
+    aiBullets:["Likely <b>velocity fuse / low fluid</b>","One bay down — moderate ops impact","No specialty parts expected"],
+    parts:[["Hydraulic Fluid AW-32","x1"],["Velocity Fuse","x1"]],
+    timeline:[["Reported by dock supervisor","07:10 AM"],["AI triaged → Mechanical (89%)","07:10 AM · AI"],["Scheduled to Hana Mertens · 2 PM","08:05 AM"]] },
+
+  { id:"WO-4788", title:"Access control reader offline", customer:"Vantage Biotech", type:"Security", desc:"Main entrance badge reader unresponsive, staff using manual override.", status:"In Progress", pri:"High", sla:"2h 40m", slaRisk:false, tech:"SO", addr:"200 Vantage Park", asset:"HID Reader · Door 1", created:"Today 8:55 AM", phone:"(617) 555-0144",
+    aiSummary:"Reader offline with manual override active. Likely a PoE / controller comms drop. Sofia is en route. Low parts risk — most often a cabling or power injector fix.",
+    aiBullets:["Likely <b>PoE power / comms drop</b>","Manual override active — security maintained","Spare reader on van as contingency"],
+    parts:[["PoE Injector","x1"],["Cat6 Patch 10ft","x1"]],
+    timeline:[["Reported by site security","08:55 AM"],["Dispatched to Sofia Okafor","09:05 AM"],["En route","09:20 AM"]] },
+
+  { id:"WO-4782", title:"Conference room AV system no display", customer:"Apex Consulting", type:"AV / IT", desc:"Boardroom projector + control panel dead, client meeting at 1 PM.", status:"In Progress", pri:"Medium", sla:"3h 15m", slaRisk:false, tech:"PL", addr:"18 Apex Center, Fl 9", asset:"Crestron + Epson L1505", created:"Today 9:20 AM", phone:"(617) 555-0111",
+    aiSummary:"Total AV blackout before a client meeting. AI suggests a processor lockup or HDMI matrix fault. Priority bumped to ensure resolution before the 1 PM meeting.",
+    aiBullets:["Likely <b>control processor lockup</b>","Time-boxed: client meeting at 1 PM","Reboot sequence checklist attached"],
+    parts:[["HDMI Matrix Card","x1"]],
+    timeline:[["Reported by office manager","09:20 AM"],["Dispatched to Priya Laghari","09:40 AM"],["On-site","10:05 AM"]] },
+
+  { id:"WO-4778", title:"Parking gate arm not lifting", customer:"Grandview Garage", type:"Mechanical", desc:"Entry gate arm motor humming but not raising, cars backing up.", status:"Scheduled", pri:"Low", sla:"Today 4 PM", slaRisk:false, tech:"GV", addr:"9 Grandview St", asset:"Magnetic AutoControl MIB", created:"Today 9:05 AM", phone:"(781) 555-0122",
+    aiSummary:"Motor hums but arm won't lift — classic worn gear rack or failed clutch. Low priority, scheduled for the afternoon window. No customer-facing safety hazard.",
+    aiBullets:["Likely <b>worn gear rack / clutch</b>","Manual gate operation available meanwhile","Routine mechanical repair"],
+    parts:[["Gear Rack Assembly","x1"],["Clutch Plate","x1"]],
+    timeline:[["Reported by garage attendant","09:05 AM"],["AI triaged → Mechanical (90%)","09:05 AM · AI"],["Scheduled to Gabe Vance · 4 PM","09:30 AM"]] },
+
+  { id:"WO-4771", title:"Server room AC condensation alarm", customer:"DataNorth Colo", type:"HVAC Repair", desc:"CRAC unit drip pan sensor triggering, water near racks.", status:"New", pri:"Critical", sla:"58m", slaRisk:true, tech:null, addr:"12 Industrial Loop, Rm 4", asset:"Liebert CRAC-2", created:"Today 9:50 AM", phone:"(781) 555-0166",
+    aiSummary:"Condensation alarm with water near live racks is a critical risk. AI flags a clogged condensate drain or failed pump. SLA at 58 minutes — immediate dispatch required.",
+    aiBullets:["Likely <b>clogged condensate drain / pump</b>","Water near energized racks — critical","SLA closes in <b>58 min</b> — auto-escalated"],
+    parts:[["Condensate Pump","x1"],["Wet/Dry Vac","x1"]],
+    timeline:[["Alarm via monitoring API","09:50 AM"],["AI triaged → HVAC (97%)","09:50 AM · AI"],["Auto-escalated to Critical","09:51 AM · AI"]] },
+
+  { id:"WO-4765", title:"Annual sprinkler system flow test", customer:"Lakeside Mall", type:"Fire & Safety", desc:"Scheduled annual wet sprinkler flow and alarm test.", status:"Scheduled", pri:"Low", sla:"Jun 25", slaRisk:false, tech:"SO", addr:"500 Lakeside Dr", asset:"Tyco Wet System Z-3", created:"Jun 18", phone:"(508) 555-0188",
+    aiSummary:"Standard annual compliance test. AI pre-staged the NFPA 25 forms and notified the mall's fire watch coordinator. No issues anticipated.",
+    aiBullets:["<b>NFPA 25</b> annual forms pre-staged","Fire watch coordinator notified","Estimated duration: 3 hours"],
+    parts:[["Flow Test Gauge Kit","x1"]],
+    timeline:[["Recurring test created","Jun 18 · Auto"],["Scheduled to Sofia Okafor","Jun 19"],["Customer confirmation received","Jun 22"]] },
+
+  { id:"WO-4760", title:"Pump room flooding sump failure", customer:"Riverside School District", type:"Plumbing", desc:"Basement sump pump failed, 2 inches of standing water reported.", status:"On Hold", pri:"High", sla:"On hold", slaRisk:false, tech:"GV", addr:"77 Riverside Dr, Basement", asset:"Zoeller M53 Sump", created:"Jun 22", phone:"(508) 555-0133",
+    aiSummary:"On hold pending customer approval of the replacement pump quote. AI confirmed the existing pump motor is seized; temporary portable pump deployed to manage water level.",
+    aiBullets:["Pump motor confirmed <b>seized</b>","Temporary portable pump deployed","Awaiting customer quote approval"],
+    parts:[["Zoeller M53 Sump Pump","x1"],["Check Valve 1.5in","x1"]],
+    timeline:[["Reported by night custodian","Jun 22 · 11:40 PM"],["Portable pump deployed","Jun 23 · 1:15 AM"],["Quote sent — awaiting approval","Jun 23 · 8:00 AM"]] }
+];
+
+const roster = [
+  { in:"MR", name:"Marcus Reyes", skill:"HVAC · Refrigeration", status:"avail", load:40, jobs:2 },
+  { in:"PL", name:"Priya Laghari", skill:"Elevator · AV/IT", status:"busy", load:85, jobs:4 },
+  { in:"TN", name:"Theo Nakamura", skill:"Refrigeration · HVAC", status:"busy", load:95, jobs:3 },
+  { in:"SO", name:"Sofia Okafor", skill:"Fire & Safety · Security", status:"busy", load:70, jobs:3 },
+  { in:"GV", name:"Gabe Vance", skill:"Plumbing · Mechanical", status:"avail", load:55, jobs:3 },
+  { in:"HM", name:"Hana Mertens", skill:"Mechanical · Electrical", status:"off", load:10, jobs:1 }
+];
+
+const feed = [
+  { kind:"ai", html:"<b>AI</b> auto-escalated <b>WO-4771</b> to Critical — water detected near energized racks.<span class='tag-ai'>AI</span>", time:"9:51 AM" },
+  { kind:"ai", html:"<b>AI</b> triaged inbound call → <b>HVAC Repair</b> (98%) and drafted <b>WO-4821</b>.<span class='tag-ai'>AI</span>", time:"8:14 AM" },
+  { kind:"sys", html:"SLA <b>breached</b> on <b>WO-4815</b> — claims team notified automatically.", time:"7:02 AM" },
+  { kind:"usr", html:"<b>Theo Nakamura</b> marked en route to Brightline Grocers #14.", time:"6:18 AM" },
+  { kind:"ai", html:"<b>AI</b> matched <b>Marcus Reyes</b> as best-fit tech for WO-4821 (96% skill match).<span class='tag-ai'>AI</span>", time:"8:15 AM" },
+  { kind:"usr", html:"<b>Sofia Okafor</b> completed <b>WO-4744</b> — Lobby camera replacement.", time:"Yesterday 5:40 PM" },
+  { kind:"sys", html:"Recurring inspection <b>WO-4765</b> created for Lakeside Mall (annual).", time:"Jun 18" },
+  { kind:"ai", html:"<b>AI</b> pre-filled NFPA 72 checklist for <b>WO-4810</b> from asset history.<span class='tag-ai'>AI</span>", time:"Jun 19" }
+];
+
+/* ===== Helpers ===== */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+const priClass = { Critical:"pri-critical", High:"pri-high", Medium:"pri-medium", Low:"pri-low" };
+const priColor = { Critical:"var(--red)", High:"var(--amber)", Medium:"#56bce8", Low:"var(--text-faint)" };
+const statusPill = {
+  "New":"pill-new", "In Progress":"pill-progress", "Scheduled":"pill-scheduled",
+  "On Hold":"pill-hold", "Done":"pill-done"
+};
+
+function typeIcon(){
+  return "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/></svg>";
+}
+
+/* ===== State ===== */
+let curStatus = "all", curPri = "all", curSearch = "";
+
+function matches(o){
+  if (curStatus !== "all" && o.status !== curStatus) return false;
+  if (curPri !== "all" && o.pri !== curPri) return false;
+  if (curSearch){
+    const q = curSearch.toLowerCase();
+    const hay = (o.id+" "+o.title+" "+o.customer+" "+o.type+" "+o.desc+" "+o.asset).toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function renderOrders(){
+  const list = $("#woList");
+  const filtered = orders.filter(matches);
+  $("#resultCount").textContent = filtered.length + (filtered.length===1 ? " order" : " orders");
+  if (!filtered.length){
+    list.innerHTML = "";
+    $("#woEmpty").style.display = "block";
+    return;
+  }
+  $("#woEmpty").style.display = "none";
+  list.innerHTML = filtered.map(o => {
+    const t = o.tech ? techMap[o.tech] : null;
+    const techHtml = t
+      ? `<span class="tech-chip"><span class="ava" style="background:${t.color}">${o.tech}</span><span class="nm">${t.name.split(" ")[0]}</span></span>`
+      : `<span class="unassigned"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Unassigned</span>`;
+    const slaHtml = o.sla === "BREACHED"
+      ? `<span class="f" style="color:var(--red);font-weight:700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>SLA BREACHED</span>`
+      : (o.slaRisk
+        ? `<span class="f" style="color:var(--amber);font-weight:600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>SLA ${o.sla}</span>`
+        : `<span class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>SLA ${o.sla}</span>`);
+    return `
+      <div class="wo" data-id="${o.id}">
+        <div class="pri-bar" style="background:${priColor[o.pri]}"></div>
+        <div class="wo-body">
+          <div class="wo-meta">
+            <span class="wo-id">${o.id}</span>
+            <span class="badge-pri ${priClass[o.pri]}">${o.pri}</span>
+            <span class="pill ${statusPill[o.status]}">${o.status}</span>
+          </div>
+          <div class="wo-title">${o.title}</div>
+          <div class="wo-desc">${o.customer} · ${o.desc}</div>
+          <div class="wo-foot">
+            <span class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${o.addr.split(",")[0]}</span>
+            ${slaHtml}
+            <span class="f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>${o.type}</span>
+          </div>
+        </div>
+        <div class="wo-right">
+          ${techHtml}
+          <span style="font-size:11px;color:var(--text-faint)">${o.created}</span>
+        </div>
+      </div>`;
+  }).join("");
+
+  $$(".wo", list).forEach(el => el.addEventListener("click", () => openDrawer(el.dataset.id)));
+}
+
+function renderRoster(){
+  $("#roster").innerHTML = roster.map(r => {
+    const t = techMap[r.in];
+    const stCls = r.status==="avail" ? "st-avail" : r.status==="busy" ? "st-busy" : "st-off";
+    const stTxt = r.status==="avail" ? "Available" : r.status==="busy" ? "On a job" : "Off shift";
+    const barColor = r.load >= 85 ? "var(--red)" : r.load >= 60 ? "var(--amber)" : "var(--green)";
+    return `
+      <div class="tech-row">
+        <div class="ava" style="background:${t.color}">${r.in}<span class="st ${stCls}"></span></div>
+        <div class="info">
+          <div class="nm">${r.name}</div>
+          <div class="sk">${r.skill} · ${stTxt}</div>
+        </div>
+        <div class="load">
+          <div class="num">${r.jobs} <span style="font-weight:500;color:var(--text-faint);font-size:11px">jobs</span></div>
+          <div class="loadbar"><i style="width:${r.load}%;background:${barColor}"></i></div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderFeed(){
+  const fIco = {
+    ai:"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.4h7.6z'/></svg>",
+    sys:"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/></svg>",
+    usr:"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>"
+  };
+  $("#feed").innerHTML = feed.map(f => `
+    <div class="feed-item">
+      <div class="feed-ico feed-${f.kind}">${fIco[f.kind]}</div>
+      <div>
+        <div class="feed-txt">${f.html}</div>
+        <div class="feed-time">${f.time}</div>
+      </div>
+    </div>`).join("");
+}
+
+/* ===== Drawer ===== */
+function openDrawer(id){
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  $("#dHeadPill").innerHTML = `<span class="pill ${statusPill[o.status]}">${o.status}</span> <span class="badge-pri ${priClass[o.pri]}" style="margin-left:6px">${o.pri}</span>`;
+  $("#dTitle").textContent = o.title;
+  $("#dSub").textContent = `${o.id} · ${o.customer} · opened ${o.created}`;
+
+  const t = o.tech ? techMap[o.tech] : null;
+  const techBlock = t
+    ? `<div class="rec-tech" style="margin-top:0"><div class="ava" style="background:${t.color}">${o.tech}</div><div class="info"><div class="nm">${t.name}</div><div class="meta">Assigned technician</div></div></div>`
+    : `<div class="unassigned" style="font-size:13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg> Unassigned — awaiting dispatch</div>`;
+
+  const slaDd = o.sla === "BREACHED"
+    ? `<dd style="color:var(--red);font-weight:700">Breached</dd>`
+    : `<dd style="${o.slaRisk?'color:var(--amber);font-weight:600':''}">${o.sla}</dd>`;
+
+  $("#drawerBody").innerHTML = `
+    <div class="dsect">
+      <div class="ai-summary-box">
+        <div class="sb-head"><div class="ai-spark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.4 2.3 7.2L12 16.8 5.7 21l2.3-7.2-6-4.4h7.6z"/></svg></div>AI Diagnosis &amp; Recommendation</div>
+        <p>${o.aiSummary}</p>
+        <ul>${o.aiBullets.map(b=>`<li>${b}</li>`).join("")}</ul>
+      </div>
+    </div>
+
+    <div class="dsect">
+      <h3>Assignment</h3>
+      ${techBlock}
+    </div>
+
+    <div class="dsect">
+      <h3>Details</h3>
+      <dl class="dl">
+        <dt>Customer</dt><dd>${o.customer}</dd>
+        <dt>Service Type</dt><dd>${o.type}</dd>
+        <dt>Asset</dt><dd>${o.asset}</dd>
+        <dt>Address</dt><dd>${o.addr}</dd>
+        <dt>Contact</dt><dd>${o.phone}</dd>
+        <dt>SLA Window</dt>${slaDd}
+      </dl>
+    </div>
+
+    <div class="dsect">
+      <h3>AI-suggested Parts</h3>
+      <div class="parts-list">
+        ${o.parts.map(p=>`<div class="part"><div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><span>${p[0]}</span><span class="pq">${p[1]}</span></div>`).join("")}
+      </div>
+    </div>
+
+    <div class="dsect">
+      <h3>Timeline</h3>
+      <div class="timeline">
+        ${o.timeline.map(tl=>`<div class="tl-item"><div class="tt">${tl[0]}</div><div class="td">${tl[1]}</div></div>`).join("")}
+      </div>
+    </div>
+  `;
+
+  $("#dDispatch").textContent = o.tech ? "Update Job" : "Dispatch Crew";
+  $("#scrim").classList.add("open");
+  $("#drawer").classList.add("open");
+}
+
+function closeDrawer(){
+  $("#scrim").classList.remove("open");
+  $("#drawer").classList.remove("open");
+}
+
+/* ===== Wire up ===== */
+$$("#statusTabs .tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    $$("#statusTabs .tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    curStatus = tab.dataset.status;
+    renderOrders();
+  });
+});
+
+$$("#priSeg button").forEach(b => {
+  b.addEventListener("click", () => {
+    $$("#priSeg button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    curPri = b.dataset.pri;
+    renderOrders();
+  });
+});
+
+$("#globalSearch").addEventListener("input", e => {
+  curSearch = e.target.value.trim();
+  renderOrders();
+});
+
+$("#drawerClose").addEventListener("click", closeDrawer);
+$("#scrim").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+/* AI run simulation */
+$("#aiRunBtn").addEventListener("click", () => {
+  const res = $("#aiResult");
+  res.classList.remove("hidden");
+  $("#aiThinking").style.display = "flex";
+  $("#aiOutput").style.display = "none";
+  $("#aiRunBtn").style.opacity = ".6";
+  $("#aiRunBtn").style.pointerEvents = "none";
+  res.scrollIntoView({ behavior:"smooth", block:"nearest" });
+  setTimeout(() => {
+    $("#aiThinking").style.display = "none";
+    $("#aiOutput").style.display = "block";
+    $("#aiRunBtn").style.opacity = "1";
+    $("#aiRunBtn").style.pointerEvents = "auto";
+  }, 1450);
+});
+$("#aiReset").addEventListener("click", () => {
+  $("#aiResult").classList.add("hidden");
+});
+
+/* tab counts */
+function setCounts(){
+  const c = s => orders.filter(o => o.status === s).length;
+  $("#cnt-all").textContent = orders.length;
+  $("#cnt-new").textContent = c("New");
+  $("#cnt-scheduled").textContent = c("Scheduled");
+  $("#cnt-progress").textContent = c("In Progress");
+  $("#cnt-hold").textContent = c("On Hold");
+}
+
+/* init */
+setCounts();
+renderOrders();
+renderRoster();
+renderFeed();
+</script>
+</body>
+</html>

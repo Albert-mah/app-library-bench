@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Escala — Ticket Tracking &amp; Escalation</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Ticket Tracking & Escalation (Escala)",
+  "prefix": "tts_",
+  "angle": "tracking / escalation view — NOT an inbox. Differentiator vs #12 support-ticket inbox: this is the post-triage lifecycle — an escalation pipeline (board by tier), live SLA countdown timers, and a per-ticket processing timeline. Focus on movement & ageing, not reading/replying.",
+  "collections": {
+    "tts_agents": {"titleField":"name","fields":{"name":"input","email":"input","team":"select:tier1|tier2|tier3|swat","avatar_initials":"input","open_load":"integer","is_online":"boolean"}},
+    "tts_customers": {"titleField":"company","fields":{"company":"input","contact_name":"input","plan":"select:free|pro|business|enterprise","health_score":"integer"}},
+    "tts_tickets": {"titleField":"subject","fields":{"ref":"input","subject":"input","summary":"textarea","priority":"select:low|normal|high|urgent","tier":"select:tier1|tier2|tier3|resolved","status":"select:new|in_progress|waiting_customer|escalated|resolved","channel":"select:email|chat|phone|portal|api","sla_due_at":"datetime","created_at":"datetime","first_response_at":"datetime","reopened_count":"integer"},"relations":{"assignee":"m2o tts_agents (fk assignee_id)","customer":"m2o tts_customers (fk customer_id)"}},
+    "tts_events": {"titleField":"label","fields":{"label":"input","kind":"select:created|assigned|escalated|reply|status|note|sla_breach|resolved","detail":"textarea","at":"datetime"},"relations":{"ticket":"m2o tts_tickets (fk ticket_id)","actor":"m2o tts_agents (fk actor_id)"}}
+  },
+  "page": {
+    "name": "Tracking Board",
+    "layout": "header KPI strip (JSBlock) | escalation pipeline = native Kanban grouped by tier with a JS card (SLA timer + ageing) | right drawer = native Details(tts_tickets) + native List(tts_events) timeline with JS item",
+    "regions": [
+      {"id":"kpi","block":"JSBlock (data-less aggregate strip)","intent":"at-risk / breached / median handle-time KPIs across the queue","content":["open count","SLA at-risk (<2h) count with pulse","breached count (red)","median first-response","escalation rate"]},
+      {"id":"pipeline","block":"native Kanban (tts_tickets) grouped by tier — NOT an inbox list","intent":"escalation pipeline: T1 -> T2 -> T3/SWAT -> Resolved; drag = escalate","columns":"tier (tier1|tier2|tier3|resolved)","card":"single JS card field (Kanban card field limit) rendering: ref, priority dot, subject, customer+plan, assignee avatar, LIVE SLA countdown ring, ageing bar","behaviors":["native drag between tiers = status/tier transition","column header shows count + aggregate SLA risk"]},
+      {"id":"drawer","block":"native Details(tts_tickets) for the selected card","intent":"selected ticket header: ref, customer, SLA timer big, priority, assignee","opensVia":"ctx.openView(<Details ViewActionModel uid>, {filterByTk}) on card click"},
+      {"id":"timeline","block":"native List(tts_events) + JS item, inside the drawer","collection":"tts_events","intent":"processing timeline of the selected ticket","sort":"at asc","item":["kind icon on a vertical rail","actor + relative time","label + detail","sla_breach rows highlighted red, escalated rows amber"]}
+    ]
+  },
+  "interactions": ["live SLA countdown ticks every second per card (at-risk amber <2h, breached red)","drag card across tier columns = escalate/de-escalate (tier+status write)","click card -> drawer Details + events timeline","filter pills (priority / team / breached-only) cross-filter the board","KPI strip recomputes from visible tickets"],
+  "jsKernels": ["KPI aggregate strip (JSBlock)","Kanban card JS field with live SLA ring + ageing bar","events timeline JS item with vertical rail"],
+  "notes": "Container/content rule: the pipeline is a NATIVE Kanban of tts_tickets grouped by tier (not a freestanding JSBlock, not an email inbox); the rich card with the live SLA countdown is the single JS card field (Kanban allows one). The drawer is native Details + a native List of tts_events; the timeline look is a JS item. The KPI strip has no data container so it is the only legit JSBlock. Drag-between-columns maps to the tier/status transition. Differentiate hard from #12 (inbox/reading) — here the verbs are escalate, age, breach, resolve."
+}
+</script>
+<style>
+  :root{
+    --indigo:#4f46e5; --indigo-soft:#eef0ff; --indigo-line:#c7cbff; --indigo-deep:#3730a3;
+    --violet:#7c3aed; --violet-soft:#f5f0ff;
+    --ink:#15161d; --ink-2:#4b4d5e; --ink-3:#878a9c; --ink-4:#aeb1c2;
+    --line:#eef0f4; --line-2:#e2e5ec; --bg:#f4f5f9; --card:#fff;
+    --green:#10b981; --green-soft:#e7f8f1; --amber:#f59e0b; --amber-soft:#fef6e7;
+    --red:#ef4444; --red-soft:#fdecec; --blue:#3b82f6; --slate:#64748b;
+    --tier1:#3b82f6; --tier2:#8b5cf6; --tier3:#f59e0b; --swat:#ef4444; --resolved:#10b981;
+    --r:11px; --r-sm:8px;
+    --shadow:0 1px 2px rgba(20,22,40,.05), 0 8px 24px rgba(20,22,40,.06);
+    --shadow-lg:0 12px 40px rgba(20,22,40,.16);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:13px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  .mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 22px; position:relative; z-index:30;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.3px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--indigo),var(--violet));
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 4px 12px rgba(79,70,229,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:1px}
+  .topnav{display:flex;gap:3px;margin-left:6px}
+  .topnav a{padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500}
+  .topnav a.on{background:var(--indigo-soft);color:var(--indigo)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .search{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;width:230px;color:var(--ink-3);font-size:12.5px}
+  .search input{border:none;background:none;outline:none;font-family:inherit;font-size:12.5px;color:var(--ink);width:100%}
+  .chip-live{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);
+    background:var(--green-soft);border:1px solid #c4ecdc;padding:5px 11px;border-radius:20px;font-weight:500}
+  .chip-live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--indigo),var(--violet));
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:12.5px} .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- KPI strip ---------- */
+  .kpi-strip{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:14px;
+    padding:16px 22px 4px;
+  }
+  .kpi{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);
+    padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--indigo)}
+  .kpi.warn::after{background:var(--amber)} .kpi.danger::after{background:var(--red)}
+  .kpi.good::after{background:var(--green)}
+  .kpi .k-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+  .kpi .k-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3)}
+  .kpi .k-ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;
+    background:var(--indigo-soft);color:var(--indigo)}
+  .kpi.warn .k-ic{background:var(--amber-soft);color:var(--amber)}
+  .kpi.danger .k-ic{background:var(--red-soft);color:var(--red)}
+  .kpi.good .k-ic{background:var(--green-soft);color:var(--green)}
+  .kpi .k-val{font-size:26px;font-weight:700;letter-spacing:-.6px;line-height:1}
+  .kpi .k-val small{font-size:14px;font-weight:600;color:var(--ink-3);margin-left:3px}
+  .kpi .k-sub{font-size:11.5px;color:var(--ink-3);margin-top:6px;display:flex;align-items:center;gap:5px}
+  .k-trend{font-weight:700;font-size:11px;padding:1px 6px;border-radius:10px}
+  .k-trend.up{background:var(--red-soft);color:var(--red)}
+  .k-trend.down{background:var(--green-soft);color:var(--green)}
+  .kpi.danger .k-val .pulse-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);
+    margin-right:6px;vertical-align:middle;animation:pulse 1.4s infinite}
+
+  /* ---------- toolbar / filters ---------- */
+  .toolbar{display:flex;align-items:center;gap:10px;padding:10px 22px 12px;flex-wrap:wrap}
+  .seg{display:flex;background:var(--card);border:1px solid var(--line-2);border-radius:9px;padding:3px;box-shadow:var(--shadow)}
+  .seg button{border:none;background:none;padding:6px 13px;border-radius:7px;font-family:inherit;font-size:12.5px;
+    font-weight:600;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:6px}
+  .seg button.on{background:var(--indigo);color:#fff}
+  .pill-filters{display:flex;gap:7px;flex-wrap:wrap}
+  .pf{font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:6px 12px;border-radius:18px;
+    border:1px solid var(--line-2);background:var(--card);display:flex;align-items:center;gap:6px;transition:.13s;box-shadow:var(--shadow)}
+  .pf:hover{border-color:var(--indigo-line)}
+  .pf.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .pf.on.danger{background:var(--red);border-color:var(--red)}
+  .pf .dot{width:8px;height:8px;border-radius:50%}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-3)}
+  .tb-right .clock{background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:6px 11px;
+    font-weight:600;color:var(--ink-2);box-shadow:var(--shadow)}
+
+  /* ---------- board ---------- */
+  .board-wrap{padding:0 16px 18px;overflow:hidden;height:calc(100vh - 56px - 116px - 50px)}
+  .board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;height:100%}
+  .col{
+    background:#eef0f5;border:1px solid var(--line-2);border-radius:var(--r);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .col-head{padding:12px 14px 10px;border-bottom:1px solid var(--line-2);position:sticky;top:0}
+  .col-head .ch-top{display:flex;align-items:center;gap:9px}
+  .col-tag{width:9px;height:9px;border-radius:3px;flex:none}
+  .col-tag.tier1{background:var(--tier1)} .col-tag.tier2{background:var(--tier2)}
+  .col-tag.tier3{background:var(--tier3)} .col-tag.swat{background:var(--swat)} .col-tag.resolved{background:var(--resolved)}
+  .col-head h3{font-size:13px;font-weight:700;letter-spacing:-.2px;flex:1}
+  .col-head .ch-cnt{font-size:11px;font-weight:700;color:var(--ink-2);background:#fff;border:1px solid var(--line-2);
+    border-radius:11px;padding:1px 9px}
+  .col-head .ch-sub{font-size:11px;color:var(--ink-3);margin-top:6px;display:flex;align-items:center;gap:7px}
+  .col-head .risk-bar{flex:1;height:5px;border-radius:4px;background:#e2e5ec;overflow:hidden;position:relative}
+  .col-head .risk-bar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--amber),var(--red));border-radius:4px}
+  .col-body{padding:10px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+  .col-body::-webkit-scrollbar{width:7px} .col-body::-webkit-scrollbar-thumb{background:#cdd1db;border-radius:6px}
+
+  /* card */
+  .tk{
+    background:#fff;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:11px 12px;
+    box-shadow:0 1px 2px rgba(20,22,40,.04);cursor:grab;transition:.13s;position:relative;border-left:3px solid var(--line-2);
+  }
+  .tk:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-color:var(--indigo-line)}
+  .tk.dragging{opacity:.45;transform:rotate(1.5deg) scale(.98)}
+  .tk.sel{border-color:var(--indigo);box-shadow:0 0 0 2px var(--indigo-soft)}
+  .tk.prio-urgent{border-left-color:var(--red)} .tk.prio-high{border-left-color:var(--amber)}
+  .tk.prio-normal{border-left-color:var(--blue)} .tk.prio-low{border-left-color:var(--slate)}
+  .tk-top{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+  .tk-ref{font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.3px}
+  .prio{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:9px;text-transform:capitalize}
+  .prio.urgent{background:var(--red-soft);color:var(--red)} .prio.high{background:var(--amber-soft);color:#b45309}
+  .prio.normal{background:#eaf2ff;color:var(--blue)} .prio.low{background:#eef1f5;color:var(--slate)}
+  .tk-ch{margin-left:auto;font-size:11px;color:var(--ink-4)}
+  .tk-subject{font-size:13px;font-weight:600;line-height:1.35;color:var(--ink);margin-bottom:4px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .tk-cust{font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px;margin-bottom:10px}
+  .tk-cust .plan{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:1px 6px;border-radius:6px}
+  .plan.enterprise{background:#f0e9ff;color:var(--violet)} .plan.business{background:#e0effe;color:var(--blue)}
+  .plan.pro{background:var(--green-soft);color:#0f8a63} .plan.free{background:#eef1f5;color:var(--slate)}
+
+  /* sla timer row */
+  .tk-sla{display:flex;align-items:center;gap:9px;padding-top:9px;border-top:1px dashed var(--line-2)}
+  .sla-ring{width:34px;height:34px;flex:none;position:relative}
+  .sla-ring svg{transform:rotate(-90deg)}
+  .sla-ring circle{fill:none;stroke-width:3.5}
+  .sla-ring .bg{stroke:var(--line-2)}
+  .sla-ring .fg{stroke:var(--green);stroke-linecap:round;transition:stroke .3s}
+  .sla-ring .pct{position:absolute;inset:0;display:grid;place-items:center;font-size:9px;font-weight:800;color:var(--ink-2)}
+  .sla-info{flex:1;min-width:0}
+  .sla-info .t{font-size:13.5px;font-weight:700;letter-spacing:-.3px;line-height:1.1}
+  .sla-info .t.ok{color:var(--green)} .sla-info .t.warn{color:var(--amber)} .sla-info .t.breach{color:var(--red)}
+  .sla-info .l{font-size:10px;color:var(--ink-3);margin-top:2px;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .tk-assignee{display:flex;align-items:center;gap:5px}
+  .mini-ava{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:9.5px;font-weight:700;flex:none;
+    background:linear-gradient(135deg,#6366f1,#a855f7)}
+  .mini-ava.t2{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+  .mini-ava.t3{background:linear-gradient(135deg,#f59e0b,#ef4444)}
+  .mini-ava.off{filter:grayscale(.6);opacity:.7}
+  /* ageing bar */
+  .tk-age{margin-top:9px;display:flex;align-items:center;gap:8px}
+  .age-bar{flex:1;height:5px;border-radius:4px;background:#eef0f4;overflow:hidden;position:relative}
+  .age-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--green)}
+  .age-bar i.warn{background:var(--amber)} .age-bar i.breach{background:var(--red)}
+  .age-lbl{font-size:10px;color:var(--ink-4);font-weight:600;white-space:nowrap}
+  .tk-badge{position:absolute;top:-7px;right:9px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+    padding:2px 8px;border-radius:9px;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .tk-badge.breach{background:var(--red);color:#fff} .tk-badge.esc{background:var(--amber);color:#fff}
+  .tk-badge.reopen{background:var(--violet);color:#fff}
+
+  .col-empty{border:1.5px dashed var(--line-2);border-radius:var(--r-sm);padding:20px;text-align:center;
+    color:var(--ink-4);font-size:12px;margin:auto 0}
+  .col-body.drop-hi{background:var(--indigo-soft);outline:2px dashed var(--indigo-line);outline-offset:-4px;border-radius:var(--r-sm)}
+
+  /* ---------- drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(20,22,40,.28);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:440px;background:var(--card);box-shadow:var(--shadow-lg);
+    transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
+  .drawer.show{transform:translateX(0)}
+  .dr-head{padding:18px 20px 14px;border-bottom:1px solid var(--line-2);position:relative}
+  .dr-close{position:absolute;top:16px;right:18px;width:28px;height:28px;border:none;background:var(--line);border-radius:8px;
+    cursor:pointer;font-size:15px;color:var(--ink-2)}
+  .dr-close:hover{background:var(--line-2)}
+  .dr-ref{font-size:11.5px;font-weight:700;color:var(--indigo);letter-spacing:.4px;margin-bottom:4px}
+  .dr-subject{font-size:17px;font-weight:700;letter-spacing:-.3px;line-height:1.3;padding-right:34px}
+  .dr-meta{display:flex;align-items:center;gap:8px;margin-top:11px;flex-wrap:wrap}
+  .dr-chip{font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;background:var(--bg);color:var(--ink-2);
+    display:flex;align-items:center;gap:6px}
+  .dr-sla{display:flex;align-items:center;gap:14px;margin:16px 20px 4px;padding:14px 16px;border-radius:var(--r);
+    background:linear-gradient(135deg,var(--indigo-soft),var(--violet-soft));border:1px solid var(--indigo-line)}
+  .dr-sla .big{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1}
+  .dr-sla .big.ok{color:var(--indigo-deep)} .dr-sla .big.warn{color:#b45309} .dr-sla .big.breach{color:var(--red)}
+  .dr-sla .sla-cap{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2);margin-top:3px}
+  .dr-sla .spacer{margin-left:auto;text-align:right}
+  .dr-sla .spacer b{font-size:13px} .dr-sla .spacer span{font-size:11px;color:var(--ink-2);display:block}
+  .dr-actions{display:flex;gap:8px;padding:12px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .btn{border:none;border-radius:8px;padding:8px 14px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:.13s}
+  .btn-primary{background:var(--indigo);color:#fff;box-shadow:0 2px 8px rgba(79,70,229,.3)}
+  .btn-primary:hover{background:var(--indigo-deep)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:var(--indigo-line);color:var(--indigo)}
+  .btn-danger{background:var(--red-soft);color:var(--red)}
+
+  /* timeline */
+  .tl-head{padding:14px 20px 6px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-3)}
+  .timeline{flex:1;overflow-y:auto;padding:6px 20px 24px}
+  .timeline::-webkit-scrollbar{width:7px} .timeline::-webkit-scrollbar-thumb{background:#cdd1db;border-radius:6px}
+  .tl-item{display:flex;gap:13px;position:relative;padding-bottom:16px}
+  .tl-item:not(:last-child) .tl-rail::after{content:"";position:absolute;left:50%;top:26px;bottom:-6px;width:2px;
+    background:var(--line-2);transform:translateX(-50%)}
+  .tl-rail{flex:none;width:28px;position:relative}
+  .tl-ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#fff;
+    box-shadow:0 0 0 4px #fff;position:relative;z-index:1}
+  .tl-ic.created{background:var(--slate)} .tl-ic.assigned{background:var(--blue)}
+  .tl-ic.escalated{background:var(--amber)} .tl-ic.reply{background:var(--indigo)}
+  .tl-ic.status{background:var(--violet)} .tl-ic.note{background:var(--ink-4)}
+  .tl-ic.sla_breach{background:var(--red);animation:pulse 1.6s infinite} .tl-ic.resolved{background:var(--green)}
+  .tl-body{flex:1;min-width:0;padding-top:2px}
+  .tl-row{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+  .tl-actor{font-size:12.5px;font-weight:600;color:var(--ink)}
+  .tl-time{font-size:11px;color:var(--ink-4);margin-left:auto;white-space:nowrap}
+  .tl-label{font-size:12.5px;color:var(--ink-2)}
+  .tl-detail{font-size:12px;color:var(--ink-3);background:var(--bg);border-radius:8px;padding:8px 10px;margin-top:6px;line-height:1.5}
+  .tl-item.breach .tl-detail{background:var(--red-soft);color:#b91c1c}
+  .tl-item.escalated .tl-detail{background:var(--amber-soft);color:#92400e}
+
+  /* toast */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.3);transition:.25s;z-index:60;display:flex;align-items:center;gap:9px;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--indigo)}
+
+  @media(max-width:1180px){
+    .board{grid-template-columns:repeat(2,1fr);overflow-y:auto}
+    .board-wrap{height:auto;overflow:visible}
+    .kpi-strip{grid-template-columns:repeat(2,1fr)}
+    body{overflow:auto}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">E</span>Escala <small>tracking</small></div>
+  <nav class="topnav">
+    <a href="#">Inbox</a>
+    <a href="#" class="on">Tracking</a>
+    <a href="#">SLA</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="search">🔎<input placeholder="Search ref, customer, agent…"></div>
+    <span class="chip-live"><i></i> Live · auto-refresh</span>
+    <div class="acct">
+      <div class="ava">DK</div>
+      <div class="who"><b>Dana Køhler</b><br><span>Support Ops Lead</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== KPI strip (JSBlock) ===== -->
+<div class="kpi-strip" id="kpiStrip"></div>
+
+<!-- ===== toolbar / filters ===== -->
+<div class="toolbar">
+  <div class="seg" id="grpSeg">
+    <button class="on" data-g="tier">By tier</button>
+    <button data-g="priority">By priority</button>
+  </div>
+  <div class="pill-filters" id="prioFilters">
+    <span class="pf on" data-f="all">All priorities</span>
+    <span class="pf" data-f="urgent"><span class="dot" style="background:var(--red)"></span>Urgent</span>
+    <span class="pf" data-f="high"><span class="dot" style="background:var(--amber)"></span>High</span>
+    <span class="pf" data-f="normal"><span class="dot" style="background:var(--blue)"></span>Normal</span>
+    <span class="pf danger" data-f="breached">⚠ Breached only</span>
+  </div>
+  <div class="tb-right">
+    <span>Drag a ticket between tiers to escalate</span>
+    <span class="clock mono" id="wallClock">--:--:--</span>
+  </div>
+</div>
+
+<!-- ===== escalation pipeline (native Kanban grouped by tier) ===== -->
+<div class="board-wrap">
+  <div class="board" id="board"></div>
+</div>
+
+<!-- ===== drawer (Details + events timeline) ===== -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <button class="dr-close" id="drClose">×</button>
+    <div class="dr-ref" id="drRef">—</div>
+    <div class="dr-subject" id="drSubject">—</div>
+    <div class="dr-meta" id="drMeta"></div>
+  </div>
+  <div class="dr-sla">
+    <div>
+      <div class="big mono" id="drSlaBig">--:--</div>
+      <div class="sla-cap" id="drSlaCap">SLA remaining</div>
+    </div>
+    <div class="spacer">
+      <b id="drAssignee">—</b>
+      <span id="drTeam">—</span>
+    </div>
+  </div>
+  <div class="dr-actions">
+    <button class="btn btn-primary" id="drEscalate">↑ Escalate tier</button>
+    <button class="btn btn-ghost" id="drReassign">Reassign</button>
+    <button class="btn btn-ghost" id="drResolve">✓ Resolve</button>
+  </div>
+  <div class="tl-head">Processing timeline</div>
+  <div class="timeline" id="timeline"></div>
+</aside>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- reference clock (frozen "now" so countdowns are deterministic-ish but tick live) ----------
+  var NOW = new Date("2026-06-07T14:20:00");
+  var bootMs = Date.now();
+  function now(){ return new Date(NOW.getTime() + (Date.now()-bootMs)); }
+
+  var AGENTS = {
+    a1:{name:"Priya Nair",     ini:"PN", team:"tier1", online:true},
+    a2:{name:"Marcus Webb",    ini:"MW", team:"tier1", online:true},
+    a3:{name:"Sofia Almeida",  ini:"SA", team:"tier2", online:true},
+    a4:{name:"Jonas Reichert",  ini:"JR", team:"tier2", online:false},
+    a5:{name:"Aisha Karim",    ini:"AK", team:"tier3", online:true},
+    a6:{name:"Leo Tanaka",     ini:"LT", team:"swat",  online:true},
+    a7:{name:"Dana Køhler",    ini:"DK", team:"tier3", online:true}
+  };
+  var TEAM_LABEL={tier1:"Tier 1 · Frontline",tier2:"Tier 2 · Specialist",tier3:"Tier 3 · Engineering",swat:"SWAT · Escalation"};
+
+  // tier columns of the pipeline
+  var COLUMNS=[
+    {id:"tier1", title:"Tier 1 · Frontline", tag:"tier1"},
+    {id:"tier2", title:"Tier 2 · Specialist", tag:"tier2"},
+    {id:"tier3", title:"Tier 3 · Engineering", tag:"tier3"},
+    {id:"resolved", title:"Resolved", tag:"resolved"}
+  ];
+
+  // helper: minutes from now -> due datetime
+  function due(min){ return new Date(now().getTime() + min*60000); }
+  function ago(min){ return new Date(now().getTime() - min*60000); }
+
+  // ---------- ticket dataset (tts_tickets) ----------
+  // sla = total window minutes (for the ring); dueAt = absolute due time
+  var TICKETS=[
+    {ref:"TKT-4821", subject:"Checkout API returning 502 for EU customers", cust:"Heliograph Inc.", plan:"enterprise",
+     prio:"urgent", tier:"tier3", channel:"api", assignee:"a5", slaWin:240, dueAt:due(-12), createdMin:308, reopen:0, badge:"breach",
+     summary:"Intermittent 502s from the payments gateway affecting ~18% of EU checkout sessions since 11:40 UTC."},
+    {ref:"TKT-4830", subject:"SSO login loop after SAML metadata rotation", cust:"Northwind Trading", plan:"business",
+     prio:"high", tier:"tier2", channel:"portal", assignee:"a3", slaWin:480, dueAt:due(96), createdMin:184, reopen:1, badge:"reopen",
+     summary:"Users bounce between IdP and app after the customer rotated their SAML signing cert this morning."},
+    {ref:"TKT-4844", subject:"Bulk export stuck at 0% for >2 hours", cust:"Acme Logistics", plan:"pro",
+     prio:"high", tier:"tier2", channel:"chat", assignee:"a4", slaWin:480, dueAt:due(38), createdMin:142, reopen:0, badge:"",
+     summary:"Customer's scheduled nightly export job shows queued but never starts; worker backlog suspected."},
+    {ref:"TKT-4851", subject:"Webhook signatures failing validation", cust:"Brightloom", plan:"business",
+     prio:"high", tier:"tier3", channel:"api", assignee:"a7", slaWin:360, dueAt:due(112), createdMin:96, reopen:0, badge:"esc",
+     summary:"HMAC mismatch reported after our v3 signing change; needs an engineering replay of recent deliveries."},
+    {ref:"TKT-4860", subject:"Password reset email not received", cust:"Maple & Co.", plan:"free",
+     prio:"normal", tier:"tier1", channel:"email", assignee:"a1", slaWin:720, dueAt:due(503), createdMin:41, reopen:0, badge:"",
+     summary:"Single user reports reset emails not arriving; likely spam-folder or typo, needs frontline triage."},
+    {ref:"TKT-4862", subject:"How do I add a second billing contact?", cust:"Cedar Park Dental", plan:"pro",
+     prio:"low", tier:"tier1", channel:"chat", assignee:"a2", slaWin:1440, dueAt:due(980), createdMin:22, reopen:0, badge:"",
+     summary:"Routine how-to about adding additional billing contacts under account settings."},
+    {ref:"TKT-4865", subject:"Dashboard charts render blank on Safari 17", cust:"Vela Robotics", plan:"business",
+     prio:"normal", tier:"tier1", channel:"portal", assignee:"a1", slaWin:720, dueAt:due(214), createdMin:58, reopen:0, badge:"",
+     summary:"Charts area is empty only on Safari; other browsers fine. Possibly a CSP / WebGL fallback issue."},
+    {ref:"TKT-4870", subject:"Data residency question for new EU tenant", cust:"Heliograph Inc.", plan:"enterprise",
+     prio:"normal", tier:"tier2", channel:"email", assignee:"a3", slaWin:480, dueAt:due(151), createdMin:74, reopen:0, badge:"",
+     summary:"Pre-sales-driven question on Frankfurt region data residency and sub-processor list."},
+    {ref:"TKT-4872", subject:"Rate limit hit on /v3/search during migration", cust:"Quanta Health", plan:"enterprise",
+     prio:"urgent", tier:"tier2", channel:"api", assignee:"a4", slaWin:240, dueAt:due(19), createdMin:88, reopen:0, badge:"esc",
+     summary:"Customer mid-migration is hammering search and getting 429s; needs a temporary limit bump + guidance."},
+    {ref:"TKT-4855", subject:"Invoice PDF shows wrong tax region", cust:"Northwind Trading", plan:"business",
+     prio:"normal", tier:"resolved", channel:"email", assignee:"a3", slaWin:480, dueAt:due(-200), createdMin:430, reopen:0, badge:"",
+     summary:"Tax region mislabeled on March invoice; corrected and regenerated PDF issued."},
+    {ref:"TKT-4848", subject:"Mobile app crash on cold start (Android 14)", cust:"Vela Robotics", plan:"business",
+     prio:"high", tier:"resolved", channel:"chat", assignee:"a5", slaWin:480, dueAt:due(-330), createdMin:610, reopen:0, badge:"",
+     summary:"Native crash on cold start traced to a null nav arg; fixed in 4.12.1 and confirmed by customer."},
+    {ref:"TKT-4810", subject:"Add user offboarding to API docs", cust:"Acme Logistics", plan:"pro",
+     prio:"low", tier:"resolved", channel:"portal", assignee:"a2", slaWin:1440, dueAt:due(-90), createdMin:520, reopen:0, badge:"",
+     summary:"Docs gap on the offboarding endpoint; published a new section and linked from the quickstart."}
+  ];
+
+  // ---------- per-ticket processing timeline (tts_events) ----------
+  var EVENTS={
+    "TKT-4821":[
+      {kind:"created",   actor:"System",        min:308, label:"Ticket created via API monitor", detail:"Auto-raised by uptime probe: payments gateway 502 rate above 5% threshold."},
+      {kind:"assigned",  actor:"Priya Nair",    min:300, label:"Assigned to Tier 1 (Priya Nair)"},
+      {kind:"escalated", actor:"Priya Nair",    min:262, label:"Escalated to Tier 2", detail:"Reproduced across 3 EU regions, frontline runbook exhausted — escalating to specialists."},
+      {kind:"escalated", actor:"Sofia Almeida", min:188, label:"Escalated to Tier 3 (Engineering)", detail:"Confirmed upstream provider issue, paging on-call engineering."},
+      {kind:"reply",     actor:"Aisha Karim",   min:96,  label:"Posted update to customer", detail:"Acknowledged impact, shared status page link, ETA pending provider RCA."},
+      {kind:"sla_breach",actor:"System",        min:12,  label:"SLA breached — 4h response window exceeded", detail:"Urgent/Enterprise SLA is 4h. Breach recorded; ops lead notified."}
+    ],
+    "TKT-4830":[
+      {kind:"created",   actor:"Northwind Trading", min:184, label:"Created from customer portal"},
+      {kind:"assigned",  actor:"Marcus Webb",   min:178, label:"Assigned to Tier 1 (Marcus Webb)"},
+      {kind:"reply",     actor:"Marcus Webb",   min:160, label:"Requested SAML metadata + timestamps"},
+      {kind:"escalated", actor:"Marcus Webb",   min:120, label:"Escalated to Tier 2", detail:"Identity issue beyond frontline scope after metadata rotation."},
+      {kind:"note",      actor:"Sofia Almeida", min:54,  label:"Internal note", detail:"Cert thumbprint in IdP doesn't match cached metadata; cache TTL likely the culprit. Reopened once — watch for regression."}
+    ],
+    "TKT-4844":[
+      {kind:"created",   actor:"Acme Logistics", min:142, label:"Created via live chat"},
+      {kind:"assigned",  actor:"Jonas Reichert", min:138, label:"Assigned to Tier 2 (Jonas Reichert)"},
+      {kind:"note",      actor:"Jonas Reichert", min:70,  label:"Internal note", detail:"Worker queue depth at 1.2k jobs; investigating whether a poison message is blocking the export lane."},
+      {kind:"reply",     actor:"Jonas Reichert", min:30,  label:"Customer update", detail:"Confirmed the job is queued, working a fix, will not lose data."}
+    ],
+    "TKT-4851":[
+      {kind:"created",   actor:"Brightloom",    min:96,  label:"Created via API support form"},
+      {kind:"assigned",  actor:"Dana Køhler",   min:90,  label:"Assigned to Tier 3 (Dana Køhler)"},
+      {kind:"escalated", actor:"Dana Køhler",   min:44,  label:"Flagged for engineering replay", detail:"v3 signing change suspected; queued a webhook delivery replay for the last 6h."}
+    ],
+    "TKT-4860":[
+      {kind:"created",   actor:"Maple & Co.",   min:41,  label:"Created via email"},
+      {kind:"assigned",  actor:"Priya Nair",    min:36,  label:"Assigned to Tier 1 (Priya Nair)"},
+      {kind:"reply",     actor:"Priya Nair",    min:20,  label:"Asked customer to check spam + confirm address"}
+    ],
+    "TKT-4862":[
+      {kind:"created",   actor:"Cedar Park Dental", min:22, label:"Created via live chat"},
+      {kind:"assigned",  actor:"Marcus Webb",   min:18,  label:"Assigned to Tier 1 (Marcus Webb)"}
+    ],
+    "TKT-4865":[
+      {kind:"created",   actor:"Vela Robotics", min:58,  label:"Created from portal"},
+      {kind:"assigned",  actor:"Priya Nair",    min:50,  label:"Assigned to Tier 1 (Priya Nair)"},
+      {kind:"note",      actor:"Priya Nair",    min:24,  label:"Internal note", detail:"Repro confirmed on Safari 17.4 only; suspect WebGL context fallback. May need Tier 2."}
+    ],
+    "TKT-4870":[
+      {kind:"created",   actor:"Heliograph Inc.", min:74, label:"Created via email"},
+      {kind:"assigned",  actor:"Sofia Almeida", min:68,  label:"Assigned to Tier 2 (Sofia Almeida)"},
+      {kind:"reply",     actor:"Sofia Almeida", min:40,  label:"Shared sub-processor list + residency doc"}
+    ],
+    "TKT-4872":[
+      {kind:"created",   actor:"Quanta Health", min:88,  label:"Created via API"},
+      {kind:"assigned",  actor:"Jonas Reichert", min:82, label:"Assigned to Tier 2 (Jonas Reichert)"},
+      {kind:"escalated", actor:"Jonas Reichert", min:30, label:"Escalated — needs limit bump approval", detail:"429s during enterprise migration; temporary rate-limit increase pending review. SLA window tight."}
+    ],
+    "TKT-4855":[
+      {kind:"created",   actor:"Northwind Trading", min:430, label:"Created via email"},
+      {kind:"assigned",  actor:"Sofia Almeida", min:420, label:"Assigned to Tier 2 (Sofia Almeida)"},
+      {kind:"reply",     actor:"Sofia Almeida", min:300, label:"Confirmed tax region fix"},
+      {kind:"resolved",  actor:"Sofia Almeida", min:200, label:"Resolved — corrected invoice issued"}
+    ],
+    "TKT-4848":[
+      {kind:"created",   actor:"Vela Robotics", min:610, label:"Created via chat"},
+      {kind:"escalated", actor:"Marcus Webb",   min:540, label:"Escalated to Tier 3"},
+      {kind:"resolved",  actor:"Aisha Karim",   min:330, label:"Resolved in 4.12.1", detail:"Null nav arg fixed; customer confirmed no further crashes."}
+    ],
+    "TKT-4810":[
+      {kind:"created",   actor:"Acme Logistics", min:520, label:"Created via portal"},
+      {kind:"resolved",  actor:"Marcus Webb",   min:90,  label:"Resolved — docs published"}
+    ]
+  };
+
+  // ---------- state ----------
+  var groupMode="tier", prioFilter="all", selectedRef=null, tick=null;
+
+  // ---------- helpers ----------
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  function avaClass(team){return team==="tier1"?"":team==="tier2"?"t2":"t3";}
+  function fmtCountdown(ms){
+    var neg=ms<0; ms=Math.abs(ms);
+    var h=Math.floor(ms/3600000), m=Math.floor((ms%3600000)/60000), s=Math.floor((ms%60000)/1000);
+    var str=(h<10?"0":"")+h+":"+(m<10?"0":"")+m+":"+(s<10?"0":"")+s;
+    return (neg?"-":"")+str;
+  }
+  function slaState(ms){ if(ms<0) return "breach"; if(ms<2*3600000) return "warn"; return "ok"; }
+  function ageState(t){ // fraction of window consumed
+    var consumed = (now().getTime() - ago(t.createdMin).getTime());
+    var winMs = t.slaWin*60000;
+    var f = Math.min(consumed/winMs, 1.15);
+    return f;
+  }
+  function relTime(min){
+    if(min<1) return "just now";
+    if(min<60) return min+"m ago";
+    var h=Math.floor(min/60); if(h<24) return h+"h "+(min%60? (min%60)+"m":"")+" ago";
+    var d=Math.floor(h/24); return d+"d ago";
+  }
+
+  // ---------- KPI strip ----------
+  function renderKPIs(){
+    var live = TICKETS.filter(function(t){return t.tier!=="resolved";});
+    var atRisk=0, breached=0, escalated=0;
+    live.forEach(function(t){
+      var ms=t.dueAt.getTime()-now().getTime();
+      if(ms<0) breached++; else if(ms<2*3600000) atRisk++;
+      if(t.badge==="esc"||t.tier==="tier3"||t.tier==="swat") escalated++;
+    });
+    var escRate=Math.round(escalated/Math.max(live.length,1)*100);
+    var host=document.getElementById("kpiStrip");
+    host.innerHTML=
+      kpiCard("","Open tickets", live.length, "", "Across 4 tiers", "")+
+      kpiCard("warn","SLA at risk", atRisk, "⏱", "Due within 2 hours", "warn")+
+      kpiCard("danger","Breached", breached, "⚠", "Response window exceeded", "danger")+
+      kpiCard("good","Median first response", "1.8", "↩", "hours · target 4h", "good", "h")+
+      kpiCard("","Escalation rate", escRate, "↑", "of open tickets above T1", "", "%");
+  }
+  function kpiCard(cls,lbl,val,ic,sub,tone,unit){
+    var dot = cls==="danger" && val>0 ? '<span class="pulse-dot"></span>' : "";
+    return '<div class="kpi '+cls+'">'+
+      '<div class="k-top"><span class="k-lbl">'+lbl+'</span><span class="k-ic">'+(ic||"●")+'</span></div>'+
+      '<div class="k-val">'+dot+val+(unit?'<small>'+unit+'</small>':'')+'</div>'+
+      '<div class="k-sub">'+esc(sub)+'</div></div>';
+  }
+
+  // ---------- board ----------
+  function visibleTickets(){
+    return TICKETS.filter(function(t){
+      if(prioFilter==="all") return true;
+      if(prioFilter==="breached") return (t.dueAt.getTime()-now().getTime())<0 && t.tier!=="resolved";
+      return t.prio===prioFilter;
+    });
+  }
+
+  function renderBoard(){
+    var board=document.getElementById("board");
+    board.innerHTML="";
+    var cols = groupMode==="tier" ? COLUMNS : [
+      {id:"urgent",title:"Urgent",tag:"swat"},{id:"high",title:"High",tag:"tier3"},
+      {id:"normal",title:"Normal",tag:"tier1"},{id:"low",title:"Low",tag:"resolved"}
+    ];
+    var vis=visibleTickets();
+    cols.forEach(function(c){
+      var items=vis.filter(function(t){ return groupMode==="tier" ? t.tier===c.id : t.prio===c.id; });
+      // risk = share at-risk/breached among non-resolved
+      var risky=items.filter(function(t){return c.id!=="resolved" && (t.dueAt.getTime()-now().getTime())<2*3600000;}).length;
+      var riskPct=items.length?Math.round(risky/items.length*100):0;
+
+      var col=document.createElement("div"); col.className="col"; col.dataset.col=c.id;
+      col.innerHTML=
+        '<div class="col-head">'+
+          '<div class="ch-top"><span class="col-tag '+c.tag+'"></span><h3>'+c.title+'</h3>'+
+            '<span class="ch-cnt">'+items.length+'</span></div>'+
+          '<div class="ch-sub">'+
+            (c.id==="resolved"
+              ? '<span>cleared this week</span>'
+              : '<span class="risk-bar"><i style="width:'+riskPct+'%"></i></span><span>'+riskPct+'% at risk</span>')+
+          '</div>'+
+        '</div>';
+      var body=document.createElement("div"); body.className="col-body"; body.dataset.col=c.id;
+      if(items.length===0){
+        body.innerHTML='<div class="col-empty">No tickets here</div>';
+      } else {
+        items.forEach(function(t){ body.appendChild(cardEl(t)); });
+      }
+      // drop zone
+      body.addEventListener("dragover",function(e){ e.preventDefault(); body.classList.add("drop-hi"); });
+      body.addEventListener("dragleave",function(){ body.classList.remove("drop-hi"); });
+      body.addEventListener("drop",function(e){
+        e.preventDefault(); body.classList.remove("drop-hi");
+        var ref=e.dataTransfer.getData("text/plain");
+        moveTicket(ref, c.id);
+      });
+      col.appendChild(body);
+      board.appendChild(col);
+    });
+    updateTimers(); // paint timers immediately
+  }
+
+  function cardEl(t){
+    var a=AGENTS[t.assignee];
+    var card=document.createElement("div");
+    card.className="tk prio-"+t.prio+(t.ref===selectedRef?" sel":"");
+    card.draggable=true; card.dataset.ref=t.ref;
+    var badge = t.badge ? '<span class="tk-badge '+t.badge+'">'+(t.badge==="breach"?"SLA breach":t.badge==="esc"?"Escalating":"Reopened")+'</span>' : "";
+    card.innerHTML=
+      badge+
+      '<div class="tk-top">'+
+        '<span class="tk-ref mono">'+t.ref+'</span>'+
+        '<span class="prio '+t.prio+'">'+t.prio+'</span>'+
+        '<span class="tk-ch">'+channelIcon(t.channel)+'</span>'+
+      '</div>'+
+      '<div class="tk-subject">'+esc(t.subject)+'</div>'+
+      '<div class="tk-cust">'+esc(t.cust)+' <span class="plan '+t.plan+'">'+t.plan+'</span></div>'+
+      '<div class="tk-sla" data-ref="'+t.ref+'">'+
+        '<div class="sla-ring">'+
+          '<svg width="34" height="34" viewBox="0 0 34 34"><circle class="bg" cx="17" cy="17" r="14"/>'+
+          '<circle class="fg" cx="17" cy="17" r="14"/></svg><span class="pct"></span>'+
+        '</div>'+
+        '<div class="sla-info"><div class="t mono">--:--</div><div class="l">SLA remaining</div></div>'+
+        '<div class="tk-assignee" title="'+esc(a.name)+'"><span class="mini-ava '+avaClass(a.team)+(a.online?"":" off")+'">'+a.ini+'</span></div>'+
+      '</div>'+
+      '<div class="tk-age"><span class="age-bar"><i></i></span><span class="age-lbl">'+relTime(t.createdMin)+'</span></div>';
+    card.addEventListener("dragstart",function(e){
+      e.dataTransfer.setData("text/plain",t.ref); e.dataTransfer.effectAllowed="move";
+      card.classList.add("dragging");
+    });
+    card.addEventListener("dragend",function(){ card.classList.remove("dragging"); });
+    card.addEventListener("click",function(){ openDrawer(t.ref); });
+    return card;
+  }
+  function channelIcon(c){return {email:"✉",chat:"💬",phone:"☎",portal:"🌐",api:"⚡"}[c]||"•";}
+
+  // ---------- live SLA timers (tick every second) ----------
+  function updateTimers(){
+    document.querySelectorAll(".tk-sla").forEach(function(row){
+      var ref=row.dataset.ref;
+      var t=TICKETS.find(function(x){return x.ref===ref;});
+      if(!t) return;
+      var card=row.closest(".tk");
+      var resolved = t.tier==="resolved";
+      var ms = t.dueAt.getTime()-now().getTime();
+      var info=row.querySelector(".sla-info .t");
+      var fg=row.querySelector(".fg"), pct=row.querySelector(".pct");
+      var R=14, CIRC=2*Math.PI*R;
+      fg.setAttribute("stroke-dasharray",CIRC.toFixed(1));
+
+      if(resolved){
+        info.textContent="Done"; info.className="t ok"; info.style.fontSize="12px";
+        row.querySelector(".sla-info .l").textContent="resolved";
+        fg.setAttribute("stroke-dashoffset","0"); fg.style.stroke="var(--green)"; pct.textContent="✓";
+      } else {
+        var state=slaState(ms);
+        info.textContent=fmtCountdown(ms);
+        info.className="t mono "+state;
+        var frac = Math.max(0, Math.min(1, ms/(t.slaWin*60000)));
+        fg.setAttribute("stroke-dashoffset",(CIRC*(1-frac)).toFixed(1));
+        fg.style.stroke = state==="breach"?"var(--red)":state==="warn"?"var(--amber)":"var(--green)";
+        pct.textContent = ms<0 ? "!" : Math.round(frac*100)+"%";
+      }
+      // ageing bar
+      var f=ageState(t);
+      var bar=card.querySelector(".age-bar i");
+      bar.style.width=Math.min(f*100,100)+"%";
+      bar.className = f>=1?"breach":f>=0.7?"warn":"";
+    });
+    // drawer big timer
+    if(selectedRef){
+      var t=TICKETS.find(function(x){return x.ref===selectedRef;});
+      if(t && document.getElementById("drawer").classList.contains("show")){
+        var big=document.getElementById("drSlaBig"), cap=document.getElementById("drSlaCap");
+        if(t.tier==="resolved"){ big.textContent="Resolved"; big.className="big ok"; cap.textContent="closed"; }
+        else{
+          var ms=t.dueAt.getTime()-now().getTime(); var st=slaState(ms);
+          big.textContent=fmtCountdown(ms); big.className="big mono "+st;
+          cap.textContent = st==="breach"?"SLA overdue by":"SLA remaining";
+        }
+      }
+    }
+    // wall clock
+    var n=now();
+    document.getElementById("wallClock").textContent=
+      [n.getHours(),n.getMinutes(),n.getSeconds()].map(function(x){return (x<10?"0":"")+x;}).join(":");
+  }
+
+  // ---------- drag-to-escalate ----------
+  function moveTicket(ref, colId){
+    var t=TICKETS.find(function(x){return x.ref===ref;});
+    if(!t) return;
+    var target = groupMode==="tier" ? "tier" : "prio";
+    var from = target==="tier"? t.tier : t.prio;
+    if(from===colId) return;
+    if(target==="tier"){
+      var order=["tier1","tier2","tier3","resolved"];
+      var up = order.indexOf(colId)>order.indexOf(t.tier);
+      t.tier=colId;
+      if(colId==="resolved"){ t.badge=""; pushEvent(t,"resolved","Dana Køhler","Resolved from board","Marked resolved by dragging to the Resolved column."); }
+      else { t.badge = up?"esc":t.badge; pushEvent(t,"escalated","Dana Køhler",(up?"Escalated to ":"Moved to ")+TEAM_LABEL[colId].split(" · ")[0], (up?"Escalated":"De-escalated")+" via board drag."); }
+      flash((up?"↑ Escalated ":"Moved ")+ref+" → "+TEAM_LABEL[colId].split(" · ")[0]);
+    } else {
+      t.prio=colId; flash("Priority of "+ref+" set to "+colId);
+    }
+    renderBoard(); renderKPIs();
+    if(selectedRef===ref) openDrawer(ref);
+  }
+
+  function pushEvent(t,kind,actor,label,detail){
+    if(!EVENTS[t.ref]) EVENTS[t.ref]=[];
+    EVENTS[t.ref].push({kind:kind,actor:actor,min:0,label:label,detail:detail||""});
+  }
+
+  // ---------- drawer (Details + timeline) ----------
+  function openDrawer(ref){
+    var t=TICKETS.find(function(x){return x.ref===ref;}); if(!t) return;
+    selectedRef=ref;
+    document.querySelectorAll(".tk").forEach(function(c){c.classList.toggle("sel",c.dataset.ref===ref);});
+    var a=AGENTS[t.assignee];
+    document.getElementById("drRef").textContent=t.ref+" · "+channelIcon(t.channel)+" "+t.channel;
+    document.getElementById("drSubject").textContent=t.subject;
+    document.getElementById("drMeta").innerHTML=
+      '<span class="dr-chip"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:'+prioColor(t.prio)+'"></span>'+t.prio[0].toUpperCase()+t.prio.slice(1)+'</span>'+
+      '<span class="dr-chip">'+esc(t.cust)+'</span>'+
+      '<span class="dr-chip">'+'<span class="plan '+t.plan+'" style="font-size:9.5px;padding:1px 6px;border-radius:6px">'+t.plan+'</span></span>'+
+      (t.reopen?'<span class="dr-chip">↺ reopened '+t.reopen+'×</span>':'');
+    document.getElementById("drAssignee").textContent=a.name;
+    document.getElementById("drTeam").textContent=TEAM_LABEL[a.team];
+    renderTimeline(t);
+    document.getElementById("drawer").classList.add("show");
+    document.getElementById("scrim").classList.add("show");
+    updateTimers();
+  }
+  function prioColor(p){return {urgent:"var(--red)",high:"var(--amber)",normal:"var(--blue)",low:"var(--slate)"}[p];}
+
+  var KIND_IC={created:"●",assigned:"→",escalated:"↑",reply:"↩",status:"⇄",note:"✎",sla_breach:"⚠",resolved:"✓"};
+  function renderTimeline(t){
+    var evs=(EVENTS[t.ref]||[]).slice().sort(function(a,b){return b.min-a.min;}); // oldest first (min desc = older)
+    var host=document.getElementById("timeline"); host.innerHTML="";
+    if(!evs.length){ host.innerHTML='<div class="col-empty" style="margin:20px auto">No activity yet.</div>'; return; }
+    evs.forEach(function(e){
+      var extra = e.kind==="sla_breach"?" breach":e.kind==="escalated"?" escalated":"";
+      var item=document.createElement("div"); item.className="tl-item"+extra;
+      item.innerHTML=
+        '<div class="tl-rail"><span class="tl-ic '+e.kind+'">'+(KIND_IC[e.kind]||"•")+'</span></div>'+
+        '<div class="tl-body">'+
+          '<div class="tl-row"><span class="tl-actor">'+esc(e.actor)+'</span>'+
+            '<span class="tl-time">'+(e.min===0?"just now":relTime(e.min))+'</span></div>'+
+          '<div class="tl-label">'+esc(e.label)+'</div>'+
+          (e.detail?'<div class="tl-detail">'+esc(e.detail)+'</div>':'')+
+        '</div>';
+      host.appendChild(item);
+    });
+  }
+
+  function closeDrawer(){
+    document.getElementById("drawer").classList.remove("show");
+    document.getElementById("scrim").classList.remove("show");
+    selectedRef=null;
+    document.querySelectorAll(".tk").forEach(function(c){c.classList.remove("sel");});
+  }
+  document.getElementById("drClose").onclick=closeDrawer;
+  document.getElementById("scrim").onclick=closeDrawer;
+
+  // drawer actions
+  document.getElementById("drEscalate").onclick=function(){
+    if(!selectedRef) return;
+    var t=TICKETS.find(function(x){return x.ref===selectedRef;});
+    var order=["tier1","tier2","tier3"]; var i=order.indexOf(t.tier);
+    if(t.tier==="resolved"){ flash("Already resolved"); return; }
+    if(i<order.length-1){ moveTicket(t.ref, order[i+1]); }
+    else { flash("Already at Tier 3 — pulling in SWAT"); pushEvent(t,"escalated","Dana Køhler","Pulled in SWAT escalation team","Top-tier engineering already engaged; SWAT looped in."); t.badge="esc"; renderBoard(); openDrawer(t.ref); }
+  };
+  document.getElementById("drResolve").onclick=function(){ if(selectedRef) moveTicket(selectedRef,"resolved"); };
+  document.getElementById("drReassign").onclick=function(){
+    if(!selectedRef) return;
+    var t=TICKETS.find(function(x){return x.ref===selectedRef;});
+    var pool=Object.keys(AGENTS).filter(function(k){return AGENTS[k].team===t.tier && k!==t.assignee;});
+    if(!pool.length) pool=Object.keys(AGENTS).filter(function(k){return k!==t.assignee;});
+    t.assignee=pool[Math.floor(Math.random()*pool.length)];
+    pushEvent(t,"assigned",AGENTS[t.assignee].name,"Reassigned to "+AGENTS[t.assignee].name);
+    renderBoard(); openDrawer(t.ref); flash("Reassigned to "+AGENTS[t.assignee].name);
+  };
+
+  // ---------- toolbar ----------
+  document.getElementById("grpSeg").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    document.querySelectorAll("#grpSeg button").forEach(function(x){x.classList.remove("on");});
+    b.classList.add("on"); groupMode=b.dataset.g; renderBoard();
+  });
+  document.getElementById("prioFilters").addEventListener("click",function(e){
+    var p=e.target.closest(".pf"); if(!p) return;
+    document.querySelectorAll(".pf").forEach(function(x){x.classList.remove("on");});
+    p.classList.add("on"); prioFilter=p.dataset.f; renderBoard(); renderKPIs();
+  });
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2300); }
+
+  // ---------- init ----------
+  renderKPIs();
+  renderBoard();
+  tick=setInterval(function(){ updateTimers(); }, 1000);
+
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Ticket Tracking: an escalation pipeline, SLA countdown rings, and a timeline. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/23-ticket-tracking.html
+</script>
+</body>
+</html>

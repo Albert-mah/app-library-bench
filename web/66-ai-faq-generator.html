@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI FAQ Generator</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --panel-2:#f6f7f9;
+    --border:#e3e6ea;
+    --border-soft:#eceef1;
+    --text:#1f2937;
+    --text-dim:#54607a;
+    --text-faint:#8b95a7;
+    --accent:#db2777;
+    --accent-2:#0d9488;
+    --accent-glow:rgba(219,39,119,.18);
+    --teal:#0d9488;
+    --green:#0f9d6f;
+    --amber:#d18616;
+    --red:#dc2626;
+    --blue:#2563eb;
+    --radius:14px;
+    --shadow:0 12px 32px rgba(31,41,55,.10);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Apple Color Emoji",sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d3d8df;border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:#bcc3cd}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:grid;grid-template-columns:236px 1fr;height:100vh}
+
+  /* ---------- Sidebar ---------- */
+  .side{
+    background:#ffffff;
+    border-right:1px solid var(--border);
+    display:flex;flex-direction:column;
+    padding:18px 14px;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 6px 18px}
+  .logo{
+    width:36px;height:36px;border-radius:10px;flex:none;
+    background:linear-gradient(135deg,#db2777,#be185d);
+    display:grid;place-items:center;
+    box-shadow:0 6px 18px var(--accent-glow);
+  }
+  .logo svg{width:21px;height:21px}
+  .brand h1{font-size:15px;font-weight:700;letter-spacing:.2px;line-height:1.1}
+  .brand .zh{font-size:11px;color:var(--text-faint);font-weight:500}
+
+  .nav-label{font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-faint);margin:14px 8px 7px;font-weight:600}
+  .nav a{
+    display:flex;align-items:center;gap:11px;
+    padding:9px 11px;border-radius:9px;color:var(--text-dim);
+    text-decoration:none;font-weight:500;font-size:13.5px;cursor:pointer;
+    transition:.15s;position:relative;
+  }
+  .nav a svg{width:17px;height:17px;flex:none;opacity:.85}
+  .nav a:hover{background:#f1f3f6;color:var(--text)}
+  .nav a.active{background:linear-gradient(90deg,rgba(219,39,119,.12),rgba(219,39,119,.03));color:var(--accent)}
+  .nav a.active::before{content:"";position:absolute;left:-14px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--accent)}
+  .nav a .badge{margin-left:auto;background:#eceef1;color:var(--text-dim);font-size:11px;padding:1px 8px;border-radius:20px;font-weight:600}
+  .nav a.active .badge{background:var(--accent);color:#fff}
+
+  .side-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--border-soft)}
+  .quota{padding:11px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:11px}
+  .quota .q-top{display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);margin-bottom:7px}
+  .quota .q-top b{color:var(--text)}
+  .qbar{height:6px;border-radius:6px;background:#e3e6ea;overflow:hidden}
+  .qbar i{display:block;height:100%;width:62%;border-radius:6px;background:linear-gradient(90deg,#db2777,#f472b6)}
+  .user{display:flex;align-items:center;gap:10px;margin-top:14px;padding:4px 4px}
+  .avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#f5b651,#f56565);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;flex:none}
+  .user .u-name{font-size:13px;font-weight:600}
+  .user .u-role{font-size:11px;color:var(--text-faint)}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;overflow:hidden}
+  .topbar{
+    display:flex;align-items:center;gap:16px;
+    padding:16px 26px;border-bottom:1px solid var(--border);
+    background:rgba(255,255,255,.8);backdrop-filter:blur(8px);
+  }
+  .topbar .ttl h2{font-size:18px;font-weight:700}
+  .topbar .ttl p{font-size:12.5px;color:var(--text-faint)}
+  .search{margin-left:auto;position:relative}
+  .search input{
+    width:260px;background:var(--panel);border:1px solid var(--border);
+    border-radius:9px;padding:9px 12px 9px 35px;color:var(--text);font-size:13px;outline:none;transition:.15s;
+  }
+  .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-faint)}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    border:1px solid var(--border);background:var(--panel);color:var(--text);
+    padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;transition:.15s;font-family:inherit;
+  }
+  .btn:hover{border-color:#c9cfd8;background:#f1f3f6}
+  .btn svg{width:15px;height:15px}
+  .btn.primary{
+    background:linear-gradient(135deg,#db2777,#be185d);border-color:transparent;color:#fff;
+    box-shadow:0 6px 18px var(--accent-glow);
+  }
+  .btn.primary:hover{filter:brightness(1.06)}
+
+  .scroll{overflow-y:auto;padding:22px 26px 40px;flex:1}
+
+  /* ---------- Stat cards ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .stat{
+    background:var(--panel);
+    border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden;
+    box-shadow:0 1px 2px rgba(31,41,55,.04);
+  }
+  .stat::after{content:"";position:absolute;right:-30px;top:-30px;width:90px;height:90px;border-radius:50%;background:var(--c,#db2777);opacity:.10}
+  .stat .s-ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;margin-bottom:12px;background:color-mix(in srgb,var(--c,#db2777) 14%,transparent)}
+  .stat .s-ico svg{width:18px;height:18px;color:var(--c,#db2777)}
+  .stat .s-val{font-size:26px;font-weight:750;letter-spacing:-.5px;line-height:1}
+  .stat .s-lbl{font-size:12.5px;color:var(--text-dim);margin-top:5px}
+  .stat .s-trend{position:absolute;top:16px;right:16px;font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:3px}
+  .s-trend.up{color:var(--green)}.s-trend.down{color:var(--red)}
+
+  /* ---------- Layout split ---------- */
+  .split{display:grid;grid-template-columns:1.05fr 1.35fr;gap:18px;align-items:start}
+  .card{
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+    box-shadow:0 1px 2px rgba(31,41,55,.04);
+  }
+  .card-head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border-soft)}
+  .card-head h3{font-size:14.5px;font-weight:700}
+  .card-head .ch-sub{font-size:11.5px;color:var(--text-faint)}
+  .card-head .ch-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  /* tabs */
+  .tabs{display:flex;gap:4px;background:#eceef1;padding:4px;border-radius:9px}
+  .tabs button{
+    border:0;background:transparent;color:var(--text-dim);font-family:inherit;font-size:12.5px;font-weight:600;
+    padding:6px 13px;border-radius:7px;cursor:pointer;transition:.15s;
+  }
+  .tabs button:hover{color:var(--text)}
+  .tabs button.on{background:var(--accent);color:#fff;box-shadow:0 2px 10px var(--accent-glow)}
+
+  /* ---------- Source list (left) ---------- */
+  .src-list{max-height:560px;overflow-y:auto}
+  .src{
+    display:flex;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border-soft);cursor:pointer;transition:.15s;position:relative;
+  }
+  .src:hover{background:#f6f7f9}
+  .src.sel{background:linear-gradient(90deg,rgba(219,39,119,.09),transparent)}
+  .src.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .src-ico{
+    width:40px;height:40px;border-radius:10px;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;
+  }
+  .ft-pdf{background:linear-gradient(135deg,#ef4444,#c81e1e)}
+  .ft-doc{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
+  .ft-web{background:linear-gradient(135deg,#0d9488,#0f766e)}
+  .ft-txt{background:linear-gradient(135deg,#a855f7,#7c3aed)}
+  .ft-csv{background:linear-gradient(135deg,#10b981,#047857)}
+  .src-body{flex:1;min-width:0}
+  .src-body .s-name{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .src-body .s-meta{font-size:11.5px;color:var(--text-faint);margin-top:2px;display:flex;gap:10px}
+  .src-foot{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .chip{font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .chip.done{background:rgba(15,157,111,.12);color:var(--green)}
+  .chip.proc{background:rgba(209,134,22,.14);color:var(--amber)}
+  .chip.queue{background:rgba(37,99,235,.12);color:var(--blue)}
+  .chip.fail{background:rgba(220,38,38,.12);color:var(--red)}
+  .chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .chip.proc .dot{animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .src-count{margin-left:auto;font-size:11.5px;color:var(--text-faint);font-weight:600}
+
+  /* ---------- Generated FAQ pane (right) ---------- */
+  .gen-head{padding:16px 20px;border-bottom:1px solid var(--border-soft);background:linear-gradient(180deg,rgba(219,39,119,.05),transparent)}
+  .gen-head .gh-top{display:flex;align-items:center;gap:12px}
+  .gen-head .gh-title{font-size:15px;font-weight:700}
+  .gen-head .gh-src{font-size:12px;color:var(--text-faint);margin-top:3px}
+  .ai-pill{
+    display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+    background:linear-gradient(135deg,rgba(219,39,119,.12),rgba(244,114,182,.10));
+    border:1px solid rgba(219,39,119,.28);color:#be185d;padding:4px 10px;border-radius:20px;
+  }
+  .ai-pill svg{width:12px;height:12px}
+  .gen-meta{display:flex;gap:18px;margin-top:13px;flex-wrap:wrap}
+  .gm{display:flex;flex-direction:column;gap:1px}
+  .gm .gm-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);font-weight:600}
+  .gm .gm-v{font-size:13px;font-weight:700}
+
+  .faq-list{padding:6px 0;max-height:430px;overflow-y:auto}
+  .faq{
+    border-bottom:1px solid var(--border-soft);padding:0;transition:.15s;
+  }
+  .faq-q{
+    display:flex;align-items:flex-start;gap:12px;padding:14px 20px;cursor:pointer;
+  }
+  .faq-q:hover{background:#f6f7f9}
+  .q-num{
+    width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;
+    font-size:12px;font-weight:700;background:#eceef1;color:var(--text-dim);margin-top:1px;
+  }
+  .q-main{flex:1;min-width:0}
+  .q-text{font-weight:600;font-size:13.8px;line-height:1.45}
+  .q-tags{display:flex;gap:7px;margin-top:7px;flex-wrap:wrap;align-items:center}
+  .conf{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;display:inline-flex;align-items:center;gap:4px}
+  .conf.high{background:rgba(15,157,111,.12);color:var(--green)}
+  .conf.mid{background:rgba(209,134,22,.14);color:var(--amber)}
+  .conf.low{background:rgba(220,38,38,.12);color:var(--red)}
+  .cat-tag{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;background:#eceef1;color:var(--text-dim)}
+  .q-toggle{flex:none;width:22px;height:22px;display:grid;place-items:center;color:var(--text-faint);transition:.2s;margin-top:2px}
+  .faq.open .q-toggle{transform:rotate(180deg)}
+  .faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 20px 0 58px}
+  .faq.open .faq-a{max-height:340px;padding-bottom:16px}
+  .a-text{font-size:13px;color:var(--text-dim);line-height:1.6;border-left:2px solid var(--accent);padding:4px 0 4px 13px}
+  .a-text{color:#3a455c}
+  .a-source{margin-top:10px;font-size:11.5px;color:var(--text-faint);display:flex;align-items:center;gap:7px}
+  .a-source svg{width:13px;height:13px}
+  .a-actions{display:flex;gap:8px;margin-top:12px}
+  .mini-btn{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:7px;border:1px solid var(--border);background:#ffffff;color:var(--text-dim);cursor:pointer;display:inline-flex;gap:5px;align-items:center;transition:.15s;font-family:inherit}
+  .mini-btn:hover{border-color:#c9cfd8;color:var(--text);background:#f6f7f9}
+  .mini-btn.ok:hover{border-color:var(--green);color:var(--green)}
+  .mini-btn.no:hover{border-color:var(--red);color:var(--red)}
+  .mini-btn svg{width:13px;height:13px}
+
+  .gen-foot{padding:14px 20px;border-top:1px solid var(--border-soft);display:flex;align-items:center;gap:12px;background:#f6f7f9}
+  .approved-note{font-size:12px;color:var(--text-faint);display:flex;align-items:center;gap:7px}
+
+  /* ---------- Bottom row ---------- */
+  .bottom{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;margin-top:18px;align-items:start}
+
+  /* coverage chart */
+  .cov{padding:18px 20px}
+  .cov-bars{display:flex;flex-direction:column;gap:13px;margin-top:6px}
+  .cov-row{display:flex;align-items:center;gap:12px}
+  .cov-row .cr-l{width:120px;font-size:12.5px;color:var(--text-dim);font-weight:500}
+  .cov-track{flex:1;height:9px;border-radius:6px;background:#eceef1;overflow:hidden}
+  .cov-track i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--cc,#db2777),color-mix(in srgb,var(--cc,#db2777) 65%,#f472b6));transition:width 1s cubic-bezier(.2,.8,.2,1)}
+  .cov-row .cr-v{width:38px;text-align:right;font-size:12.5px;font-weight:700}
+
+  /* activity feed */
+  .feed{padding:8px 6px 8px;max-height:300px;overflow-y:auto}
+  .fe{display:flex;gap:12px;padding:11px 14px;position:relative}
+  .fe-line{position:absolute;left:25px;top:34px;bottom:-6px;width:2px;background:var(--border-soft)}
+  .fe:last-child .fe-line{display:none}
+  .fe-ico{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;z-index:1}
+  .fe-ico svg{width:14px;height:14px}
+  .fe-b .fe-t{font-size:12.8px;line-height:1.45}
+  .fe-b .fe-t b{font-weight:700}
+  .fe-b .fe-time{font-size:11px;color:var(--text-faint);margin-top:2px}
+
+  /* ---------- Composer modal ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(31,41,55,.4);backdrop-filter:blur(4px);z-index:60;display:none;align-items:center;justify-content:center;padding:24px}
+  .overlay.show{display:flex}
+  .modal{
+    width:min(640px,100%);background:var(--panel);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);
+    overflow:hidden;animation:rise .25s ease;
+  }
+  @keyframes rise{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .modal-head{padding:20px 22px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:12px}
+  .modal-head h3{font-size:16px;font-weight:700}
+  .modal-head p{font-size:12.5px;color:var(--text-faint)}
+  .modal-head .x{margin-left:auto;cursor:pointer;color:var(--text-faint);width:30px;height:30px;display:grid;place-items:center;border-radius:8px}
+  .modal-head .x:hover{background:#f1f3f6;color:var(--text)}
+  .modal-body{padding:22px}
+  .drop{
+    border:1.5px dashed #c4cbd6;border-radius:14px;padding:30px;text-align:center;background:#fafbfc;transition:.15s;cursor:pointer;
+  }
+  .drop:hover{border-color:var(--accent);background:#fdf2f8}
+  .drop .d-ico{width:48px;height:48px;border-radius:12px;background:rgba(219,39,119,.12);display:grid;place-items:center;margin:0 auto 12px}
+  .drop .d-ico svg{width:24px;height:24px;color:var(--accent)}
+  .drop h4{font-size:14px;font-weight:700}
+  .drop p{font-size:12px;color:var(--text-faint);margin-top:4px}
+  .field{margin-top:18px}
+  .field label{font-size:12px;font-weight:600;color:var(--text-dim);display:block;margin-bottom:7px}
+  .field textarea,.field select,.field input{
+    width:100%;background:#ffffff;border:1px solid var(--border);border-radius:10px;color:var(--text);
+    padding:11px 13px;font-size:13px;font-family:inherit;outline:none;resize:vertical;transition:.15s;
+  }
+  .field textarea:focus,.field select:focus,.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+  .modal-foot{padding:16px 22px;border-top:1px solid var(--border-soft);display:flex;align-items:center;gap:12px}
+  .modal-foot .mf-note{font-size:12px;color:var(--text-faint);display:flex;align-items:center;gap:6px}
+
+  /* generating bar */
+  .genbar{display:none;align-items:center;gap:12px;padding:13px 16px;background:linear-gradient(90deg,rgba(219,39,119,.10),rgba(244,114,182,.05));border:1px solid rgba(219,39,119,.25);border-radius:11px;margin-bottom:18px}
+  .genbar.show{display:flex}
+  .spin{width:20px;height:20px;border:2.5px solid rgba(219,39,119,.2);border-top-color:var(--accent);border-radius:50%;animation:rot .7s linear infinite;flex:none}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  .genbar .gb-t{font-size:13px;font-weight:600;flex:1}
+  .genbar .gb-prog{font-size:12px;color:#be185d;font-weight:700}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--text-faint)}
+  .empty svg{width:44px;height:44px;opacity:.5;margin-bottom:12px}
+  .empty p{font-size:13px}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+    background:#1f2937;border:1px solid #313c4e;padding:12px 18px;border-radius:11px;color:#f3f4f6;
+    display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;box-shadow:var(--shadow);z-index:80;
+    transition:transform .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast svg{width:17px;height:17px;color:var(--green)}
+
+  @media(max-width:1180px){
+    .split,.bottom{grid-template-columns:1fr}
+    .stats{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ====== SIDEBAR ====== -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 5.4L20 8.5l-4 4.1.9 5.9L12 15.8 7.1 18.5 8 12.6 4 8.5l5.6-1.1L12 2z" fill="#fff"/></svg>
+      </div>
+      <div>
+        <h1>FAQ Forge</h1>
+        <div class="zh">AI FAQ 生成系统</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <nav class="nav">
+      <a class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Generator</a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v4H4z"/><path d="M4 12h16v8H4z"/></svg>Sources<span class="badge">14</span></a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>FAQ Library<span class="badge">186</span></a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Review Queue<span class="badge">9</span></a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Analytics</a>
+    </nav>
+
+    <div class="nav-label">Channels</div>
+    <nav class="nav">
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>Help Center</a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>Email Macros</a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="quota">
+        <div class="q-top"><span>AI credits</span><b>6.2k / 10k</b></div>
+        <div class="qbar"><i></i></div>
+      </div>
+      <div class="user">
+        <div class="avatar">MR</div>
+        <div>
+          <div class="u-name">Mara Reyes</div>
+          <div class="u-role">Knowledge Lead</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ====== MAIN ====== -->
+  <main class="main">
+    <header class="topbar">
+      <div class="ttl">
+        <h2>FAQ Generator</h2>
+        <p>Turn support docs into reviewed, publish-ready answers</p>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="searchInput" placeholder="Search sources & questions…">
+      </div>
+      <button class="btn" onclick="toast('Synced 3 new docs from Help Center')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>Sync</button>
+      <button class="btn primary" onclick="openModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New Generation</button>
+    </header>
+
+    <div class="scroll">
+
+      <!-- generating progress (toggled) -->
+      <div class="genbar" id="genbar">
+        <div class="spin"></div>
+        <div class="gb-t" id="gbText">Reading source & drafting questions…</div>
+        <div class="gb-prog" id="gbProg">0%</div>
+      </div>
+
+      <!-- stat cards -->
+      <section class="stats">
+        <div class="stat" style="--c:#db2777">
+          <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div class="s-trend up">▲ 18%</div>
+          <div class="s-val">1,284</div>
+          <div class="s-lbl">FAQs generated</div>
+        </div>
+        <div class="stat" style="--c:#0f9d6f">
+          <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
+          <div class="s-trend up">▲ 9%</div>
+          <div class="s-val">91.4%</div>
+          <div class="s-lbl">Approval rate</div>
+        </div>
+        <div class="stat" style="--c:#d18616">
+          <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div class="s-trend down">▼ 12%</div>
+          <div class="s-val">9</div>
+          <div class="s-lbl">Pending review</div>
+        </div>
+        <div class="stat" style="--c:#0d9488">
+          <div class="s-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg></div>
+          <div class="s-trend up">▲ 2.1×</div>
+          <div class="s-val">4.6h</div>
+          <div class="s-lbl">Time saved / week</div>
+        </div>
+      </section>
+
+      <!-- ===== Split: sources | generated FAQ ===== -->
+      <section class="split">
+        <!-- LEFT: source documents -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Source Documents</h3>
+            <span class="ch-sub">Knowledge inputs</span>
+            <div class="ch-right">
+              <div class="tabs" id="srcTabs">
+                <button class="on" data-f="all">All</button>
+                <button data-f="done">Ready</button>
+                <button data-f="proc">Processing</button>
+              </div>
+            </div>
+          </div>
+          <div class="src-list" id="srcList"></div>
+        </div>
+
+        <!-- RIGHT: generated FAQ review pane -->
+        <div class="card">
+          <div class="gen-head">
+            <div class="gh-top">
+              <div>
+                <div class="gh-title" id="genTitle">Billing &amp; Subscriptions FAQ</div>
+                <div class="gh-src" id="genSrc">Generated from <b>Billing_Policy_v4.pdf</b></div>
+              </div>
+              <span class="ai-pill" style="margin-left:auto">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
+                AI Draft
+              </span>
+            </div>
+            <div class="gen-meta">
+              <div class="gm"><span class="gm-l">Questions</span><span class="gm-v" id="mQ">12</span></div>
+              <div class="gm"><span class="gm-l">Avg. confidence</span><span class="gm-v" style="color:var(--green)" id="mConf">88%</span></div>
+              <div class="gm"><span class="gm-l">Model</span><span class="gm-v">forge-lg</span></div>
+              <div class="gm"><span class="gm-l">Generated</span><span class="gm-v">3 min ago</span></div>
+            </div>
+          </div>
+          <div class="faq-list" id="faqList"></div>
+          <div class="gen-foot">
+            <span class="approved-note" id="apprNote"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" style="width:15px;height:15px"><path d="M20 6L9 17l-5-5"/></svg> <span id="apprText">3 of 12 approved</span></span>
+            <button class="btn" style="margin-left:auto" onclick="toast('Draft saved to Review Queue')">Save draft</button>
+            <button class="btn primary" onclick="publishAll()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Publish approved</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Bottom: coverage + activity ===== -->
+      <section class="bottom">
+        <div class="card">
+          <div class="card-head">
+            <h3>Topic Coverage</h3>
+            <span class="ch-sub">FAQs published per category</span>
+          </div>
+          <div class="cov">
+            <div class="cov-bars">
+              <div class="cov-row"><span class="cr-l">Billing</span><div class="cov-track"><i style="--cc:#db2777" data-w="86"></i></div><span class="cr-v">48</span></div>
+              <div class="cov-row"><span class="cr-l">Account &amp; Login</span><div class="cov-track"><i style="--cc:#0d9488" data-w="72"></i></div><span class="cr-v">39</span></div>
+              <div class="cov-row"><span class="cr-l">Integrations</span><div class="cov-track"><i style="--cc:#2563eb" data-w="58"></i></div><span class="cr-v">31</span></div>
+              <div class="cov-row"><span class="cr-l">Security</span><div class="cov-track"><i style="--cc:#0f9d6f" data-w="44"></i></div><span class="cr-v">24</span></div>
+              <div class="cov-row"><span class="cr-l">Mobile App</span><div class="cov-track"><i style="--cc:#d18616" data-w="33"></i></div><span class="cr-v">18</span></div>
+              <div class="cov-row"><span class="cr-l">Onboarding</span><div class="cov-track"><i style="--cc:#dc2626" data-w="48"></i></div><span class="cr-v">26</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>AI Activity</h3>
+            <span class="ch-sub">Recent automated runs</span>
+          </div>
+          <div class="feed" id="feed"></div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ====== COMPOSER MODAL ====== -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h3>New FAQ Generation</h3>
+        <p>Upload or paste a source — AI drafts the Q&amp;A set</p>
+      </div>
+      <div class="x" onclick="closeModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="drop" onclick="toast('Picker opened — drop a PDF, DOCX or URL')">
+        <div class="d-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg></div>
+        <h4>Drop a document or paste a link</h4>
+        <p>PDF, DOCX, Markdown, Help Center URL · up to 25 MB</p>
+      </div>
+      <div class="field">
+        <label>Or paste raw content / policy text</label>
+        <textarea rows="3" placeholder="Paste release notes, policy text, or a support thread…"></textarea>
+      </div>
+      <div class="opts">
+        <div class="field" style="margin:0">
+          <label>Category</label>
+          <select><option>Billing &amp; Subscriptions</option><option>Account &amp; Login</option><option>Integrations</option><option>Security</option><option>Mobile App</option></select>
+        </div>
+        <div class="field" style="margin:0">
+          <label>Tone</label>
+          <select><option>Friendly &amp; concise</option><option>Formal</option><option>Technical</option><option>Step-by-step</option></select>
+        </div>
+        <div class="field" style="margin:0">
+          <label>Questions to draft</label>
+          <select><option>Auto (recommended)</option><option>5 questions</option><option>10 questions</option><option>15 questions</option></select>
+        </div>
+        <div class="field" style="margin:0">
+          <label>Audience</label>
+          <select><option>End customers</option><option>Internal agents</option><option>Developers</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="mf-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>Drafts land in the Review Queue, never auto-published</span>
+      <button class="btn" style="margin-left:auto" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="runGeneration()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>Generate FAQs</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ---------------- Data ---------------- */
+const sources = [
+  {id:1, name:"Billing_Policy_v4.pdf", type:"pdf", cat:"Billing", size:"2.4 MB", date:"Jun 22", q:12, status:"done", sel:true},
+  {id:2, name:"SSO_Setup_Guide.docx", type:"doc", cat:"Security", size:"880 KB", date:"Jun 22", q:9, status:"done"},
+  {id:3, name:"help.acme.io/refunds", type:"web", cat:"Billing", size:"Web page", date:"Jun 21", q:7, status:"proc"},
+  {id:4, name:"Mobile_Release_3.2.md", type:"txt", cat:"Mobile App", size:"42 KB", date:"Jun 21", q:0, status:"queue"},
+  {id:5, name:"Slack_Integration.pdf", type:"pdf", cat:"Integrations", size:"1.1 MB", date:"Jun 20", q:8, status:"done"},
+  {id:6, name:"Password_Reset_Flow.docx", type:"doc", cat:"Account", size:"640 KB", date:"Jun 20", q:6, status:"done"},
+  {id:7, name:"data_export.csv", type:"csv", cat:"Account", size:"310 KB", date:"Jun 19", q:0, status:"fail"},
+  {id:8, name:"Onboarding_Checklist.pdf", type:"pdf", cat:"Onboarding", size:"1.8 MB", date:"Jun 19", q:11, status:"done"},
+  {id:9, name:"API_Rate_Limits.md", type:"txt", cat:"Integrations", size:"28 KB", date:"Jun 18", q:5, status:"done"},
+  {id:10, name:"GDPR_Data_Handling.pdf", type:"pdf", cat:"Security", size:"3.2 MB", date:"Jun 18", q:10, status:"proc"},
+  {id:11, name:"help.acme.io/2fa", type:"web", cat:"Security", size:"Web page", date:"Jun 17", q:7, status:"done"},
+  {id:12, name:"Team_Roles_Permissions.docx", type:"doc", cat:"Account", size:"720 KB", date:"Jun 17", q:8, status:"done"},
+  {id:13, name:"Webhook_Troubleshooting.md", type:"txt", cat:"Integrations", size:"36 KB", date:"Jun 16", q:9, status:"queue"},
+  {id:14, name:"Pricing_Tiers_2026.pdf", type:"pdf", cat:"Billing", size:"960 KB", date:"Jun 16", q:13, status:"done"},
+];
+
+const faqSets = {
+  1: { title:"Billing & Subscriptions FAQ", src:"Billing_Policy_v4.pdf", conf:88, items:[
+    {q:"How do I upgrade my subscription plan?", a:"Open Settings → Billing, choose your new tier, and confirm. The upgrade applies instantly and you're charged a prorated amount for the rest of the current cycle.", conf:"high", cval:96, cat:"Billing", src:"Section 2.1 — Plan Changes", state:"approved"},
+    {q:"When am I charged for my subscription?", a:"You're billed on the same calendar day each month (or year) that you first subscribed. If that day doesn't exist in a month, billing falls to the last day of that month.", conf:"high", cval:94, cat:"Billing", src:"Section 1.3 — Billing Cycle", state:"approved"},
+    {q:"What is your refund policy for annual plans?", a:"Annual plans are eligible for a prorated refund within 30 days of purchase. After 30 days, refunds are issued as account credit rather than to the original payment method.", conf:"mid", cval:78, cat:"Billing", src:"Section 4.2 — Refunds", state:"pending"},
+    {q:"Can I switch from monthly to annual billing?", a:"Yes. Switching to annual is available anytime from the Billing page. Your remaining monthly balance is credited toward the annual charge automatically.", conf:"high", cval:91, cat:"Billing", src:"Section 2.3 — Cycle Switch", state:"approved"},
+    {q:"What happens to my data if my payment fails?", a:"We retry the payment over a 7-day grace period and email you each attempt. Your data stays fully accessible during this window; the account is only paused after the grace period ends.", conf:"mid", cval:73, cat:"Billing", src:"Section 5.1 — Failed Payments", state:"pending"},
+    {q:"Do you offer discounts for nonprofits?", a:"Verified nonprofits receive 40% off any paid tier. Submit your registration documents through the Billing page and approval typically takes 2 business days.", conf:"low", cval:61, cat:"Billing", src:"Inferred — not in source", state:"flagged"},
+  ]},
+  2: { title:"SSO & Security FAQ", src:"SSO_Setup_Guide.docx", conf:90, items:[
+    {q:"Which identity providers do you support for SSO?", a:"We support SAML 2.0 and OIDC, including Okta, Azure AD, Google Workspace, and OneLogin out of the box. Custom SAML providers can be configured manually.", conf:"high", cval:95, cat:"Security", src:"Page 2 — Supported IdPs", state:"approved"},
+    {q:"How do I enforce SSO for my whole team?", a:"In Admin → Security, toggle 'Require SSO'. Once enabled, members can no longer sign in with email and password and must authenticate through your identity provider.", conf:"high", cval:92, cat:"Security", src:"Page 4 — Enforcement", state:"pending"},
+    {q:"What attributes are synced from my IdP?", a:"Email, full name, and group memberships are synced on each login. Group-to-role mapping is configured under Admin → Roles.", conf:"mid", cval:80, cat:"Security", src:"Page 5 — Attribute Mapping", state:"pending"},
+    {q:"Is SCIM provisioning available?", a:"SCIM 2.0 automated provisioning and deprovisioning is available on Enterprise plans. It keeps your member list in sync with your directory in near real time.", conf:"high", cval:89, cat:"Security", src:"Page 6 — SCIM", state:"approved"},
+  ]},
+  5: { title:"Slack Integration FAQ", src:"Slack_Integration.pdf", conf:85, items:[
+    {q:"How do I connect my Slack workspace?", a:"From Integrations → Slack, click Connect and authorize the app in Slack. You'll pick a default channel for notifications during setup.", conf:"high", cval:93, cat:"Integrations", src:"Step 1 — Connecting", state:"pending"},
+    {q:"Can I route different alerts to different channels?", a:"Yes. Each notification type — mentions, status changes, and digests — can target its own Slack channel from the integration settings.", conf:"mid", cval:77, cat:"Integrations", src:"Step 3 — Routing", state:"pending"},
+    {q:"Why am I not receiving Slack notifications?", a:"The most common cause is the app being removed from the target channel. Re-invite the bot with /invite @acme, then send a test notification from settings.", conf:"mid", cval:71, cat:"Integrations", src:"Troubleshooting", state:"pending"},
+  ]},
+  8: { title:"Onboarding FAQ", src:"Onboarding_Checklist.pdf", conf:87, items:[
+    {q:"What are the first steps after creating an account?", a:"Complete your profile, invite teammates, and connect at least one data source. The setup checklist on your dashboard tracks each step.", conf:"high", cval:94, cat:"Onboarding", src:"Section 1 — Getting Started", state:"approved"},
+    {q:"How do I invite my team members?", a:"Go to Settings → Members, enter their email addresses, and choose a role. Invitees receive a join link that expires after 7 days.", conf:"high", cval:90, cat:"Onboarding", src:"Section 2 — Invites", state:"pending"},
+    {q:"Is there a guided product tour?", a:"Yes — an interactive tour launches on first login and can be replayed anytime from the Help menu.", conf:"low", cval:64, cat:"Onboarding", src:"Inferred — not in source", state:"flagged"},
+  ]},
+};
+const fallbackSet = faqSets[1];
+
+const feed = [
+  {ic:"gen", t:"Generated <b>13 questions</b> from Pricing_Tiers_2026.pdf", time:"4 min ago", c:"#db2777"},
+  {ic:"flag", t:"Flagged <b>2 low-confidence</b> answers for review", time:"4 min ago", c:"#d18616"},
+  {ic:"pub", t:"Mara published <b>8 FAQs</b> to Help Center", time:"22 min ago", c:"#0f9d6f"},
+  {ic:"dup", t:"Detected a <b>near-duplicate</b> of an existing FAQ", time:"38 min ago", c:"#2563eb"},
+  {ic:"gen", t:"Drafted <b>SSO &amp; Security FAQ</b> · 4 questions", time:"1 hr ago", c:"#db2777"},
+  {ic:"fail", t:"Could not parse <b>data_export.csv</b> — unsupported", time:"2 hr ago", c:"#dc2626"},
+];
+
+/* ---------------- Render sources ---------------- */
+const typeClass = {pdf:"ft-pdf",doc:"ft-doc",web:"ft-web",txt:"ft-txt",csv:"ft-csv"};
+const typeLabel = {pdf:"PDF",doc:"DOC",web:"URL",txt:"MD",csv:"CSV"};
+const statusMap = {
+  done:{c:"done",t:"Ready"}, proc:{c:"proc",t:"Processing"},
+  queue:{c:"queue",t:"Queued"}, fail:{c:"fail",t:"Failed"}
+};
+let activeFilter="all", activeSrc=1;
+
+function renderSources(){
+  const list=document.getElementById('srcList');
+  const term=document.getElementById('searchInput').value.toLowerCase();
+  const rows=sources.filter(s=>{
+    if(activeFilter!=="all" && s.status!==activeFilter) return false;
+    if(term && !(s.name.toLowerCase().includes(term)||s.cat.toLowerCase().includes(term))) return false;
+    return true;
+  });
+  if(!rows.length){
+    list.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><p>No documents match this filter.</p></div>`;
+    return;
+  }
+  list.innerHTML=rows.map(s=>{
+    const st=statusMap[s.status];
+    const sel=s.id===activeSrc?'sel':'';
+    const hasFaq=faqSets[s.id]?true:false;
+    return `<div class="src ${sel}" onclick="selectSrc(${s.id})">
+      <div class="src-ico ${typeClass[s.type]}">${typeLabel[s.type]}</div>
+      <div class="src-body">
+        <div class="s-name">${s.name}</div>
+        <div class="s-meta"><span>${s.cat}</span><span>${s.size}</span><span>${s.date}</span></div>
+        <div class="src-foot">
+          <span class="chip ${st.c}"><span class="dot"></span>${st.t}</span>
+          ${s.q>0?`<span class="src-count">${s.q} questions${hasFaq?'':' · cached'}</span>`:`<span class="src-count" style="opacity:.6">—</span>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectSrc(id){
+  activeSrc=id;
+  renderSources();
+  renderFaq(id);
+}
+
+/* ---------------- Render FAQ pane ---------------- */
+const stateBtns = {
+  approved:`<span class="conf high"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:11px;height:11px"><path d="M20 6L9 17l-5-5"/></svg>Approved</span>`,
+  flagged:`<span class="conf low">Needs source</span>`,
+};
+
+function renderFaq(id){
+  const set=faqSets[id]||null;
+  const list=document.getElementById('faqList');
+  if(!set){
+    document.getElementById('genTitle').textContent="No draft yet";
+    document.getElementById('genSrc').innerHTML="This source hasn't been generated";
+    document.getElementById('mQ').textContent="0";
+    document.getElementById('mConf').textContent="—";
+    document.getElementById('apprText').textContent="0 approved";
+    list.innerHTML=`<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>
+      <p>No FAQ draft for this document yet.<br>Click <b>New Generation</b> to draft questions from it.</p>
+    </div>`;
+    return;
+  }
+  document.getElementById('genTitle').textContent=set.title;
+  document.getElementById('genSrc').innerHTML=`Generated from <b>${set.src}</b>`;
+  document.getElementById('mQ').textContent=set.items.length;
+  document.getElementById('mConf').textContent=set.conf+"%";
+  updateApprovedCount(set);
+
+  list.innerHTML=set.items.map((it,i)=>{
+    const tag = it.state==='approved'?stateBtns.approved : it.state==='flagged'?stateBtns.flagged : '';
+    return `<div class="faq" data-i="${i}">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        <div class="q-num">${i+1}</div>
+        <div class="q-main">
+          <div class="q-text">${it.q}</div>
+          <div class="q-tags">
+            <span class="conf ${it.conf}">● ${it.cval}% confidence</span>
+            <span class="cat-tag">${it.cat}</span>
+            ${tag}
+          </div>
+        </div>
+        <div class="q-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:16px;height:16px"><path d="M6 9l6 6 6-6"/></svg></div>
+      </div>
+      <div class="faq-a">
+        <div class="a-text">${it.a}</div>
+        <div class="a-source"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>${it.src}</div>
+        <div class="a-actions">
+          <button class="mini-btn ok" onclick="approveItem(${id},${i},this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Approve</button>
+          <button class="mini-btn" onclick="toast('Opened answer editor')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit</button>
+          <button class="mini-btn" onclick="regenItem(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>Regenerate</button>
+          <button class="mini-btn no" onclick="rejectItem(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>Reject</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleFaq(el){ el.parentElement.classList.toggle('open'); }
+
+function updateApprovedCount(set){
+  const ap=set.items.filter(i=>i.state==='approved').length;
+  document.getElementById('apprText').textContent=`${ap} of ${set.items.length} approved`;
+}
+
+function approveItem(setId,i,btn){
+  faqSets[setId].items[i].state='approved';
+  const faq=btn.closest('.faq');
+  const tagWrap=faq.querySelector('.q-tags');
+  if(!tagWrap.querySelector('.conf.high[data-app]')){
+    const span=document.createElement('span');
+    span.className='conf high';span.setAttribute('data-app','1');
+    span.innerHTML='✓ Approved';
+    // remove flagged/needs-source if present
+    tagWrap.querySelectorAll('.conf.low').forEach(n=>{if(n.textContent.includes('Needs'))n.remove();});
+    tagWrap.appendChild(span);
+  }
+  updateApprovedCount(faqSets[setId]);
+  toast('Answer approved');
+}
+function rejectItem(btn){
+  const faq=btn.closest('.faq');
+  faq.style.transition='.3s';faq.style.opacity='.35';
+  toast('Answer rejected — sent back to AI');
+}
+function regenItem(btn){
+  const orig=btn.innerHTML;
+  btn.innerHTML='<span class="spin" style="width:12px;height:12px;border-width:2px"></span>Drafting';
+  setTimeout(()=>{btn.innerHTML=orig;toast('Answer regenerated with new phrasing');},1300);
+}
+
+function publishAll(){
+  const set=faqSets[activeSrc]||fallbackSet;
+  const n=set.items.filter(i=>i.state==='approved').length;
+  toast(n>0?`Published ${n} approved FAQs to Help Center`:'No approved answers to publish yet');
+}
+
+/* ---------------- Feed ---------------- */
+const feedIcons={
+  gen:`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg>`,
+  flag:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>`,
+  pub:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>`,
+  dup:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`,
+  fail:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>`,
+};
+function renderFeed(){
+  document.getElementById('feed').innerHTML=feed.map(f=>`
+    <div class="fe">
+      <div class="fe-line"></div>
+      <div class="fe-ico" style="background:color-mix(in srgb,${f.c} 16%,transparent);color:${f.c}">${feedIcons[f.ic]}</div>
+      <div class="fe-b"><div class="fe-t">${f.t}</div><div class="fe-time">${f.time}</div></div>
+    </div>`).join('');
+}
+
+/* ---------------- Tabs / search ---------------- */
+document.getElementById('srcTabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#srcTabs button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); activeFilter=b.dataset.f; renderSources();
+});
+document.getElementById('searchInput').addEventListener('input',renderSources);
+
+/* ---------------- Modal + generation ---------------- */
+function openModal(){document.getElementById('overlay').classList.add('show');}
+function closeModal(){document.getElementById('overlay').classList.remove('show');}
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeModal();});
+
+function runGeneration(){
+  closeModal();
+  const bar=document.getElementById('genbar');
+  const txt=document.getElementById('gbText');
+  const prog=document.getElementById('gbProg');
+  bar.classList.add('show');
+  const steps=[
+    [12,"Extracting text from source…"],
+    [34,"Identifying common questions…"],
+    [58,"Drafting answers from context…"],
+    [80,"Scoring confidence per answer…"],
+    [96,"Checking for duplicate FAQs…"],
+    [100,"Draft ready — 9 questions"]
+  ];
+  let i=0;
+  const tick=()=>{
+    if(i>=steps.length){
+      setTimeout(()=>{bar.classList.remove('show');toast('New draft added to Review Queue');},700);
+      return;
+    }
+    prog.textContent=steps[i][0]+"%";
+    txt.textContent=steps[i][1];
+    i++; setTimeout(tick,650);
+  };
+  tick();
+}
+
+/* ---------------- Toast ---------------- */
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ---------------- Animate coverage bars ---------------- */
+function animateBars(){
+  setTimeout(()=>{
+    document.querySelectorAll('.cov-track i').forEach(i=>{i.style.width=i.dataset.w+'%';});
+  },200);
+}
+
+/* ---------------- init ---------------- */
+renderSources();
+renderFaq(1);
+renderFeed();
+animateBars();
+// open first FAQ by default
+setTimeout(()=>{const first=document.querySelector('.faq');if(first)first.classList.add('open');},400);
+</script>
+</body>
+</html>

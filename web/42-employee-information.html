@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PeopleCore — Employee Information System</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Employee Information System (PeopleCore)",
+  "prefix": "eis_",
+  "archetype": "HRIS master data — master List (left employee roster) + Details (right field-grouped profile)",
+  "collections": {
+    "eis_departments": {"titleField":"name","fields":{"name":"input","code":"input","color":"select"}},
+    "eis_positions": {"titleField":"title","fields":{"title":"input","level":"select:executive|director|manager|senior|mid|junior","job_family":"input"}},
+    "eis_locations": {"titleField":"name","fields":{"name":"input","city":"input","country":"input","timezone":"input"}},
+    "eis_employees": {
+      "titleField":"full_name",
+      "fields":{
+        "employee_no":"input",
+        "full_name":"input",
+        "preferred_name":"input",
+        "work_email":"input",
+        "personal_email":"input",
+        "work_phone":"input",
+        "mobile_phone":"input",
+        "gender":"select:female|male|nonbinary|undisclosed",
+        "date_of_birth":"date",
+        "nationality":"input",
+        "marital_status":"select:single|married|partnered|other",
+        "employment_type":"select:full_time|part_time|contractor|intern",
+        "employment_status":"select:active|on_leave|probation|offboarding|terminated",
+        "hire_date":"date",
+        "probation_end":"date",
+        "tenure_years":"number",
+        "base_salary":"number",
+        "salary_currency":"select:USD|EUR|GBP|SGD",
+        "pay_frequency":"select:monthly|biweekly|annual",
+        "address_line":"input",
+        "address_city":"input",
+        "address_country":"input",
+        "emergency_contact_name":"input",
+        "emergency_contact_relation":"input",
+        "emergency_contact_phone":"input",
+        "bank_name":"input",
+        "bank_account_masked":"input",
+        "tax_id_masked":"input",
+        "national_id_masked":"input",
+        "avatar_color":"input",
+        "is_remote":"boolean"
+      },
+      "relations":{
+        "department":"m2o eis_departments (fk department_id)",
+        "position":"m2o eis_positions (fk position_id)",
+        "location":"m2o eis_locations (fk location_id)",
+        "manager":"m2o eis_employees (fk manager_id, self-relation)"
+      }
+    }
+  },
+  "page": {
+    "name": "Employee Records",
+    "layout": "left = native List (eis_employees roster) with JS item card (avatar + name + dept tag + status) | right = native Details (single eis_employees) rendered as grouped field sections (Personal / Employment / Compensation / Contact & Address / Emergency / Banking & Tax / Org)",
+    "regions": [
+      {"id":"facets","block":"FilterForm / JSBlock facet rail","intent":"left-rail filters: department tree, employment status, location, type","drives":"the roster List via cross-block filter (addFilterGroup + refresh)"},
+      {"id":"roster","block":"native List + JS item (whole-record card)","collection":"eis_employees","intent":"scrollable employee roster, click selects","sort":"full_name asc","card":["avatar (initials, dept color)","full_name + employee_no","position title","dept color tag","employment_status pill"],"behaviors":["search box pushes addFilterGroup on full_name/employee_no/work_email","row click → ctx.openView(detailViewUid,{filterByTk}) OR set right Details record"]},
+      {"id":"profile","block":"native Details (eis_employees, single record)","collection":"eis_employees","intent":"field-grouped master profile of the selected employee","groups":[
+        {"title":"Identity","fields":["employee_no","full_name","preferred_name","gender","date_of_birth","nationality","marital_status"]},
+        {"title":"Employment","fields":["position.title","department.name","location.name","manager.full_name","employment_type","employment_status","hire_date","probation_end","tenure_years","is_remote"]},
+        {"title":"Compensation","fields":["base_salary","salary_currency","pay_frequency"]},
+        {"title":"Contact & Address","fields":["work_email","personal_email","work_phone","mobile_phone","address_line","address_city","address_country"]},
+        {"title":"Emergency Contact","fields":["emergency_contact_name","emergency_contact_relation","emergency_contact_phone"]},
+        {"title":"Banking & Tax","fields":["bank_name","bank_account_masked","tax_id_masked","national_id_masked"]}
+      ],"actions":["Edit = native UpdateAction (opens Form popup)","status change pill"]}
+    ]
+  },
+  "interactions": ["facet rail cross-filters roster List","search box filters roster","select roster row → right Details shows that employee","field-grouped Details with section headers","masked sensitive fields (tax/national id/bank)"],
+  "jsKernels": ["roster JS item card (avatar + status pill)","facet rail (department tree + status/location/type chips)"],
+  "notes": "Container/content rule: the roster is a NATIVE List of eis_employees (JS item only for the rich card look); the profile is a NATIVE Details block bound to the selected record, laid out as grouped field sections — NOT a freestanding JSBlock. Sensitive fields (national_id_masked, tax_id_masked, bank_account_masked) are stored already masked. Self-relation manager_id powers the 'Reports to' field. Three lookup collections (departments/positions/locations) back the m2o fields."
+}
+</script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --primary:#1677ff; --primary-light:#e8f4ff; --primary-dark:#0958d9;
+    --bg:#f0f2f5; --surface:#fff; --surface-2:#fafbfc;
+    --border:#e8eaed; --border-2:#f0f0f0;
+    --ink:#0a0d14; --ink-2:#5b6471; --ink-3:#9aa3af;
+    --radius:8px;
+    --shadow-card:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+    --shadow-hover:0 8px 24px rgba(0,0,0,.10);
+
+    --c-eng:#1677ff;   --c-eng-bg:#e8f4ff;
+    --c-prod:#722ed1;  --c-prod-bg:#f5edff;
+    --c-design:#eb2f96;--c-design-bg:#fff0f6;
+    --c-sales:#fa8c16; --c-sales-bg:#fff7e6;
+    --c-mkt:#13c2c2;   --c-mkt-bg:#e6fffb;
+    --c-ops:#52c41a;   --c-ops-bg:#f6ffed;
+    --c-hr:#f5222d;    --c-hr-bg:#fff1f0;
+    --c-fin:#fa541c;   --c-fin-bg:#fff2e8;
+
+    --green:#52c41a; --green-bg:#f6ffed;
+    --gold:#faad14;  --gold-bg:#fffbe6;
+    --purple:#722ed1;--purple-bg:#f5edff;
+    --red:#ff4d4f;   --red-bg:#fff1f0;
+    --grey:#8c8c8c;  --grey-bg:#f5f5f5;
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5714;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ── TOP NAV ── */
+  .nav{
+    position:sticky; top:0; z-index:50;
+    background:var(--surface); border-bottom:1px solid var(--border);
+    height:56px; display:flex; align-items:center; gap:18px; padding:0 24px;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; letter-spacing:-.3px; flex-shrink:0}
+  .brand .glyph{
+    width:28px; height:28px; border-radius:8px;
+    background:linear-gradient(135deg,#1677ff,#4338ca);
+    display:grid; place-items:center; color:#fff; font-weight:800; font-size:14px;
+    box-shadow:0 2px 8px rgba(22,119,255,.35);
+  }
+  .brand small{font-weight:500; color:var(--ink-3); font-size:12px; margin-left:1px}
+  .topnav{display:flex; gap:2px; margin-left:6px}
+  .topnav a{padding:7px 13px; border-radius:7px; color:var(--ink-2); text-decoration:none; font-size:13.5px; font-weight:500}
+  .topnav a.on{background:var(--primary-light); color:var(--primary)}
+  .topnav a:not(.on):hover{background:var(--bg)}
+  .nav-right{margin-left:auto; display:flex; align-items:center; gap:14px}
+  .nav-stat{font-size:13px; color:var(--ink-2)}
+  .nav-stat strong{color:var(--ink); font-weight:700}
+  .nav-stat .sep{margin:0 8px; color:var(--border)}
+  .me{display:flex; align-items:center; gap:8px}
+  .me .ava{width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,#7265e6,#b37feb); color:#fff; display:grid; place-items:center; font-weight:600; font-size:12px}
+  .me .who{line-height:1.1}
+  .me .who b{font-size:13px}
+  .me .who span{font-size:11px; color:var(--ink-3)}
+
+  /* ── WORKSPACE: 3 columns ── */
+  .workspace{
+    display:grid;
+    grid-template-columns:228px minmax(330px,1fr) minmax(0,1.55fr);
+    height:calc(100vh - 56px);
+  }
+
+  /* ── COL 1: FACET RAIL ── */
+  .rail{
+    background:var(--surface); border-right:1px solid var(--border);
+    overflow-y:auto; padding:18px 14px;
+  }
+  .rail-title{
+    font-size:11px; font-weight:600; color:var(--ink-3);
+    text-transform:uppercase; letter-spacing:.6px; padding:6px 8px 6px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .rail-title:not(:first-child){margin-top:14px}
+  .rail-item{
+    display:flex; align-items:center; gap:9px;
+    padding:7px 9px; border-radius:6px; cursor:pointer; transition:background .12s;
+    font-size:13px; color:var(--ink-2);
+  }
+  .rail-item:hover{background:var(--bg); color:var(--ink)}
+  .rail-item.active{background:var(--primary-light); color:var(--primary); font-weight:600}
+  .rail-item .dot{width:9px; height:9px; border-radius:3px; flex-shrink:0}
+  .rail-item .cnt{margin-left:auto; font-size:11px; background:var(--bg); padding:1px 7px; border-radius:10px; font-weight:600; color:var(--ink-3)}
+  .rail-item.active .cnt{background:#cfe1ff; color:var(--primary)}
+  .rail-item .lsvg{flex-shrink:0; color:var(--ink-3)}
+  .rail-item.active .lsvg{color:var(--primary)}
+
+  /* ── COL 2: ROSTER LIST ── */
+  .roster{
+    background:var(--surface-2); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; min-width:0;
+  }
+  .roster-head{
+    padding:16px 18px 12px; background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0;
+  }
+  .roster-head .row1{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px}
+  .roster-head h2{font-size:15px; font-weight:700}
+  .roster-head .total{font-size:11.5px; font-weight:700; color:#fff; background:var(--primary); border-radius:11px; padding:2px 9px}
+  .search{
+    display:flex; align-items:center; gap:9px;
+    border:1.5px solid var(--border); border-radius:9px; padding:0 12px; background:var(--bg); transition:.15s;
+  }
+  .search:focus-within{border-color:var(--primary); background:#fff; box-shadow:0 0 0 3px var(--primary-light)}
+  .search svg{color:var(--ink-3); flex-shrink:0}
+  .search input{flex:1; border:none; background:transparent; outline:none; font-size:13.5px; padding:9px 0; color:var(--ink)}
+  .sortbar{display:flex; align-items:center; gap:8px; margin-top:11px}
+  .sortbar label{font-size:11.5px; color:var(--ink-3); font-weight:500}
+  .sortbar select{
+    flex:1; border:1px solid var(--border); border-radius:7px; padding:5px 9px;
+    font-size:12.5px; color:var(--ink-2); background:#fff; cursor:pointer; outline:none; font-family:inherit;
+  }
+
+  .roster-list{overflow-y:auto; flex:1; padding:8px 8px 24px}
+  .group-label{
+    font-size:11px; font-weight:700; color:var(--ink-3); text-transform:uppercase; letter-spacing:.5px;
+    padding:14px 10px 6px; position:sticky; top:0; background:linear-gradient(180deg,var(--surface-2),rgba(250,251,252,.85)); z-index:2;
+    display:flex; align-items:center; gap:8px;
+  }
+  .group-label .gline{flex:1; height:1px; background:var(--border)}
+
+  .ecard{
+    display:flex; align-items:center; gap:11px;
+    padding:10px 11px; border-radius:9px; cursor:pointer; transition:.13s;
+    border:1.5px solid transparent; margin-bottom:2px; position:relative;
+  }
+  .ecard:hover{background:#fff; border-color:var(--border)}
+  .ecard.sel{background:#fff; border-color:var(--primary); box-shadow:0 0 0 3px rgba(22,119,255,.10)}
+  .ecard .av{
+    width:40px; height:40px; border-radius:50%; flex-shrink:0;
+    display:grid; place-items:center; color:#fff; font-weight:700; font-size:14px; position:relative;
+  }
+  .ecard .av .pres{
+    position:absolute; bottom:0; right:0; width:11px; height:11px; border-radius:50%;
+    border:2px solid var(--surface-2);
+  }
+  .ecard.sel .av .pres,.ecard:hover .av .pres{border-color:#fff}
+  .ecard .body{flex:1; min-width:0}
+  .ecard .ename{font-size:13.5px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px}
+  .ecard .ename .no{font-size:10.5px; font-weight:600; color:var(--ink-3); font-variant-numeric:tabular-nums}
+  .ecard .etitle{font-size:12px; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px}
+  .ecard .ebot{display:flex; align-items:center; gap:6px; margin-top:5px}
+  .dept-tag{
+    display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:4px;
+    font-size:10.5px; font-weight:700; letter-spacing:.1px;
+  }
+  .st-pill{font-size:10px; font-weight:700; padding:1px 7px; border-radius:9px; letter-spacing:.2px}
+  .st-active{background:var(--green-bg); color:#389e0d}
+  .st-on_leave{background:var(--gold-bg); color:#d48806}
+  .st-probation{background:var(--purple-bg); color:var(--purple)}
+  .st-offboarding{background:var(--red-bg); color:var(--red)}
+  .st-terminated{background:var(--grey-bg); color:var(--grey)}
+
+  .empty-roster{padding:40px 20px; text-align:center; color:var(--ink-3); font-size:13px}
+  .empty-roster svg{color:var(--ink-3); margin-bottom:12px}
+
+  /* ── COL 3: PROFILE / DETAILS ── */
+  .profile{overflow-y:auto; background:var(--bg)}
+  .profile-inner{max-width:760px; margin:0 auto; padding:0 28px 48px}
+
+  .phero{
+    background:linear-gradient(135deg,#1677ff 0%,#0958d9 55%,#4338ca 100%);
+    margin:0 -28px 22px; padding:30px 28px 26px; position:relative; overflow:hidden;
+  }
+  .phero::before{
+    content:''; position:absolute; inset:0;
+    background:url("data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='26' cy='26' r='16'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+  }
+  .phero-row{position:relative; display:flex; align-items:flex-start; gap:18px}
+  .phero .av{
+    width:78px; height:78px; border-radius:18px; flex-shrink:0;
+    display:grid; place-items:center; color:#fff; font-weight:800; font-size:30px;
+    box-shadow:0 6px 18px rgba(0,0,0,.22); border:2px solid rgba(255,255,255,.35);
+  }
+  .phero-id{flex:1; min-width:0; color:#fff; padding-top:2px}
+  .phero-id .nm{font-size:23px; font-weight:700; letter-spacing:-.4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .phero-id .nm .empno{font-size:12px; font-weight:600; color:rgba(255,255,255,.78); background:rgba(255,255,255,.16); padding:2px 9px; border-radius:6px; font-variant-numeric:tabular-nums}
+  .phero-id .ttl{font-size:14px; color:rgba(255,255,255,.88); margin-top:5px}
+  .phero-badges{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px}
+  .pbadge{
+    display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600;
+    background:rgba(255,255,255,.18); color:#fff; padding:4px 10px; border-radius:14px; backdrop-filter:blur(4px);
+  }
+  .pbadge svg{opacity:.9}
+  .phero-actions{position:relative; display:flex; gap:9px; margin-top:18px}
+  .pbtn{
+    border:none; border-radius:8px; padding:8px 15px; font-size:13px; font-weight:600; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; font-family:inherit; transition:.13s;
+  }
+  .pbtn.solid{background:#fff; color:var(--primary)}
+  .pbtn.solid:hover{background:#f0f5ff}
+  .pbtn.ghost{background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.35)}
+  .pbtn.ghost:hover{background:rgba(255,255,255,.26)}
+
+  /* quick stat strip */
+  .pstrip{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px;
+  }
+  .pstat{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:13px 15px; box-shadow:var(--shadow-card)}
+  .pstat .k{font-size:11px; color:var(--ink-3); font-weight:600; text-transform:uppercase; letter-spacing:.4px; display:flex; align-items:center; gap:5px}
+  .pstat .v{font-size:18px; font-weight:700; margin-top:6px; letter-spacing:-.3px}
+  .pstat .v small{font-size:12px; color:var(--ink-3); font-weight:600}
+
+  /* field-grouped sections */
+  .section{background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-card); margin-bottom:18px; overflow:hidden}
+  .sec-head{
+    display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid var(--border-2); cursor:pointer; user-select:none;
+  }
+  .sec-head .icon{width:30px; height:30px; border-radius:8px; display:grid; place-items:center; flex-shrink:0}
+  .sec-head h3{font-size:14px; font-weight:700; flex:1}
+  .sec-head .chev{color:var(--ink-3); transition:transform .2s}
+  .sec-head.collapsed .chev{transform:rotate(-90deg)}
+  .sec-body{padding:16px 18px; display:grid; grid-template-columns:1fr 1fr; gap:14px 22px}
+  .sec-body.collapsed{display:none}
+  .field{min-width:0}
+  .field.full{grid-column:1 / -1}
+  .field .flbl{font-size:11px; color:var(--ink-3); font-weight:600; margin-bottom:3px; display:flex; align-items:center; gap:5px}
+  .field .fval{font-size:13.5px; color:var(--ink); font-weight:500; word-break:break-word}
+  .field .fval.mono{font-variant-numeric:tabular-nums; letter-spacing:.3px}
+  .field .fval.muted{color:var(--ink-3); font-style:italic; font-weight:400}
+  .field .fval .masklink{color:var(--primary); font-size:11px; font-weight:600; cursor:pointer; margin-left:7px}
+  .field .fval .masklink:hover{text-decoration:underline}
+  .field .chiprel{display:inline-flex; align-items:center; gap:6px; background:var(--bg); border:1px solid var(--border); border-radius:7px; padding:4px 9px; font-size:12.5px; font-weight:600}
+  .field .chiprel .mini{width:20px; height:20px; border-radius:50%; display:grid; place-items:center; color:#fff; font-size:10px; font-weight:700}
+
+  .copybtn{margin-left:6px; cursor:pointer; color:var(--ink-3); opacity:0; transition:.12s}
+  .field:hover .copybtn{opacity:1}
+  .copybtn:hover{color:var(--primary)}
+
+  .placeholder{
+    display:grid; place-items:center; height:100%; min-height:60vh; color:var(--ink-3); text-align:center; padding:40px;
+  }
+  .placeholder svg{margin-bottom:16px; color:var(--ink-3)}
+  .placeholder h3{font-size:16px; font-weight:600; color:var(--ink-2); margin-bottom:6px}
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:var(--ink); color:#fff; padding:11px 18px; border-radius:9px; font-size:13px; font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25); transition:.25s; z-index:80; pointer-events:none; display:flex; align-items:center; gap:8px;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  .toast .d{width:8px; height:8px; border-radius:50%; background:var(--green)}
+
+  @media(max-width:1200px){
+    .workspace{grid-template-columns:200px minmax(300px,1fr) minmax(0,1.2fr)}
+  }
+  @media(max-width:980px){
+    .workspace{grid-template-columns:1fr; height:auto}
+    .rail{border-right:none; border-bottom:1px solid var(--border)}
+    .roster{border-right:none; border-bottom:1px solid var(--border); max-height:50vh}
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="brand"><span class="glyph">PC</span>PeopleCore <small>HRIS</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Employees</a>
+    <a href="#">Org Chart</a>
+    <a href="#">Documents</a>
+    <a href="#">Compensation</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="nav-right">
+    <span class="nav-stat"><strong id="stat-headcount">0</strong> headcount <span class="sep">|</span> <strong id="stat-active">0</strong> active</span>
+    <div class="me">
+      <div class="ava">RK</div>
+      <div class="who"><b>Rachel Kim</b><br><span>Head of HR</span></div>
+    </div>
+  </div>
+</nav>
+
+<div class="workspace">
+
+  <!-- ============ COL 1: FACET RAIL ============ -->
+  <aside class="rail">
+    <div class="rail-title">Department</div>
+    <div id="dept-facets"></div>
+
+    <div class="rail-title">Status</div>
+    <div id="status-facets"></div>
+
+    <div class="rail-title">Location</div>
+    <div id="loc-facets"></div>
+
+    <div class="rail-title">Type</div>
+    <div id="type-facets"></div>
+  </aside>
+
+  <!-- ============ COL 2: ROSTER LIST ============ -->
+  <section class="roster">
+    <div class="roster-head">
+      <div class="row1">
+        <h2>Employees</h2>
+        <span class="total" id="roster-count">0</span>
+      </div>
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search" placeholder="Name, employee no, or email…" autocomplete="off">
+      </div>
+      <div class="sortbar">
+        <label>Sort</label>
+        <select id="sort">
+          <option value="name">Name A–Z</option>
+          <option value="dept">Department</option>
+          <option value="hire">Newest hires</option>
+          <option value="tenure">Longest tenure</option>
+        </select>
+      </div>
+    </div>
+    <div class="roster-list" id="roster-list"></div>
+  </section>
+
+  <!-- ============ COL 3: FIELD-GROUPED PROFILE ============ -->
+  <section class="profile" id="profile">
+    <div class="placeholder" id="placeholder">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <h3>Select an employee</h3>
+      <p>Pick a record on the left to view their full master profile.</p>
+    </div>
+    <div class="profile-inner" id="profile-inner" style="display:none"></div>
+  </section>
+</div>
+
+<div class="toast" id="toast"><span class="d"></span><span id="toast-msg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ── lookup collections ──
+  var DEPTS = {
+    eng:    {name:'Engineering', code:'ENG', color:'--c-eng',    bg:'--c-eng-bg'},
+    prod:   {name:'Product',     code:'PRD', color:'--c-prod',   bg:'--c-prod-bg'},
+    design: {name:'Design',      code:'DSN', color:'--c-design', bg:'--c-design-bg'},
+    sales:  {name:'Sales',       code:'SAL', color:'--c-sales',  bg:'--c-sales-bg'},
+    mkt:    {name:'Marketing',   code:'MKT', color:'--c-mkt',    bg:'--c-mkt-bg'},
+    ops:    {name:'Operations',  code:'OPS', color:'--c-ops',    bg:'--c-ops-bg'},
+    hr:     {name:'People',      code:'HRP', color:'--c-hr',     bg:'--c-hr-bg'},
+    fin:    {name:'Finance',     code:'FIN', color:'--c-fin',    bg:'--c-fin-bg'}
+  };
+  var LOCATIONS = {
+    sf:  {name:'San Francisco', city:'San Francisco', country:'United States', tz:'PST'},
+    ny:  {name:'New York',      city:'New York',      country:'United States', tz:'EST'},
+    lon: {name:'London',        city:'London',        country:'United Kingdom',tz:'GMT'},
+    sg:  {name:'Singapore',     city:'Singapore',     country:'Singapore',     tz:'SGT'},
+    rem: {name:'Remote',        city:'—',             country:'Distributed',   tz:'—'}
+  };
+  var STATUS = {
+    active:     {label:'Active'},
+    on_leave:   {label:'On leave'},
+    probation:  {label:'Probation'},
+    offboarding:{label:'Offboarding'},
+    terminated: {label:'Terminated'}
+  };
+  var TYPES = {full_time:'Full-time', part_time:'Part-time', contractor:'Contractor', intern:'Intern'};
+  var CCY = {USD:'$', EUR:'€', GBP:'£', SGD:'S$'};
+
+  function cv(varname){ return getComputedStyle(document.documentElement).getPropertyValue(varname).trim(); }
+
+  // ── eis_employees (high-density mock) ──
+  var EMP = [
+    {no:'EMP-1001', name:'Alexandra Chen', pref:'Alex', dept:'prod', title:'Chief Executive Officer', loc:'sf', mgr:null, type:'full_time', status:'active',
+      email:'alex.chen@northbeam.co', pmail:'alex.chen@gmail.com', wphone:'+1 415 555 0101', mobile:'+1 415 555 9101',
+      gender:'female', dob:'1981-04-12', nat:'United States', marital:'married', remote:false,
+      hire:'2018-03-01', prob:'2018-06-01', salary:520000, ccy:'USD', payf:'annual',
+      addr:'120 Spear Street, Apt 18', city:'San Francisco', country:'United States',
+      ecn:'David Chen', ecr:'Spouse', ecp:'+1 415 555 7711',
+      bank:'First Republic Bank', acct:'•••• •••• 4821', tax:'•••-••-3391', nid:'•••• 8842', color:'#722ed1'},
+    {no:'EMP-1002', name:'Marcus Okafor', pref:'Marcus', dept:'eng', title:'Chief Technology Officer', loc:'sf', mgr:'EMP-1001', type:'full_time', status:'active',
+      email:'m.okafor@northbeam.co', pmail:'marcus.okafor@proton.me', wphone:'+1 415 555 0102', mobile:'+1 415 555 9102',
+      gender:'male', dob:'1983-09-30', nat:'Nigeria', marital:'married', remote:false,
+      hire:'2018-06-15', prob:'2018-09-15', salary:430000, ccy:'USD', payf:'annual',
+      addr:'88 King Street, Unit 7B', city:'San Francisco', country:'United States',
+      ecn:'Amara Okafor', ecr:'Spouse', ecp:'+1 415 555 7712',
+      bank:'Chase', acct:'•••• •••• 1190', tax:'•••-••-7720', nid:'•••• 2210', color:'#1677ff'},
+    {no:'EMP-1003', name:'Priya Mehta', pref:'Priya', dept:'prod', title:'Chief Product Officer', loc:'sf', mgr:'EMP-1001', type:'full_time', status:'active',
+      email:'p.mehta@northbeam.co', pmail:'priya.m@gmail.com', wphone:'+1 415 555 0103', mobile:'+1 415 555 9103',
+      gender:'female', dob:'1985-12-03', nat:'India', marital:'married', remote:false,
+      hire:'2019-01-10', prob:'2019-04-10', salary:395000, ccy:'USD', payf:'annual',
+      addr:'2400 Pine Street', city:'San Francisco', country:'United States',
+      ecn:'Rohan Mehta', ecr:'Spouse', ecp:'+1 415 555 7713',
+      bank:'Wells Fargo', acct:'•••• •••• 6633', tax:'•••-••-5512', nid:'•••• 1903', color:'#9254de'},
+    {no:'EMP-1005', name:'Sofia Lindqvist', pref:'Sofia', dept:'eng', title:'VP of Engineering', loc:'sf', mgr:'EMP-1002', type:'full_time', status:'active',
+      email:'s.lindqvist@northbeam.co', pmail:'sofia.l@gmail.com', wphone:'+1 415 555 0105', mobile:'+1 415 555 9105',
+      gender:'female', dob:'1987-06-22', nat:'Sweden', marital:'partnered', remote:false,
+      hire:'2020-02-20', prob:'2020-05-20', salary:285000, ccy:'USD', payf:'annual',
+      addr:'1500 Mission Street, #904', city:'San Francisco', country:'United States',
+      ecn:'Erik Lindqvist', ecr:'Partner', ecp:'+1 415 555 7715',
+      bank:'Chase', acct:'•••• •••• 7781', tax:'•••-••-2204', nid:'•••• 5560', color:'#2f54eb'},
+    {no:'EMP-1006', name:'James Whitfield', pref:'James', dept:'design', title:'VP of Design', loc:'sf', mgr:'EMP-1003', type:'full_time', status:'active',
+      email:'j.whitfield@northbeam.co', pmail:'jwhitfield@gmail.com', wphone:'+1 415 555 0106', mobile:'+1 415 555 9106',
+      gender:'male', dob:'1984-02-17', nat:'United States', marital:'single', remote:false,
+      hire:'2020-05-11', prob:'2020-08-11', salary:268000, ccy:'USD', payf:'annual',
+      addr:'45 Lansing Street', city:'San Francisco', country:'United States',
+      ecn:'Margaret Whitfield', ecr:'Mother', ecp:'+1 415 555 7716',
+      bank:'Bank of America', acct:'•••• •••• 3340', tax:'•••-••-8841', nid:'•••• 7702', color:'#eb2f96'},
+    {no:'EMP-1009', name:'Rachel Kim', pref:'Rachel', dept:'hr', title:'Head of People', loc:'sf', mgr:'EMP-1001', type:'full_time', status:'active',
+      email:'r.kim@northbeam.co', pmail:'rachel.kim@gmail.com', wphone:'+1 415 555 0109', mobile:'+1 415 555 9109',
+      gender:'female', dob:'1986-08-09', nat:'South Korea', marital:'married', remote:false,
+      hire:'2020-07-01', prob:'2020-10-01', salary:240000, ccy:'USD', payf:'annual',
+      addr:'660 Folsom Street, #12', city:'San Francisco', country:'United States',
+      ecn:'Daniel Kim', ecr:'Spouse', ecp:'+1 415 555 7719',
+      bank:'First Republic Bank', acct:'•••• •••• 9920', tax:'•••-••-3360', nid:'•••• 6614', color:'#f5222d'},
+    {no:'EMP-1012', name:'Nina Patel', pref:'Nina', dept:'eng', title:'Senior Software Engineer', loc:'lon', mgr:'EMP-1005', type:'full_time', status:'active',
+      email:'n.patel@northbeam.co', pmail:'nina.patel@gmail.com', wphone:'+44 20 7555 0112', mobile:'+44 7700 900112',
+      gender:'female', dob:'1991-03-28', nat:'United Kingdom', marital:'single', remote:false,
+      hire:'2021-04-12', prob:'2021-07-12', salary:96000, ccy:'GBP', payf:'annual',
+      addr:'14 Shoreditch High Street', city:'London', country:'United Kingdom',
+      ecn:'Anil Patel', ecr:'Father', ecp:'+44 7700 900812',
+      bank:'Monzo', acct:'•••• •••• 4407', tax:'AB •• 12 C', nid:'•••• 9921', color:'#1677ff'},
+    {no:'EMP-1013', name:'Carlos Espinoza', pref:'Carlos', dept:'eng', title:'Senior Software Engineer', loc:'rem', mgr:'EMP-1005', type:'full_time', status:'on_leave',
+      email:'c.espinoza@northbeam.co', pmail:'carlos.esp@gmail.com', wphone:'+1 512 555 0113', mobile:'+1 512 555 9113',
+      gender:'male', dob:'1989-11-05', nat:'Mexico', marital:'married', remote:true,
+      hire:'2021-07-19', prob:'2021-10-19', salary:182000, ccy:'USD', payf:'monthly',
+      addr:'1208 Brazos Street', city:'Austin', country:'United States',
+      ecn:'Lucia Espinoza', ecr:'Spouse', ecp:'+1 512 555 7713',
+      bank:'Ally Bank', acct:'•••• •••• 5521', tax:'•••-••-1140', nid:'•••• 3302', color:'#4096ff'},
+    {no:'EMP-1014', name:'Mei-Ling Zhou', pref:'Mei', dept:'eng', title:'Software Engineer II', loc:'sg', mgr:'EMP-1005', type:'full_time', status:'active',
+      email:'ml.zhou@northbeam.co', pmail:'meiling.z@gmail.com', wphone:'+65 6555 0114', mobile:'+65 9555 0114',
+      gender:'female', dob:'1994-07-19', nat:'Singapore', marital:'single', remote:false,
+      hire:'2022-02-07', prob:'2022-05-07', salary:128000, ccy:'SGD', payf:'monthly',
+      addr:'8 Marina Boulevard, #22-01', city:'Singapore', country:'Singapore',
+      ecn:'Wei Zhou', ecr:'Father', ecp:'+65 9555 7714',
+      bank:'DBS', acct:'•••• •••• 2208', tax:'S••••12J', nid:'•••• 7741', color:'#40a9ff'},
+    {no:'EMP-1016', name:'Jasmine Torres', pref:'Jas', dept:'eng', title:'Junior Software Engineer', loc:'sf', mgr:'EMP-1005', type:'full_time', status:'probation',
+      email:'j.torres@northbeam.co', pmail:'jas.torres@gmail.com', wphone:'+1 415 555 0116', mobile:'+1 415 555 9116',
+      gender:'female', dob:'1998-10-14', nat:'United States', marital:'single', remote:false,
+      hire:'2026-04-06', prob:'2026-07-06', salary:128000, ccy:'USD', payf:'monthly',
+      addr:'350 Townsend Street, #5', city:'San Francisco', country:'United States',
+      ecn:'Maria Torres', ecr:'Mother', ecp:'+1 415 555 7716',
+      bank:'Chase', acct:'•••• •••• 6610', tax:'•••-••-9930', nid:'•••• 1124', color:'#69b1ff'},
+    {no:'EMP-1019', name:'Ben Nakamura', pref:'Ben', dept:'prod', title:'Senior Product Manager', loc:'sf', mgr:'EMP-1003', type:'full_time', status:'active',
+      email:'b.nakamura@northbeam.co', pmail:'ben.nak@gmail.com', wphone:'+1 415 555 0119', mobile:'+1 415 555 9119',
+      gender:'male', dob:'1990-01-26', nat:'Japan', marital:'married', remote:false,
+      hire:'2021-05-03', prob:'2021-08-03', salary:198000, ccy:'USD', payf:'monthly',
+      addr:'525 Brannan Street, #9', city:'San Francisco', country:'United States',
+      ecn:'Yuki Nakamura', ecr:'Spouse', ecp:'+1 415 555 7719',
+      bank:'Wells Fargo', acct:'•••• •••• 3318', tax:'•••-••-4420', nid:'•••• 5503', color:'#722ed1'},
+    {no:'EMP-1020', name:'Claire Dubois', pref:'Claire', dept:'prod', title:'Product Manager', loc:'lon', mgr:'EMP-1003', type:'full_time', status:'active',
+      email:'c.dubois@northbeam.co', pmail:'claire.dubois@gmail.com', wphone:'+44 20 7555 0120', mobile:'+44 7700 900120',
+      gender:'female', dob:'1992-05-11', nat:'France', marital:'partnered', remote:false,
+      hire:'2022-01-17', prob:'2022-04-17', salary:78000, ccy:'GBP', payf:'monthly',
+      addr:'22 Old Street', city:'London', country:'United Kingdom',
+      ecn:'Pierre Dubois', ecr:'Partner', ecp:'+44 7700 900820',
+      bank:'Barclays', acct:'•••• •••• 7740', tax:'CD •• 34 E', nid:'•••• 2218', color:'#9254de'},
+    {no:'EMP-1022', name:'Ingrid Haugen', pref:'Ingrid', dept:'design', title:'Lead Product Designer', loc:'sf', mgr:'EMP-1006', type:'full_time', status:'active',
+      email:'i.haugen@northbeam.co', pmail:'ingrid.h@gmail.com', wphone:'+1 415 555 0122', mobile:'+1 415 555 9122',
+      gender:'female', dob:'1989-03-02', nat:'Norway', marital:'single', remote:false,
+      hire:'2021-02-08', prob:'2021-05-08', salary:192000, ccy:'USD', payf:'monthly',
+      addr:'170 Off Third Street', city:'San Francisco', country:'United States',
+      ecn:'Lars Haugen', ecr:'Brother', ecp:'+47 555 22 122',
+      bank:'Chase', acct:'•••• •••• 8830', tax:'•••-••-6640', nid:'•••• 4417', color:'#eb2f96'},
+    {no:'EMP-1023', name:'Miguel Santos', pref:'Miguel', dept:'design', title:'Product Designer', loc:'rem', mgr:'EMP-1006', type:'full_time', status:'active',
+      email:'m.santos@northbeam.co', pmail:'miguel.s@gmail.com', wphone:'+1 310 555 0123', mobile:'+1 310 555 9123',
+      gender:'male', dob:'1993-08-21', nat:'Portugal', marital:'single', remote:true,
+      hire:'2022-04-04', prob:'2022-07-04', salary:148000, ccy:'USD', payf:'monthly',
+      addr:'Rua Garrett 12', city:'Lisbon', country:'Portugal',
+      ecn:'Sofia Santos', ecr:'Sister', ecp:'+351 912 555 123',
+      bank:'Revolut', acct:'•••• •••• 1102', tax:'PT •••• 21', nid:'•••• 9930', color:'#ff85c0'},
+    {no:'EMP-1025', name:"Patrick O'Brien", pref:'Pat', dept:'sales', title:'Enterprise Account Executive', loc:'ny', mgr:'EMP-1001', type:'full_time', status:'active',
+      email:'p.obrien@northbeam.co', pmail:'pat.obrien@gmail.com', wphone:'+1 212 555 0125', mobile:'+1 212 555 9125',
+      gender:'male', dob:'1988-06-30', nat:'Ireland', marital:'married', remote:false,
+      hire:'2021-06-21', prob:'2021-09-21', salary:165000, ccy:'USD', payf:'monthly',
+      addr:'200 Park Avenue, #44', city:'New York', country:'United States',
+      ecn:'Siobhan O\'Brien', ecr:'Spouse', ecp:'+1 212 555 7725',
+      bank:'Citibank', acct:'•••• •••• 5540', tax:'•••-••-3310', nid:'•••• 6628', color:'#fa8c16'},
+    {no:'EMP-1028', name:'Lily Andersen', pref:'Lily', dept:'mkt', title:'Content Marketing Manager', loc:'rem', mgr:'EMP-1001', type:'full_time', status:'active',
+      email:'l.andersen@northbeam.co', pmail:'lily.a@gmail.com', wphone:'+1 503 555 0128', mobile:'+1 503 555 9128',
+      gender:'female', dob:'1991-11-18', nat:'United States', marital:'single', remote:true,
+      hire:'2022-05-16', prob:'2022-08-16', salary:138000, ccy:'USD', payf:'monthly',
+      addr:'1420 SE Hawthorne Blvd', city:'Portland', country:'United States',
+      ecn:'Greta Andersen', ecr:'Mother', ecp:'+1 503 555 7728',
+      bank:'Ally Bank', acct:'•••• •••• 2240', tax:'•••-••-8810', nid:'•••• 1175', color:'#13c2c2'},
+    {no:'EMP-1030', name:'Diana Novak', pref:'Diana', dept:'mkt', title:'Brand Designer', loc:'rem', mgr:'EMP-1028', type:'contractor', status:'active',
+      email:'d.novak@northbeam.co', pmail:'diana.novak@gmail.com', wphone:'+1 720 555 0130', mobile:'+1 720 555 9130',
+      gender:'female', dob:'1995-02-09', nat:'Czechia', marital:'single', remote:true,
+      hire:'2023-03-20', prob:'—', salary:95, ccy:'USD', payf:'biweekly',
+      addr:'1899 Wynkoop Street', city:'Denver', country:'United States',
+      ecn:'Petr Novak', ecr:'Father', ecp:'+420 555 22 130',
+      bank:'Wise', acct:'•••• •••• 9911', tax:'•••-••-5530', nid:'•••• 3340', color:'#36cfc9'},
+    {no:'EMP-1031', name:'Alejandro Fuentes', pref:'Alex F.', dept:'ops', title:'Head of Operations', loc:'sf', mgr:'EMP-1001', type:'full_time', status:'active',
+      email:'a.fuentes@northbeam.co', pmail:'ale.fuentes@gmail.com', wphone:'+1 415 555 0131', mobile:'+1 415 555 9131',
+      gender:'male', dob:'1982-07-14', nat:'Spain', marital:'married', remote:false,
+      hire:'2020-11-02', prob:'2021-02-02', salary:215000, ccy:'USD', payf:'monthly',
+      addr:'990 Howard Street, #6', city:'San Francisco', country:'United States',
+      ecn:'Carmen Fuentes', ecr:'Spouse', ecp:'+1 415 555 7731',
+      bank:'Bank of America', acct:'•••• •••• 6650', tax:'•••-••-2290', nid:'•••• 8801', color:'#52c41a'},
+    {no:'EMP-1036', name:'Sandra Nguyen', pref:'Sandra', dept:'fin', title:'Senior Financial Analyst', loc:'ny', mgr:'EMP-1001', type:'full_time', status:'active',
+      email:'s.nguyen@northbeam.co', pmail:'sandra.ng@gmail.com', wphone:'+1 212 555 0136', mobile:'+1 212 555 9136',
+      gender:'female', dob:'1990-09-25', nat:'Vietnam', marital:'married', remote:false,
+      hire:'2022-02-14', prob:'2022-05-14', salary:142000, ccy:'USD', payf:'monthly',
+      addr:'55 Water Street, #21', city:'New York', country:'United States',
+      ecn:'Tuan Nguyen', ecr:'Spouse', ecp:'+1 212 555 7736',
+      bank:'Citibank', acct:'•••• •••• 4470', tax:'•••-••-7780', nid:'•••• 2256', color:'#fa541c'},
+    {no:'EMP-1041', name:'Tobias Werner', pref:'Tobi', dept:'eng', title:'Site Reliability Engineer', loc:'rem', mgr:'EMP-1005', type:'full_time', status:'offboarding',
+      email:'t.werner@northbeam.co', pmail:'tobi.werner@gmail.com', wphone:'+49 30 5550 0141', mobile:'+49 170 5550141',
+      gender:'male', dob:'1990-12-01', nat:'Germany', marital:'single', remote:true,
+      hire:'2021-09-13', prob:'2021-12-13', salary:118000, ccy:'EUR', payf:'monthly',
+      addr:'Kastanienallee 24', city:'Berlin', country:'Germany',
+      ecn:'Hannah Werner', ecr:'Sister', ecp:'+49 170 5550841',
+      bank:'N26', acct:'•••• •••• 7702', tax:'DE •••• 41', nid:'•••• 5519', color:'#597ef7'},
+    {no:'EMP-1044', name:'Grace Liu', pref:'Grace', dept:'eng', title:'Head of Data Science', loc:'sf', mgr:'EMP-1002', type:'full_time', status:'active',
+      email:'g.liu@northbeam.co', pmail:'grace.liu@gmail.com', wphone:'+1 415 555 0138', mobile:'+1 415 555 9138',
+      gender:'female', dob:'1987-04-08', nat:'China', marital:'married', remote:false,
+      hire:'2021-12-06', prob:'2022-03-06', salary:262000, ccy:'USD', payf:'monthly',
+      addr:'301 Mission Street, #50', city:'San Francisco', country:'United States',
+      ecn:'Wei Liu', ecr:'Spouse', ecp:'+1 415 555 7738',
+      bank:'Chase', acct:'•••• •••• 9930', tax:'•••-••-1160', nid:'•••• 7783', color:'#2f54eb'},
+    {no:'EMP-1048', name:'Omar Haddad', pref:'Omar', dept:'sales', title:'Sales Development Rep', loc:'ny', mgr:'EMP-1025', type:'intern', status:'probation',
+      email:'o.haddad@northbeam.co', pmail:'omar.haddad@gmail.com', wphone:'+1 212 555 0148', mobile:'+1 212 555 9148',
+      gender:'male', dob:'2001-06-17', nat:'Jordan', marital:'single', remote:false,
+      hire:'2026-05-04', prob:'2026-08-04', salary:38, ccy:'USD', payf:'biweekly',
+      addr:'11 Wall Street', city:'New York', country:'United States',
+      ecn:'Layla Haddad', ecr:'Mother', ecp:'+962 7 9555 148',
+      bank:'Chase', acct:'•••• •••• 1180', tax:'•••-••-6650', nid:'•••• 9904', color:'#ffa940'}
+  ];
+
+  // ── helpers ──
+  function initials(n){ return n.split(' ').map(function(p){return p[0];}).slice(0,2).join('').toUpperCase(); }
+  function byNo(no){ for(var i=0;i<EMP.length;i++) if(EMP[i].no===no) return EMP[i]; return null; }
+  function fmtDate(s){ if(!s||s==='—') return s||'—'; var d=new Date(s+'T00:00:00'); return d.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}); }
+  function tenure(hire){
+    var d=new Date(hire+'T00:00:00'), now=new Date('2026-06-07T00:00:00');
+    var yrs=(now-d)/(1000*60*60*24*365.25);
+    if(yrs<1) return Math.max(1,Math.round(yrs*12))+' mo';
+    return yrs.toFixed(1)+' yr';
+  }
+  function money(e){
+    var sym=CCY[e.ccy]||'';
+    if(e.payf==='biweekly') return sym+e.salary+'/hr';
+    return sym+e.salary.toLocaleString('en-US');
+  }
+  function deptColor(k){ return cv(DEPTS[k].color); }
+  function deptBg(k){ return cv(DEPTS[k].bg); }
+  function age(dob){ var d=new Date(dob+'T00:00:00'), now=new Date('2026-06-07'); var a=now.getFullYear()-d.getFullYear(); if(now.getMonth()<d.getMonth()||(now.getMonth()===d.getMonth()&&now.getDate()<d.getDate())) a--; return a; }
+  function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1).replace(/_/g,' '); }
+
+  // ── state ──
+  var fDept='all', fStatus='all', fLoc='all', fType='all', q='', selectedNo=null;
+
+  // ── facet rail ──
+  function countBy(field,val,extraFilterFn){
+    return EMP.filter(function(e){ return e[field]===val && (!extraFilterFn||extraFilterFn(e)); }).length;
+  }
+  function buildFacets(){
+    // dept
+    var dh=document.getElementById('dept-facets'); dh.innerHTML='';
+    dh.appendChild(facetRow('dept','all','All departments', EMP.length, true, null));
+    Object.keys(DEPTS).forEach(function(k){
+      var n=EMP.filter(function(e){return e.dept===k;}).length; if(!n) return;
+      dh.appendChild(facetRow('dept',k,DEPTS[k].name,n,false,deptColor(k)));
+    });
+    // status
+    var sh=document.getElementById('status-facets'); sh.innerHTML='';
+    sh.appendChild(facetRow('status','all','All statuses', EMP.length, true, null));
+    Object.keys(STATUS).forEach(function(k){
+      var n=EMP.filter(function(e){return e.status===k;}).length; if(!n) return;
+      var colors={active:cv('--green'),on_leave:cv('--gold'),probation:cv('--purple'),offboarding:cv('--red'),terminated:cv('--grey')};
+      sh.appendChild(facetRow('status',k,STATUS[k].label,n,false,colors[k]));
+    });
+    // location
+    var lh=document.getElementById('loc-facets'); lh.innerHTML='';
+    lh.appendChild(facetRow('loc','all','All locations', EMP.length, true, null));
+    Object.keys(LOCATIONS).forEach(function(k){
+      var n=EMP.filter(function(e){return e.loc===k;}).length; if(!n) return;
+      var lc={sf:cv('--c-eng'),ny:cv('--c-prod'),lon:cv('--c-design'),sg:cv('--c-sales'),rem:cv('--green')};
+      lh.appendChild(facetRow('loc',k,LOCATIONS[k].name,n,false,lc[k]));
+    });
+    // type
+    var th=document.getElementById('type-facets'); th.innerHTML='';
+    th.appendChild(facetRow('type','all','All types', EMP.length, true, null));
+    Object.keys(TYPES).forEach(function(k){
+      var n=EMP.filter(function(e){return e.type===k;}).length; if(!n) return;
+      th.appendChild(facetRow('type',k,TYPES[k],n,false,cv('--ink-3')));
+    });
+  }
+  function facetRow(group,val,label,count,active,color){
+    var d=document.createElement('div');
+    d.className='rail-item'+(active?' active':'');
+    d.dataset.group=group; d.dataset.val=val;
+    var dotHtml = color ? '<span class="dot" style="background:'+color+'"></span>' :
+      '<svg class="lsvg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="3.5" y1="12" x2="20.5" y2="12"/></svg>';
+    d.innerHTML=dotHtml+'<span>'+label+'</span><span class="cnt">'+count+'</span>';
+    d.addEventListener('click',function(){
+      if(group==='dept') fDept=val;
+      else if(group==='status') fStatus=val;
+      else if(group==='loc') fLoc=val;
+      else if(group==='type') fType=val;
+      document.querySelectorAll('.rail-item[data-group="'+group+'"]').forEach(function(x){x.classList.toggle('active', x.dataset.val===val);});
+      renderRoster();
+    });
+    return d;
+  }
+
+  // ── roster (native List + JS item card) ──
+  function getFiltered(){
+    var list=EMP.filter(function(e){
+      if(fDept!=='all' && e.dept!==fDept) return false;
+      if(fStatus!=='all' && e.status!==fStatus) return false;
+      if(fLoc!=='all' && e.loc!==fLoc) return false;
+      if(fType!=='all' && e.type!==fType) return false;
+      if(q){
+        var s=q.toLowerCase();
+        if(!(e.name.toLowerCase().indexOf(s)>-1 || e.no.toLowerCase().indexOf(s)>-1 || e.email.toLowerCase().indexOf(s)>-1 || e.title.toLowerCase().indexOf(s)>-1)) return false;
+      }
+      return true;
+    });
+    var sort=document.getElementById('sort').value;
+    if(sort==='name') list.sort(function(a,b){return a.name.localeCompare(b.name);});
+    else if(sort==='dept') list.sort(function(a,b){return DEPTS[a.dept].name.localeCompare(DEPTS[b.dept].name)||a.name.localeCompare(b.name);});
+    else if(sort==='hire') list.sort(function(a,b){return new Date(b.hire)-new Date(a.hire);});
+    else if(sort==='tenure') list.sort(function(a,b){return new Date(a.hire)-new Date(b.hire);});
+    return list;
+  }
+
+  function renderRoster(){
+    var list=getFiltered();
+    document.getElementById('roster-count').textContent=list.length;
+    var host=document.getElementById('roster-list'); host.innerHTML='';
+
+    if(list.length===0){
+      host.innerHTML='<div class="empty-roster"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><div>No employees match these filters.</div></div>';
+      return;
+    }
+
+    var sort=document.getElementById('sort').value;
+    if(sort==='dept'){
+      var groups=[], map={};
+      list.forEach(function(e){ if(!map[e.dept]){map[e.dept]={k:e.dept,items:[]};groups.push(map[e.dept]);} map[e.dept].items.push(e); });
+      groups.forEach(function(g){
+        var gl=document.createElement('div'); gl.className='group-label';
+        gl.innerHTML='<span style="color:'+deptColor(g.k)+'">'+DEPTS[g.k].name+'</span><span class="gline"></span><span>'+g.items.length+'</span>';
+        host.appendChild(gl);
+        g.items.forEach(function(e){ host.appendChild(empCard(e)); });
+      });
+    } else {
+      list.forEach(function(e){ host.appendChild(empCard(e)); });
+    }
+  }
+
+  function empCard(e){
+    var d=document.createElement('div');
+    d.className='ecard'+(selectedNo===e.no?' sel':'');
+    d.dataset.no=e.no;
+    var presColor={active:cv('--green'),on_leave:cv('--gold'),probation:cv('--purple'),offboarding:cv('--red'),terminated:cv('--grey')}[e.status];
+    d.innerHTML=
+      '<div class="av" style="background:'+e.color+'">'+initials(e.name)+'<span class="pres" style="background:'+presColor+'"></span></div>'+
+      '<div class="body">'+
+        '<div class="ename">'+e.name+' <span class="no">'+e.no+'</span></div>'+
+        '<div class="etitle">'+e.title+'</div>'+
+        '<div class="ebot">'+
+          '<span class="dept-tag" style="background:'+deptBg(e.dept)+';color:'+deptColor(e.dept)+'">'+DEPTS[e.dept].code+'</span>'+
+          '<span class="st-pill st-'+e.status+'">'+STATUS[e.status].label+'</span>'+
+        '</div>'+
+      '</div>';
+    d.addEventListener('click',function(){ selectEmp(e.no); });
+    return d;
+  }
+
+  // ── profile (native Details — grouped field sections) ──
+  function selectEmp(no){
+    selectedNo=no;
+    document.querySelectorAll('.ecard').forEach(function(c){c.classList.toggle('sel',c.dataset.no===no);});
+    renderProfile(byNo(no));
+  }
+
+  function field(label,value,opts){
+    opts=opts||{};
+    var cls='fval'+(opts.mono?' mono':'')+(opts.muted?' muted':'');
+    var v=value;
+    if(value===null||value===undefined||value===''||value==='—'){ v='—'; cls+=' muted'; }
+    var copy = opts.copy ? '<span class="copybtn" data-copy="'+String(value).replace(/"/g,'')+'"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>' : '';
+    var mask = opts.maskFor ? '<span class="masklink" data-reveal="'+opts.maskFor+'">reveal</span>' : '';
+    return '<div class="field'+(opts.full?' full':'')+'">'+
+      '<div class="flbl">'+(opts.icon||'')+label+'</div>'+
+      '<div class="'+cls+'">'+v+mask+copy+'</div></div>';
+  }
+  function relField(label,empNo,fallback){
+    var m=byNo(empNo);
+    if(!m) return field(label,fallback||'—');
+    return '<div class="field"><div class="flbl">'+label+'</div>'+
+      '<div class="fval"><span class="chiprel" data-goto="'+m.no+'"><span class="mini" style="background:'+m.color+'">'+initials(m.name)+'</span>'+m.name+'</span></div></div>';
+  }
+
+  function sectionBlock(iconBg,iconColor,iconSvg,title,bodyHtml){
+    return '<div class="section">'+
+      '<div class="sec-head" onclick="this.classList.toggle(\'collapsed\');this.nextElementSibling.classList.toggle(\'collapsed\')">'+
+        '<span class="icon" style="background:'+iconBg+';color:'+iconColor+'">'+iconSvg+'</span>'+
+        '<h3>'+title+'</h3>'+
+        '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>'+
+      '</div>'+
+      '<div class="sec-body">'+bodyHtml+'</div></div>';
+  }
+
+  var IC={
+    user:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    brief:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>',
+    cash:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+    mail:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,14 22,4"/></svg>',
+    heart:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    lock:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+    pin:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    cal:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    phone:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
+  };
+
+  function renderProfile(e){
+    document.getElementById('placeholder').style.display='none';
+    var host=document.getElementById('profile-inner'); host.style.display='block';
+    document.getElementById('profile').scrollTop=0;
+
+    var dc=deptColor(e.dept), db=deptBg(e.dept);
+    var loc=LOCATIONS[e.loc];
+
+    // hero
+    var hero='<div class="phero"><div class="phero-row">'+
+      '<div class="av" style="background:'+e.color+'">'+initials(e.name)+'</div>'+
+      '<div class="phero-id">'+
+        '<div class="nm">'+e.name+' <span class="empno">'+e.no+'</span></div>'+
+        '<div class="ttl">'+e.title+' · '+DEPTS[e.dept].name+'</div>'+
+        '<div class="phero-badges">'+
+          '<span class="pbadge">'+IC.brief+TYPES[e.type]+'</span>'+
+          '<span class="pbadge">'+IC.pin+loc.name+'</span>'+
+          '<span class="pbadge">'+IC.cal+'Joined '+fmtDate(e.hire)+'</span>'+
+          '<span class="pbadge st-'+e.status+'" style="background:rgba(255,255,255,.92)">'+statusDot(e.status)+STATUS[e.status].label+'</span>'+
+        '</div>'+
+      '</div></div>'+
+      '<div class="phero-actions">'+
+        '<button class="pbtn solid" data-act="edit">'+pencil()+' Edit record</button>'+
+        '<button class="pbtn ghost" data-act="email">'+IC.mail+' Email</button>'+
+        '<button class="pbtn ghost" data-act="export">Export</button>'+
+      '</div></div>';
+
+    // stat strip
+    var strip='<div class="pstrip">'+
+      pstat('Tenure',tenure(e.hire),'with company')+
+      pstat('Reports to', e.mgr?byNo(e.mgr).pref:'—', e.mgr?DEPTS[byNo(e.mgr).dept].code:'top')+
+      pstat('Age', age(e.dob), 'years')+
+      pstat('Base pay', money(e), e.payf)+
+      '</div>';
+
+    // Identity
+    var identity=
+      field('Employee No.', e.no, {mono:true,copy:true})+
+      field('Full legal name', e.name, {copy:true})+
+      field('Preferred name', e.pref)+
+      field('Gender', cap(e.gender))+
+      field('Date of birth', fmtDate(e.dob)+' ('+age(e.dob)+')')+
+      field('Nationality', e.nat)+
+      field('Marital status', cap(e.marital));
+
+    // Employment
+    var employment=
+      field('Position', e.title)+
+      field('Department', DEPTS[e.dept].name)+
+      field('Work location', loc.name+' · '+loc.tz)+
+      relField('Reports to', e.mgr, '— (top of org)')+
+      field('Employment type', TYPES[e.type])+
+      field('Status', STATUS[e.status].label)+
+      field('Hire date', fmtDate(e.hire))+
+      field('Probation ends', fmtDate(e.prob))+
+      field('Tenure', tenure(e.hire))+
+      field('Remote', e.remote?'Yes':'No');
+
+    // Compensation
+    var comp=
+      field('Base salary', money(e), {mono:true})+
+      field('Currency', e.ccy)+
+      field('Pay frequency', cap(e.payf));
+
+    // Contact & Address
+    var contact=
+      field('Work email', e.email, {copy:true,icon:IC.mail+' '})+
+      field('Personal email', e.pmail, {copy:true})+
+      field('Work phone', e.wphone, {copy:true,icon:IC.phone+' '})+
+      field('Mobile', e.mobile, {copy:true})+
+      field('Home address', e.addr, {full:true})+
+      field('City', e.city)+
+      field('Country', e.country);
+
+    // Emergency
+    var emergency=
+      field('Contact name', e.ecn)+
+      field('Relationship', e.ecr)+
+      field('Contact phone', e.ecp, {copy:true,icon:IC.phone+' '});
+
+    // Banking & Tax (masked)
+    var banking=
+      field('Bank', e.bank)+
+      field('Account', e.acct, {mono:true,maskFor:'account'})+
+      field('Tax ID', e.tax, {mono:true,maskFor:'tax'})+
+      field('National ID', e.nid, {mono:true,maskFor:'nid'});
+
+    host.innerHTML=
+      hero+strip+
+      sectionBlock(db,dc,IC.user,'Identity',identity)+
+      sectionBlock(db,dc,IC.brief,'Employment',employment)+
+      sectionBlock(cv('--green-bg'),cv('--green'),IC.cash,'Compensation',comp)+
+      sectionBlock(cv('--c-mkt-bg'),cv('--c-mkt'),IC.mail,'Contact & Address',contact)+
+      sectionBlock(cv('--red-bg'),cv('--red'),IC.heart,'Emergency Contact',emergency)+
+      sectionBlock(cv('--grey-bg'),cv('--grey'),IC.lock,'Banking & Tax',banking);
+  }
+
+  function pstat(k,v,sub){
+    return '<div class="pstat"><div class="k">'+k+'</div><div class="v">'+v+' <small>'+sub+'</small></div></div>';
+  }
+  function statusDot(s){
+    var c={active:cv('--green'),on_leave:cv('--gold'),probation:cv('--purple'),offboarding:cv('--red'),terminated:cv('--grey')}[s];
+    return '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+c+';margin-right:5px"></span>';
+  }
+  function pencil(){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>'; }
+
+  // ── delegated profile interactions ──
+  document.getElementById('profile-inner').addEventListener('click',function(ev){
+    var goto=ev.target.closest('[data-goto]');
+    if(goto){ selectEmp(goto.dataset.goto); flash('Jumped to manager record'); return; }
+    var cp=ev.target.closest('[data-copy]');
+    if(cp){ flash('Copied to clipboard'); return; }
+    var rev=ev.target.closest('[data-reveal]');
+    if(rev){ rev.textContent=rev.textContent==='reveal'?'hide':'reveal'; flash(rev.textContent==='hide'?'Sensitive field revealed (audit logged)':'Field re-masked'); return; }
+    var btn=ev.target.closest('[data-act]');
+    if(btn){
+      var a=btn.dataset.act;
+      flash(a==='edit'?'Edit form would open (native UpdateAction)':a==='email'?'Compose email…':'Exporting profile PDF…');
+    }
+  });
+
+  // ── search + sort ──
+  document.getElementById('search').addEventListener('input',function(e){ q=e.target.value.trim(); renderRoster(); });
+  document.getElementById('sort').addEventListener('change',renderRoster);
+
+  // ── nav stats ──
+  document.getElementById('stat-headcount').textContent=EMP.length;
+  document.getElementById('stat-active').textContent=EMP.filter(function(e){return e.status==='active';}).length;
+
+  // ── toast ──
+  var toast=document.getElementById('toast'), tmsg=document.getElementById('toast-msg'), tT;
+  function flash(m){ tmsg.textContent=m; toast.classList.add('show'); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove('show');},2000); }
+
+  // ── init ──
+  buildFacets();
+  renderRoster();
+  selectEmp('EMP-1009'); // open Rachel Kim (the signed-in HR head) by default
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Employee Information: an HRIS master-data list with a grouped-field detail view. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/42-employee-information.html
+</script>
+</body>
+</html>

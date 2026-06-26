@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Ticket Classification System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --bg-soft:#f0f2f5;
+    --panel:#ffffff;
+    --panel-2:#eef1f4;
+    --line:#dde2e8;
+    --line-soft:#e7eaee;
+    --txt:#1f2937;
+    --txt-dim:#475467;
+    --txt-mute:#8a94a3;
+    --accent:#0891b2;
+    --accent-2:#0e7490;
+    --good:#0f9d6b;
+    --warn:#c17a08;
+    --bad:#dc4257;
+    --info:#0e8fb0;
+    --grad:linear-gradient(135deg,#0891b2 0%,#0e7490 100%);
+    --shadow:0 18px 44px -22px rgba(15,23,42,.28);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji",sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:rgba(8,145,178,.2)}
+  /* scrollbars */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#cdd4dc;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:#b4bdc8;background-clip:padding-box}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:flex;min-height:100vh}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{
+    width:236px;flex-shrink:0;
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    padding:18px 14px;position:sticky;top:0;height:100vh;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 18px}
+  .brand .logo{
+    width:38px;height:38px;border-radius:11px;background:var(--grad);
+    display:grid;place-items:center;flex-shrink:0;
+    box-shadow:0 6px 16px -8px rgba(8,145,178,.5);
+  }
+  .brand .logo svg{width:21px;height:21px}
+  .brand h1{font-size:15px;font-weight:700;letter-spacing:.2px;line-height:1.15}
+  .brand .sub{font-size:11px;color:var(--txt-mute);font-weight:500}
+
+  .nav-group{margin-top:14px}
+  .nav-group .label{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-mute);padding:6px 10px;font-weight:600}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;
+    color:var(--txt-dim);cursor:pointer;font-weight:500;font-size:13.5px;position:relative;
+    transition:background .15s,color .15s;margin-bottom:1px;
+  }
+  .nav-item svg{width:17px;height:17px;flex-shrink:0;opacity:.85}
+  .nav-item .count{margin-left:auto;font-size:11px;background:#eef1f4;color:var(--txt-dim);padding:1px 7px;border-radius:20px;font-weight:600}
+  .nav-item:hover{background:#f0f2f5;color:var(--txt)}
+  .nav-item.active{background:rgba(8,145,178,.10);color:var(--accent-2)}
+  .nav-item.active::before{content:"";position:absolute;left:-14px;top:7px;bottom:7px;width:3px;border-radius:3px;background:var(--grad)}
+  .nav-item.active .count{background:rgba(8,145,178,.16);color:var(--accent-2)}
+
+  .sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line-soft)}
+  .ai-meter{background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .ai-meter .top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .ai-meter .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 4px rgba(15,157,107,.16)}
+  .ai-meter .ttl{font-size:12px;font-weight:600}
+  .ai-meter .bar{height:6px;border-radius:6px;background:#e2e6eb;overflow:hidden}
+  .ai-meter .bar i{display:block;height:100%;width:91%;background:var(--grad);border-radius:6px}
+  .ai-meter .stat{display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:var(--txt-mute)}
+  .ai-meter .stat b{color:var(--txt-dim)}
+
+  /* ---------- MAIN ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{
+    display:flex;align-items:center;gap:16px;padding:16px 26px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;
+    background:rgba(255,255,255,.85);backdrop-filter:blur(12px);
+  }
+  .topbar .page-ttl{font-size:18px;font-weight:700}
+  .topbar .page-ttl span{color:var(--txt-mute);font-weight:500;font-size:13px;margin-left:8px}
+  .search{
+    margin-left:8px;flex:1;max-width:380px;display:flex;align-items:center;gap:9px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;
+  }
+  .search svg{width:15px;height:15px;color:var(--txt-mute);flex-shrink:0}
+  .search input{background:none;border:none;outline:none;color:var(--txt);width:100%;font-size:13px}
+  .search input::placeholder{color:var(--txt-mute)}
+  .search .kbd{font-size:10.5px;color:var(--txt-mute);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .topbar .spacer{flex:1}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel);color:var(--txt);padding:8px 13px;font-size:13px;font-weight:600;cursor:pointer;
+    transition:.15s;font-family:inherit;
+  }
+  .btn svg{width:15px;height:15px}
+  .btn:hover{border-color:#c4ccd6;background:var(--panel-2)}
+  .btn.primary{background:var(--grad);border:none;color:#fff;box-shadow:0 6px 16px -8px rgba(8,145,178,.6)}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#0891b2,#0e7490);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;cursor:pointer}
+
+  .content{padding:22px 26px 40px;display:flex;flex-direction:column;gap:20px}
+
+  /* ---------- KPI ROW ---------- */
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .kpi{
+    background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden;
+    box-shadow:0 1px 2px rgba(15,23,42,.04);
+  }
+  .kpi::after{content:"";position:absolute;right:-30px;top:-30px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(8,145,178,.06),transparent 70%)}
+  .kpi .k-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .kpi .k-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center}
+  .kpi .k-ico svg{width:17px;height:17px}
+  .kpi .k-label{font-size:12px;color:var(--txt-dim);font-weight:500}
+  .kpi .k-val{font-size:27px;font-weight:700;letter-spacing:-.5px;line-height:1}
+  .kpi .k-delta{font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:9px}
+  .kpi .k-delta.up{color:var(--good)}
+  .kpi .k-delta.down{color:var(--bad)}
+  .kpi .k-delta.flat{color:var(--txt-mute)}
+  .kpi .spark{position:absolute;right:16px;bottom:14px;opacity:.8}
+
+  /* ---------- LAYOUT GRID ---------- */
+  .triage{display:grid;grid-template-columns:1.55fr 1fr;gap:20px;align-items:start}
+  @media(max-width:1180px){.triage{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .card-head{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+  .card-head h2{font-size:14.5px;font-weight:700}
+  .card-head .desc{font-size:11.5px;color:var(--txt-mute);font-weight:500}
+  .card-head .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  /* tabs / filters */
+  .tabs{display:flex;gap:4px;background:var(--bg-soft);padding:4px;border-radius:10px;border:1px solid var(--line)}
+  .tab{padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:600;color:var(--txt-dim);cursor:pointer;transition:.15s;white-space:nowrap;border:none;background:none;font-family:inherit}
+  .tab:hover{color:var(--txt)}
+  .tab.active{background:#fff;color:var(--accent-2);box-shadow:0 1px 4px -1px rgba(15,23,42,.15)}
+  .tab .n{font-size:11px;opacity:.7;margin-left:4px}
+
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{
+    font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:20px;border:1px solid var(--line);
+    background:var(--panel);color:var(--txt-dim);cursor:pointer;transition:.15s;font-family:inherit;display:inline-flex;align-items:center;gap:6px;
+  }
+  .chip:hover{border-color:#c4ccd6;color:var(--txt)}
+  .chip.active{background:rgba(8,145,178,.12);border-color:rgba(8,145,178,.45);color:var(--accent-2)}
+  .chip .dot{width:7px;height:7px;border-radius:50%}
+
+  /* ticket list */
+  .tlist{max-height:560px;overflow-y:auto}
+  .ticket{
+    display:grid;grid-template-columns:auto 1fr auto;gap:13px;padding:14px 18px;border-bottom:1px solid var(--line-soft);
+    cursor:pointer;transition:background .14s;position:relative;align-items:start;
+  }
+  .ticket:hover{background:var(--bg-soft)}
+  .ticket.sel{background:linear-gradient(90deg,rgba(8,145,178,.09),transparent)}
+  .ticket.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--grad)}
+  .prio{width:9px;height:9px;border-radius:50%;margin-top:6px;flex-shrink:0}
+  .prio.urgent{background:var(--bad);box-shadow:0 0 0 4px rgba(220,66,87,.14)}
+  .prio.high{background:var(--warn);box-shadow:0 0 0 4px rgba(193,122,8,.14)}
+  .prio.medium{background:var(--info)}
+  .prio.low{background:var(--txt-mute)}
+  .t-body{min-width:0}
+  .t-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .t-id{font-size:11px;color:var(--txt-mute);font-weight:600;font-variant-numeric:tabular-nums}
+  .t-subj{font-size:13.5px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .t-snippet{font-size:12px;color:var(--txt-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px}
+  .t-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .pill{font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .pill .d{width:6px;height:6px;border-radius:50%}
+  .cat-billing{background:rgba(193,122,8,.12);color:#9a6206}
+  .cat-technical{background:rgba(8,145,178,.12);color:#0e7490}
+  .cat-account{background:rgba(124,90,222,.12);color:#6741c4}
+  .cat-feature{background:rgba(14,143,176,.12);color:#0b6f8a}
+  .cat-bug{background:rgba(220,66,87,.12);color:#bb2c41}
+  .cat-other{background:#eef1f4;color:var(--txt-dim)}
+  .t-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}
+  .t-time{font-size:11px;color:var(--txt-mute);white-space:nowrap}
+  .conf{display:flex;align-items:center;gap:7px}
+  .conf .ring{position:relative;width:30px;height:30px}
+  .conf .ring svg{transform:rotate(-90deg)}
+  .conf .ring .pct{position:absolute;inset:0;display:grid;place-items:center;font-size:9.5px;font-weight:700}
+  .conf-label{font-size:9.5px;color:var(--txt-mute);text-align:right;line-height:1.2}
+  .needs-review{font-size:10px;font-weight:700;color:var(--warn);display:inline-flex;align-items:center;gap:4px}
+  .needs-review svg{width:11px;height:11px}
+
+  .empty{padding:48px 20px;text-align:center;color:var(--txt-mute)}
+  .empty svg{width:42px;height:42px;opacity:.5;margin-bottom:10px}
+  .empty p{font-size:13px}
+
+  /* ---------- RIGHT COLUMN ---------- */
+  .rcol{display:flex;flex-direction:column;gap:20px;position:sticky;top:84px}
+
+  /* composer / analyze */
+  .composer{padding:18px}
+  .composer .ttl-row{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+  .composer .ai-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--accent-2);background:rgba(8,145,178,.10);border:1px solid rgba(8,145,178,.3);padding:3px 9px;border-radius:20px}
+  .composer .ai-badge svg{width:12px;height:12px}
+  .composer h3{font-size:14px;font-weight:700}
+  .composer textarea{
+    width:100%;min-height:96px;resize:vertical;background:var(--bg-soft);border:1px solid var(--line);
+    border-radius:11px;padding:12px 13px;color:var(--txt);font-family:inherit;font-size:13px;line-height:1.55;outline:none;transition:.15s;
+  }
+  .composer textarea:focus{border-color:rgba(8,145,178,.55);box-shadow:0 0 0 3px rgba(8,145,178,.12);background:#fff}
+  .composer textarea::placeholder{color:var(--txt-mute)}
+  .composer .ctrl{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .composer .ctrl .hint{font-size:11px;color:var(--txt-mute);margin-left:auto}
+  .analyze-out{margin-top:14px;display:none}
+  .analyze-out.show{display:block;animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .ao-head{display:flex;align-items:center;gap:8px;margin-bottom:11px;font-size:12px;color:var(--txt-dim);font-weight:600}
+  .ao-head .live{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 4px rgba(15,157,107,.18)}
+  .result-card{background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+  .rc-main{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .rc-cat{display:flex;align-items:center;gap:10px}
+  .rc-cat .lab{font-size:10px;color:var(--txt-mute);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+  .rc-cat .val{font-size:17px;font-weight:700}
+  .gauge{width:58px;height:58px;position:relative;flex-shrink:0}
+  .gauge svg{transform:rotate(-90deg)}
+  .gauge .lab{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+  .gauge .lab b{font-size:16px;font-weight:700}
+  .gauge .lab span{font-size:8px;color:var(--txt-mute);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+  .reason{font-size:12px;color:var(--txt-dim);line-height:1.55;background:rgba(8,145,178,.07);border-left:2px solid rgba(8,145,178,.5);padding:8px 11px;border-radius:0 8px 8px 0;margin-bottom:12px}
+  .reason b{color:var(--txt)}
+  .extract{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:6px}
+  .field{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+  .field .fl{font-size:10px;color:var(--txt-mute);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;display:flex;justify-content:space-between;align-items:center}
+  .field .fv{font-size:13px;font-weight:600}
+  .field .cb{font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px}
+  .cb-hi{background:rgba(15,157,107,.14);color:var(--good)}
+  .cb-md{background:rgba(193,122,8,.14);color:var(--warn)}
+  .cb-lo{background:rgba(220,66,87,.14);color:var(--bad)}
+  .alt-routes{margin-top:11px}
+  .alt-routes .at{font-size:10.5px;color:var(--txt-mute);text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:8px}
+  .alt-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line-soft)}
+  .alt-row:last-child{border-bottom:none}
+  .alt-row .nm{font-size:12.5px;font-weight:600;flex:1}
+  .alt-row .pbar{width:80px;height:5px;border-radius:5px;background:#e2e6eb;overflow:hidden}
+  .alt-row .pbar i{display:block;height:100%;border-radius:5px;background:var(--grad)}
+  .alt-row .pv{font-size:11px;color:var(--txt-dim);font-weight:600;width:34px;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* distribution chart */
+  .dist{padding:18px}
+  .dist .legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:14px}
+  .leg{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--txt-dim)}
+  .leg .sw{width:10px;height:10px;border-radius:3px}
+  .leg b{color:var(--txt);font-weight:600}
+  .donut-wrap{display:flex;align-items:center;gap:20px}
+  .donut{position:relative;width:138px;height:138px;flex-shrink:0}
+  .donut .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .donut .center b{font-size:24px;font-weight:700;line-height:1}
+  .donut .center span{font-size:10px;color:var(--txt-mute);margin-top:2px}
+
+  /* activity feed */
+  .feed{padding:6px 18px 14px}
+  .feed-item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-soft);position:relative}
+  .feed-item:last-child{border-bottom:none}
+  .feed-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex-shrink:0}
+  .feed-ico svg{width:15px;height:15px}
+  .fi-route{background:rgba(8,145,178,.12);color:#0e7490}
+  .fi-flag{background:rgba(193,122,8,.12);color:#9a6206}
+  .fi-merge{background:rgba(124,90,222,.12);color:#6741c4}
+  .fi-resolve{background:rgba(15,157,107,.12);color:var(--good)}
+  .feed-txt{font-size:12.5px;color:var(--txt-dim);line-height:1.5}
+  .feed-txt b{color:var(--txt);font-weight:600}
+  .feed-time{font-size:10.5px;color:var(--txt-mute);margin-top:2px}
+
+  /* ---------- DRAWER ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.32);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:.25s;z-index:90}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:520px;max-width:94vw;background:var(--panel);
+    border-left:1px solid var(--line);z-index:100;transform:translateX(102%);transition:transform .32s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;box-shadow:var(--shadow);
+  }
+  .drawer.open{transform:none}
+  .dr-head{padding:18px 22px;border-bottom:1px solid var(--line-soft);display:flex;align-items:flex-start;gap:12px}
+  .dr-head .x{margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--bg-soft);display:grid;place-items:center;cursor:pointer;color:var(--txt-dim);flex-shrink:0}
+  .dr-head .x:hover{color:var(--txt);background:var(--panel-2)}
+  .dr-head .x svg{width:15px;height:15px}
+  .dr-id{font-size:11.5px;color:var(--txt-mute);font-weight:600;margin-bottom:4px}
+  .dr-subj{font-size:17px;font-weight:700;line-height:1.3}
+  .dr-body{padding:20px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:20px}
+  .dr-sec .st{font-size:11px;color:var(--txt-mute);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:11px;display:flex;align-items:center;gap:8px}
+  .dr-msg{background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:12px;padding:14px;font-size:13px;line-height:1.65;color:var(--txt-dim)}
+  .dr-msg .who{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .dr-msg .who .av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+  .dr-msg .who .nm{font-size:12.5px;font-weight:600;color:var(--txt)}
+  .dr-msg .who .em{font-size:11px;color:var(--txt-mute)}
+
+  .ai-panel{background:linear-gradient(160deg,rgba(8,145,178,.07),rgba(14,116,144,.03));border:1px solid rgba(8,145,178,.24);border-radius:13px;padding:16px}
+  .ai-panel .ap-top{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .ai-panel .ap-top .ic{width:30px;height:30px;border-radius:9px;background:var(--grad);display:grid;place-items:center}
+  .ai-panel .ap-top .ic svg{width:16px;height:16px}
+  .ai-panel .ap-top .tt{font-size:13.5px;font-weight:700}
+  .ai-panel .ap-top .tg{font-size:10.5px;color:var(--txt-mute)}
+  .verdict{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+
+  .dr-fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .review-actions{display:flex;gap:9px;margin-top:4px}
+  .review-actions .btn{flex:1;justify-content:center}
+  .accept-bar{display:flex;align-items:center;gap:10px;background:rgba(15,157,107,.09);border:1px solid rgba(15,157,107,.3);border-radius:11px;padding:11px 13px;font-size:12.5px;color:#0b7a52;font-weight:600}
+  .accept-bar svg{width:16px;height:16px;color:var(--good)}
+
+  .timeline{position:relative;padding-left:6px}
+  .tl-item{position:relative;padding:0 0 16px 24px;border-left:2px solid var(--line);}
+  .tl-item:last-child{border-left-color:transparent;padding-bottom:0}
+  .tl-item .dot{position:absolute;left:-7px;top:1px;width:12px;height:12px;border-radius:50%;background:var(--panel);border:2px solid var(--accent)}
+  .tl-item.done .dot{background:var(--good);border-color:var(--good)}
+  .tl-item .tt{font-size:12.5px;font-weight:600}
+  .tl-item .tm{font-size:11px;color:var(--txt-mute)}
+
+  .tag-row{display:flex;flex-wrap:wrap;gap:7px}
+  .tag{font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px;background:var(--bg-soft);border:1px solid var(--line-soft);color:var(--txt-dim)}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;box-shadow:var(--shadow);z-index:200;opacity:0;transition:.3s}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .toast svg{width:17px;height:17px;color:var(--good)}
+
+  .hidden{display:none !important}
+  .mono{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3" fill="#fff" stroke="none"/></svg>
+      </div>
+      <div>
+        <h1>TriageIQ</h1>
+        <div class="sub">AI Ticket Classification</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="label">Workspace</div>
+      <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Triage Queue<span class="count" id="navQueue">24</span></div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>All Tickets<span class="count">312</span></div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Needs Review<span class="count" style="background:rgba(193,122,8,.16);color:#9a6206">6</span></div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Resolved<span class="count">271</span></div>
+    </div>
+
+    <div class="nav-group">
+      <div class="label">Insights</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Analytics</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Categories</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Model Settings</div>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="ai-meter">
+        <div class="top"><span class="dot"></span><span class="ttl">Classifier v4.2</span></div>
+        <div class="bar"><i></i></div>
+        <div class="stat"><span>Accuracy</span><b>91.4%</b></div>
+        <div class="stat"><span>Auto-routed today</span><b>218</b></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="page-ttl">Triage Queue <span>Support Operations</span></div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchBox" type="text" placeholder="Search subject, customer, or ticket ID…">
+        <span class="kbd">⌘K</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="refreshBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        Refresh
+      </button>
+      <button class="btn primary" id="reclassifyAll">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3 19 12 5 21z"/></svg>
+        Re-classify All
+      </button>
+      <div class="avatar" title="Maya Okafor — Triage Lead">MO</div>
+    </header>
+
+    <div class="content">
+      <!-- KPI ROW -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="k-top">
+            <div>
+              <div class="k-label">Inbound Today</div>
+              <div class="k-val">342</div>
+            </div>
+            <div class="k-ico" style="background:rgba(8,145,178,.12);color:#0e7490"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="m22 6-10 7L2 6"/></svg></div>
+          </div>
+          <div class="k-delta up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>+12% vs yesterday</div>
+        </div>
+        <div class="kpi">
+          <div class="k-top">
+            <div>
+              <div class="k-label">Auto-classified</div>
+              <div class="k-val">91.4<span style="font-size:15px">%</span></div>
+            </div>
+            <div class="k-ico" style="background:rgba(15,157,107,.12);color:#0f9d6b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+          </div>
+          <div class="k-delta up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>+2.1 pts this week</div>
+        </div>
+        <div class="kpi">
+          <div class="k-top">
+            <div>
+              <div class="k-label">Needs Human Review</div>
+              <div class="k-val">6</div>
+            </div>
+            <div class="k-ico" style="background:rgba(193,122,8,.12);color:#c17a08"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+          </div>
+          <div class="k-delta down"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>low confidence cluster</div>
+        </div>
+        <div class="kpi">
+          <div class="k-top">
+            <div>
+              <div class="k-label">Avg. Routing Time</div>
+              <div class="k-val">1.4<span style="font-size:15px">s</span></div>
+            </div>
+            <div class="k-ico" style="background:rgba(14,143,176,.12);color:#0e8fb0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          </div>
+          <div class="k-delta up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>2.8s faster than SLA</div>
+        </div>
+      </div>
+
+      <!-- TRIAGE GRID -->
+      <div class="triage">
+        <!-- LEFT : TICKET LIST -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Incoming Tickets</h2>
+              <div class="desc" id="listDesc">AI-classified, ordered by priority</div>
+            </div>
+            <div class="right">
+              <div class="tabs" id="prioTabs">
+                <button class="tab active" data-tab="all">All<span class="n" id="cAll"></span></button>
+                <button class="tab" data-tab="urgent">Urgent<span class="n" id="cUrgent"></span></button>
+                <button class="tab" data-tab="review">Review<span class="n" id="cReview"></span></button>
+              </div>
+            </div>
+          </div>
+          <div style="padding:13px 18px;border-bottom:1px solid var(--line-soft)">
+            <div class="seg" id="catFilter">
+              <button class="chip active" data-cat="all">All Categories</button>
+              <button class="chip" data-cat="Technical"><span class="dot" style="background:#0891b2"></span>Technical</button>
+              <button class="chip" data-cat="Billing"><span class="dot" style="background:#c17a08"></span>Billing</button>
+              <button class="chip" data-cat="Bug Report"><span class="dot" style="background:#dc4257"></span>Bug Report</button>
+              <button class="chip" data-cat="Account"><span class="dot" style="background:#7c5ade"></span>Account</button>
+              <button class="chip" data-cat="Feature Request"><span class="dot" style="background:#0e8fb0"></span>Feature</button>
+            </div>
+          </div>
+          <div class="tlist" id="ticketList"></div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="rcol">
+          <!-- COMPOSER / ANALYZE -->
+          <div class="card composer">
+            <div class="ttl-row">
+              <span class="ai-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg>AI Classifier</span>
+              <h3>Classify a new ticket</h3>
+            </div>
+            <textarea id="composeInput" placeholder="Paste a customer message here — e.g. &quot;I was charged twice on my March invoice and the export to CSV keeps failing with a 500 error…&quot;"></textarea>
+            <div class="ctrl">
+              <button class="btn primary" id="analyzeBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg>
+                Analyze & Route
+              </button>
+              <button class="btn" id="sampleBtn">Use sample</button>
+              <span class="hint" id="composeHint">Model v4.2 · 6 categories</span>
+            </div>
+
+            <div class="analyze-out" id="analyzeOut">
+              <div class="ao-head"><span class="live"></span>Classification result <span style="margin-left:auto;color:var(--txt-mute);font-weight:500" id="aoTime"></span></div>
+              <div class="result-card">
+                <div class="rc-main">
+                  <div class="rc-cat">
+                    <div>
+                      <div class="lab">Predicted Category</div>
+                      <div class="val" id="aoCat">Billing</div>
+                    </div>
+                  </div>
+                  <div class="gauge" id="aoGauge"></div>
+                </div>
+                <div class="reason" id="aoReason"></div>
+                <div class="extract" id="aoExtract"></div>
+                <div class="alt-routes">
+                  <div class="at">Alternative routes considered</div>
+                  <div id="aoAlts"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DISTRIBUTION DONUT -->
+          <div class="card dist">
+            <div class="card-head" style="padding:0 0 14px;border:none">
+              <div>
+                <h2>Category Distribution</h2>
+                <div class="desc">Last 7 days · 312 tickets</div>
+              </div>
+            </div>
+            <div class="donut-wrap">
+              <div class="donut" id="donut"></div>
+              <div style="flex:1">
+                <div class="legend" id="donutLegend"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTIVITY FEED -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>AI Activity</h2>
+                <div class="desc">What the classifier did recently</div>
+              </div>
+            </div>
+            <div class="feed" id="feed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DRAWER ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div>
+      <div class="dr-id" id="drId">TKT-0000</div>
+      <div class="dr-subj" id="drSubj">Subject</div>
+    </div>
+    <div class="x" id="drClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ===================== SEED DATA ===================== */
+const CATS = {
+  "Technical":     {cls:"cat-technical", color:"#0891b2", team:"Platform Support"},
+  "Billing":       {cls:"cat-billing",   color:"#c17a08", team:"Finance Ops"},
+  "Bug Report":    {cls:"cat-bug",       color:"#dc4257", team:"Engineering Triage"},
+  "Account":       {cls:"cat-account",   color:"#7c5ade", team:"Account Security"},
+  "Feature Request":{cls:"cat-feature",  color:"#0e8fb0", team:"Product Backlog"},
+  "Other":         {cls:"cat-other",     color:"#8a94a3", team:"General Queue"}
+};
+
+const TICKETS = [
+  {id:"TKT-4821", subj:"Charged twice for the March subscription", snippet:"My card was billed $89 two times on the same invoice and I can't find a refund option.", cat:"Billing", conf:96, prio:"urgent", customer:"Daniel Rivera", email:"d.rivera@northpeak.io", plan:"Business", time:"4m ago", sentiment:"Frustrated", reason:"Strong billing signals: 'charged twice', 'invoice', '$89', 'refund'. No technical error terms present.", fields:{Product:"Subscription",Amount:"$89.00 ×2",Invoice:"INV-30221","Refund req.":"Yes"}, alts:[["Account",6],["Other",2]], tags:["duplicate-charge","refund","invoice"]},
+  {id:"TKT-4820", subj:"CSV export returns a 500 error every time", snippet:"When I export reports to CSV the page hangs and then shows a 500 internal error. Started this morning.", cat:"Bug Report", conf:93, prio:"high", customer:"Priya Anand", email:"priya@flux-labs.com", plan:"Enterprise", time:"9m ago", sentiment:"Neutral", reason:"Reproducible failure + HTTP status code '500' and 'export' feature scope strongly indicate a defect, not a how-to question.", fields:{Feature:"CSV Export","Error code":"HTTP 500",Frequency:"Every attempt",Regression:"Since 06-23"}, alts:[["Technical",18],["Feature Request",3]], tags:["500-error","export","regression"]},
+  {id:"TKT-4819", subj:"Can't log in — SSO redirect loop", snippet:"After SSO redirects me back, it just bounces to login again. Tried two browsers, same result.", cat:"Technical", conf:88, prio:"urgent", customer:"Marcus Lee", email:"m.lee@orbitware.com", plan:"Enterprise", time:"14m ago", sentiment:"Frustrated", reason:"Auth keywords 'SSO', 'redirect loop' and reproduction across browsers point to a platform/config issue rather than a forgotten password.", fields:{Area:"Authentication","Auth method":"SAML SSO",Browsers:"Chrome, Safari",Blocking:"Yes"}, alts:[["Account",22],["Bug Report",9]], tags:["sso","login","saml"]},
+  {id:"TKT-4818", subj:"Please add dark mode to the mobile app", snippet:"Would love a dark theme on iOS — the white background is hard on the eyes at night.", cat:"Feature Request", conf:97, prio:"low", customer:"Sofia Bauer", email:"sofia.b@hexgrid.dev", plan:"Pro", time:"22m ago", sentiment:"Positive", reason:"Polite 'please add' phrasing, no error or blocker. Classic enhancement request routed to product backlog.", fields:{Surface:"iOS App",Type:"Enhancement",Blocking:"No",Votes:"+34"}, alts:[["Other",2],["Technical",1]], tags:["dark-mode","mobile","ui"]},
+  {id:"TKT-4817", subj:"Update billing email on the account", snippet:"Our finance contact changed — please point invoices to accounts@vireo.co going forward.", cat:"Account", conf:72, prio:"medium", customer:"Helena Cruz", email:"helena@vireo.co", plan:"Business", time:"31m ago", sentiment:"Neutral", reason:"Mixed signals: mentions 'billing email' (Billing) but the core intent is changing an account contact field (Account). Below 80% — flag for review.", fields:{Action:"Change contact","Old email":"helena@vireo.co","New email":"accounts@vireo.co",Scope:"Invoicing"}, alts:[["Billing",26],["Other",4]], tags:["contact-change","billing-email"], review:true},
+  {id:"TKT-4816", subj:"API rate limit hit unexpectedly at 200 req/min", snippet:"We're on the plan that allows 600 req/min but getting 429s at around 200. Is this throttling expected?", cat:"Technical", conf:84, prio:"high", customer:"Theo Nakamura", email:"theo@dataforge.ai", plan:"Enterprise", time:"47m ago", sentiment:"Neutral", reason:"Quota and '429' status make this a platform/API behaviour question. Could overlap with Bug Report if the limit is truly mis-enforced.", fields:{Area:"REST API","Status":"HTTP 429",Plan:"600 req/min",Observed:"~200 req/min"}, alts:[["Bug Report",14],["Billing",2]], tags:["api","rate-limit","429"]},
+  {id:"TKT-4815", subj:"Refund for a duplicate annual plan", snippet:"I accidentally bought the annual plan twice. Need one refunded — order #A-9921.", cat:"Billing", conf:95, prio:"high", customer:"Grace Okonkwo", email:"grace.o@brightline.com", plan:"Pro", time:"1h ago", sentiment:"Frustrated", reason:"Explicit 'refund', 'duplicate', 'annual plan' and an order number. Unambiguous billing case.", fields:{Product:"Annual Plan",Order:"#A-9921","Refund req.":"Yes",Amount:"$948.00"}, alts:[["Account",3],["Other",2]], tags:["refund","duplicate","annual"]},
+  {id:"TKT-4814", subj:"Dashboard widgets not loading on Firefox", snippet:"The analytics widgets are blank in Firefox but fine in Chrome. Console shows a CORS warning.", cat:"Bug Report", conf:90, prio:"medium", customer:"Aiden Walsh", email:"aiden@quantio.net", plan:"Business", time:"1h ago", sentiment:"Neutral", reason:"Browser-specific rendering failure with a 'CORS' console signal — a defect rather than a config or billing matter.", fields:{Feature:"Analytics Widgets",Browser:"Firefox 121",Signal:"CORS warning",Severity:"Medium"}, alts:[["Technical",8],["Feature Request",1]], tags:["firefox","cors","widgets"]},
+  {id:"TKT-4813", subj:"How do I invite teammates to my workspace?", snippet:"New here — where do I add my colleagues so they can see the projects?", cat:"Other", conf:79, prio:"low", customer:"Lena Fischer", email:"lena.f@stackmint.io", plan:"Starter", time:"2h ago", sentiment:"Positive", reason:"A how-to onboarding question with no defect or billing terms. Sits between General and Account; under 80% so eligible for review.", fields:{Intent:"How-to",Topic:"Invitations","Self-serve":"Likely",Onboarding:"Yes"}, alts:[["Account",17],["Technical",4]], tags:["how-to","invite","onboarding"], review:true},
+  {id:"TKT-4812", subj:"Two-factor codes never arrive by SMS", snippet:"I enabled 2FA but the SMS code doesn't come through. I'm locked out of my own account.", cat:"Account", conf:91, prio:"urgent", customer:"Omar Haddad", email:"omar.h@cedarpoint.co", plan:"Pro", time:"2h ago", sentiment:"Frustrated", reason:"Account-security wording '2FA', 'locked out', 'SMS code' with a hard blocker. Routes to Account Security with urgent priority.", fields:{Area:"2FA / MFA",Channel:"SMS",Blocking:"Yes",Locked:"Yes"}, alts:[["Technical",7],["Bug Report",2]], tags:["2fa","mfa","lockout"]},
+  {id:"TKT-4811", subj:"Invoice PDF shows the wrong VAT number", snippet:"Our company VAT on the latest invoice is incorrect — it should be GB-44820193.", cat:"Billing", conf:89, prio:"medium", customer:"Isabel Moreno", email:"isabel@lumaworks.es", plan:"Business", time:"3h ago", sentiment:"Neutral", reason:"Document correction on an 'invoice' with a 'VAT number' — financial document fix, clearly Billing.", fields:{Document:"Invoice PDF",Field:"VAT number",Correct:"GB-44820193",Region:"EU"}, alts:[["Account",6],["Other",3]], tags:["invoice","vat","correction"]},
+  {id:"TKT-4810", subj:"Webhook deliveries silently dropping", snippet:"About 1 in 5 webhook events never reach our endpoint, no retries logged. Endpoint is healthy.", cat:"Bug Report", conf:86, prio:"high", customer:"Ruben Castro", email:"ruben@nodeflow.dev", plan:"Enterprise", time:"3h ago", sentiment:"Frustrated", reason:"Intermittent delivery loss with 'no retries logged' is a reliability defect. Some overlap with API/Technical handling.", fields:{Feature:"Webhooks","Loss rate":"~20%",Retries:"None logged",Endpoint:"Healthy"}, alts:[["Technical",11],["Other",2]], tags:["webhooks","reliability","delivery"]},
+  {id:"TKT-4809", subj:"Add Slack notifications for new comments", snippet:"It'd be great to get a Slack ping whenever someone comments on a task.", cat:"Feature Request", conf:94, prio:"low", customer:"Nora Bianchi", email:"nora@tideline.app", plan:"Pro", time:"4h ago", sentiment:"Positive", reason:"Integration enhancement, framed as 'it'd be great to' with no blocker. Backlog candidate.", fields:{Surface:"Notifications",Integration:"Slack",Type:"Enhancement",Votes:"+12"}, alts:[["Technical",4],["Other",2]], tags:["slack","notifications","integration"]},
+  {id:"TKT-4808", subj:"Mobile app crashes on opening attachments", snippet:"Tapping any PDF attachment instantly closes the Android app. Reinstalled, still crashes.", cat:"Bug Report", conf:92, prio:"high", customer:"Yusuf Demir", email:"yusuf@payloadhq.com", plan:"Business", time:"5h ago", sentiment:"Frustrated", reason:"Deterministic 'crash' on a specific action after reinstall — a clear app defect for Engineering Triage.", fields:{Platform:"Android",Action:"Open PDF",Reproducible:"Always",Crash:"Yes"}, alts:[["Technical",5],["Feature Request",1]], tags:["crash","android","attachments"]},
+  {id:"TKT-4807", subj:"Question about upgrading from Pro to Enterprise", snippet:"What changes if we move to Enterprise? Mainly curious about SSO and seat pricing.", cat:"Other", conf:68, prio:"low", customer:"Clara Jensen", email:"clara@meridian.io", plan:"Pro", time:"6h ago", sentiment:"Positive", reason:"Pre-sales question touching pricing (Billing), SSO (Technical) and plan tiers — genuinely ambiguous. Low confidence, send to review.", fields:{Intent:"Pre-sales",Topic:"Plan upgrade",Touches:"Pricing + SSO","Self-serve":"No"}, alts:[["Billing",24],["Account",18]], tags:["upgrade","pre-sales","pricing"], review:true},
+  {id:"TKT-4806", subj:"Password reset link expired immediately", snippet:"Every reset link says 'expired' the second I click it. Can't get back into my account.", cat:"Account", conf:87, prio:"high", customer:"Felix Brandt", email:"felix.b@coreloop.de", plan:"Starter", time:"7h ago", sentiment:"Frustrated", reason:"Credential recovery flow with a hard blocker ('can't get back in'). Routes to Account; small chance it's a Bug.", fields:{Area:"Password reset",Symptom:"Instant expiry",Blocking:"Yes",Channel:"Email"}, alts:[["Bug Report",10],["Technical",3]], tags:["password-reset","lockout","email"]},
+  {id:"TKT-4805", subj:"Sync stuck at 0% for the Google Drive connector", snippet:"Connected Google Drive but the initial sync sits at 0% for hours. No error shown.", cat:"Technical", conf:81, prio:"medium", customer:"Amara Diallo", email:"amara@brightfold.co", plan:"Business", time:"8h ago", sentiment:"Neutral", reason:"Integration not progressing with no surfaced error — a connector/platform issue. Could be a defect if it never completes.", fields:{Area:"Integrations",Connector:"Google Drive",Progress:"0%",Error:"None"}, alts:[["Bug Report",13],["Other",4]], tags:["sync","google-drive","connector"]},
+  {id:"TKT-4804", subj:"Discount code at checkout not applying", snippet:"The promo code LAUNCH20 is rejected at checkout even though it's supposed to be active until July.", cat:"Billing", conf:90, prio:"medium", customer:"Victor Ahn", email:"victor@nimbuspay.io", plan:"Starter", time:"9h ago", sentiment:"Frustrated", reason:"Checkout + 'promo code' + 'discount' are billing terms. Routes to Finance Ops; minor chance of a coupon bug.", fields:{Stage:"Checkout",Code:"LAUNCH20",Status:"Rejected","Valid until":"Jul 31"}, alts:[["Bug Report",7],["Other",3]], tags:["discount","checkout","promo"]},
+  {id:"TKT-4803", subj:"Export to PDF cuts off the last page", snippet:"PDF exports always truncate the final page of long reports. Print preview looks fine.", cat:"Bug Report", conf:85, prio:"medium", customer:"Maya Solberg", email:"maya@finchpoint.no", plan:"Pro", time:"11h ago", sentiment:"Neutral", reason:"Consistent rendering truncation while preview is correct — an export defect routed to Engineering Triage.", fields:{Feature:"PDF Export",Symptom:"Last page cut",Preview:"OK",Severity:"Medium"}, alts:[["Technical",9],["Feature Request",2]], tags:["pdf","export","truncation"]},
+  {id:"TKT-4802", subj:"Need an invoice in our company's name", snippet:"Can you reissue last month's invoice under 'Halcyon Systems Ltd' for our accounting?", cat:"Billing", conf:93, prio:"low", customer:"Tomas Varga", email:"tomas@halcyon-sys.com", plan:"Business", time:"13h ago", sentiment:"Neutral", reason:"Invoice reissue request with a company name — administrative billing task, no defect signals.", fields:{Document:"Invoice",Action:"Reissue","Company":"Halcyon Systems Ltd",Period:"Last month"}, alts:[["Account",5],["Other",2]], tags:["invoice","reissue","accounting"]},
+  {id:"TKT-4801", subj:"Bulk import skips rows with special characters", snippet:"CSV import drops any row containing accented names (é, ü). Encoding is UTF-8.", cat:"Bug Report", conf:88, prio:"medium", customer:"Ingrid Holm", email:"ingrid@vantapoint.se", plan:"Enterprise", time:"15h ago", sentiment:"Frustrated", reason:"Data loss tied to character encoding despite valid UTF-8 — an import parsing defect.", fields:{Feature:"Bulk Import",Symptom:"Rows dropped",Trigger:"Accented chars",Encoding:"UTF-8"}, alts:[["Technical",10],["Other",2]], tags:["import","encoding","utf8"]},
+  {id:"TKT-4800", subj:"Where can I download my usage data?", snippet:"For our internal audit, is there a way to download the full usage history?", cat:"Other", conf:76, prio:"low", customer:"Paulo Reis", email:"paulo@andesoft.com", plan:"Business", time:"17h ago", sentiment:"Neutral", reason:"A general data-access question with no defect or billing terms. Borderline with Technical; under 80%, eligible for review.", fields:{Intent:"How-to",Topic:"Data export","Self-serve":"Maybe",Reason:"Audit"}, alts:[["Technical",16],["Account",6]], tags:["usage-data","export","audit"], review:true},
+  {id:"TKT-4799", subj:"SAML metadata URL returns 404", snippet:"The SSO metadata endpoint you gave us 404s. Can't finish configuring our IdP.", cat:"Technical", conf:83, prio:"high", customer:"Eva Lindqvist", email:"eva@strandcap.se", plan:"Enterprise", time:"19h ago", sentiment:"Neutral", reason:"SSO setup blocked by a '404' on the metadata endpoint — a configuration/platform issue, slight chance of a bug.", fields:{Area:"SSO Setup","Endpoint":"SAML metadata",Status:"HTTP 404",Blocking:"Yes"}, alts:[["Bug Report",12],["Account",4]], tags:["saml","metadata","404"]}
+];
+
+const FEED = [
+  {type:"route", icon:'<path d="M3 12h18M3 6h18M3 18h18"/>', txt:'Routed <b>TKT-4815</b> to <b>Finance Ops</b>', time:"2m ago"},
+  {type:"flag", icon:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22V3"/>', txt:'Flagged <b>TKT-4807</b> for review — confidence 68%', time:"6m ago"},
+  {type:"resolve", icon:'<path d="M20 6 9 17l-5-5"/>', txt:'Auto-resolved <b>TKT-4790</b> with a help-center reply', time:"11m ago"},
+  {type:"route", icon:'<path d="M3 12h18M3 6h18M3 18h18"/>', txt:'Routed <b>TKT-4812</b> to <b>Account Security</b> · urgent', time:"19m ago"},
+  {type:"merge", icon:'<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/>', txt:'Merged <b>TKT-4793</b> into duplicate <b>TKT-4810</b>', time:"34m ago"},
+  {type:"flag", icon:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22V3"/>', txt:'Flagged <b>TKT-4817</b> — mixed Billing / Account signals', time:"52m ago"}
+];
+
+/* ===================== HELPERS ===================== */
+function confColor(c){ return c>=90?"#0f9d6b": c>=80?"#0891b2": c>=70?"#c17a08":"#dc4257"; }
+function cbClass(c){ return c>=90?"cb-hi": c>=78?"cb-md":"cb-lo"; }
+function ring(pct, size, stroke, color){
+  const r=(size-stroke)/2, c=2*Math.PI*r, off=c*(1-pct/100);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e2e6eb" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/>
+  </svg>`;
+}
+
+/* ===================== STATE ===================== */
+let activeTab="all", activeCat="all", searchQ="", selectedId=null;
+
+/* ===================== RENDER LIST ===================== */
+function filtered(){
+  return TICKETS.filter(t=>{
+    if(activeTab==="urgent" && t.prio!=="urgent") return false;
+    if(activeTab==="review" && !t.review) return false;
+    if(activeCat!=="all" && t.cat!==activeCat) return false;
+    if(searchQ){
+      const q=searchQ.toLowerCase();
+      if(!(t.subj.toLowerCase().includes(q)||t.customer.toLowerCase().includes(q)||t.id.toLowerCase().includes(q)||t.snippet.toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
+}
+
+function renderList(){
+  const list=document.getElementById("ticketList");
+  const data=filtered();
+  if(!data.length){
+    list.innerHTML=`<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <p>No tickets match these filters.</p></div>`;
+    return;
+  }
+  list.innerHTML=data.map(t=>{
+    const cc=CATS[t.cat];
+    const col=confColor(t.conf);
+    return `<div class="ticket ${t.id===selectedId?'sel':''}" data-id="${t.id}">
+      <div class="prio ${t.prio}" title="${t.prio} priority"></div>
+      <div class="t-body">
+        <div class="t-top">
+          <span class="t-id">${t.id}</span>
+          <span class="t-subj">${t.subj}</span>
+        </div>
+        <div class="t-snippet">${t.snippet}</div>
+        <div class="t-meta">
+          <span class="pill ${cc.cls}"><span class="d" style="background:${cc.color}"></span>${t.cat}</span>
+          <span class="pill cat-other">→ ${cc.team}</span>
+          ${t.review?'<span class="needs-review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Needs review</span>':''}
+        </div>
+      </div>
+      <div class="t-right">
+        <span class="t-time">${t.time}</span>
+        <div class="conf">
+          <div class="conf-label">${t.conf>=80?'auto-routed':'low conf.'}</div>
+          <div class="ring">${ring(t.conf,30,3,col)}<span class="pct" style="color:${col}">${t.conf}</span></div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  document.querySelectorAll(".ticket").forEach(el=>el.addEventListener("click",()=>openDrawer(el.dataset.id)));
+}
+
+/* ===================== TAB / FILTER COUNTS ===================== */
+function updateCounts(){
+  document.getElementById("cAll").textContent=TICKETS.length;
+  document.getElementById("cUrgent").textContent=TICKETS.filter(t=>t.prio==="urgent").length;
+  document.getElementById("cReview").textContent=TICKETS.filter(t=>t.review).length;
+  document.getElementById("navQueue").textContent=TICKETS.length;
+}
+
+/* ===================== DRAWER ===================== */
+function openDrawer(id){
+  const t=TICKETS.find(x=>x.id===id); if(!t) return;
+  selectedId=id; renderList();
+  const cc=CATS[t.cat], col=confColor(t.conf);
+  document.getElementById("drId").textContent=t.id+"  ·  "+t.plan+" plan";
+  document.getElementById("drSubj").textContent=t.subj;
+  const initials=t.customer.split(" ").map(s=>s[0]).join("").slice(0,2);
+  const avColors=["#0891b2","#c17a08","#7c5ade","#0e8fb0","#0f9d6b","#dc4257"];
+  const av=avColors[t.id.charCodeAt(5)%avColors.length];
+
+  const fieldsHtml=Object.entries(t.fields).map(([k,v],i)=>{
+    const fconf=[97,94,91,86,82][i%5];
+    return `<div class="field">
+      <div class="fl">${k}<span class="cb ${cbClass(fconf)}">${fconf}%</span></div>
+      <div class="fv">${v}</div>
+    </div>`;
+  }).join("");
+
+  const altsHtml=t.alts.map(a=>`<div class="alt-row">
+      <span class="pill ${CATS[a[0]].cls}"><span class="d" style="background:${CATS[a[0]].color}"></span>${a[0]}</span>
+      <div class="pbar"><i style="width:${Math.max(a[1],4)}%"></i></div>
+      <span class="pv">${a[1]}%</span>
+    </div>`).join("");
+
+  document.getElementById("drBody").innerHTML=`
+    <div class="dr-sec">
+      <div class="st">Customer Message</div>
+      <div class="dr-msg">
+        <div class="who">
+          <span class="av" style="background:${av}">${initials}</span>
+          <div><div class="nm">${t.customer}</div><div class="em">${t.email}</div></div>
+          <span class="pill cat-other" style="margin-left:auto">${t.sentiment}</span>
+        </div>
+        ${t.snippet} Could you take a look as soon as possible? Happy to share more details if that helps.
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <div class="st"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg>AI Classification</div>
+      <div class="ai-panel">
+        <div class="ap-top">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg></div>
+          <div><div class="tt">Classifier v4.2</div><div class="tg">Analyzed ${t.time} · 1.4s</div></div>
+        </div>
+        <div class="verdict">
+          <div class="gauge">${ring(t.conf,58,6,col)}<div class="lab"><b style="color:${col}">${t.conf}%</b><span>confidence</span></div></div>
+          <div>
+            <div style="font-size:10px;color:var(--txt-mute);text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:4px">Predicted Category</div>
+            <div style="font-size:19px;font-weight:700;margin-bottom:5px">${t.cat}</div>
+            <span class="pill cat-other">→ routed to ${cc.team}</span>
+          </div>
+        </div>
+        <div class="reason"><b>Why:</b> ${t.reason}</div>
+        <div style="font-size:10px;color:var(--txt-mute);text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin:14px 0 9px">Extracted Fields</div>
+        <div class="dr-fields">${fieldsHtml}</div>
+        <div class="alt-routes">
+          <div class="at" style="margin-top:14px">Alternative routes considered</div>
+          ${altsHtml}
+        </div>
+      </div>
+    </div>
+
+    ${t.review?`<div class="accept-bar" style="background:rgba(193,122,8,.09);border-color:rgba(193,122,8,.3)"><svg viewBox="0 0 24 24" fill="none" stroke="#c17a08" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg><span style="color:#9a6206">Confidence below 80% — please confirm or correct the category.</span></div>`:`<div class="accept-bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Auto-routed by AI — no action needed.</div>`}
+
+    <div class="dr-sec">
+      <div class="st">Review &amp; Correct</div>
+      <div class="review-actions">
+        <button class="btn primary" data-act="accept">Accept routing</button>
+        <button class="btn" data-act="reassign">Re-assign category</button>
+        <button class="btn" data-act="merge">Mark duplicate</button>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <div class="st">Routing Timeline</div>
+      <div class="timeline">
+        <div class="tl-item done"><div class="dot"></div><div class="tt">Ticket received via email</div><div class="tm">${t.time}</div></div>
+        <div class="tl-item done"><div class="dot"></div><div class="tt">AI classified as ${t.cat} (${t.conf}%)</div><div class="tm">${t.time} · 1.4s later</div></div>
+        <div class="tl-item ${t.review?'':'done'}"><div class="dot"></div><div class="tt">${t.review?'Awaiting human review':'Routed to '+cc.team}</div><div class="tm">${t.review?'pending':t.time}</div></div>
+        <div class="tl-item"><div class="dot"></div><div class="tt">Assigned to agent</div><div class="tm">queued</div></div>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <div class="st">AI-suggested Tags</div>
+      <div class="tag-row">${t.tags.map(tg=>`<span class="tag">#${tg}</span>`).join("")}</div>
+    </div>
+  `;
+
+  document.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()=>{
+    const m={accept:"Routing accepted — ticket assigned.",reassign:"Category re-assigned. Model feedback logged.",merge:"Marked as duplicate and merged."}[b.dataset.act];
+    toast(m); closeDrawer();
+  }));
+
+  document.getElementById("scrim").classList.add("open");
+  document.getElementById("drawer").classList.add("open");
+}
+function closeDrawer(){
+  document.getElementById("scrim").classList.remove("open");
+  document.getElementById("drawer").classList.remove("open");
+}
+document.getElementById("drClose").addEventListener("click",closeDrawer);
+document.getElementById("scrim").addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
+
+/* ===================== TABS & FILTERS ===================== */
+document.querySelectorAll("#prioTabs .tab").forEach(tab=>{
+  tab.addEventListener("click",()=>{
+    document.querySelectorAll("#prioTabs .tab").forEach(t=>t.classList.remove("active"));
+    tab.classList.add("active"); activeTab=tab.dataset.tab;
+    const d={all:"AI-classified, ordered by priority",urgent:"Urgent tickets flagged by the classifier",review:"Below-threshold — awaiting your confirmation"};
+    document.getElementById("listDesc").textContent=d[activeTab];
+    renderList();
+  });
+});
+document.querySelectorAll("#catFilter .chip").forEach(chip=>{
+  chip.addEventListener("click",()=>{
+    document.querySelectorAll("#catFilter .chip").forEach(c=>c.classList.remove("active"));
+    chip.classList.add("active"); activeCat=chip.dataset.cat; renderList();
+  });
+});
+document.getElementById("searchBox").addEventListener("input",e=>{searchQ=e.target.value;renderList();});
+document.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();document.getElementById("searchBox").focus();}
+});
+
+/* ===================== DONUT CHART ===================== */
+function renderDonut(){
+  const counts={};
+  TICKETS.forEach(t=>counts[t.cat]=(counts[t.cat]||0)+1);
+  // weighted to feel like 312 over 7 days
+  const weights={"Bug Report":94,"Billing":71,"Technical":63,"Account":41,"Feature Request":28,"Other":15};
+  const entries=Object.keys(CATS).map(k=>[k,weights[k]||0]).filter(e=>e[1]>0);
+  const total=entries.reduce((s,e)=>s+e[1],0);
+  const size=138, stroke=20, r=(size-stroke)/2, c=2*Math.PI*r;
+  let offset=0;
+  const segs=entries.map(([k,v])=>{
+    const frac=v/total, len=c*frac, dash=`${len} ${c-len}`;
+    const seg=`<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${CATS[k].color}" stroke-width="${stroke}" stroke-dasharray="${dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${size/2} ${size/2})"><title>${k}: ${v}</title></circle>`;
+    offset+=len; return seg;
+  }).join("");
+  document.getElementById("donut").innerHTML=`<svg width="${size}" height="${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#eef1f4" stroke-width="${stroke}"/>${segs}</svg>
+    <div class="center"><b>${total}</b><span>tickets</span></div>`;
+  document.getElementById("donutLegend").innerHTML=entries.map(([k,v])=>
+    `<div class="leg"><span class="sw" style="background:${CATS[k].color}"></span>${k} <b>${Math.round(v/total*100)}%</b></div>`).join("");
+}
+
+/* ===================== ACTIVITY FEED ===================== */
+function renderFeed(){
+  document.getElementById("feed").innerHTML=FEED.map(f=>`
+    <div class="feed-item">
+      <div class="feed-ico fi-${f.type}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${f.icon}</svg></div>
+      <div><div class="feed-txt">${f.txt}</div><div class="feed-time">${f.time}</div></div>
+    </div>`).join("");
+}
+
+/* ===================== ANALYZE / COMPOSER ===================== */
+const SAMPLE="I was charged twice on my March invoice — $89 each — and now the CSV export of my billing history fails with a 500 error. Please refund the duplicate and let me know about the export issue.";
+function classifyText(txt){
+  const t=txt.toLowerCase();
+  const score={Billing:0,"Bug Report":0,Technical:0,Account:0,"Feature Request":0,Other:1};
+  const kw={
+    Billing:["charge","invoice","refund","billing","payment","price","subscription","$","plan","discount","vat","promo"],
+    "Bug Report":["error","500","crash","bug","fails","broken","404","429","truncat","drop","stuck"],
+    Technical:["sso","api","sync","connector","integration","rate limit","saml","webhook","config"],
+    Account:["login","password","2fa","reset","account","locked","sso","contact","mfa"],
+    "Feature Request":["add","feature","would love","dark mode","please add","suggestion","integration","notification"]
+  };
+  Object.entries(kw).forEach(([cat,words])=>words.forEach(w=>{if(t.includes(w))score[cat]+=1;}));
+  const sorted=Object.entries(score).sort((a,b)=>b[1]-a[1]);
+  const top=sorted[0], second=sorted[1];
+  const sum=sorted.reduce((s,e)=>s+e[1],0)||1;
+  let conf=Math.min(97,Math.round(55+ (top[1]/sum)*45 + top[1]*4));
+  if(top[1]===0){conf=58;}
+  return {cat:top[0],conf,alts:sorted.slice(1,3).map(e=>[e[0],Math.max(2,Math.round(e[1]/sum*100))])};
+}
+
+function runAnalyze(){
+  const txt=document.getElementById("composeInput").value.trim();
+  if(!txt){ document.getElementById("composeInput").focus(); toast("Paste a ticket message first."); return; }
+  const btn=document.getElementById("analyzeBtn");
+  btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>Analyzing…';
+  btn.disabled=true;
+  setTimeout(()=>{
+    const res=classifyText(txt);
+    const cc=CATS[res.cat], col=confColor(res.conf);
+    document.getElementById("aoCat").textContent=res.cat;
+    document.getElementById("aoCat").style.color=cc.color;
+    document.getElementById("aoGauge").innerHTML=ring(res.conf,58,6,col)+`<div class="lab"><b style="color:${col}">${res.conf}%</b><span>confidence</span></div>`;
+    document.getElementById("aoTime").textContent="just now · 1.3s";
+    const blurbs={
+      Billing:"Detected billing terms (invoice, refund, charge). Routed to Finance Ops.",
+      "Bug Report":"Found defect signals (error / 500 / fails). Routed to Engineering Triage.",
+      Technical:"Platform / integration keywords dominate. Routed to Platform Support.",
+      Account:"Authentication and account-access terms present. Routed to Account Security.",
+      "Feature Request":"Phrased as an enhancement request. Routed to Product Backlog.",
+      Other:"No strong category signal — sending to the General Queue for review."
+    };
+    document.getElementById("aoReason").innerHTML=`<b>Why:</b> ${blurbs[res.cat]} → <b>${cc.team}</b>`;
+    // simple extracted fields from text
+    const amt=(txt.match(/\$\s?\d+(\.\d+)?/)||[])[0];
+    const code=(txt.match(/\b(500|404|429|403)\b/)||[])[0];
+    const fields=[
+      ["Primary Intent", res.cat==="Bug Report"?"Defect report": res.cat==="Billing"?"Financial request": res.cat],
+      ["Detected Amount", amt||"—"],
+      ["Error Signal", code?("HTTP "+code):"none"],
+      ["Suggested Priority", (code||/refund|charged|locked|urgent/i.test(txt))?"High":"Medium"]
+    ];
+    document.getElementById("aoExtract").innerHTML=fields.map((f,i)=>{
+      const fc=[94,88,91,82][i];
+      return `<div class="field"><div class="fl">${f[0]}<span class="cb ${cbClass(fc)}">${fc}%</span></div><div class="fv">${f[1]}</div></div>`;
+    }).join("");
+    document.getElementById("aoAlts").innerHTML=res.alts.map(a=>`<div class="alt-row">
+        <span class="pill ${CATS[a[0]].cls}"><span class="d" style="background:${CATS[a[0]].color}"></span>${a[0]}</span>
+        <div class="pbar"><i style="width:${Math.max(a[1],4)}%"></i></div>
+        <span class="pv">${a[1]}%</span></div>`).join("");
+    document.getElementById("analyzeOut").classList.add("show");
+    btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg>Analyze & Route';
+    btn.disabled=false;
+  },820);
+}
+document.getElementById("analyzeBtn").addEventListener("click",runAnalyze);
+document.getElementById("sampleBtn").addEventListener("click",()=>{
+  document.getElementById("composeInput").value=SAMPLE;
+  document.getElementById("composeInput").focus();
+});
+
+/* spin keyframe injected */
+const style=document.createElement("style");
+style.textContent="@keyframes spin{to{transform:rotate(360deg)}}";
+document.head.appendChild(style);
+
+/* ===================== TOAST ===================== */
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById("toast");
+  document.getElementById("toastMsg").textContent=msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove("show"),2600);
+}
+
+/* ===================== TOP BAR ACTIONS ===================== */
+document.getElementById("refreshBtn").addEventListener("click",()=>toast("Queue refreshed — 0 new tickets."));
+document.getElementById("reclassifyAll").addEventListener("click",()=>{
+  const btn=document.getElementById("reclassifyAll");
+  btn.style.opacity=".7"; btn.disabled=true;
+  toast("Re-running classifier v4.2 on 24 tickets…");
+  setTimeout(()=>{btn.style.opacity="1";btn.disabled=false;toast("Re-classified 24 tickets · 22 auto-routed, 2 to review.");},1400);
+});
+
+/* ===================== INIT ===================== */
+updateCounts();
+renderList();
+renderDonut();
+renderFeed();
+</script>
+</body>
+</html>

@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linear — Issue Tracker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --surface-hover: #f5f5f5;
+    --surface-active: #f0f0f0;
+    --border: #e8e8e8;
+    --border-light: #f0f0f0;
+    --text-primary: #1a1a1a;
+    --text-secondary: #595959;
+    --text-tertiary: #8c8c8c;
+    --text-disabled: #bfbfbf;
+    --accent: #4f46e5;
+    --accent-light: #ede9fe;
+    --accent-hover: #4338ca;
+    --nav-bg: #f8f8fa;
+    --nav-border: #ebebef;
+    --nav-text: #44444f;
+    --nav-active: #4f46e5;
+    --nav-active-bg: #ede9fe;
+
+    /* Status colors */
+    --status-backlog: #8c8c8c;
+    --status-todo: #595959;
+    --status-inprogress: #4f46e5;
+    --status-review: #d97706;
+    --status-done: #16a34a;
+    --status-cancelled: #dc2626;
+
+    /* Priority colors */
+    --prio-urgent: #dc2626;
+    --prio-high: #ea580c;
+    --prio-medium: #d97706;
+    --prio-low: #6b7280;
+    --prio-none: #d1d5db;
+
+    --radius-sm: 4px;
+    --radius: 6px;
+    --radius-lg: 8px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  body {
+    font-family: var(--font);
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ─── TOP BAR ─── */
+  .topbar {
+    height: 40px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-right: 4px;
+  }
+
+  .topbar-logo-icon {
+    width: 20px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .topbar-logo-icon svg { color: white; }
+
+  .topbar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+
+  .topbar-workspace {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+  }
+  .topbar-workspace:hover { background: var(--surface-hover); }
+
+  .ws-avatar {
+    width: 18px; height: 18px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .topbar-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-tertiary);
+    font-size: 12.5px;
+  }
+  .topbar-breadcrumb .crumb { color: var(--text-secondary); font-weight: 500; }
+  .topbar-breadcrumb .sep { color: var(--text-disabled); }
+
+  .topbar-spacer { flex: 1; }
+
+  .topbar-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border: 1px solid transparent;
+    background: none;
+    transition: background 0.1s;
+  }
+  .topbar-btn:hover { background: var(--surface-hover); }
+  .topbar-btn.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+  .topbar-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+  .cmd-hint {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    background: var(--surface);
+    gap: 5px;
+  }
+  .cmd-hint:hover { border-color: #d0d0d0; color: var(--text-secondary); }
+  .cmd-hint kbd {
+    font-family: var(--font);
+    font-size: 11px;
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 4px;
+    color: var(--text-tertiary);
+    line-height: 1.4;
+  }
+
+  /* ─── LAYOUT ─── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    width: 216px;
+    flex-shrink: 0;
+    background: var(--nav-bg);
+    border-right: 1px solid var(--nav-border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0 16px;
+  }
+
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+  .sidebar-section-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-disabled);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 12px 12px 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    margin: 0 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--nav-text);
+    font-size: 12.5px;
+    user-select: none;
+    position: relative;
+  }
+  .nav-item:hover { background: var(--surface-active); }
+  .nav-item.active {
+    background: var(--nav-active-bg);
+    color: var(--nav-active);
+    font-weight: 500;
+  }
+  .nav-item .nav-icon { opacity: 0.65; flex-shrink: 0; }
+  .nav-item.active .nav-icon { opacity: 1; }
+  .nav-count {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-disabled);
+    font-variant-numeric: tabular-nums;
+  }
+  .nav-item.active .nav-count { color: var(--accent); }
+
+  .nav-project-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--nav-border);
+    margin: 8px 12px;
+  }
+
+  /* ─── MAIN CONTENT ─── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  /* ─── TOOLBAR ─── */
+  .toolbar {
+    height: 44px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .toolbar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-right: 4px;
+  }
+
+  .toolbar-spacer { flex: 1; }
+
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .filter-chip {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    background: var(--surface);
+    white-space: nowrap;
+    transition: all 0.1s;
+  }
+  .filter-chip:hover { border-color: #bbb; color: var(--text-primary); }
+  .filter-chip.active {
+    background: var(--accent-light);
+    border-color: #c4b5fd;
+    color: var(--accent);
+  }
+  .filter-chip .chip-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+
+  .search-box {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    min-width: 180px;
+  }
+  .search-box input {
+    border: none;
+    background: none;
+    outline: none;
+    font-size: 12px;
+    color: var(--text-primary);
+    font-family: var(--font);
+    width: 100%;
+  }
+  .search-box input::placeholder { color: var(--text-tertiary); }
+
+  .view-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .view-btn {
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    background: var(--surface);
+    border: none;
+    display: flex; align-items: center;
+    transition: background 0.1s;
+  }
+  .view-btn:hover { background: var(--surface-hover); }
+  .view-btn.active { background: var(--surface-active); color: var(--text-primary); }
+  .view-btn + .view-btn { border-left: 1px solid var(--border); }
+
+  /* ─── FILTER TABS ─── */
+  .filter-tabs {
+    height: 38px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: stretch;
+    padding: 0 16px;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .filter-tab {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 10px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    transition: color 0.1s;
+  }
+  .filter-tab:hover { color: var(--text-secondary); }
+  .filter-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 500;
+  }
+  .filter-tab .tab-count {
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border-radius: 99px;
+    background: var(--surface-active);
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  .filter-tab.active .tab-count {
+    background: var(--accent-light);
+    color: var(--accent);
+  }
+
+  .tabs-spacer { flex: 1; }
+
+  .group-by {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .group-by:hover { color: var(--text-secondary); }
+
+  /* ─── ISSUE LIST ─── */
+  .issue-list-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .issue-list-wrapper::-webkit-scrollbar { width: 5px; }
+  .issue-list-wrapper::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 3px; }
+
+  .issue-group {
+    margin-bottom: 0;
+  }
+
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px 6px;
+    position: sticky;
+    top: 0;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(4px);
+    z-index: 5;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .group-header:hover { background: rgba(250,250,250,0.98); }
+
+  .group-header-toggle {
+    color: var(--text-disabled);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .group-header-toggle.collapsed { transform: rotate(-90deg); }
+
+  .group-status-icon { flex-shrink: 0; }
+
+  .group-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .group-count {
+    font-size: 11px;
+    color: var(--text-disabled);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .group-add {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 3px;
+    font-size: 11.5px;
+    color: var(--text-disabled);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+  }
+  .group-add:hover { color: var(--accent); background: var(--accent-light); }
+
+  /* ─── ISSUE ROW ─── */
+  .issue-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 16px;
+    height: 36px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.08s;
+    position: relative;
+  }
+  .issue-row:hover { background: var(--surface-hover); }
+  .issue-row.selected {
+    background: #f0eeff;
+    border-bottom-color: #e5e0ff;
+  }
+  .issue-row:hover .row-actions { opacity: 1; }
+
+  .row-check {
+    width: 24px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+  .issue-row:hover .row-check, .issue-row.selected .row-check { opacity: 1; }
+  .row-check input[type=checkbox] {
+    width: 13px; height: 13px;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+
+  .row-status {
+    width: 28px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .row-priority {
+    width: 20px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .row-title-area {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 6px;
+  }
+
+  .row-title {
+    font-size: 12.5px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .issue-tags {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .tag {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+
+  .tag-bug { background: #fff1f0; color: #cf1322; border-color: #ffa39e; }
+  .tag-feat { background: #f0f5ff; color: #2f54eb; border-color: #adc6ff; }
+  .tag-perf { background: #f6ffed; color: #389e0d; border-color: #95de64; }
+  .tag-security { background: #fff7e6; color: #d46b08; border-color: #ffd591; }
+  .tag-dx { background: #f9f0ff; color: #722ed1; border-color: #d3adf7; }
+  .tag-infra { background: #e6fffb; color: #08979c; border-color: #87e8de; }
+  .tag-ux { background: #fff0f6; color: #c41d7f; border-color: #ffadd2; }
+  .tag-api { background: #f0f5ff; color: #1d4ed8; border-color: #93c5fd; }
+  .tag-test { background: #f5f5f5; color: #595959; border-color: #d9d9d9; }
+  .tag-data { background: #fffbe6; color: #d48806; border-color: #ffe58f; }
+
+  .row-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    padding-left: 8px;
+  }
+
+  .row-assignee {
+    display: flex;
+    align-items: center;
+  }
+
+  .avatar {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 700;
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    letter-spacing: -0.3px;
+  }
+
+  .row-id {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-disabled);
+    min-width: 56px;
+    text-align: right;
+    letter-spacing: -0.3px;
+  }
+
+  .row-time {
+    font-size: 11px;
+    color: var(--text-disabled);
+    min-width: 36px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .row-actions {
+    opacity: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  .row-action-btn {
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    border: none; background: none;
+  }
+  .row-action-btn:hover { background: var(--surface-active); color: var(--text-secondary); }
+
+  /* Status icons */
+  .status-icon {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .status-backlog { border: 1.5px dashed var(--status-backlog); }
+  .status-todo { border: 1.5px solid var(--status-todo); }
+  .status-inprogress {
+    border: 1.5px solid var(--status-inprogress);
+    background: conic-gradient(var(--status-inprogress) 0 50%, transparent 50%);
+    position: relative;
+    overflow: hidden;
+  }
+  .status-inprogress::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 50%;
+    background: white;
+  }
+  .status-review {
+    border: 1.5px solid var(--status-review);
+    background: conic-gradient(var(--status-review) 0 75%, transparent 75%);
+    position: relative;
+    overflow: hidden;
+  }
+  .status-review::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: 50%;
+    background: white;
+  }
+  .status-done { background: var(--status-done); }
+  .status-done::after { content: '✓'; color: white; font-size: 9px; font-weight: 700; }
+  .status-cancelled { background: var(--status-cancelled); }
+  .status-cancelled::after { content: '×'; color: white; font-size: 12px; line-height: 1; }
+
+  /* Priority icons */
+  .prio-icon {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    height: 12px;
+  }
+  .prio-bar { width: 3px; border-radius: 1px; }
+  .prio-none .prio-bar { background: var(--prio-none); }
+  .prio-low .prio-bar:nth-child(1) { height: 4px; background: var(--prio-low); }
+  .prio-low .prio-bar:nth-child(2) { height: 7px; background: var(--border); }
+  .prio-low .prio-bar:nth-child(3) { height: 10px; background: var(--border); }
+  .prio-medium .prio-bar:nth-child(1) { height: 4px; background: var(--prio-medium); }
+  .prio-medium .prio-bar:nth-child(2) { height: 7px; background: var(--prio-medium); }
+  .prio-medium .prio-bar:nth-child(3) { height: 10px; background: var(--border); }
+  .prio-high .prio-bar:nth-child(1) { height: 4px; background: var(--prio-high); }
+  .prio-high .prio-bar:nth-child(2) { height: 7px; background: var(--prio-high); }
+  .prio-high .prio-bar:nth-child(3) { height: 10px; background: var(--prio-high); }
+  .prio-urgent .prio-bar { background: var(--prio-urgent) !important; }
+  .prio-urgent .prio-bar:nth-child(1) { height: 4px; }
+  .prio-urgent .prio-bar:nth-child(2) { height: 7px; }
+  .prio-urgent .prio-bar:nth-child(3) { height: 10px; }
+
+  /* ─── EMPTY / LOADING ─── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--text-tertiary);
+    gap: 8px;
+  }
+  .empty-state svg { opacity: 0.3; }
+  .empty-state p { font-size: 13px; }
+
+  /* ─── STATUS BAR ─── */
+  .statusbar {
+    height: 28px;
+    background: var(--nav-bg);
+    border-top: 1px solid var(--nav-border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    flex-shrink: 0;
+    color: var(--text-disabled);
+    font-size: 11px;
+  }
+  .statusbar-item { display: flex; align-items: center; gap: 4px; }
+  .statusbar-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* ─── COMMAND PALETTE ─── */
+  .cmd-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 80px;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  .cmd-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .cmd-palette {
+    width: 560px;
+    max-width: calc(100vw - 32px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+    overflow: hidden;
+    transform: translateY(-6px);
+    transition: transform 0.15s;
+  }
+  .cmd-overlay.visible .cmd-palette { transform: translateY(0); }
+
+  .cmd-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .cmd-input-wrap svg { color: var(--text-tertiary); flex-shrink: 0; }
+  .cmd-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    font-family: var(--font);
+    color: var(--text-primary);
+    background: none;
+  }
+  .cmd-input::placeholder { color: var(--text-tertiary); }
+  .cmd-esc {
+    font-size: 11px;
+    color: var(--text-disabled);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: var(--font);
+  }
+
+  .cmd-section-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-disabled);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 10px 16px 4px;
+  }
+
+  .cmd-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .cmd-item:hover, .cmd-item.focused {
+    background: var(--accent-light);
+    color: var(--accent);
+  }
+  .cmd-item .cmd-item-icon { color: var(--text-tertiary); flex-shrink: 0; }
+  .cmd-item:hover .cmd-item-icon, .cmd-item.focused .cmd-item-icon { color: var(--accent); }
+  .cmd-item-shortcut {
+    margin-left: auto;
+    display: flex; gap: 3px;
+  }
+  .cmd-item-shortcut kbd {
+    font-size: 10.5px;
+    font-family: var(--font);
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--text-tertiary);
+  }
+  .cmd-item:hover .cmd-item-shortcut kbd,
+  .cmd-item.focused .cmd-item-shortcut kbd {
+    background: #ddd8ff;
+    border-color: #c4b5fd;
+    color: var(--accent);
+  }
+
+  .cmd-footer {
+    border-top: 1px solid var(--border-light);
+    padding: 8px 16px;
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-disabled);
+  }
+  .cmd-footer-hint { display: flex; align-items: center; gap: 4px; }
+  .cmd-footer-hint kbd {
+    font-family: var(--font);
+    font-size: 10px;
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+
+  /* ─── ISSUE DETAIL PANEL ─── */
+  .detail-panel {
+    width: 380px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateX(100%);
+    transition: transform 0.2s;
+  }
+  .detail-panel.open {
+    transform: translateX(0);
+  }
+
+  .detail-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .detail-close {
+    margin-left: auto;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    padding: 2px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .detail-close:hover { background: var(--surface-active); color: var(--text-secondary); }
+
+  .detail-id {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-disabled);
+    margin-bottom: 4px;
+  }
+
+  .detail-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+
+  .detail-body { flex: 1; overflow-y: auto; padding: 16px; }
+  .detail-body::-webkit-scrollbar { width: 3px; }
+  .detail-body::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 2px; }
+
+  .detail-prop-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 12px;
+  }
+  .detail-prop-label {
+    width: 80px;
+    flex-shrink: 0;
+    color: var(--text-tertiary);
+  }
+  .detail-prop-value {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-secondary);
+  }
+
+  .detail-desc {
+    margin-top: 16px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .detail-desc p { margin-bottom: 8px; }
+  .detail-desc code {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0 4px;
+    color: var(--text-primary);
+  }
+
+  .detail-activity-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 20px;
+    margin-bottom: 10px;
+  }
+
+  .activity-item {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .activity-avatar { flex-shrink: 0; margin-top: 1px; }
+  .activity-text { line-height: 1.5; }
+  .activity-text strong { color: var(--text-primary); font-weight: 500; }
+  .activity-time { color: var(--text-disabled); font-size: 11px; }
+
+  /* Highlight row */
+  @keyframes rowHighlight {
+    0% { background: var(--accent-light); }
+    100% { background: transparent; }
+  }
+  .issue-row.highlight { animation: rowHighlight 1.2s ease-out; }
+
+  /* scrollbar */
+  .issue-list-wrapper::-webkit-scrollbar { width: 5px; }
+  .issue-list-wrapper::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="topbar-logo-icon">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <rect x="1" y="1" width="4.5" height="4.5" rx="1" fill="white"/>
+        <rect x="6.5" y="1" width="4.5" height="4.5" rx="1" fill="white" opacity="0.6"/>
+        <rect x="1" y="6.5" width="4.5" height="4.5" rx="1" fill="white" opacity="0.6"/>
+        <rect x="6.5" y="6.5" width="4.5" height="4.5" rx="1" fill="white" opacity="0.3"/>
+      </svg>
+    </div>
+    Track
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-workspace">
+    <div class="ws-avatar">E</div>
+    Engram
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-breadcrumb">
+    <span class="crumb">Engineering</span>
+    <span class="sep">/</span>
+    <span class="crumb">Active Issues</span>
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="cmd-hint" id="cmdTrigger">
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="m10 10 2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    Search or run command
+    <kbd>⌘K</kbd>
+  </div>
+  <div class="topbar-sep"></div>
+  <button class="topbar-btn primary" id="newIssueTrigger">
+    <svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    New Issue
+  </button>
+  <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#a855f7);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;flex-shrink:0;">AK</div>
+</div>
+
+<!-- APP BODY -->
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-section-label">My Work</div>
+    <div class="nav-item" data-filter="mine">
+      <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="4.5" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 12c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+      My Issues
+      <span class="nav-count">8</span>
+    </div>
+    <div class="nav-item" data-filter="starred">
+      <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5l1.6 3.2 3.6.52-2.6 2.53.61 3.56L7 9.5l-3.21 1.85.61-3.56L1.8 5.22l3.6-.52L7 1.5z" stroke="currentColor" stroke-width="1.4"/></svg></span>
+      Starred
+      <span class="nav-count">3</span>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Views</div>
+
+    <div class="nav-item active" data-filter="active">
+      <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M7 4v3.5l2 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+      Active
+      <span class="nav-count">24</span>
+    </div>
+    <div class="nav-item" data-filter="backlog">
+      <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2"/></svg></span>
+      Backlog
+      <span class="nav-count">41</span>
+    </div>
+    <div class="nav-item" data-filter="all">
+      <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 5h5M4.5 7h5M4.5 9h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+      All Issues
+      <span class="nav-count">65</span>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Projects</div>
+
+    <div class="nav-item" data-project="core">
+      <div class="nav-project-dot" style="background:#4f46e5;"></div>
+      Core Platform
+      <span class="nav-count">18</span>
+    </div>
+    <div class="nav-item" data-project="api">
+      <div class="nav-project-dot" style="background:#0891b2;"></div>
+      API Gateway
+      <span class="nav-count">12</span>
+    </div>
+    <div class="nav-item" data-project="frontend">
+      <div class="nav-project-dot" style="background:#7c3aed;"></div>
+      Frontend
+      <span class="nav-count">9</span>
+    </div>
+    <div class="nav-item" data-project="infra">
+      <div class="nav-project-dot" style="background:#047857;"></div>
+      Infrastructure
+      <span class="nav-count">15</span>
+    </div>
+    <div class="nav-item" data-project="mobile">
+      <div class="nav-project-dot" style="background:#dc2626;"></div>
+      Mobile
+      <span class="nav-count">11</span>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Team</div>
+
+    <div class="nav-item" data-filter="cycles">
+      <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7a5 5 0 0 1 9.5-2.2M12 7a5 5 0 0 1-9.5 2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10.5 2.5l1 2.3-2.3 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Cycles
+    </div>
+    <div class="nav-item" data-filter="roadmap">
+      <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1.5 10.5L5 4l3.5 3 3-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Roadmap
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main" id="mainContent">
+
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+      <span class="toolbar-title">Active Issues</span>
+      <div class="topbar-sep" style="margin:0 4px;"></div>
+      <div class="filter-bar">
+        <div class="filter-chip active" data-filterset="status">
+          <svg width="11" height="11" viewBox="0 0 11 11"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.3" stroke-dasharray="2 2"/></svg>
+          Status
+        </div>
+        <div class="filter-chip" data-filterset="priority">
+          <div class="chip-dot" style="background:var(--prio-medium)"></div>
+          Priority
+        </div>
+        <div class="filter-chip" data-filterset="assignee">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="3.5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 10c0-2.2 1.79-4 4-4s4 1.8 4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          Assignee
+        </div>
+        <div class="filter-chip" data-filterset="label">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5L5.5 1.5h4v4l-4 4-4-4z" stroke="currentColor" stroke-width="1.2"/><circle cx="7.5" cy="3.5" r="0.8" fill="currentColor"/></svg>
+          Label
+        </div>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <div class="search-box">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="#8c8c8c" stroke-width="1.4"/><path d="m9 9 2.5 2.5" stroke="#8c8c8c" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <input type="text" placeholder="Search issues…" id="searchInput" />
+      </div>
+      <div class="view-toggle">
+        <button class="view-btn active" title="List view">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="2.5" width="10" height="1.5" rx=".5" fill="currentColor"/><rect x="1.5" y="5.5" width="10" height="1.5" rx=".5" fill="currentColor"/><rect x="1.5" y="8.5" width="6" height="1.5" rx=".5" fill="currentColor"/></svg>
+        </button>
+        <button class="view-btn" title="Board view">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="3.5" height="11" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="5.5" y="1" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="10" y="1" width="3.5" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- FILTER TABS -->
+    <div class="filter-tabs">
+      <div class="filter-tab active" data-tab="all">
+        All <span class="tab-count">24</span>
+      </div>
+      <div class="filter-tab" data-tab="inprogress">
+        In Progress <span class="tab-count">8</span>
+      </div>
+      <div class="filter-tab" data-tab="review">
+        In Review <span class="tab-count">4</span>
+      </div>
+      <div class="filter-tab" data-tab="todo">
+        Todo <span class="tab-count">12</span>
+      </div>
+      <div class="filter-tab" data-tab="done">
+        Done <span class="tab-count">23</span>
+      </div>
+      <div class="tabs-spacer"></div>
+      <div class="group-by">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="1" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="7" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="7" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+        Group: Status
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2.5 3.5l2.5 3 2.5-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <!-- ISSUE LIST -->
+    <div class="issue-list-wrapper" id="issueList">
+      <!-- generated by JS -->
+    </div>
+
+  </div>
+
+  <!-- DETAIL PANEL -->
+  <aside class="detail-panel" id="detailPanel">
+    <div class="detail-header">
+      <div style="flex:1;min-width:0;">
+        <div class="detail-id" id="dp-id">ENG-001</div>
+        <div class="detail-title" id="dp-title">Issue title</div>
+      </div>
+      <div class="detail-close" id="detailClose">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+    <div class="detail-body" id="dp-body">
+    </div>
+  </aside>
+
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <div class="statusbar-item">
+    <div class="statusbar-dot" style="background:#16a34a;"></div>
+    All systems operational
+  </div>
+  <div class="statusbar-item" style="margin-left:auto;">
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 3v2.5l1.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    Sprint 24 · 8 days left
+  </div>
+  <span>·</span>
+  <span id="statusbarCount">24 issues</span>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div class="cmd-overlay" id="cmdOverlay">
+  <div class="cmd-palette">
+    <div class="cmd-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.6"/><path d="m12 12 2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input class="cmd-input" type="text" placeholder="Search issues or run a command…" id="cmdInput" />
+      <span class="cmd-esc">esc</span>
+    </div>
+    <div class="cmd-section-label">Actions</div>
+    <div class="cmd-item focused" tabindex="0">
+      <span class="cmd-item-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+      Create new issue
+      <div class="cmd-item-shortcut"><kbd>C</kbd></div>
+    </div>
+    <div class="cmd-item" tabindex="0">
+      <span class="cmd-item-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7a5 5 0 0 1 9.5-2.2M12 7a5 5 0 0 1-9.5 2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+      Start new cycle
+      <div class="cmd-item-shortcut"><kbd>⌘</kbd><kbd>N</kbd></div>
+    </div>
+    <div class="cmd-item" tabindex="0">
+      <span class="cmd-item-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h7M2 10h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+      View my issues
+      <div class="cmd-item-shortcut"><kbd>M</kbd></div>
+    </div>
+    <div class="cmd-item" tabindex="0">
+      <span class="cmd-item-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M7 4.5v3l1.5 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+      Set due date on selected
+      <div class="cmd-item-shortcut"><kbd>D</kbd></div>
+    </div>
+    <div class="cmd-section-label">Recent Issues</div>
+    <div class="cmd-item" tabindex="0" id="cmdRecent1">
+      <span class="cmd-item-icon" style="width:16px;height:16px;" id="cmdRecentIcon1"></span>
+      <span id="cmdRecentTitle1">Loading…</span>
+      <div class="cmd-item-shortcut" id="cmdRecentId1" style="font-family:var(--font-mono);font-size:11px;color:var(--text-disabled);"></div>
+    </div>
+    <div class="cmd-item" tabindex="0" id="cmdRecent2">
+      <span class="cmd-item-icon" style="width:16px;height:16px;" id="cmdRecentIcon2"></span>
+      <span id="cmdRecentTitle2">Loading…</span>
+      <div class="cmd-item-shortcut" id="cmdRecentId2" style="font-family:var(--font-mono);font-size:11px;color:var(--text-disabled);"></div>
+    </div>
+    <div class="cmd-footer">
+      <div class="cmd-footer-hint"><kbd>↑↓</kbd> navigate</div>
+      <div class="cmd-footer-hint"><kbd>↵</kbd> select</div>
+      <div class="cmd-footer-hint"><kbd>esc</kbd> close</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// DATA
+// ────────────────────────────────────────────────
+const ASSIGNEES = [
+  { id: 'ak', name: 'Alex Kim',      initials: 'AK', color: '#4f46e5' },
+  { id: 'sr', name: 'Sara Reyes',    initials: 'SR', color: '#0891b2' },
+  { id: 'mn', name: 'Marcus Ng',     initials: 'MN', color: '#7c3aed' },
+  { id: 'jl', name: 'Jin Lee',       initials: 'JL', color: '#dc2626' },
+  { id: 'pb', name: 'Priya Bose',    initials: 'PB', color: '#d97706' },
+  { id: 'tc', name: 'Tom Chen',      initials: 'TC', color: '#047857' },
+];
+
+const ISSUES = [
+  // IN PROGRESS
+  { id: 'ENG-241', title: 'Rate limiter bypassed via chunked Transfer-Encoding header', status: 'inprogress', priority: 'urgent', tags: ['security', 'api'], assignee: 'ak', updated: '2m', project: 'api', description: 'Discovered during pentest: chunked TE on POST /v2/ingest bypasses the per-client rate limiter in `middleware/ratelimit.ts`. Attacker can flood at ~10x the allowed rate.\n\nRepro: `curl -H "Transfer-Encoding: chunked" --limit-rate ...`\n\nFix: strip/normalize TE header before rate limit check, or apply limit at gateway level before it reaches app.' },
+  { id: 'ENG-237', title: 'WebSocket reconnect flood on auth token expiry kills connection pool', status: 'inprogress', priority: 'urgent', tags: ['bug', 'infra'], assignee: 'sr', updated: '14m', project: 'core', description: 'When a user\'s JWT expires mid-session, the WS client retries with exponential backoff but the backoff config `initialDelay` is 0ms. This creates a tight retry loop draining the pool in under 10s.\n\nReproduced on staging: 400 connection errors in ~8s.' },
+  { id: 'ENG-238', title: 'Stale closure in useSubscription causes memory leak in dashboard', status: 'inprogress', priority: 'high', tags: ['bug', 'ux'], assignee: 'mn', updated: '1h', project: 'frontend', description: 'The `useSubscription` hook captures `onData` callback in a closure without including it in the dependency array. Unmounted components still receive events, confirmed by heap snapshot showing 200+ retained EventEmitter refs after navigating away.' },
+  { id: 'ENG-232', title: 'Bulk import endpoint times out for payloads > 5k rows', status: 'inprogress', priority: 'high', tags: ['perf', 'api'], assignee: 'jl', updated: '2h', project: 'api', description: 'POST /api/v2/records/bulk-import times out at 30s for payloads with >5000 rows. Root cause: synchronous validation loop in `validators/csvSchema.ts:L312` is O(n²) due to duplicate-check using Array.includes.\n\nFix: replace with Set lookup — O(n). Quick win, needs perf test.' },
+  { id: 'ENG-229', title: 'Add OpenTelemetry spans to query builder pipeline', status: 'inprogress', priority: 'medium', tags: ['infra', 'dx'], assignee: 'pb', updated: '3h', project: 'infra', description: 'We have spans at the HTTP handler layer but nothing inside the query builder. Slow queries show up as a single opaque 2s span. This ticket covers adding child spans for: parse → plan → execute → serialize.' },
+  { id: 'ENG-225', title: 'Flaky E2E: checkout flow intermittently fails on CI low-CPU runners', status: 'inprogress', priority: 'medium', tags: ['test'], assignee: 'tc', updated: '5h', project: 'core', description: 'checkout_flow.spec.ts fails ~15% of CI runs on the 2-core runners. The race is in `waitForElement` timeout which defaults to 4000ms — too tight for slow VMs. Locally on 8-core MacBook: 0% failure rate.' },
+  { id: 'ENG-218', title: 'Migrate auth service from bcrypt to argon2id (OWASP rec)', status: 'inprogress', priority: 'medium', tags: ['security', 'infra'], assignee: 'ak', updated: '8h', project: 'infra', description: 'OWASP 2024 recommends Argon2id over bcrypt. Migration plan: add column `hash_algo`, dual-write argon2 hash on next login, background-migrate existing bcrypt hashes. Rolling, zero-downtime.' },
+  { id: 'ENG-214', title: 'Tooltip z-index conflict with sticky table header in data grid', status: 'inprogress', priority: 'low', tags: ['bug', 'ux'], assignee: 'mn', updated: '1d', project: 'frontend', description: 'Tooltips inside sticky `<th>` cells render beneath the next sticky row. z-index stacking context breaks when `position: sticky` combined with `overflow: visible` on the parent.' },
+
+  // IN REVIEW
+  { id: 'ENG-226', title: 'Replace lodash.debounce with native scheduler.postTask', status: 'review', priority: 'medium', tags: ['perf', 'dx'], assignee: 'sr', updated: '30m', project: 'frontend', description: 'Removes last lodash dep from the client bundle (saves ~12KB gzipped). Uses `scheduler.postTask` with `background` priority for search debouncing. Polyfill for Safari 15 included.' },
+  { id: 'ENG-219', title: 'Fix SQL injection vector in dynamic ORDER BY clause builder', status: 'review', priority: 'urgent', tags: ['security', 'bug'], assignee: 'jl', updated: '45m', project: 'api', description: 'The `buildOrderClause(field, dir)` function in `lib/query.ts` passes `field` directly into the SQL string without an allowlist check. If an attacker controls `field` via the `sort` query param, they can inject arbitrary SQL.\n\nPR adds column allowlist validation.' },
+  { id: 'ENG-210', title: 'Shard write-ahead log to reduce P99 commit latency on primary', status: 'review', priority: 'high', tags: ['perf', 'infra'], assignee: 'pb', updated: '2h', project: 'infra', description: 'WAL is a bottleneck on the primary at >2k TPS. Sharding to 4 WAL files reduces lock contention measured at ~40% P99 improvement in load test. Coordinated with DBA.' },
+  { id: 'ENG-207', title: 'Deduplicate notification fan-out with idempotency key cache', status: 'review', priority: 'medium', tags: ['bug', 'infra'], assignee: 'tc', updated: '4h', project: 'core', description: 'Users report receiving 2-4 duplicate email/push notifications per event during high-load bursts. Root cause: the fan-out workers retry without idempotency checks. PR adds Redis-backed idem-key TTL=24h.' },
+
+  // TODO
+  { id: 'ENG-243', title: 'Implement PKCE flow for OAuth 2.0 public clients', status: 'todo', priority: 'high', tags: ['security', 'api'], assignee: 'ak', updated: '10m', project: 'api', description: 'RFC 7636 PKCE is required for mobile and SPA OAuth clients (no client secret). Add `code_challenge` + `code_challenge_method=S256` to /authorize, validate `code_verifier` on /token.' },
+  { id: 'ENG-242', title: 'Add streaming SSE support to report generation endpoint', status: 'todo', priority: 'high', tags: ['feat', 'api'], assignee: 'sr', updated: '25m', project: 'api', description: 'POST /reports/generate blocks for up to 60s on large datasets. Replace with SSE: emit progress events while generating, stream CSV lines as they\'re ready. Client can show a live progress bar.' },
+  { id: 'ENG-240', title: 'Dark mode: Recharts tooltip background not honoring theme token', status: 'todo', priority: 'medium', tags: ['bug', 'ux'], assignee: 'mn', updated: '1h', project: 'frontend', description: 'In dark mode, chart tooltips render with hardcoded `#fff` background instead of using `--color-surface-elevated`. Fix: pass `contentStyle={{ background: \'var(--color-surface-elevated)\' }}` to all `<Tooltip>` instances. 23 occurrences.' },
+  { id: 'ENG-239', title: 'Upgrade Terraform AWS provider to 5.x, resolve breaking changes', status: 'todo', priority: 'medium', tags: ['infra'], assignee: 'pb', updated: '2h', project: 'infra', description: 'AWS provider 4.x reaches EOL in 2 months. v5 breaks: resource `aws_s3_bucket_acl` removed, `aws_security_group` inline rules deprecated. Audit 14 modules, migrate to new resource shapes.' },
+  { id: 'ENG-235', title: 'Lazy-load Monaco editor: remove from initial bundle', status: 'todo', priority: 'medium', tags: ['perf', 'feat'], assignee: 'tc', updated: '3h', project: 'frontend', description: 'Monaco is 2.4MB of the initial JS bundle. It\'s only used in the "Edit Script" modal, which ~8% of users ever open. Dynamic import behind a Suspense boundary should get first-paint down by ~800ms on 3G.' },
+  { id: 'ENG-233', title: 'Circuit breaker for downstream payment gateway calls', status: 'todo', priority: 'high', tags: ['infra', 'feat'], assignee: 'jl', updated: '4h', project: 'core', description: 'Three incidents this quarter where payment GW slowdowns cascaded into 30s checkout hangs. Implement Polly-style circuit breaker: half-open after 60s, fail-fast to "payment temporarily unavailable" error page.' },
+  { id: 'ENG-231', title: 'Expose cursor-based pagination on /users and /events endpoints', status: 'todo', priority: 'medium', tags: ['feat', 'api'], assignee: 'sr', updated: '5h', project: 'api', description: 'Offset pagination is unusable at >100k rows (full table scans). Switch to keyset/cursor pagination using `created_at + id` composite cursor. Backwards-compatible: keep `?page=` but deprecate.' },
+  { id: 'ENG-228', title: 'Add column-level encryption for PII fields (GDPR hardening)', status: 'todo', priority: 'high', tags: ['security', 'data'], assignee: 'ak', updated: '6h', project: 'core', description: 'GDPR DPA audit flagged unencrypted PII in `users.phone`, `orders.billing_address`. Plan: AES-256-GCM at application layer, key rotation via AWS KMS. Transparent to query layer via virtual column + hook.' },
+  { id: 'ENG-224', title: 'Generate TypeScript SDK from OpenAPI spec on CI', status: 'todo', priority: 'low', tags: ['dx', 'feat'], assignee: 'mn', updated: '1d', project: 'api', description: 'Currently SDK is hand-maintained and drifts from the API spec. Use `openapi-typescript` to auto-generate on every spec change. Ship as `@company/api-client` on internal npm registry.' },
+  { id: 'ENG-222', title: 'Cache avatar CDN responses at edge with S-maxage', status: 'todo', priority: 'low', tags: ['perf'], assignee: 'tc', updated: '2d', project: 'infra', description: 'Avatar images are served with no cache headers — every page load hits origin. Add `Cache-Control: public, s-maxage=86400, stale-while-revalidate=3600`. Estimate: 65% cache hit ratio at edge.' },
+  { id: 'ENG-216', title: 'Write migration guide: v1.x → v2.0 breaking API changes', status: 'todo', priority: 'low', tags: ['dx'], assignee: 'pb', updated: '3d', project: 'core', description: 'v2.0 ships in 3 weeks. Customers using v1 API need a migration guide covering: renamed endpoints, removed response fields, new auth token format, deprecation timeline.' },
+];
+
+// ────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────
+let activeTab = 'all';
+let searchQuery = '';
+let selectedIssueId = null;
+let openGroupKeys = { inprogress: true, review: true, todo: true, backlog: false, done: false };
+
+// ────────────────────────────────────────────────
+// HELPERS
+// ────────────────────────────────────────────────
+function getAssignee(id) {
+  return ASSIGNEES.find(a => a.id === id) || { name: 'Unassigned', initials: '?', color: '#ccc' };
+}
+
+function statusIcon(status) {
+  const map = {
+    backlog: `<div class="status-icon status-backlog"></div>`,
+    todo:    `<div class="status-icon status-todo"></div>`,
+    inprogress: `<div class="status-icon status-inprogress"></div>`,
+    review:  `<div class="status-icon status-review"></div>`,
+    done:    `<div class="status-icon status-done"></div>`,
+    cancelled: `<div class="status-icon status-cancelled"></div>`,
+  };
+  return map[status] || map.todo;
+}
+
+function prioIcon(priority) {
+  return `<div class="prio-icon prio-${priority}"><div class="prio-bar"></div><div class="prio-bar"></div><div class="prio-bar"></div></div>`;
+}
+
+function tagHtml(tag) {
+  return `<span class="tag tag-${tag}">${tag}</span>`;
+}
+
+function avatarHtml(assignee, size=20) {
+  return `<div class="avatar" style="width:${size}px;height:${size}px;background:${assignee.color};" title="${assignee.name}">${assignee.initials}</div>`;
+}
+
+const STATUS_LABELS = { backlog:'Backlog', todo:'Todo', inprogress:'In Progress', review:'In Review', done:'Done', cancelled:'Cancelled' };
+const STATUS_ORDER = ['inprogress','review','todo','backlog','done','cancelled'];
+const PRIO_LABELS = { urgent:'Urgent', high:'High', medium:'Medium', low:'Low', none:'No priority' };
+
+function getFilteredIssues() {
+  let issues = ISSUES;
+  if (activeTab !== 'all') {
+    issues = issues.filter(i => i.status === activeTab);
+  }
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase();
+    issues = issues.filter(i =>
+      i.title.toLowerCase().includes(q) ||
+      i.id.toLowerCase().includes(q) ||
+      i.tags.some(t => t.includes(q))
+    );
+  }
+  return issues;
+}
+
+// ────────────────────────────────────────────────
+// RENDER
+// ────────────────────────────────────────────────
+function renderList() {
+  const container = document.getElementById('issueList');
+  const issues = getFilteredIssues();
+
+  if (issues.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="1.5"/><path d="M13 20h14M20 13v14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <p>No issues match your filters</p>
+    </div>`;
+    document.getElementById('statusbarCount').textContent = '0 issues';
+    return;
+  }
+
+  // Group by status
+  const groups = {};
+  STATUS_ORDER.forEach(s => { groups[s] = []; });
+  issues.forEach(i => {
+    if (!groups[i.status]) groups[i.status] = [];
+    groups[i.status].push(i);
+  });
+
+  let html = '';
+  STATUS_ORDER.forEach(status => {
+    const grpIssues = groups[status];
+    if (!grpIssues.length) return;
+    const isOpen = openGroupKeys[status] !== false;
+    html += `<div class="issue-group" data-group="${status}">
+      <div class="group-header" onclick="toggleGroup('${status}')">
+        <svg class="group-header-toggle ${isOpen ? '' : 'collapsed'}" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        ${statusIcon(status)}
+        <span class="group-title">${STATUS_LABELS[status] || status}</span>
+        <span class="group-count">${grpIssues.length}</span>
+        <div class="group-add" onclick="event.stopPropagation()">
+          <svg width="11" height="11" viewBox="0 0 11 11"><path d="M5.5 1.5v8M1.5 5.5h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Add issue
+        </div>
+      </div>`;
+
+    if (isOpen) {
+      grpIssues.forEach(issue => {
+        const assignee = getAssignee(issue.assignee);
+        const isSelected = issue.id === selectedIssueId;
+        html += `<div class="issue-row ${isSelected ? 'selected' : ''}" data-id="${issue.id}" onclick="selectIssue('${issue.id}')">
+          <div class="row-check"><input type="checkbox" onclick="event.stopPropagation()" ${isSelected ? 'checked' : ''}></div>
+          <div class="row-status">${statusIcon(issue.status)}</div>
+          <div class="row-priority">${prioIcon(issue.priority)}</div>
+          <div class="row-title-area">
+            <span class="row-title">${issue.title}</span>
+            <div class="issue-tags">${issue.tags.map(tagHtml).join('')}</div>
+          </div>
+          <div class="row-meta">
+            <div class="row-assignee">${avatarHtml(assignee)}</div>
+            <span class="row-id">${issue.id}</span>
+            <span class="row-time">${issue.updated}</span>
+          </div>
+          <div class="row-actions">
+            <button class="row-action-btn" title="Set priority" onclick="event.stopPropagation()">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 9.5l2.5-4 2.5 2 3-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="row-action-btn" title="Assign" onclick="event.stopPropagation()">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="3.5" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M2 10.5c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </button>
+            <button class="row-action-btn" title="More" onclick="event.stopPropagation()">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="2.5" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="9.5" cy="6" r="1" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>`;
+      });
+    }
+
+    html += `</div>`;
+  });
+
+  container.innerHTML = html;
+  document.getElementById('statusbarCount').textContent = `${issues.length} issues`;
+}
+
+function toggleGroup(status) {
+  openGroupKeys[status] = !openGroupKeys[status];
+  renderList();
+}
+
+// ────────────────────────────────────────────────
+// DETAIL PANEL
+// ────────────────────────────────────────────────
+function selectIssue(id) {
+  if (selectedIssueId === id) {
+    // deselect
+    selectedIssueId = null;
+    document.getElementById('detailPanel').classList.remove('open');
+    renderList();
+    return;
+  }
+  selectedIssueId = id;
+  const issue = ISSUES.find(i => i.id === id);
+  if (!issue) return;
+
+  const assignee = getAssignee(issue.assignee);
+
+  document.getElementById('dp-id').textContent = issue.id;
+  document.getElementById('dp-title').textContent = issue.title;
+
+  const prioColor = {urgent:'var(--prio-urgent)',high:'var(--prio-high)',medium:'var(--prio-medium)',low:'var(--prio-low)',none:'var(--prio-none)'};
+
+  document.getElementById('dp-body').innerHTML = `
+    <div class="detail-prop-row">
+      <span class="detail-prop-label">Status</span>
+      <div class="detail-prop-value">${statusIcon(issue.status)} ${STATUS_LABELS[issue.status]}</div>
+    </div>
+    <div class="detail-prop-row">
+      <span class="detail-prop-label">Priority</span>
+      <div class="detail-prop-value">${prioIcon(issue.priority)} <span style="color:${prioColor[issue.priority]};font-weight:500;">${PRIO_LABELS[issue.priority]}</span></div>
+    </div>
+    <div class="detail-prop-row">
+      <span class="detail-prop-label">Assignee</span>
+      <div class="detail-prop-value">${avatarHtml(assignee,18)} ${assignee.name}</div>
+    </div>
+    <div class="detail-prop-row">
+      <span class="detail-prop-label">Labels</span>
+      <div class="detail-prop-value">${issue.tags.map(tagHtml).join(' ')}</div>
+    </div>
+    <div class="detail-prop-row">
+      <span class="detail-prop-label">Project</span>
+      <div class="detail-prop-value" style="text-transform:capitalize;">${issue.project}</div>
+    </div>
+    <div class="detail-prop-row" style="border-bottom:none;">
+      <span class="detail-prop-label">Updated</span>
+      <div class="detail-prop-value">${issue.updated} ago</div>
+    </div>
+    <div class="detail-desc">${(issue.description||'No description.').split('\n').map(p=>p?`<p>${p}</p>`:'').join('')}</div>
+    <div class="detail-activity-label">Activity</div>
+    ${renderActivity(issue)}
+  `;
+
+  document.getElementById('detailPanel').classList.add('open');
+  renderList();
+}
+
+function renderActivity(issue) {
+  const comments = [
+    { user: 'JL', name: 'Jin Lee', color: '#dc2626', text: `Reproduced on branch <code>feat/rate-limit-fix</code>. Confirmed: stripping TE header before reaching limiter blocks the bypass.`, time: '3h ago' },
+    { user: 'AK', name: 'Alex Kim', color: '#4f46e5', text: `Changed priority to <strong>Urgent</strong>. We need this before the next release.`, time: '1h ago' },
+    { user: 'SR', name: 'Sara Reyes', color: '#0891b2', text: `Added to current sprint.`, time: '30m ago' },
+  ].slice(0, 2);
+
+  return comments.map(c => `
+    <div class="activity-item">
+      <div class="activity-avatar"><div class="avatar" style="width:18px;height:18px;font-size:8px;background:${c.color};">${c.user}</div></div>
+      <div><div class="activity-text"><strong>${c.name}</strong> · ${c.text}</div><div class="activity-time">${c.time}</div></div>
+    </div>
+  `).join('');
+}
+
+// ────────────────────────────────────────────────
+// TAB / FILTER INTERACTION
+// ────────────────────────────────────────────────
+document.querySelectorAll('.filter-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    activeTab = tab.dataset.tab;
+    renderList();
+  });
+});
+
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  renderList();
+});
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+  });
+});
+
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => chip.classList.toggle('active'));
+});
+
+// ────────────────────────────────────────────────
+// COMMAND PALETTE
+// ────────────────────────────────────────────────
+function openCmd() {
+  const overlay = document.getElementById('cmdOverlay');
+  overlay.classList.add('visible');
+  setTimeout(() => document.getElementById('cmdInput').focus(), 50);
+  // Populate recent issues
+  const recent = ISSUES.slice(0, 2);
+  recent.forEach((issue, i) => {
+    const n = i + 1;
+    const el = document.getElementById(`cmdRecent${n}`);
+    const icon = document.getElementById(`cmdRecentIcon${n}`);
+    document.getElementById(`cmdRecentTitle${n}`).textContent = issue.title;
+    document.getElementById(`cmdRecentId${n}`).textContent = issue.id;
+    icon.innerHTML = statusIcon(issue.status);
+    el.onclick = () => { closeCmd(); selectIssue(issue.id); };
+  });
+}
+
+function closeCmd() {
+  document.getElementById('cmdOverlay').classList.remove('visible');
+}
+
+document.getElementById('cmdTrigger').addEventListener('click', openCmd);
+document.getElementById('newIssueTrigger').addEventListener('click', openCmd);
+
+document.getElementById('cmdOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('cmdOverlay')) closeCmd();
+});
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    openCmd();
+  }
+  if (e.key === 'Escape') {
+    closeCmd();
+    if (selectedIssueId) {
+      selectedIssueId = null;
+      document.getElementById('detailPanel').classList.remove('open');
+      renderList();
+    }
+  }
+  // Quick key: C = new issue
+  if (e.key === 'c' && !e.metaKey && !e.ctrlKey && document.activeElement === document.body) {
+    openCmd();
+  }
+});
+
+document.getElementById('detailClose').addEventListener('click', () => {
+  selectedIssueId = null;
+  document.getElementById('detailPanel').classList.remove('open');
+  renderList();
+});
+
+// ────────────────────────────────────────────────
+// INIT
+// ────────────────────────────────────────────────
+renderList();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Issue Tracking: a tree table with multi-select facets and checkbox columns. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/15-issue-tracking.html
+</script>
+</body>
+</html>

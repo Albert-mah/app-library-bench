@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Slate — Interview Scorecards &amp; Compare</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Candidate Management (Slate) — interviewer view",
+  "prefix": "cdm_",
+  "differentiator": "Interview-centric: interviewer scorecards + interview schedule + side-by-side compare. NOT a hiring funnel kanban (that is module 29 cnd). No stage pipeline columns here; the unit of work is the interview and its rating.",
+  "collections": {
+    "cdm_jobs": {"titleField":"title","fields":{"title":"input","department":"select:engineering|design|product|sales|marketing|operations","location":"input","headcount":"integer","is_open":"boolean"}},
+    "cdm_interviewers": {"titleField":"name","fields":{"name":"input","role_title":"input","initials":"input","is_active":"boolean"}},
+    "cdm_candidates": {"titleField":"name","fields":{"name":"input","headline":"input","email":"input","years_exp":"integer","current_company":"input","source":"select:referral|linkedin|inbound|agency|event","stage":"select:screen|onsite|debrief|offer|hired|rejected","is_shortlisted":"boolean"},"relations":{"job":"m2o cdm_jobs (fk job_id)"}},
+    "cdm_interviews": {"titleField":"focus","fields":{"focus":"input","kind":"select:phone_screen|technical|system_design|behavioral|culture|hiring_manager","scheduled_at":"datetime","duration_min":"integer","mode":"select:onsite|video|phone","status":"select:scheduled|in_progress|submitted|cancelled"},"relations":{"candidate":"m2o cdm_candidates (fk candidate_id)","interviewer":"m2o cdm_interviewers (fk interviewer_id)"}},
+    "cdm_scorecards": {"titleField":"summary","fields":{"summary":"input","overall":"select:strong_yes|yes|neutral|no|strong_no","score_technical":"integer","score_problem_solving":"integer","score_communication":"integer","score_culture":"integer","strengths":"textarea","concerns":"textarea","submitted_at":"datetime"},"relations":{"interview":"o2o cdm_interviews (fk interview_id)","candidate":"m2o cdm_candidates (fk candidate_id)","interviewer":"m2o cdm_interviewers (fk interviewer_id)"}}
+  },
+  "page": {
+    "name": "Interview Room",
+    "layout": "schedule = native List + JS item card (today's interviews) | scorecard = native Form (cdm_scorecards, create/edit) with nested JS rating-dimension items + live verdict JS item | compare = JS item bound region (side-by-side candidate panels reading aggregated scorecards)",
+    "regions": [
+      {"id":"schedule","block":"List + JS item card","collection":"cdm_interviews","intent":"my interview schedule for the day","sort":"scheduled_at asc","group":"by time block (Morning / Afternoon)","card":["kind color left-border","time + duration","candidate name + headline","interviewer avatar","status pill (scheduled/in_progress/submitted)"],"behavior":"click card -> loads that interview into the scorecard Form (cross-block select)"},
+      {"id":"scorecard","block":"native Form block (cdm_scorecards, create/edit mode) — NOT a freestanding JSBlock","intent":"score the active interview","content":["candidate header = JS item (avatar, name, job, resume facts)","four rating dimensions = JS items each rendering a 1-5 star/segment control bound to score_* fields","overall verdict = JS item rendering 5 segmented buttons (strong_yes..strong_no) bound to overall field","strengths textarea field","concerns textarea field"],"actions":["Submit scorecard = submit/JS action (status=submitted, sets submitted_at)","Save draft = JS action"]},
+      {"id":"verdict","block":"JS item bound to the scorecard Form — live verdict meter","intent":"running average + recommendation that updates AS the scorecard changes","binds":"ctx.form.getFieldsValue() + ctx.blockModel.on('formValuesChange', render)","shows":["weighted average of 4 dimensions","verdict color (yes/neutral/no)","completeness ring"]},
+      {"id":"compare","block":"JS item region (reads submitted cdm_scorecards grouped by candidate)","intent":"side-by-side compare shortlisted candidates for the same job","shows":["candidate columns","per-dimension average bars","panel consensus (count of yes/no)","rank order"],"behavior":"highlight the candidate currently open in the scorecard"}
+    ]
+  },
+  "interactions": ["click a schedule card loads that interview into the scorecard form","rating dimension clicks write score_* fields and recompute live verdict","overall verdict segmented control writes overall field","submit writes cdm_scorecards + flips interview.status=submitted","compare panel re-ranks from submitted scorecards"],
+  "jsKernels": ["schedule JS item card","star/segment rating dimension JS items (bound to form fields)","live verdict meter JS item","side-by-side compare JS item region"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (List for the schedule, Form for the scorecard); reproduce the custom look/behavior with JS items/actions nested INSIDE them. The rating dimensions and verdict segmented control are JS items writing to native score_*/overall fields (NOT plain native number inputs). The compare region reads submitted scorecards. Differentiates from module 29 (cnd funnel kanban): there is no stage-pipeline board here — the workflow unit is the interview + scorecard, and the headline interaction is scoring + comparing, not dragging candidates across stages."
+}
+</script>
+<style>
+  :root{
+    --indigo:#5b5bd6; --indigo-soft:#eef0ff; --indigo-line:#c7ccfb; --indigo-deep:#4a47c4;
+    --ink:#1c1d28; --ink-2:#52546a; --ink-3:#8a8da3;
+    --line:#eef0f4; --line-2:#e3e6ee; --bg:#f4f5f9; --card:#fff;
+    --green:#1f9d6b; --green-soft:#e6f7ef; --gold:#d9920a; --gold-soft:#fff6e6;
+    --red:#d6453d; --red-soft:#fdecec; --sky:#2f7ed8;
+    /* interview kind colors */
+    --k-phone:#2f7ed8; --k-tech:#5b5bd6; --k-design:#8b5cf6; --k-behav:#1f9d6b; --k-culture:#d9920a; --k-hm:#d6453d;
+    --r:11px;
+    --shadow:0 1px 2px rgba(28,29,40,.04), 0 8px 22px rgba(28,29,40,.06);
+    --shadow-sm:0 1px 2px rgba(28,29,40,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{min-width:1180px}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:20px; padding:0 24px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:750; font-size:16px; letter-spacing:-.3px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--indigo),#8a8aff);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 3px 10px rgba(91,91,214,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:1px}
+  .topnav{display:flex;gap:3px;margin-left:6px}
+  .topnav a{padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:550}
+  .topnav a.on{background:var(--indigo-soft);color:var(--indigo)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .search{display:flex;align-items:center;gap:8px;background:#f6f7fb;border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;width:240px;color:var(--ink-3);font-size:13px}
+  .search input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#5b5bd6,#9b8cff);
+    color:#fff;display:grid;place-items:center;font-weight:650;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- 3-pane workspace ---------- */
+  .workspace{
+    display:grid;
+    grid-template-columns: 320px minmax(0,1fr) 372px;
+    height:calc(100vh - 56px);
+  }
+  .pane{overflow:auto}
+  .schedule-pane{background:linear-gradient(180deg,#fafbff,#f4f5f9);border-right:1px solid var(--line-2)}
+  .scorecard-pane{padding:24px 28px;overflow:auto}
+  .compare-pane{background:linear-gradient(180deg,#fbfbfe,#f4f5f9);border-left:1px solid var(--line-2)}
+
+  /* ---------- schedule (left) ---------- */
+  .s-head{padding:18px 18px 12px;position:sticky;top:0;background:#fafbff;z-index:6;border-bottom:1px solid var(--line)}
+  .s-head .row{display:flex;align-items:center;justify-content:space-between}
+  .s-head h2{font-size:15px;font-weight:700;letter-spacing:-.2px}
+  .s-head .date{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+  .s-head .cnt{font-size:11.5px;color:#fff;background:var(--indigo);border-radius:11px;padding:2px 9px;font-weight:700}
+  .s-filters{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+  .sf{font-size:11.5px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:4px 10px;border-radius:13px;border:1px solid var(--line-2);background:#fff}
+  .sf.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .blk-label{position:sticky;top:104px;display:flex;align-items:center;gap:10px;padding:13px 18px 7px;
+    background:linear-gradient(180deg,#fafbff,rgba(250,251,255,0));z-index:4}
+  .blk-label .b-t{font-size:11px;font-weight:750;color:var(--ink-2);text-transform:uppercase;letter-spacing:.7px}
+  .blk-label .b-line{flex:1;height:1px;background:var(--line-2)}
+  .blk-label .b-n{font-size:11px;color:var(--ink-3);font-weight:600}
+
+  .iv-card{
+    margin:0 14px 9px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r);padding:12px 13px;
+    box-shadow:var(--shadow-sm);position:relative;cursor:pointer;transition:.13s;border-left:3px solid var(--line-2);
+  }
+  .iv-card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+  .iv-card.sel{border-color:var(--indigo-line);box-shadow:0 0 0 2px var(--indigo-soft),var(--shadow)}
+  .iv-card.k-phone{border-left-color:var(--k-phone)} .iv-card.k-tech{border-left-color:var(--k-tech)}
+  .iv-card.k-design{border-left-color:var(--k-design)} .iv-card.k-behav{border-left-color:var(--k-behav)}
+  .iv-card.k-culture{border-left-color:var(--k-culture)} .iv-card.k-hm{border-left-color:var(--k-hm)}
+  .ivc-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .ivc-time{font-size:12.5px;font-weight:750;color:var(--ink);font-variant-numeric:tabular-nums}
+  .ivc-dur{font-size:11px;color:var(--ink-3);font-weight:600}
+  .ivc-kind{margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px;letter-spacing:.2px;color:#fff}
+  .ivc-kind.k-phone{background:var(--k-phone)} .ivc-kind.k-tech{background:var(--k-tech)}
+  .ivc-kind.k-design{background:var(--k-design)} .ivc-kind.k-behav{background:var(--k-behav)}
+  .ivc-kind.k-culture{background:var(--k-culture)} .ivc-kind.k-hm{background:var(--k-hm)}
+  .ivc-cand{display:flex;align-items:center;gap:9px}
+  .ivc-ava{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;
+    background:linear-gradient(135deg,#7b7be0,#a99cff)}
+  .ivc-id{line-height:1.25;min-width:0;flex:1}
+  .ivc-id b{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ivc-id span{font-size:11px;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ivc-foot{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+  .ivc-with{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .with-ava{width:18px;height:18px;border-radius:50%;background:#dfe2f0;color:var(--ink-2);display:grid;place-items:center;font-size:8.5px;font-weight:700}
+  .ivc-st{margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px}
+  .st-scheduled{background:var(--indigo-soft);color:var(--indigo)}
+  .st-in_progress{background:var(--gold-soft);color:var(--gold)}
+  .st-submitted{background:var(--green-soft);color:var(--green)}
+  .st-cancelled{background:#f1f1f4;color:var(--ink-3);text-decoration:line-through}
+
+  /* ---------- scorecard (center) ---------- */
+  .sc-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:20px}
+  .sc-bigava{width:60px;height:60px;border-radius:14px;flex:none;display:grid;place-items:center;color:#fff;font-weight:750;font-size:20px;
+    background:linear-gradient(135deg,#5b5bd6,#9b8cff);box-shadow:0 4px 14px rgba(91,91,214,.3)}
+  .sc-meta{flex:1;min-width:0}
+  .sc-meta h1{font-size:21px;font-weight:750;letter-spacing:-.4px;display:flex;align-items:center;gap:9px}
+  .sc-shortlist{font-size:10.5px;font-weight:700;color:var(--gold);background:var(--gold-soft);padding:2px 9px;border-radius:9px}
+  .sc-headline{color:var(--ink-2);font-size:13.5px;margin-top:2px}
+  .sc-facts{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  .fact{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);background:#fff;border:1px solid var(--line-2);
+    border-radius:8px;padding:5px 10px}
+  .fact b{color:var(--ink);font-weight:650}
+  .sc-jobchip{display:flex;align-items:center;gap:7px;margin-top:11px;background:var(--indigo-soft);border:1px solid var(--indigo-line);
+    border-radius:9px;padding:7px 11px;font-size:12.5px;color:var(--indigo-deep);font-weight:600;width:fit-content}
+
+  .card{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
+  .card-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .card-h h3{font-size:14px;font-weight:700}
+  .card-h .hint{font-size:11.5px;color:var(--ink-3)}
+  .card-b{padding:6px 18px 16px}
+
+  /* rating dimensions */
+  .dim{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+  .dim:last-child{border-bottom:none}
+  .dim-info{width:172px;flex:none}
+  .dim-info .name{font-size:13.5px;font-weight:650;color:var(--ink)}
+  .dim-info .desc{font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.35}
+  .stars{display:flex;gap:6px;flex:1}
+  .star{width:34px;height:34px;border-radius:9px;border:1.5px solid var(--line-2);background:#fff;cursor:pointer;
+    display:grid;place-items:center;font-size:16px;color:#d4d7e3;transition:.12s;user-select:none}
+  .star:hover{border-color:var(--indigo-line)}
+  .star.on{background:var(--indigo);border-color:var(--indigo);color:#fff;box-shadow:0 2px 8px rgba(91,91,214,.32)}
+  .star.peek{border-color:var(--indigo-line);color:var(--indigo)}
+  .dim-val{width:62px;text-align:right;font-size:12.5px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .dim-val .n{font-size:16px;color:var(--ink)}
+  .dim-val .e{color:var(--ink-3);font-weight:600}
+
+  /* verdict segmented */
+  .verdict-row{display:flex;gap:8px}
+  .vbtn{flex:1;border:1.5px solid var(--line-2);background:#fff;border-radius:10px;padding:11px 6px;cursor:pointer;text-align:center;
+    transition:.12s;user-select:none}
+  .vbtn .vt{font-size:12px;font-weight:700;color:var(--ink-2);display:block}
+  .vbtn .vs{font-size:18px;display:block;margin-bottom:3px}
+  .vbtn:hover{border-color:#cdd1e0}
+  .vbtn.on{color:#fff;border-color:transparent}
+  .vbtn.on .vt{color:#fff}
+  .vbtn[data-v="strong_yes"].on{background:#178a5b} .vbtn[data-v="yes"].on{background:var(--green)}
+  .vbtn[data-v="neutral"].on{background:var(--gold)} .vbtn[data-v="no"].on{background:#e06b65}
+  .vbtn[data-v="strong_no"].on{background:var(--red)}
+
+  /* notes */
+  .notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .field label{font-size:12px;color:var(--ink-2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:7px}
+  .field label .pos{color:var(--green)} .field label .neg{color:var(--red)}
+  .field textarea{width:100%;min-height:96px;resize:vertical;border:1.5px solid var(--line-2);border-radius:9px;
+    padding:11px 12px;font-family:inherit;font-size:13px;line-height:1.5;color:var(--ink);outline:none;transition:.12s}
+  .field textarea:focus{border-color:var(--indigo-line);box-shadow:0 0 0 3px var(--indigo-soft)}
+
+  .sc-actions{display:flex;align-items:center;gap:10px;margin-top:4px}
+  .btn{border:none;border-radius:9px;padding:11px 18px;font-family:inherit;font-size:13.5px;font-weight:650;cursor:pointer;transition:.13s}
+  .btn-primary{background:var(--indigo);color:#fff;box-shadow:0 3px 10px rgba(91,91,214,.32)}
+  .btn-primary:hover{background:var(--indigo-deep)}
+  .btn-ghost{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#cdd1e0}
+  .sc-actions .saved{margin-left:auto;font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .sc-actions .saved i{width:7px;height:7px;border-radius:50%;background:var(--green)}
+
+  /* live verdict meter (right top inside scorecard header card) */
+  .meter{display:flex;align-items:center;gap:16px;padding:16px 18px;background:linear-gradient(120deg,#f7f8ff,#fff);
+    border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:18px}
+  .meter .gauge{position:relative;width:74px;height:74px;flex:none}
+  .meter .gauge svg{transform:rotate(-90deg)}
+  .meter .gauge .num{position:absolute;inset:0;display:grid;place-items:center;flex-direction:column;text-align:center;line-height:1}
+  .meter .gauge .num b{font-size:20px;font-weight:800}
+  .meter .gauge .num span{font-size:9.5px;color:var(--ink-3);font-weight:600}
+  .meter .mtxt{flex:1;min-width:0}
+  .meter .mtxt .mt-l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-3)}
+  .meter .mtxt .mt-v{font-size:18px;font-weight:750;margin:2px 0 6px;display:flex;align-items:center;gap:8px}
+  .pill-verdict{font-size:11px;font-weight:700;padding:2px 9px;border-radius:9px}
+  .meter .mt-sub{font-size:12px;color:var(--ink-2)}
+  .meter .breakdown{display:flex;gap:5px;margin-top:9px}
+  .bd{flex:1;text-align:center}
+  .bd .bar{height:5px;border-radius:3px;background:var(--line-2);overflow:hidden;margin-bottom:4px}
+  .bd .bar i{display:block;height:100%;background:var(--indigo);border-radius:3px;transition:.25s width}
+  .bd .lbl{font-size:9.5px;color:var(--ink-3);font-weight:600}
+
+  /* ---------- compare (right) ---------- */
+  .c-head{padding:18px 18px 12px;position:sticky;top:0;background:#fbfbfe;z-index:6;border-bottom:1px solid var(--line)}
+  .c-head h2{font-size:15px;font-weight:700;letter-spacing:-.2px}
+  .c-head p{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .c-jobsel{margin-top:11px;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line-2);border-radius:9px;
+    padding:8px 11px;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+  .c-jobsel .chev{margin-left:auto;color:var(--ink-3)}
+
+  .cmp-list{padding:14px 14px 28px}
+  .cmp-card{background:#fff;border:1px solid var(--line-2);border-radius:var(--r);padding:13px;margin-bottom:11px;box-shadow:var(--shadow-sm);
+    position:relative;transition:.13s}
+  .cmp-card.lead{border-color:var(--green);box-shadow:0 0 0 2px var(--green-soft),var(--shadow-sm)}
+  .cmp-card.active{border-color:var(--indigo-line);box-shadow:0 0 0 2px var(--indigo-soft),var(--shadow-sm)}
+  .cmp-top{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+  .cmp-rank{width:24px;height:24px;border-radius:7px;flex:none;display:grid;place-items:center;font-size:12px;font-weight:800;
+    background:var(--ink);color:#fff}
+  .cmp-card.lead .cmp-rank{background:var(--green)}
+  .cmp-ava{width:36px;height:36px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;
+    background:linear-gradient(135deg,#7b7be0,#a99cff)}
+  .cmp-id{flex:1;min-width:0;line-height:1.25}
+  .cmp-id b{font-size:13.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cmp-id span{font-size:11px;color:var(--ink-3)}
+  .cmp-overall{text-align:right}
+  .cmp-overall .big{font-size:19px;font-weight:800;line-height:1}
+  .cmp-overall .of{font-size:10px;color:var(--ink-3);font-weight:600}
+  .cmp-dims{display:flex;flex-direction:column;gap:7px;margin-bottom:11px}
+  .cmp-dim{display:flex;align-items:center;gap:9px}
+  .cmp-dim .dl{font-size:11px;color:var(--ink-2);width:62px;flex:none;font-weight:600}
+  .cmp-dim .dbar{flex:1;height:7px;border-radius:4px;background:var(--line-2);overflow:hidden}
+  .cmp-dim .dbar i{display:block;height:100%;border-radius:4px;transition:.3s width}
+  .cmp-dim .dv{width:26px;text-align:right;font-size:11px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .cmp-foot{display:flex;align-items:center;gap:6px;padding-top:10px;border-top:1px solid var(--line)}
+  .consensus{display:flex;gap:5px;flex:1}
+  .cdot{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff}
+  .cdot.yes{background:var(--green)} .cdot.neutral{background:var(--gold)} .cdot.no{background:var(--red)} .cdot.pend{background:#d4d7e3;color:var(--ink-3)}
+  .cmp-panel-n{font-size:10.5px;color:var(--ink-3);font-weight:600}
+  .cmp-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px;background:var(--indigo-soft);color:var(--indigo)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:0 10px 28px rgba(0,0,0,.28);transition:.25s;z-index:80;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--indigo)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">S</span>Slate <small>interview room</small></div>
+  <nav class="topnav">
+    <a href="#">Pipeline</a>
+    <a href="#" class="on">Interviews</a>
+    <a href="#">Scorecards</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="search">🔎<input placeholder="Find candidate or req…"></div>
+    <div class="acct">
+      <div class="ava">DR</div>
+      <div class="who"><b>Dana Reyes</b><br><span>Staff Engineer · Panel lead</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ============ LEFT: INTERVIEW SCHEDULE ============ -->
+  <aside class="pane schedule-pane">
+    <div class="s-head">
+      <div class="row">
+        <div><h2>My interviews</h2><div class="date">Thursday, June 11 · 5 on calendar</div></div>
+        <span class="cnt" id="schedCount">0</span>
+      </div>
+      <div class="s-filters" id="sFilters">
+        <span class="sf on" data-f="all">All</span>
+        <span class="sf" data-f="todo">To score</span>
+        <span class="sf" data-f="submitted">Submitted</span>
+      </div>
+    </div>
+    <div id="schedule"></div>
+  </aside>
+
+  <!-- ============ CENTER: SCORECARD ============ -->
+  <main class="pane scorecard-pane">
+    <div class="sc-head">
+      <div class="sc-bigava" id="scAva">PT</div>
+      <div class="sc-meta">
+        <h1 id="scName">Priya Tan <span class="sc-shortlist" id="scShortlist">★ Shortlisted</span></h1>
+        <div class="sc-headline" id="scHeadline">Senior Backend Engineer · 8 yrs · ex-Stripe</div>
+        <div class="sc-facts" id="scFacts"></div>
+        <div class="sc-jobchip" id="scJob">💼 Senior Backend Engineer · Engineering · Remote (US)</div>
+      </div>
+    </div>
+
+    <!-- live verdict meter (bound to form) -->
+    <div class="meter">
+      <div class="gauge">
+        <svg width="74" height="74" viewBox="0 0 74 74">
+          <circle cx="37" cy="37" r="31" fill="none" stroke="#e3e6ee" stroke-width="7"/>
+          <circle id="gaugeFg" cx="37" cy="37" r="31" fill="none" stroke="#5b5bd6" stroke-width="7" stroke-linecap="round"/>
+        </svg>
+        <div class="num"><b id="gaugeNum">—</b><span>/ 5.0</span></div>
+      </div>
+      <div class="mtxt">
+        <div class="mt-l">Live verdict</div>
+        <div class="mt-v"><span id="verdictText">In progress</span><span class="pill-verdict" id="verdictPill">draft</span></div>
+        <div class="mt-sub" id="verdictSub">Score the four dimensions to see a recommendation.</div>
+        <div class="breakdown" id="breakdown"></div>
+      </div>
+    </div>
+
+    <!-- ratings -->
+    <div class="card">
+      <div class="card-h"><h3>Competency ratings</h3><span class="hint">1 = poor · 5 = exceptional</span></div>
+      <div class="card-b" id="dims"></div>
+    </div>
+
+    <!-- overall verdict -->
+    <div class="card">
+      <div class="card-h"><h3>Overall recommendation</h3><span class="hint">Your hire/no-hire call</span></div>
+      <div class="card-b">
+        <div class="verdict-row" id="verdictBtns">
+          <div class="vbtn" data-v="strong_yes"><span class="vs">🚀</span><span class="vt">Strong yes</span></div>
+          <div class="vbtn" data-v="yes"><span class="vs">👍</span><span class="vt">Yes</span></div>
+          <div class="vbtn" data-v="neutral"><span class="vs">🤔</span><span class="vt">Neutral</span></div>
+          <div class="vbtn" data-v="no"><span class="vs">👎</span><span class="vt">No</span></div>
+          <div class="vbtn" data-v="strong_no"><span class="vs">⛔</span><span class="vt">Strong no</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- notes -->
+    <div class="card">
+      <div class="card-h"><h3>Evidence &amp; notes</h3><span class="hint">Specifics beat adjectives</span></div>
+      <div class="card-b">
+        <div class="notes-grid">
+          <div class="field">
+            <label><span class="pos">＋</span> Strengths</label>
+            <textarea id="strengths" placeholder="What did they do well? Cite concrete moments…">Designed an idempotent payment retry scheme on the spot, reasoned crisply about exactly-once vs at-least-once, and caught the dual-write race before I prompted.</textarea>
+          </div>
+          <div class="field">
+            <label><span class="neg">－</span> Concerns</label>
+            <textarea id="concerns" placeholder="What gives you pause? Be specific…">Hand-wavy on observability/rollout. Didn't reach for metrics or a kill-switch until asked.</textarea>
+          </div>
+        </div>
+        <div class="sc-actions">
+          <button class="btn btn-primary" id="submitBtn">Submit scorecard</button>
+          <button class="btn btn-ghost" id="draftBtn">Save draft</button>
+          <span class="saved" id="savedLine"><i></i> Auto-saved 12s ago</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ RIGHT: COMPARE ============ -->
+  <aside class="pane compare-pane">
+    <div class="c-head">
+      <h2>Compare candidates</h2>
+      <p>Panel scorecards, side by side</p>
+      <div class="c-jobsel">💼 Senior Backend Engineer <span class="chev">▾</span></div>
+    </div>
+    <div class="cmp-list" id="compare"></div>
+  </aside>
+</div>
+
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- reference data ---------- */
+  var KIND = {
+    phone_screen:{cls:"k-phone", label:"Phone screen"},
+    technical:   {cls:"k-tech",  label:"Technical"},
+    system_design:{cls:"k-design",label:"System design"},
+    behavioral:  {cls:"k-behav", label:"Behavioral"},
+    culture:     {cls:"k-culture",label:"Values"},
+    hiring_manager:{cls:"k-hm",  label:"Hiring mgr"}
+  };
+  var DIMENSIONS = [
+    {key:"technical",     name:"Technical depth",  desc:"Mastery of the core domain & tools"},
+    {key:"problem",       name:"Problem solving",  desc:"Structure, tradeoffs, edge cases"},
+    {key:"communication", name:"Communication",    desc:"Clarity, collaboration, listening"},
+    {key:"culture",       name:"Values & ownership",desc:"Drive, integrity, team-first"}
+  ];
+  var VERDICT = {
+    strong_yes:{label:"Strong yes", cls:"yes", color:"#178a5b", soft:"#e6f7ef", txt:"#178a5b"},
+    yes:       {label:"Yes",        cls:"yes", color:"#1f9d6b", soft:"#e6f7ef", txt:"#1f9d6b"},
+    neutral:   {label:"Neutral",    cls:"neutral", color:"#d9920a", soft:"#fff6e6", txt:"#d9920a"},
+    no:        {label:"No",         cls:"no", color:"#e06b65", soft:"#fdecec", txt:"#d6453d"},
+    strong_no: {label:"Strong no",  cls:"no", color:"#d6453d", soft:"#fdecec", txt:"#d6453d"}
+  };
+
+  /* ---------- candidates ---------- */
+  var CANDIDATES = {
+    priya:  {name:"Priya Tan",     initials:"PT", headline:"Senior Backend Engineer · 8 yrs · ex-Stripe", years:8,  company:"Stripe",   source:"referral", shortlisted:true,
+             facts:[["Experience","8 yrs"],["Now at","Stripe"],["Source","Referral"],["Email","priya.tan@mail.com"]]},
+    marcus: {name:"Marcus Webb",   initials:"MW", headline:"Backend Engineer · 6 yrs · ex-DoorDash", years:6,  company:"DoorDash", source:"linkedin", shortlisted:true,
+             facts:[["Experience","6 yrs"],["Now at","DoorDash"],["Source","LinkedIn"],["Email","m.webb@mail.com"]]},
+    lena:   {name:"Lena Ortiz",    initials:"LO", headline:"Staff Engineer · 11 yrs · ex-Datadog", years:11, company:"Datadog",  source:"agency", shortlisted:true,
+             facts:[["Experience","11 yrs"],["Now at","Datadog"],["Source","Agency"],["Email","lena.o@mail.com"]]},
+    ravi:   {name:"Ravi Nair",     initials:"RN", headline:"Backend Engineer · 5 yrs · ex-Plaid", years:5,  company:"Plaid",    source:"inbound", shortlisted:false,
+             facts:[["Experience","5 yrs"],["Now at","Plaid"],["Source","Inbound"],["Email","ravi.nair@mail.com"]]}
+  };
+
+  /* ---------- today's interview schedule (mine) ---------- */
+  var INTERVIEWS = [
+    {id:"iv1", block:"Morning",   cand:"priya",  time:"9:30 AM",  dur:"60m", kind:"system_design", with:"DR", status:"in_progress",
+       scores:{technical:5,problem:5,communication:4,culture:4}, overall:"yes"},
+    {id:"iv2", block:"Morning",   cand:"marcus", time:"11:00 AM", dur:"45m", kind:"technical",     with:"DR", status:"scheduled",
+       scores:{technical:0,problem:0,communication:0,culture:0}, overall:""},
+    {id:"iv3", block:"Afternoon", cand:"lena",   time:"1:30 PM",  dur:"60m", kind:"hiring_manager",with:"DR", status:"scheduled",
+       scores:{technical:0,problem:0,communication:0,culture:0}, overall:""},
+    {id:"iv4", block:"Afternoon", cand:"ravi",   time:"3:00 PM",  dur:"45m", kind:"behavioral",    with:"DR", status:"scheduled",
+       scores:{technical:0,problem:0,communication:0,culture:0}, overall:""},
+    {id:"iv5", block:"Afternoon", cand:"priya",  time:"4:30 PM",  dur:"30m", kind:"culture",       with:"DR", status:"scheduled",
+       scores:{technical:0,problem:0,communication:0,culture:0}, overall:""}
+  ];
+
+  /* ---------- panel scorecards already submitted (for the compare panel) ---------- */
+  /* each row = one interviewer's submitted card for a candidate on the open req */
+  var PANEL = {
+    priya:  [{by:"AK",technical:5,problem:5,communication:5,culture:4,overall:"strong_yes"},
+             {by:"JM",technical:5,problem:4,communication:4,culture:5,overall:"yes"},
+             {by:"TC",technical:4,problem:5,communication:4,culture:4,overall:"yes"}],
+    marcus: [{by:"AK",technical:4,problem:4,communication:5,culture:4,overall:"yes"},
+             {by:"JM",technical:3,problem:4,communication:4,culture:4,overall:"neutral"}],
+    lena:   [{by:"AK",technical:5,problem:5,communication:5,culture:5,overall:"strong_yes"},
+             {by:"JM",technical:5,problem:5,communication:4,culture:5,overall:"strong_yes"},
+             {by:"TC",technical:5,problem:4,communication:5,culture:4,overall:"yes"},
+             {by:"DR",technical:5,problem:5,communication:4,culture:4,overall:"yes"}],
+    ravi:   [{by:"AK",technical:3,problem:3,communication:4,culture:4,overall:"neutral"},
+             {by:"JM",technical:2,problem:3,communication:3,culture:3,overall:"no"}]
+  };
+  /* who's on the shortlist for the compare column (order matters before ranking) */
+  var COMPARE_SET = ["priya","marcus","lena","ravi"];
+
+  /* ---------- working state of the OPEN scorecard ---------- */
+  var current = null;            // interview id loaded in the scorecard
+  var DIM_KEYS = ["technical","problem","communication","culture"];
+
+  /* ===================== SCHEDULE (left) ===================== */
+  var scheduleFilter = "all";
+  document.getElementById("sFilters").addEventListener("click", function(e){
+    var f = e.target.closest(".sf"); if(!f) return;
+    document.querySelectorAll(".sf").forEach(function(x){x.classList.remove("on");});
+    f.classList.add("on"); scheduleFilter = f.dataset.f; renderSchedule();
+  });
+
+  function renderSchedule(){
+    var list = INTERVIEWS.filter(function(iv){
+      if(scheduleFilter==="todo") return iv.status!=="submitted" && iv.status!=="cancelled";
+      if(scheduleFilter==="submitted") return iv.status==="submitted";
+      return true;
+    });
+    document.getElementById("schedCount").textContent =
+      INTERVIEWS.filter(function(iv){return iv.status!=="submitted"&&iv.status!=="cancelled";}).length;
+
+    var host = document.getElementById("schedule"); host.innerHTML="";
+    var blocks=[], map={};
+    list.forEach(function(iv){ if(!map[iv.block]){map[iv.block]={block:iv.block,items:[]};blocks.push(map[iv.block]);} map[iv.block].items.push(iv); });
+
+    blocks.forEach(function(b){
+      var lab=document.createElement("div"); lab.className="blk-label";
+      lab.innerHTML='<span class="b-t">'+b.block+'</span><span class="b-line"></span><span class="b-n">'+b.items.length+'</span>';
+      host.appendChild(lab);
+      b.items.forEach(function(iv){
+        var c=CANDIDATES[iv.cand], k=KIND[iv.kind];
+        var card=document.createElement("div");
+        card.className="iv-card "+k.cls+(iv.id===current?" sel":"");
+        card.dataset.id=iv.id;
+        card.innerHTML=
+          '<div class="ivc-top">'+
+            '<span class="ivc-time">'+iv.time+'</span>'+
+            '<span class="ivc-dur">'+iv.dur+'</span>'+
+            '<span class="ivc-kind '+k.cls+'">'+k.label+'</span>'+
+          '</div>'+
+          '<div class="ivc-cand">'+
+            '<span class="ivc-ava">'+c.initials+'</span>'+
+            '<span class="ivc-id"><b>'+c.name+'</b><span>'+c.headline+'</span></span>'+
+          '</div>'+
+          '<div class="ivc-foot">'+
+            '<span class="ivc-with"><span class="with-ava">'+iv.with+'</span> You · panel</span>'+
+            '<span class="ivc-st st-'+iv.status+'">'+statusLabel(iv.status)+'</span>'+
+          '</div>';
+        card.addEventListener("click", function(){ loadInterview(iv.id); });
+        host.appendChild(card);
+      });
+    });
+  }
+  function statusLabel(s){return {scheduled:"Scheduled",in_progress:"Scoring now",submitted:"Submitted",cancelled:"Cancelled"}[s];}
+
+  /* ===================== SCORECARD (center) ===================== */
+  /* working values pulled from the loaded interview */
+  var work = {technical:0,problem:0,communication:0,culture:0,overall:""};
+
+  function loadInterview(id){
+    var iv = INTERVIEWS.find(function(x){return x.id===id;});
+    if(!iv) return;
+    current = id;
+    work = {
+      technical:iv.scores.technical, problem:iv.scores.problem,
+      communication:iv.scores.communication, culture:iv.scores.culture, overall:iv.overall
+    };
+    renderCandidateHeader(iv.cand);
+    renderDims(); renderVerdictBtns(); renderMeter(); renderSchedule(); renderCompare();
+    document.querySelector(".scorecard-pane").scrollTo({top:0,behavior:"smooth"});
+  }
+
+  function renderCandidateHeader(candKey){
+    var c = CANDIDATES[candKey];
+    document.getElementById("scAva").textContent = c.initials;
+    document.getElementById("scName").childNodes[0].nodeValue = c.name+" ";
+    document.getElementById("scShortlist").style.display = c.shortlisted ? "" : "none";
+    document.getElementById("scHeadline").textContent = c.headline;
+    var f=document.getElementById("scFacts"); f.innerHTML="";
+    c.facts.forEach(function(p){
+      var el=document.createElement("span"); el.className="fact";
+      el.innerHTML=p[0]+': <b>'+p[1]+'</b>'; f.appendChild(el);
+    });
+  }
+
+  /* ---- competency rating dimensions (JS items bound to score_* fields) ---- */
+  function renderDims(){
+    var host=document.getElementById("dims"); host.innerHTML="";
+    DIMENSIONS.forEach(function(d){
+      var val = work[d.key];
+      var row=document.createElement("div"); row.className="dim";
+      var stars="";
+      for(var i=1;i<=5;i++) stars+='<div class="star'+(i<=val?" on":"")+'" data-k="'+d.key+'" data-n="'+i+'">★</div>';
+      row.innerHTML=
+        '<div class="dim-info"><div class="name">'+d.name+'</div><div class="desc">'+d.desc+'</div></div>'+
+        '<div class="stars">'+stars+'</div>'+
+        '<div class="dim-val" id="dv-'+d.key+'">'+ (val? '<span class="n">'+val+'</span>/5' : '<span class="e">—</span>') +'</div>';
+      host.appendChild(row);
+    });
+  }
+
+  document.getElementById("dims").addEventListener("click", function(e){
+    var st=e.target.closest(".star"); if(!st) return;
+    var k=st.dataset.k, n=+st.dataset.n;
+    work[k] = (work[k]===n) ? 0 : n;   // click same star again to clear
+    // write back to the interview record (simulates the native form field write)
+    syncWorkToInterview();
+    paintStars(k); renderMeter(); renderCompare(); touchSaved();
+  });
+  // hover peek
+  document.getElementById("dims").addEventListener("mouseover", function(e){
+    var st=e.target.closest(".star"); if(!st) return;
+    var k=st.dataset.k, n=+st.dataset.n;
+    document.querySelectorAll('.star[data-k="'+k+'"]').forEach(function(s){
+      s.classList.toggle("peek", !s.classList.contains("on") && +s.dataset.n<=n);
+    });
+  });
+  document.getElementById("dims").addEventListener("mouseout", function(e){
+    document.querySelectorAll(".star.peek").forEach(function(s){s.classList.remove("peek");});
+  });
+
+  function paintStars(k){
+    document.querySelectorAll('.star[data-k="'+k+'"]').forEach(function(s){
+      s.classList.toggle("on", +s.dataset.n<=work[k]); s.classList.remove("peek");
+    });
+    var dv=document.getElementById("dv-"+k);
+    dv.innerHTML = work[k] ? '<span class="n">'+work[k]+'</span>/5' : '<span class="e">—</span>';
+  }
+
+  /* ---- overall verdict segmented (JS item bound to overall field) ---- */
+  function renderVerdictBtns(){
+    document.querySelectorAll(".vbtn").forEach(function(b){
+      b.classList.toggle("on", b.dataset.v===work.overall);
+    });
+  }
+  document.getElementById("verdictBtns").addEventListener("click", function(e){
+    var b=e.target.closest(".vbtn"); if(!b) return;
+    work.overall = (work.overall===b.dataset.v) ? "" : b.dataset.v;
+    syncWorkToInterview();
+    renderVerdictBtns(); renderMeter(); renderCompare(); touchSaved();
+  });
+
+  function syncWorkToInterview(){
+    var iv = INTERVIEWS.find(function(x){return x.id===current;}); if(!iv) return;
+    iv.scores={technical:work.technical,problem:work.problem,communication:work.communication,culture:work.culture};
+    iv.overall=work.overall;
+    var scored = DIM_KEYS.some(function(k){return work[k]>0;}) || work.overall;
+    if(iv.status!=="submitted") iv.status = scored ? "in_progress" : "scheduled";
+  }
+
+  /* ---- live verdict meter (binds to working scorecard, recomputes on change) ---- */
+  function renderMeter(){
+    var filled = DIM_KEYS.filter(function(k){return work[k]>0;});
+    var avg = filled.length ? filled.reduce(function(s,k){return s+work[k];},0)/filled.length : 0;
+    var completeness = (filled.length + (work.overall?1:0)) / 5;
+
+    // gauge
+    var R=31, C=2*Math.PI*R;
+    var fg=document.getElementById("gaugeFg");
+    fg.setAttribute("stroke-dasharray", C.toFixed(1));
+    fg.setAttribute("stroke-dashoffset", (C*(1-Math.min(avg/5,1))).toFixed(1));
+    document.getElementById("gaugeNum").textContent = avg ? avg.toFixed(1) : "—";
+
+    // verdict mapping (explicit overall wins, else derive from average)
+    var derived = avg>=4.5?"strong_yes":avg>=3.7?"yes":avg>=2.8?"neutral":avg>0?"no":"";
+    var shown = work.overall || derived;
+    var col = shown ? VERDICT[shown].color : "#5b5bd6";
+    fg.setAttribute("stroke", col);
+
+    var vText=document.getElementById("verdictText"), vPill=document.getElementById("verdictPill"), vSub=document.getElementById("verdictSub");
+    if(shown){
+      vText.textContent = VERDICT[shown].label;
+      vText.style.color = VERDICT[shown].txt;
+      vPill.textContent = work.overall ? "your call" : "auto";
+      vPill.style.background = VERDICT[shown].soft; vPill.style.color = VERDICT[shown].txt;
+      vSub.textContent = work.overall
+        ? "You recommended "+VERDICT[shown].label.toLowerCase()+" · panel avg "+(avg?avg.toFixed(1):"—")
+        : "Derived from "+filled.length+"/4 dimensions — set an explicit call below.";
+    } else {
+      vText.textContent="In progress"; vText.style.color="var(--ink)";
+      vPill.textContent="draft"; vPill.style.background="#f1f1f4"; vPill.style.color="var(--ink-3)";
+      vSub.textContent="Score the four dimensions to see a recommendation.";
+    }
+
+    // dimension breakdown bars
+    var bd=document.getElementById("breakdown"); bd.innerHTML="";
+    DIMENSIONS.forEach(function(d){
+      var v=work[d.key];
+      var el=document.createElement("div"); el.className="bd";
+      el.innerHTML='<div class="bar"><i style="width:'+(v/5*100)+'%"></i></div><div class="lbl">'+d.name.split(" ")[0]+'</div>';
+      bd.appendChild(el);
+    });
+  }
+
+  function touchSaved(){
+    var s=document.getElementById("savedLine");
+    s.innerHTML='<i></i> Saving…';
+    clearTimeout(touchSaved._t);
+    touchSaved._t=setTimeout(function(){ s.innerHTML='<i></i> Auto-saved just now'; },650);
+  }
+
+  /* submit / draft */
+  document.getElementById("submitBtn").onclick=function(){
+    var unfilled = DIM_KEYS.filter(function(k){return work[k]===0;});
+    if(unfilled.length){ flash("Score all four dimensions first ("+unfilled.length+" left)"); return; }
+    if(!work.overall){ flash("Pick an overall recommendation"); return; }
+    var iv = INTERVIEWS.find(function(x){return x.id===current;});
+    iv.status="submitted";
+    // push my card onto the panel for this candidate so compare updates
+    var cand=iv.cand;
+    PANEL[cand]=PANEL[cand]||[];
+    PANEL[cand]=PANEL[cand].filter(function(r){return r.by!=="DR";});
+    PANEL[cand].push({by:"DR",technical:work.technical,problem:work.problem,communication:work.communication,culture:work.culture,overall:work.overall});
+    renderSchedule(); renderCompare();
+    flash("Scorecard submitted · "+VERDICT[work.overall].label);
+  };
+  document.getElementById("draftBtn").onclick=function(){ flash("Saved as draft"); touchSaved(); };
+
+  /* ===================== COMPARE (right) ===================== */
+  function avgOf(rows,key){
+    if(!rows.length) return 0;
+    return rows.reduce(function(s,r){return s+r[key];},0)/rows.length;
+  }
+  function renderCompare(){
+    var host=document.getElementById("compare"); host.innerHTML="";
+    var openCand = current ? INTERVIEWS.find(function(x){return x.id===current;}).cand : null;
+
+    var rows = COMPARE_SET.map(function(key){
+      var c=CANDIDATES[key], panel=PANEL[key]||[];
+      var dims={
+        technical:avgOf(panel,"technical"), problem:avgOf(panel,"problem"),
+        communication:avgOf(panel,"communication"), culture:avgOf(panel,"culture")
+      };
+      var overall=(dims.technical+dims.problem+dims.communication+dims.culture)/4;
+      return {key:key,c:c,panel:panel,dims:dims,overall:overall};
+    }).sort(function(a,b){return b.overall-a.overall;});
+
+    var dimMeta=[
+      {k:"technical",l:"Tech"},{k:"problem",l:"Problem"},
+      {k:"communication",l:"Comm"},{k:"culture",l:"Values"}
+    ];
+
+    rows.forEach(function(r,i){
+      var cls="cmp-card"+(i===0&&r.overall>0?" lead":"")+(r.key===openCand?" active":"");
+      var card=document.createElement("div"); card.className=cls;
+      var col=r.overall>=4.5?"#178a5b":r.overall>=3.7?"#1f9d6b":r.overall>=2.8?"#d9920a":r.overall>0?"#d6453d":"#8a8da3";
+
+      var dimsHtml=dimMeta.map(function(d){
+        var v=r.dims[d.k]; var pct=v/5*100;
+        var bc=v>=4?"#1f9d6b":v>=3?"#d9920a":v>0?"#d6453d":"#d4d7e3";
+        return '<div class="cmp-dim"><span class="dl">'+d.l+'</span>'+
+               '<span class="dbar"><i style="width:'+pct+'%;background:'+bc+'"></i></span>'+
+               '<span class="dv">'+(v?v.toFixed(1):"—")+'</span></div>';
+      }).join("");
+
+      var consensus=r.panel.map(function(p){
+        var v=VERDICT[p.overall];
+        return '<span class="cdot '+v.cls+'" title="'+p.by+': '+v.label+'">'+p.by+'</span>';
+      }).join("");
+      if(r.panel.length===0) consensus='<span class="cdot pend">·</span>';
+
+      card.innerHTML=
+        '<div class="cmp-top">'+
+          '<span class="cmp-rank">'+(r.overall>0?(i+1):"—")+'</span>'+
+          '<span class="cmp-ava">'+r.c.initials+'</span>'+
+          '<span class="cmp-id"><b>'+r.c.name+'</b><span>'+r.c.company+' · '+r.c.years+' yrs</span></span>'+
+          '<span class="cmp-overall"><span class="big" style="color:'+col+'">'+(r.overall?r.overall.toFixed(1):"—")+'</span><span class="of">avg</span></span>'+
+        '</div>'+
+        '<div class="cmp-dims">'+dimsHtml+'</div>'+
+        '<div class="cmp-foot">'+
+          '<div class="consensus">'+consensus+'</div>'+
+          '<span class="cmp-panel-n">'+r.panel.length+' card'+(r.panel.length===1?"":"s")+'</span>'+
+          (r.key===openCand?'<span class="cmp-tag">Open</span>':'')+
+        '</div>';
+      card.addEventListener("click", function(){
+        // jump scorecard to this candidate's interview if I have one
+        var mine=INTERVIEWS.find(function(x){return x.cand===r.key;});
+        if(mine){ loadInterview(mine.id); } else { flash(r.c.name+" — no interview assigned to you"); }
+      });
+      host.appendChild(card);
+    });
+  }
+
+  /* ===================== toast ===================== */
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2300); }
+
+  /* ===================== init ===================== */
+  renderSchedule();
+  loadInterview("iv1");   // start on the in-progress system-design interview
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Candidate Management: an interviewer hub — schedule, scorecards, and candidate comparison. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/43-candidate-management.html
+</script>
+</body>
+</html>

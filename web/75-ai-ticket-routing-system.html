@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Ticket Routing System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-panel: #ffffff;
+    --bg-panel-2: #f1f3f6;
+    --bg-elev: #f6f7f9;
+    --border: #e3e6eb;
+    --border-soft: #edeff3;
+    --text: #1f2937;
+    --text-dim: #5b6573;
+    --text-faint: #98a1ae;
+    --accent: #e11d48;
+    --accent-soft: #fce7eb;
+    --green: #16a34a;
+    --green-soft: #e7f6ec;
+    --amber: #c2820a;
+    --amber-soft: #fbf2dc;
+    --red: #dc2626;
+    --red-soft: #fdeaea;
+    --purple: #8b5cf6;
+    --purple-soft: #f1ecfd;
+    --cyan: #0d9488;
+    --cyan-soft: #e0f5f2;
+    --radius: 12px;
+    --shadow: 0 16px 40px -16px rgba(31,41,55,.22);
+    font-synthesis: none;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 85% -10%, #fdf0f3 0%, transparent 55%),
+      radial-gradient(900px 500px at 0% 110%, #eef1f6 0%, transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  ::selection { background: #fbd0da; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 24px; height: 60px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.82);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: .2px; }
+  .brand .logo {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(135deg, #e11d48, #f43f5e);
+    display: grid; place-items: center; color: #fff; box-shadow: 0 4px 14px -2px #e11d4855;
+  }
+  .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--text-dim); letter-spacing: .3px; }
+  .topbar .spacer { flex: 1; }
+  .global-search {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 9px; padding: 7px 13px; width: 320px;
+    color: var(--text-dim); transition: border-color .15s, box-shadow .15s;
+  }
+  .global-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px #e11d4822; }
+  .global-search input {
+    background: none; border: none; outline: none; color: var(--text);
+    font-size: 13px; flex: 1; width: 100%;
+  }
+  .global-search input::placeholder { color: var(--text-faint); }
+  .pill-kbd { font-size: 11px; color: var(--text-faint); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
+  .ai-status {
+    display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #15803d;
+    background: var(--green-soft); border: 1px solid #bbe8c8; padding: 6px 12px; border-radius: 20px;
+  }
+  .ai-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 #16a34a99; animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 #16a34a55;} 70%{box-shadow:0 0 0 7px #16a34a00;} 100%{box-shadow:0 0 0 0 #16a34a00;} }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#fb7185,#e11d48); display:grid; place-items:center; font-weight:700; font-size:13px; color:#fff; }
+
+  /* ---------- Layout ---------- */
+  .layout { display: grid; grid-template-columns: 232px 1fr; min-height: calc(100vh - 60px); }
+  .sidebar { border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .nav-group-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .9px; color: var(--text-faint); margin: 16px 10px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px;
+    color: var(--text-dim); cursor: pointer; font-size: 13.5px; font-weight: 500;
+    transition: background .13s, color .13s; user-select: none;
+  }
+  .nav-item:hover { background: var(--bg-panel); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-item.active .ic { color: var(--accent); }
+  .nav-item .ic { width: 18px; display: grid; place-items: center; color: var(--text-faint); }
+  .nav-item .count { margin-left: auto; font-size: 11px; background: var(--bg-panel-2); padding: 1px 8px; border-radius: 10px; color: var(--text-dim); }
+  .nav-item.active .count { background: #fad4dd; color: #b01239; }
+  .sidebar .sla-card {
+    margin-top: auto; background: var(--bg-panel); border: 1px solid var(--border-soft);
+    border-radius: 12px; padding: 14px; font-size: 12px;
+  }
+  .sla-card h4 { margin: 0 0 10px; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .7px; }
+  .sla-bar { height: 7px; border-radius: 4px; background: var(--bg-panel-2); overflow: hidden; margin: 5px 0 3px; }
+  .sla-bar > span { display: block; height: 100%; border-radius: 4px; }
+
+  .main { padding: 22px 26px 40px; overflow: hidden; }
+
+  /* ---------- KPI row ---------- */
+  .page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap: wrap; }
+  .page-head h1 { margin: 0; font-size: 21px; letter-spacing: -.2px; }
+  .page-head p { margin: 3px 0 0; color: var(--text-dim); font-size: 13px; }
+  .head-actions { display:flex; gap:10px; }
+  .btn {
+    border: 1px solid var(--border); background: var(--bg-panel); color: var(--text);
+    border-radius: 9px; padding: 8px 15px; font-size: 13px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; transition: .14s; font-family: inherit;
+  }
+  .btn:hover { border-color: #cfd4dc; background: var(--bg-panel-2); }
+  .btn.primary { background: linear-gradient(135deg,#e11d48,#be123c); border-color: #be123c; color:#fff; box-shadow: 0 6px 18px -8px #e11d4866; }
+  .btn.primary:hover { filter: brightness(1.05); }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 15px 16px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04), 0 6px 16px -12px rgba(31,41,55,.18);
+  }
+  .kpi::after { content:""; position:absolute; right:-30px; top:-30px; width:90px; height:90px; border-radius:50%; background: var(--accent); opacity:.05; }
+  .kpi .label { font-size: 12px; color: var(--text-dim); display:flex; align-items:center; gap:7px; }
+  .kpi .val { font-size: 27px; font-weight: 700; margin: 7px 0 2px; letter-spacing:-.5px; }
+  .kpi .delta { font-size: 11.5px; font-weight: 600; display:inline-flex; align-items:center; gap:4px; }
+  .delta.up { color: var(--green); } .delta.down { color: var(--red); } .delta.flat { color: var(--text-dim); }
+  .kpi .spark { position:absolute; right:14px; bottom:12px; opacity:.85; }
+
+  /* ---------- Triage grid ---------- */
+  .triage { display: grid; grid-template-columns: 1fr 416px; gap: 18px; align-items: start; }
+  @media (max-width: 1180px){ .triage { grid-template-columns: 1fr; } }
+
+  .inbox-panel { background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 2px rgba(31,41,55,.04), 0 8px 24px -16px rgba(31,41,55,.18); }
+  .inbox-toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border-soft); flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; background: var(--bg-panel-2); padding: 3px; border-radius: 9px; }
+  .tab { padding: 6px 13px; font-size: 12.5px; font-weight: 600; border-radius: 7px; cursor: pointer; color: var(--text-dim); transition:.13s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--accent); color: #fff; box-shadow: 0 3px 10px -4px #e11d4888; }
+  .toolbar-spacer { flex: 1; }
+  .mini-search { display:flex; align-items:center; gap:7px; background: var(--bg-panel-2); border:1px solid var(--border); border-radius:8px; padding:6px 11px; width: 210px; }
+  .mini-search input { background:none; border:none; outline:none; color:var(--text); font-size:12.5px; width:100%; }
+  .mini-search input::placeholder{ color: var(--text-faint); }
+  .seg { display:flex; gap:6px; }
+  .chip {
+    font-size: 12px; padding: 5px 11px; border-radius: 20px; cursor: pointer; user-select:none;
+    border: 1px solid var(--border); color: var(--text-dim); background: var(--bg-panel-2); transition:.13s; font-weight:500;
+  }
+  .chip:hover { color: var(--text); border-color:#cfd4dc; }
+  .chip.active { background: var(--accent-soft); border-color:#f4aebc; color:#b01239; }
+
+  .ticket-list { max-height: 640px; overflow-y: auto; }
+  .ticket-list::-webkit-scrollbar { width: 9px; }
+  .ticket-list::-webkit-scrollbar-thumb { background: #d4d8df; border-radius: 6px; border:2px solid var(--bg-panel); }
+  .ticket {
+    display: grid; grid-template-columns: 4px 1fr auto; gap: 0;
+    padding: 13px 16px 13px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer;
+    transition: background .12s; position: relative;
+  }
+  .ticket:hover { background: var(--bg-panel-2); }
+  .ticket.selected { background: var(--accent-soft); }
+  .ticket .rail { position:absolute; left:0; top:0; bottom:0; width:3px; }
+  .ticket .body { min-width: 0; }
+  .ticket .line1 { display:flex; align-items:center; gap:9px; margin-bottom:4px; }
+  .ticket .tid { font-size: 11.5px; color: var(--text-faint); font-variant-numeric: tabular-nums; font-weight:600; }
+  .ticket .subj { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .ticket.unread .subj::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--accent); margin-right:7px; vertical-align: middle; }
+  .ticket .snippet { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom:7px; }
+  .ticket .meta { display:flex; align-items:center; gap:7px; flex-wrap: wrap; }
+  .ticket .right { display:flex; flex-direction:column; align-items:flex-end; gap:8px; padding-left:12px; min-width: 96px; }
+  .ticket .when { font-size: 11.5px; color: var(--text-faint); white-space:nowrap; }
+
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 6px; white-space: nowrap; display:inline-flex; align-items:center; gap:5px; line-height:1.45; }
+  .b-p1 { background: var(--red-soft); color: #b91c1c; border:1px solid #f6c4c4; }
+  .b-p2 { background: var(--amber-soft); color: #92610a; border:1px solid #ecd49a; }
+  .b-p3 { background: var(--accent-soft); color: #b01239; border:1px solid #f4c0cc; }
+  .b-p4 { background: #eef0f3; color: var(--text-dim); border:1px solid var(--border); }
+  .b-team { background: var(--bg-panel-2); color: var(--text-dim); border:1px solid var(--border); }
+  .b-new { background: var(--purple-soft); color:#6d28d9; border:1px solid #ddd0f7; }
+  .b-routed { background: var(--cyan-soft); color:#0a766c; border:1px solid #b6e3dc; }
+  .b-progress { background: var(--accent-soft); color:#b01239; border:1px solid #f4c0cc; }
+  .b-resolved { background: var(--green-soft); color:#15803d; border:1px solid #bbe8c8; }
+
+  .ai-route-tag {
+    display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600;
+    padding: 2px 9px 2px 7px; border-radius: 6px;
+    background: var(--purple-soft); border:1px solid #ddd0f7; color:#6d28d9;
+  }
+  .conf {
+    display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+    padding:1px 7px; border-radius: 20px; letter-spacing:.2px;
+  }
+  .conf.hi { background: var(--green-soft); color:#15803d; }
+  .conf.mid { background: var(--amber-soft); color:#92610a; }
+  .conf.low { background: var(--red-soft); color:#b91c1c; }
+  .conf-ring { --p:0; width:16px; height:16px; border-radius:50%;
+    background: conic-gradient(currentColor calc(var(--p)*1%), #e3e6eb 0); position:relative; }
+  .conf-ring::after { content:""; position:absolute; inset:3px; border-radius:50%; background: var(--bg-panel); }
+
+  .empty-state { padding: 60px 20px; text-align:center; color:var(--text-faint); display:none; }
+  .empty-state svg { opacity:.4; margin-bottom:12px; }
+
+  /* ---------- Detail / review pane ---------- */
+  .review-pane { position: sticky; top: 82px; display:flex; flex-direction:column; gap:16px; }
+  .panel { background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(31,41,55,.04), 0 8px 24px -16px rgba(31,41,55,.18); }
+  .panel .ph { padding: 14px 16px; border-bottom: 1px solid var(--border-soft); display:flex; align-items:center; gap:9px; }
+  .panel .ph h3 { margin:0; font-size: 13.5px; }
+  .panel .ph .ic { color: var(--accent); }
+  .ph .grow { flex:1; }
+  .panel .pb { padding: 16px; }
+
+  .ai-card { border:1px solid #e6dcfb; background: linear-gradient(180deg,#faf7ff,#ffffff); }
+  .ai-card .ph { background: linear-gradient(90deg,#f5f0ff,#fbf9ff); border-bottom:1px solid #ece4fb; }
+  .ai-card .ph .ic { color: var(--purple); }
+  .ai-badge { font-size:10px; font-weight:700; letter-spacing:.6px; color:#6d28d9; background:var(--purple-soft); padding:2px 8px; border-radius:20px; border:1px solid #ddd0f7; }
+
+  .route-result { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+  .route-result .from { color: var(--text-dim); font-size:12px; }
+  .route-result .arrow { color: var(--purple); }
+  .route-result .to {
+    font-weight:700; font-size:15px;
+    background: linear-gradient(90deg,#8b5cf6,#e11d48); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color: transparent;
+  }
+  .gauge-wrap { display:flex; align-items:center; gap:16px; margin: 4px 0 16px; }
+  .gauge { position:relative; width:96px; height:96px; flex-shrink:0; }
+  .gauge .pct { position:absolute; inset:0; display:grid; place-items:center; flex-direction:column; }
+  .gauge .pct b { font-size:21px; line-height:1; }
+  .gauge .pct span { font-size:10px; color:var(--text-dim); }
+  .reason { font-size:12.5px; color:var(--text-dim); line-height:1.55; }
+  .reason b { color: var(--text); font-weight:600; }
+
+  .field-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px dashed var(--border-soft); }
+  .field-row:last-child { border-bottom:none; }
+  .field-row .k { font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:7px; }
+  .field-row .v { font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:8px; }
+
+  .alt-routes { margin-top:6px; }
+  .alt-route { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border-soft); border-radius:9px; margin-bottom:7px; cursor:pointer; transition:.13s; }
+  .alt-route:hover { border-color:#f4aebc; background: var(--bg-panel-2); }
+  .alt-route .ar-name { font-size:12.5px; font-weight:600; flex:1; }
+  .alt-route .ar-bar { width:64px; height:6px; border-radius:4px; background:var(--bg-panel-2); overflow:hidden; }
+  .alt-route .ar-bar > span { display:block; height:100%; background:linear-gradient(90deg,#e11d48,#8b5cf6); }
+  .alt-route .ar-pct { font-size:11.5px; color:var(--text-dim); width:34px; text-align:right; font-variant-numeric:tabular-nums; }
+
+  .review-actions { display:flex; gap:9px; margin-top:14px; }
+  .review-actions .btn { flex:1; justify-content:center; }
+  .btn.ghost-green { border-color:#bbe8c8; background:var(--green-soft); color:#15803d; }
+  .btn.ghost-green:hover { background:#d6efdd; }
+  .btn.ghost-amber { border-color:#ecd49a; background:var(--amber-soft); color:#92610a; }
+  .btn.ghost-amber:hover { background:#f6e7c2; }
+
+  /* feed */
+  .feed-item { display:flex; gap:11px; padding:11px 0; border-bottom:1px solid var(--border-soft); }
+  .feed-item:last-child { border-bottom:none; padding-bottom:0; }
+  .feed-dot { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; font-size:13px; }
+  .fd-ai { background:var(--purple-soft); color:#6d28d9; }
+  .fd-route { background:var(--cyan-soft); color:#0a766c; }
+  .fd-user { background:var(--accent-soft); color:#b01239; }
+  .fd-sla { background:var(--amber-soft); color:#92610a; }
+  .feed-item .ft { font-size:12.5px; line-height:1.5; }
+  .feed-item .ft b { font-weight:600; color:var(--text); }
+  .feed-item .ft .muted { color:var(--text-dim); }
+  .feed-item .fw { font-size:11px; color:var(--text-faint); margin-top:2px; }
+
+  /* chart */
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:11.5px; color:var(--text-dim); margin-top:10px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .bar-track { display:flex; align-items:center; gap:10px; margin:7px 0; }
+  .bar-track .bt-name { width:118px; font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:7px; }
+  .bar-track .bt-rail { flex:1; height:22px; background:var(--bg-panel-2); border-radius:6px; overflow:hidden; display:flex; }
+  .bar-track .bt-rail > span { height:100%; }
+  .bar-track .bt-val { width:34px; text-align:right; font-size:12px; font-variant-numeric:tabular-nums; color:var(--text-dim); }
+
+  /* ---------- Drawer ---------- */
+  .drawer-scrim { position: fixed; inset:0; background: rgba(31,41,55,.38); backdrop-filter: blur(2px); opacity:0; pointer-events:none; transition:.22s; z-index:50; }
+  .drawer-scrim.open { opacity:1; pointer-events:auto; }
+  .drawer {
+    position: fixed; top:0; right:0; bottom:0; width: 560px; max-width: 94vw;
+    background: var(--bg-panel); border-left:1px solid var(--border); box-shadow: var(--shadow);
+    transform: translateX(100%); transition: transform .28s cubic-bezier(.4,0,.2,1); z-index:51;
+    display:flex; flex-direction:column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { padding: 18px 22px; border-bottom:1px solid var(--border-soft); display:flex; align-items:flex-start; gap:14px; }
+  .drawer-head .dx { margin-left:auto; cursor:pointer; color:var(--text-dim); width:30px; height:30px; border-radius:8px; display:grid; place-items:center; }
+  .drawer-head .dx:hover { background: var(--bg-panel-2); color:var(--text); }
+  .drawer-body { padding: 20px 22px; overflow-y:auto; flex:1; }
+  .drawer-body::-webkit-scrollbar { width: 9px; }
+  .drawer-body::-webkit-scrollbar-thumb { background: #d4d8df; border-radius:6px; border:2px solid var(--bg-panel); }
+  .dh-title { font-size:18px; font-weight:700; margin:2px 0 5px; letter-spacing:-.2px; }
+  .dh-sub { font-size:12.5px; color:var(--text-dim); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .section-label { font-size:10.5px; text-transform:uppercase; letter-spacing:.9px; color:var(--text-faint); margin:22px 0 10px; font-weight:700; }
+  .msg-thread { display:flex; flex-direction:column; gap:12px; }
+  .msg { background:var(--bg-panel-2); border:1px solid var(--border-soft); border-radius:11px; padding:13px 15px; }
+  .msg .mh { display:flex; align-items:center; gap:9px; margin-bottom:7px; font-size:12px; }
+  .msg .mh .ava { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:10.5px; font-weight:700; }
+  .msg .mh .mname { font-weight:600; } .msg .mh .mwhen { color:var(--text-faint); margin-left:auto; font-size:11.5px; }
+  .msg p { margin:0; font-size:13px; color:var(--text); line-height:1.55; }
+  .extract-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .extract-cell { background:var(--bg-panel-2); border:1px solid var(--border-soft); border-radius:9px; padding:10px 12px; }
+  .extract-cell .ek { font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+  .extract-cell .ev { font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .drawer-foot { padding:14px 22px; border-top:1px solid var(--border-soft); display:flex; gap:10px; background: var(--bg-panel); }
+  .drawer-foot .btn { flex:1; justify-content:center; }
+
+  .hl { background:#fde68a99; border-bottom:1px solid #e11d48; border-radius:2px; padding:0 1px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 30px);
+    background: #ffffff; border:1px solid var(--border); color:var(--text); padding:12px 18px;
+    border-radius:11px; box-shadow: var(--shadow); font-size:13px; display:flex; align-items:center; gap:10px;
+    opacity:0; pointer-events:none; transition:.28s; z-index:80; font-weight:500;
+  }
+  .toast.show { opacity:1; transform: translate(-50%,0); }
+  .toast .ti { width:22px; height:22px; border-radius:7px; display:grid; place-items:center; background:var(--green-soft); color:var(--green); }
+  .scroll-hint { font-size:11px; color:var(--text-faint); padding:9px 16px; text-align:center; border-top:1px solid var(--border-soft); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="logo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17.3l.9-5.4L4.2 8l5.4-.8L12 2z" fill="#fff"/></svg>
+    </span>
+    <div>AI Ticket Routing System<small>Support Operations · Tier-1 Triage</small></div>
+  </div>
+  <div class="spacer"></div>
+  <label class="global-search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+    <input id="globalSearch" placeholder="Search tickets, customers, teams…" />
+    <span class="pill-kbd">⌘K</span>
+  </label>
+  <div class="ai-status"><span class="dot"></span> Auto-routing engine · live</div>
+  <div class="avatar">MK</div>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="nav-group-label">Queues</div>
+    <div class="nav-item active"><span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span> Triage Inbox <span class="count">14</span></div>
+    <div class="nav-item"><span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg></span> Needs Review <span class="count">3</span></div>
+    <div class="nav-item"><span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></span> Auto-Resolved <span class="count">47</span></div>
+    <div class="nav-item"><span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span> SLA at Risk <span class="count">5</span></div>
+
+    <div class="nav-group-label">Teams</div>
+    <div class="nav-item"><span class="ic" style="color:#c2820a">●</span> Billing &amp; Payments <span class="count">6</span></div>
+    <div class="nav-item"><span class="ic" style="color:#2563eb">●</span> Technical Support <span class="count">9</span></div>
+    <div class="nav-item"><span class="ic" style="color:#16a34a">●</span> Onboarding <span class="count">4</span></div>
+    <div class="nav-item"><span class="ic" style="color:#8b5cf6">●</span> Security &amp; Trust <span class="count">2</span></div>
+    <div class="nav-item"><span class="ic" style="color:#0d9488">●</span> Account Management <span class="count">3</span></div>
+
+    <div class="sla-card">
+      <h4>Routing accuracy · 30d</h4>
+      <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:24px;font-weight:700;">96.4%</span><span style="color:var(--green);font-size:11.5px;font-weight:600;">▲ 2.1%</span></div>
+      <div class="sla-bar"><span style="width:96.4%;background:linear-gradient(90deg,#3fb950,#2dd4bf)"></span></div>
+      <div style="color:var(--text-faint);font-size:11px;">1,284 of 1,332 tickets accepted as routed</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <h1>Triage Inbox</h1>
+        <p>Incoming tickets are classified and routed automatically. Review the AI's suggestion, then accept, reroute, or escalate.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn" id="analyzeBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M5 19l3-3M16 8l3-3"/></svg>
+          Re-run classification
+        </button>
+        <button class="btn primary" id="bulkAcceptBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+          Accept all high-confidence
+        </button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg> Open in queue</div>
+        <div class="val">14</div>
+        <div class="delta down">▼ 23% vs yesterday</div>
+        <svg class="spark" width="66" height="30" viewBox="0 0 66 30"><polyline points="0,8 11,5 22,14 33,10 44,20 55,18 66,24" fill="none" stroke="#e11d48" stroke-width="2"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a371f7" stroke-width="2"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8"/></svg> Auto-routed today</div>
+        <div class="val">312</div>
+        <div class="delta up">▲ 18% throughput</div>
+        <svg class="spark" width="66" height="30" viewBox="0 0 66 30"><polyline points="0,22 11,18 22,20 33,12 44,14 55,7 66,4" fill="none" stroke="#a371f7" stroke-width="2"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Avg. routing time</div>
+        <div class="val">1.4s</div>
+        <div class="delta up">▲ 0.3s faster</div>
+        <svg class="spark" width="66" height="30" viewBox="0 0 66 30"><polyline points="0,6 11,9 22,8 33,14 44,13 55,20 66,22" fill="none" stroke="#3fb950" stroke-width="2"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d29922" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg> Low-confidence flagged</div>
+        <div class="val">3</div>
+        <div class="delta flat">needs human review</div>
+        <svg class="spark" width="66" height="30" viewBox="0 0 66 30"><polyline points="0,20 11,22 22,16 33,18 44,12 55,15 66,10" fill="none" stroke="#d29922" stroke-width="2"/></svg>
+      </div>
+    </div>
+
+    <!-- Triage split -->
+    <div class="triage">
+      <!-- Inbox -->
+      <section class="inbox-panel">
+        <div class="inbox-toolbar">
+          <div class="tabs">
+            <div class="tab active" data-tab="all">All</div>
+            <div class="tab" data-tab="new">Unrouted</div>
+            <div class="tab" data-tab="routed">Routed</div>
+            <div class="tab" data-tab="review">Needs review</div>
+          </div>
+          <div class="toolbar-spacer"></div>
+          <label class="mini-search">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            <input id="inboxSearch" placeholder="Filter…" />
+          </label>
+        </div>
+        <div class="inbox-toolbar" style="padding-top:0;border-bottom:1px solid var(--border-soft);">
+          <span style="font-size:11px;color:var(--text-faint);margin-right:2px;">Priority:</span>
+          <div class="seg">
+            <span class="chip active" data-pri="all">All</span>
+            <span class="chip" data-pri="P1">P1</span>
+            <span class="chip" data-pri="P2">P2</span>
+            <span class="chip" data-pri="P3">P3</span>
+            <span class="chip" data-pri="P4">P4</span>
+          </div>
+          <div class="toolbar-spacer"></div>
+          <span style="font-size:11.5px;color:var(--text-dim);" id="resultCount"></span>
+        </div>
+
+        <div class="ticket-list" id="ticketList"></div>
+        <div class="empty-state" id="emptyState">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+          <div style="font-weight:600;color:var(--text-dim);">No tickets match these filters</div>
+          <div style="font-size:12px;margin-top:4px;">Try clearing the priority filter or search.</div>
+        </div>
+        <div class="scroll-hint">Showing live triage queue · updates every 1.4s</div>
+      </section>
+
+      <!-- Review pane -->
+      <aside class="review-pane">
+        <div class="panel ai-card">
+          <div class="ph">
+            <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17.3l.9-5.4L4.2 8l5.4-.8L12 2z"/></svg></span>
+            <h3>AI Routing Suggestion</h3>
+            <span class="grow"></span>
+            <span class="ai-badge" id="aiModelTag">model v4 · 1.4s</span>
+          </div>
+          <div class="pb" id="reviewBody"><!-- injected --></div>
+        </div>
+
+        <div class="panel">
+          <div class="ph">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg></span>
+            <h3>Routing activity</h3>
+          </div>
+          <div class="pb" style="padding-top:6px;" id="feedBody"></div>
+        </div>
+
+        <div class="panel">
+          <div class="ph">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-6"/></svg></span>
+            <h3>Tickets routed by team · today</h3>
+          </div>
+          <div class="pb">
+            <div class="bar-track"><span class="bt-name"><i style="color:#2563eb">●</i> Technical</span><div class="bt-rail"><span style="width:38%;background:#2563eb"></span></div><span class="bt-val">118</span></div>
+            <div class="bar-track"><span class="bt-name"><i style="color:#c2820a">●</i> Billing</span><div class="bt-rail"><span style="width:27%;background:#c2820a"></span></div><span class="bt-val">84</span></div>
+            <div class="bar-track"><span class="bt-name"><i style="color:#16a34a">●</i> Onboarding</span><div class="bt-rail"><span style="width:16%;background:#16a34a"></span></div><span class="bt-val">51</span></div>
+            <div class="bar-track"><span class="bt-name"><i style="color:#0d9488">●</i> Account</span><div class="bt-rail"><span style="width:11%;background:#0d9488"></span></div><span class="bt-val">34</span></div>
+            <div class="bar-track"><span class="bt-name"><i style="color:#8b5cf6">●</i> Security</span><div class="bt-rail"><span style="width:8%;background:#8b5cf6"></span></div><span class="bt-val">25</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<!-- Drawer -->
+<div class="drawer-scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div style="min-width:0;flex:1;">
+      <div class="dh-sub" id="drawerTid"></div>
+      <div class="dh-title" id="drawerSubj"></div>
+      <div class="dh-sub" id="drawerMeta"></div>
+    </div>
+    <div class="dx" id="drawerClose">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </div>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn ghost-amber" id="drawerReroute">Reroute manually</button>
+    <button class="btn primary" id="drawerAccept">Accept routing</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><span class="ti"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></span><span id="toastMsg">Done</span></div>
+
+<script>
+/* ---------------- Seed data ---------------- */
+const TEAM_COLORS = {
+  "Technical Support":"#2563eb","Billing & Payments":"#c2820a","Onboarding":"#16a34a",
+  "Security & Trust":"#8b5cf6","Account Management":"#0d9488"
+};
+const tickets = [
+  { id:"TKT-48217", subj:"Payment failed but card was charged twice", snippet:"I tried to upgrade to the Growth plan and got an error, but my statement shows two $149 charges…",
+    cust:"Dana Whitfield", company:"Northwind Retail", channel:"Email", pri:"P1", status:"routed", unread:true, when:"2m",
+    sentiment:"Frustrated", team:"Billing & Payments", conf:97, status_route:"routed",
+    reason:"Message contains a duplicate-charge pattern and an explicit amount ($149 ×2). Strong billing-refund intent with payment-gateway keywords. No technical or security signals present.",
+    fields:{ "Detected intent":"Duplicate charge / refund", "Order ref":"#NW-90413", "Amount":"$298.00", "Plan":"Growth (annual)" },
+    alts:[["Account Management",61],["Technical Support",18]],
+    tags:["refund","payment-gateway","billing"], assignee:"Auto-queue · Billing",
+    messages:[["Dana Whitfield","DW","I tried to upgrade to the Growth plan and got a generic 'transaction error', so I retried. Now my bank statement shows two separate $149 charges on the same day. Please refund the duplicate — I only have one active subscription.","2m ago"]] },
+
+  { id:"TKT-48216", subj:"Can't log in — SSO redirect loops back to login", snippet:"After our Okta admin enabled SSO enforcement, the whole team is stuck on a redirect loop…",
+    cust:"Marcus Lindgren", company:"Aperture Labs", channel:"Web form", pri:"P1", status:"routed", unread:true, when:"6m",
+    sentiment:"Urgent", team:"Technical Support", conf:92, status_route:"routed",
+    reason:"Clear authentication-failure pattern with SSO/Okta keywords and a reproducible redirect loop. Affects an entire team (blast radius), raising priority to P1. Routed to Technical Support rather than Security as it reads as a config defect, not an incident.",
+    fields:{ "Detected intent":"Auth / SSO failure", "Affected users":"~40", "IdP":"Okta", "First seen":"Today 09:12" },
+    alts:[["Security & Trust",44],["Onboarding",9]],
+    tags:["sso","okta","login","outage"], assignee:"Auto-queue · Technical",
+    messages:[["Marcus Lindgren","ML","Our Okta admin turned on SSO enforcement this morning and now nobody can sign in — clicking 'Login with SSO' just bounces back to the login page in a loop. This is blocking ~40 people. Need help ASAP.","6m ago"]] },
+
+  { id:"TKT-48214", subj:"Suspicious login alert from a country we don't operate in", snippet:"We received a security email about a login from Lagos at 3am. None of our team is there…",
+    cust:"Priya Raman", company:"Helio Finance", channel:"Email", pri:"P1", status:"review", unread:true, when:"11m",
+    sentiment:"Concerned", team:"Security & Trust", conf:58, status_route:"review",
+    reason:"Ambiguous between a genuine account-compromise report and a routine geo-alert false positive. Security keywords are strong, but the customer also references billing access — confidence below the 70% auto-accept threshold, so flagged for human review.",
+    fields:{ "Detected intent":"Possible account compromise", "Geo":"Lagos, NG", "Time":"03:14 local", "MFA":"Enabled" },
+    alts:[["Account Management",37],["Technical Support",21]],
+    tags:["security","login-alert","review"], assignee:"Pending review",
+    messages:[["Priya Raman","PR","We got an automated alert about a login from Lagos at 3am — none of our team is anywhere near there. I'm worried someone has our credentials and could see our billing. Can you confirm whether this was a real login and lock it down if needed?","11m ago"]] },
+
+  { id:"TKT-48211", subj:"How do I invite my team and assign seat roles?", snippet:"Just signed up on the Team plan — where do I add colleagues and set who's an admin?",
+    cust:"Lena Fischer", company:"Brightside Studio", channel:"In-app chat", pri:"P4", status:"routed", unread:false, when:"19m",
+    sentiment:"Neutral", team:"Onboarding", conf:95, status_route:"routed",
+    reason:"New-signup phrasing plus 'invite team / assign roles' maps cleanly to onboarding how-to. Low urgency, no error or billing dispute. High confidence; eligible for the self-serve help article auto-reply.",
+    fields:{ "Detected intent":"Seat / role setup", "Plan":"Team", "Account age":"2 days", "Seats used":"1 / 10" },
+    alts:[["Account Management",24],["Technical Support",6]],
+    tags:["onboarding","seats","how-to"], assignee:"Auto-queue · Onboarding",
+    messages:[["Lena Fischer","LF","Hi! Just signed up on the Team plan. Where do I add my colleagues and set who's an admin vs. a regular member?","19m ago"]] },
+
+  { id:"TKT-48209", subj:"API returning 429 rate-limit errors after no usage change", snippet:"Our integration started getting 429s this morning even though our request volume is flat…",
+    cust:"Tom Akinyemi", company:"Cobalt Logistics", channel:"Email", pri:"P2", status:"routed", unread:false, when:"24m",
+    sentiment:"Frustrated", team:"Technical Support", conf:89, status_route:"routed",
+    reason:"API-error pattern (HTTP 429) with mention of unchanged usage points to a quota/limit technical issue. No billing dispute language. High confidence routing to Technical Support's integrations rotation.",
+    fields:{ "Detected intent":"API rate limit", "Error":"HTTP 429", "Endpoint":"/v2/shipments", "Tier":"Pro" },
+    alts:[["Billing & Payments",28],["Account Management",11]],
+    tags:["api","rate-limit","integration"], assignee:"Auto-queue · Technical",
+    messages:[["Tom Akinyemi","TA","Our shipments integration started throwing 429 errors at around 08:00 today. Our request volume hasn't changed — we're well under what we've sent for months. Did something change on your side?","24m ago"]] },
+
+  { id:"TKT-48205", subj:"Need to update the billing email on our invoices", snippet:"Our finance lead changed — please send invoices to a new address going forward.",
+    cust:"Sofia Marchetti", company:"Vela Architecture", channel:"Email", pri:"P3", status:"routed", unread:false, when:"38m",
+    sentiment:"Neutral", team:"Billing & Payments", conf:91, status_route:"routed",
+    reason:"Simple billing-profile update request — change invoice recipient. No dispute or technical content. Clear billing intent, routed straight to the billing operations queue.",
+    fields:{ "Detected intent":"Invoice email change", "Current":"finance@vela.co", "Requested":"ar@vela.co", "Cycle":"Monthly" },
+    alts:[["Account Management",33],["Onboarding",5]],
+    tags:["billing","invoice","account-update"], assignee:"Auto-queue · Billing",
+    messages:[["Sofia Marchetti","SM","Our finance lead has changed. Could you update the email that receives our invoices from finance@vela.co to ar@vela.co going forward? Thanks.","38m ago"]] },
+
+  { id:"TKT-48201", subj:"Dashboard charts loading blank on Safari only", snippet:"Reports render fine in Chrome but show empty white panels in Safari 17…",
+    cust:"Eric Sundberg", company:"Tidepool Media", channel:"Web form", pri:"P2", status:"routed", unread:false, when:"52m",
+    sentiment:"Mildly annoyed", team:"Technical Support", conf:86, status_route:"routed",
+    reason:"Browser-specific rendering defect (Safari-only blank charts). Technical bug pattern with no account or billing signals. Confidence above threshold; routed to the frontend bug rotation.",
+    fields:{ "Detected intent":"Rendering bug", "Browser":"Safari 17.2", "Module":"Reports", "Repro":"Consistent" },
+    alts:[["Onboarding",14],["Account Management",7]],
+    tags:["bug","safari","charts"], assignee:"Auto-queue · Technical",
+    messages:[["Eric Sundberg","ES","The reporting dashboards render fine in Chrome but show blank white panels in Safari 17.2. Console shows nothing obvious. Happens for everyone on our team using Safari.","52m ago"]] },
+
+  { id:"TKT-48198", subj:"Requesting a downgrade — too many unused seats", snippet:"We're paying for 25 seats but only use about 12. Can we drop to 15 at renewal?",
+    cust:"Hannah Cole", company:"Maple & Co", channel:"Email", pri:"P3", status:"review", unread:false, when:"1h",
+    sentiment:"Neutral", team:"Account Management", conf:64, status_route:"review",
+    reason:"Mixed signal: seat-count change is a billing action, but 'at renewal' and retention framing reads as an account-management conversation. Confidence sits between the two teams below the auto-accept threshold — flagged for review.",
+    fields:{ "Detected intent":"Seat downgrade", "Current seats":"25", "Requested":"15", "Renewal":"In 22 days" },
+    alts:[["Billing & Payments",58],["Onboarding",4]],
+    tags:["downgrade","seats","renewal"], assignee:"Pending review",
+    messages:[["Hannah Cole","HC","We're currently paying for 25 seats but only about 12 are active. We'd like to drop down to 15 at our next renewal — what's the process and will there be a credit for the difference?","1h ago"]] },
+
+  { id:"TKT-48193", subj:"Webhook deliveries stopped after we rotated our signing key", snippet:"We rotated the webhook signing secret and now no events are arriving at our endpoint…",
+    cust:"Raj Patel", company:"Quanta Health", channel:"Email", pri:"P2", status:"routed", unread:false, when:"1h",
+    sentiment:"Frustrated", team:"Technical Support", conf:90, status_route:"routed",
+    reason:"Integration failure tied to a signing-key rotation — events stopped after a config change. Strongly technical with webhook keywords; no billing or onboarding context. Routed to the integrations rotation.",
+    fields:{ "Detected intent":"Webhook delivery failure", "Trigger":"Key rotation", "Endpoint":"/hooks/qh", "Last event":"3h ago" },
+    alts:[["Security & Trust",22],["Onboarding",8]],
+    tags:["webhook","integration","keys"], assignee:"Auto-queue · Technical",
+    messages:[["Raj Patel","RP","We rotated our webhook signing secret in the dashboard this morning and now zero events are reaching our endpoint. We updated our verification to the new key. Last event we saw was about 3 hours ago.","1h ago"]] },
+
+  { id:"TKT-48188", subj:"GDPR data-export request for a former employee", snippet:"A former staff member has requested all data we hold associated with their account…",
+    cust:"Clara Nyberg", company:"Atlas Group", channel:"Email", pri:"P2", status:"routed", unread:false, when:"2h",
+    sentiment:"Neutral", team:"Security & Trust", conf:88, status_route:"routed",
+    reason:"Data-subject access / GDPR export request — privacy and compliance keywords place this firmly with Security & Trust. No technical defect or billing dispute. Confidence high.",
+    fields:{ "Detected intent":"GDPR / data export", "Regulation":"GDPR Art. 15", "Subject":"Former employee", "SLA":"30 days" },
+    alts:[["Account Management",26],["Technical Support",9]],
+    tags:["gdpr","privacy","compliance"], assignee:"Auto-queue · Security",
+    messages:[["Clara Nyberg","CN","A former staff member has formally requested all personal data we hold associated with their account under GDPR. Could you advise on the process and start a data export? We want to respond within the required window.","2h ago"]] },
+
+  { id:"TKT-48182", subj:"Mobile app crashes on launch after the latest update", snippet:"Since updating to 4.8.0 the iOS app crashes immediately on open for multiple users…",
+    cust:"Owen Brooks", company:"Summit Outdoors", channel:"In-app chat", pri:"P1", status:"new", unread:true, when:"2h",
+    sentiment:"Frustrated", team:"Technical Support", conf:94, status_route:"new",
+    reason:"Crash-on-launch report tied to a specific version (4.8.0) affecting multiple users — a high-impact technical regression. No billing or account signals. Routed to Technical Support with P1 due to crash + multi-user impact.",
+    fields:{ "Detected intent":"App crash / regression", "Version":"4.8.0 (iOS)", "Affected":"6+ users", "OS":"iOS 18.1" },
+    alts:[["Onboarding",10],["Account Management",4]],
+    tags:["crash","mobile","ios","regression"], assignee:"Awaiting accept",
+    messages:[["Owen Brooks","OB","Since the 4.8.0 update, the iOS app crashes the instant it opens — happening for at least 6 people on my team. Reinstalling didn't help. Android seems fine.","2h ago"]] },
+
+  { id:"TKT-48177", subj:"Annual plan renewed at a higher price than quoted", snippet:"Our renewal invoice is $1,200 more than the price we agreed with sales in March…",
+    cust:"Isabel Moreno", company:"Cedar Health", channel:"Email", pri:"P2", status:"new", unread:true, when:"3h",
+    sentiment:"Frustrated", team:"Billing & Payments", conf:83, status_route:"new",
+    reason:"Pricing dispute on a renewal invoice with a specific delta vs. a quoted price. Primarily a billing matter, though the sales-quote reference gives Account Management a secondary signal. Confidence above threshold — routed to Billing.",
+    fields:{ "Detected intent":"Renewal price dispute", "Invoice":"#CED-7741", "Delta":"+$1,200", "Quote":"Mar 2026" },
+    alts:[["Account Management",46],["Onboarding",3]],
+    tags:["billing","renewal","dispute"], assignee:"Awaiting accept",
+    messages:[["Isabel Moreno","IM","Our annual renewal invoice (#CED-7741) came in $1,200 higher than the price we agreed with your sales team back in March. Can you review this and apply the quoted rate?","3h ago"]] },
+
+  { id:"TKT-48170", subj:"Where can I download a SOC 2 report for our vendor review?", snippet:"Our procurement team needs your latest SOC 2 Type II report and a signed NDA…",
+    cust:"Felix Wagner", company:"Orion Systems", channel:"Email", pri:"P4", status:"routed", unread:false, when:"4h",
+    sentiment:"Neutral", team:"Security & Trust", conf:93, status_route:"routed",
+    reason:"Vendor-review / compliance document request (SOC 2, NDA). Maps cleanly to Security & Trust. Low urgency, no error or dispute. High confidence.",
+    fields:{ "Detected intent":"Compliance docs", "Document":"SOC 2 Type II", "Needs NDA":"Yes", "Use":"Vendor review" },
+    alts:[["Account Management",31],["Onboarding",5]],
+    tags:["soc2","compliance","docs"], assignee:"Auto-queue · Security",
+    messages:[["Felix Wagner","FW","Our procurement team is reviewing vendors and needs your most recent SOC 2 Type II report. We can sign an NDA first if required — what's the process?","4h ago"]] },
+
+  { id:"TKT-48162", subj:"Bulk import of contacts is silently dropping rows", snippet:"We uploaded a 9,400-row CSV but only 8,710 contacts appeared with no error message…",
+    cust:"Grace Liu", company:"Pioneer Travel", channel:"Web form", pri:"P3", status:"routed", unread:false, when:"5h",
+    sentiment:"Mildly annoyed", team:"Technical Support", conf:79, status_route:"routed",
+    reason:"Data-import defect — silent row loss on a large CSV. Technical pattern (import pipeline) with no billing or security signals. Confidence is moderate because onboarding also handles imports; routed to Technical Support for the data-quality investigation.",
+    fields:{ "Detected intent":"Import data loss", "Rows in":"9,400", "Rows out":"8,710", "Format":"CSV" },
+    alts:[["Onboarding",41],["Account Management",6]],
+    tags:["import","csv","data-quality"], assignee:"Auto-queue · Technical",
+    messages:[["Grace Liu","GL","We imported a 9,400-row contact CSV but only 8,710 records showed up afterward — and there was no error or summary telling us which rows were dropped. How do we find out what failed?","5h ago"]] }
+];
+
+/* ---------------- State ---------------- */
+let activeTab = "all";
+let activePri = "all";
+let searchTerm = "";
+let selectedId = tickets[0].id;
+
+const $ = (s, p=document) => p.querySelector(s);
+const $$ = (s, p=document) => Array.from(p.querySelectorAll(s));
+
+function confClass(c){ return c>=85?"hi":c>=70?"mid":"low"; }
+function priBadge(p){ const m={P1:"b-p1",P2:"b-p2",P3:"b-p3",P4:"b-p4"}; return m[p]; }
+function statusBadge(s){
+  const m={ new:["b-new","Unrouted"], routed:["b-routed","Routed"], review:["b-p2","Needs review"], progress:["b-progress","In progress"], resolved:["b-resolved","Resolved"] };
+  return m[s]||m.new;
+}
+function esc(s){ return s.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function hlight(text){
+  if(!searchTerm) return esc(text);
+  const re = new RegExp('('+searchTerm.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');
+  return esc(text).replace(re,'<span class="hl">$1</span>');
+}
+
+/* ---------------- Render inbox ---------------- */
+function filtered(){
+  return tickets.filter(t=>{
+    if(activeTab==="new" && t.status!=="new") return false;
+    if(activeTab==="routed" && t.status!=="routed") return false;
+    if(activeTab==="review" && t.status!=="review") return false;
+    if(activePri!=="all" && t.pri!==activePri) return false;
+    if(searchTerm){
+      const hay=(t.subj+" "+t.snippet+" "+t.cust+" "+t.company+" "+t.team+" "+t.id+" "+t.tags.join(" ")).toLowerCase();
+      if(!hay.includes(searchTerm.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
+
+function renderList(){
+  const list = $("#ticketList");
+  const rows = filtered();
+  $("#resultCount").textContent = rows.length + (rows.length===1?" ticket":" tickets");
+  if(rows.length===0){ list.innerHTML=""; $("#emptyState").style.display="block"; return; }
+  $("#emptyState").style.display="none";
+  list.innerHTML = rows.map(t=>{
+    const [sc,sl]=statusBadge(t.status);
+    const cc=confClass(t.conf);
+    const sel = t.id===selectedId ? "selected":"";
+    const unread = t.unread ? "unread":"";
+    return `<div class="ticket ${sel} ${unread}" data-id="${t.id}">
+      <div class="rail" style="background:${TEAM_COLORS[t.team]}"></div>
+      <div></div>
+      <div class="body">
+        <div class="line1">
+          <span class="tid">${t.id}</span>
+          <span class="badge ${priBadge(t.pri)}">${t.pri}</span>
+          <span class="subj">${hlight(t.subj)}</span>
+        </div>
+        <div class="snippet">${hlight(t.snippet)}</div>
+        <div class="meta">
+          <span class="ai-route-tag">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="${TEAM_COLORS[t.team]}"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17.3l.9-5.4L4.2 8l5.4-.8z"/></svg>
+            ${t.status==="new"?"Suggested":"Routed"} → ${esc(t.team)}
+          </span>
+          <span class="conf ${cc}">${t.conf}%</span>
+          <span class="badge b-team">${esc(t.company)}</span>
+        </div>
+      </div>
+      <div class="right">
+        <span class="when">${t.when}</span>
+        <span class="badge ${sc}">${sl}</span>
+      </div>
+    </div>`;
+  }).join("");
+
+  $$(".ticket", list).forEach(el=>{
+    el.addEventListener("click", ()=>{ selectTicket(el.dataset.id); });
+    el.addEventListener("dblclick", ()=>{ openDrawer(el.dataset.id); });
+  });
+}
+
+/* ---------------- Review pane ---------------- */
+function selectTicket(id){
+  selectedId = id;
+  const t = tickets.find(x=>x.id===id);
+  if(t) t.unread=false;
+  renderList();
+  renderReview();
+}
+
+function renderReview(){
+  const t = tickets.find(x=>x.id===selectedId);
+  if(!t){ $("#reviewBody").innerHTML='<div style="color:var(--text-faint);padding:14px 0;">Select a ticket to see its routing suggestion.</div>'; return; }
+  const cc=confClass(t.conf);
+  const ringColor = cc==="hi"?"#16a34a":cc==="mid"?"#c2820a":"#dc2626";
+  const circ=2*Math.PI*40, off=circ*(1-t.conf/100);
+  const fieldsHtml = Object.entries(t.fields).map(([k,v])=>`
+    <div class="field-row"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("");
+  const altsHtml = t.alts.map(([name,p])=>`
+    <div class="alt-route" data-team="${esc(name)}">
+      <span style="color:${TEAM_COLORS[name]};font-size:14px;line-height:1;">●</span>
+      <span class="ar-name">${esc(name)}</span>
+      <div class="ar-bar"><span style="width:${p}%"></span></div>
+      <span class="ar-pct">${p}%</span>
+    </div>`).join("");
+  const lowNote = t.conf<70 ? `<div style="margin-top:12px;font-size:12px;color:#92610a;background:var(--amber-soft);border:1px solid #ecd49a;border-radius:9px;padding:9px 11px;display:flex;gap:8px;align-items:flex-start;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top:1px;flex-shrink:0;"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <span>Below the 70% auto-accept threshold — held for human review. Pick the correct team or open the ticket.</span></div>` : "";
+
+  $("#reviewBody").innerHTML = `
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;">
+      <span class="badge ${priBadge(t.pri)}">${t.pri}</span>
+      <span class="tid" style="font-size:12px;color:var(--text-faint);">${t.id}</span>
+      <span style="margin-left:auto;font-size:11.5px;color:var(--text-dim);">${esc(t.channel)} · ${t.when} ago</span>
+    </div>
+    <div style="font-weight:600;font-size:14px;line-height:1.45;margin-bottom:14px;">${esc(t.subj)}</div>
+
+    <div class="route-result">
+      <span class="from">${t.status==="new"?"Unrouted":"Customer queue"}</span>
+      <span class="arrow"><svg width="20" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      <span class="to">${esc(t.team)}</span>
+    </div>
+
+    <div class="gauge-wrap">
+      <div class="gauge">
+        <svg width="96" height="96" viewBox="0 0 96 96">
+          <circle cx="48" cy="48" r="40" fill="none" stroke="#e9ecf1" stroke-width="9"/>
+          <circle cx="48" cy="48" r="40" fill="none" stroke="${ringColor}" stroke-width="9" stroke-linecap="round"
+            stroke-dasharray="${circ}" stroke-dashoffset="${off}" transform="rotate(-90 48 48)"
+            style="transition:stroke-dashoffset .6s cubic-bezier(.4,0,.2,1);"/>
+        </svg>
+        <div class="pct"><b style="color:${ringColor}">${t.conf}%</b><span>confidence</span></div>
+      </div>
+      <div class="reason">${highlightReason(t.reason)}</div>
+    </div>
+    ${lowNote}
+
+    <div class="section-label" style="margin:18px 0 8px;">Extracted signals</div>
+    ${fieldsHtml}
+
+    <div class="section-label" style="margin:18px 0 8px;">Alternative routes considered</div>
+    <div class="alt-routes">${altsHtml}</div>
+
+    <div class="review-actions">
+      <button class="btn ghost-amber" id="rvReroute">Reroute</button>
+      <button class="btn ghost-green" id="rvAccept">${t.status==="routed"?"Confirm routing":"Accept &amp; route"}</button>
+    </div>
+    <div style="text-align:center;margin-top:10px;">
+      <button class="btn" id="rvOpen" style="font-size:12px;padding:6px 14px;">Open full ticket →</button>
+    </div>
+  `;
+  $("#rvOpen").addEventListener("click", ()=>openDrawer(t.id));
+  $("#rvAccept").addEventListener("click", ()=>{ acceptRoute(t.id); });
+  $("#rvReroute").addEventListener("click", ()=>{ toast("Manual reroute panel opened for "+t.id); });
+  $$(".alt-route", $("#reviewBody")).forEach(el=>{
+    el.addEventListener("click", ()=>{
+      t.team = el.dataset.team;
+      t.conf = 100;
+      t.status = "routed";
+      toast("Rerouted "+t.id+" → "+el.dataset.team);
+      renderList(); renderReview();
+    });
+  });
+}
+
+function highlightReason(r){
+  return esc(r).replace(/\b(P1|P2|P3|P4|70%|HTTP 429|SSO|Okta|GDPR|SOC 2|4\.8\.0|\$149|429)\b/g,'<b>$1</b>');
+}
+
+/* ---------------- Activity feed ---------------- */
+const feed = [
+  { type:"ai", t:'<b>AI engine</b> classified <b>TKT-48217</b> as <span class="muted">Billing & Payments</span> at 97% confidence', w:"2 min ago" },
+  { type:"sla", t:'<b>SLA warning</b> — TKT-48214 nearing 1h first-response on a <span class="muted">P1</span>', w:"9 min ago" },
+  { type:"route", t:'<b>TKT-48216</b> auto-routed to <span class="muted">Technical Support</span> · 40 users impacted', w:"6 min ago" },
+  { type:"user", t:'<b>Mira Kaur</b> accepted the routing for <b>TKT-48205</b>', w:"31 min ago" },
+  { type:"ai", t:'<b>2 tickets</b> held for review — confidence below threshold', w:"42 min ago" },
+  { type:"route", t:'<b>TKT-48170</b> sent to <span class="muted">Security &amp; Trust</span> · SOC 2 request', w:"4 hr ago" }
+];
+function renderFeed(){
+  const map={ai:"fd-ai",route:"fd-route",user:"fd-user",sla:"fd-sla"};
+  const icon={ai:"✦",route:"→",user:"@",sla:"!"};
+  $("#feedBody").innerHTML = feed.map(f=>`
+    <div class="feed-item">
+      <div class="feed-dot ${map[f.type]}">${icon[f.type]}</div>
+      <div><div class="ft">${f.t}</div><div class="fw">${f.w}</div></div>
+    </div>`).join("");
+}
+
+/* ---------------- Drawer ---------------- */
+function openDrawer(id){
+  const t = tickets.find(x=>x.id===id);
+  if(!t) return;
+  $("#drawerTid").innerHTML = `<span class="badge ${priBadge(t.pri)}">${t.pri}</span> <span class="tid" style="color:var(--text-faint)">${t.id}</span> · ${esc(t.channel)}`;
+  $("#drawerSubj").textContent = t.subj;
+  const [sc,sl]=statusBadge(t.status);
+  $("#drawerMeta").innerHTML = `<span class="badge ${sc}">${sl}</span> <span>${esc(t.cust)} · ${esc(t.company)}</span> <span style="color:var(--text-faint)">${t.when} ago</span>`;
+
+  const cc=confClass(t.conf);
+  const ringColor = cc==="hi"?"#16a34a":cc==="mid"?"#c2820a":"#dc2626";
+  const fieldsHtml = Object.entries(t.fields).map(([k,v])=>`
+    <div class="extract-cell"><div class="ek">${esc(k)}</div><div class="ev">${esc(v)}<span class="conf ${cc}" style="font-size:9.5px;padding:0 6px;">AI</span></div></div>`).join("");
+  const msgs = t.messages.map(([n,i,body,w])=>`
+    <div class="msg">
+      <div class="mh"><span class="ava" style="background:${TEAM_COLORS[t.team]}33;color:${TEAM_COLORS[t.team]}">${i}</span><span class="mname">${esc(n)}</span><span style="color:var(--text-faint);font-size:11px;">via ${esc(t.channel)}</span><span class="mwhen">${esc(w)}</span></div>
+      <p>${esc(body)}</p>
+    </div>`).join("");
+  const tagsHtml = t.tags.map(x=>`<span class="badge b-team" style="font-weight:500;">#${esc(x)}</span>`).join(" ");
+
+  $("#drawerBody").innerHTML = `
+    <div class="panel ai-card" style="margin-bottom:6px;">
+      <div class="ph"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17.3l.9-5.4L4.2 8l5.4-.8z"/></svg></span><h3>AI verdict</h3><span class="grow"></span><span class="conf ${cc}" style="font-size:12px;">${t.conf}% confident</span></div>
+      <div class="pb">
+        <div class="route-result" style="margin-bottom:10px;">
+          <span class="from">${t.sentiment} sentiment</span>
+          <span class="arrow"><svg width="18" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          <span class="to">${esc(t.team)}</span>
+        </div>
+        <div class="reason">${highlightReason(t.reason)}</div>
+      </div>
+    </div>
+
+    <div class="section-label">Extracted fields · confidence-scored</div>
+    <div class="extract-grid">${fieldsHtml}</div>
+
+    <div class="section-label">Conversation</div>
+    <div class="msg-thread">${msgs}</div>
+
+    <div class="section-label">Labels</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;">${tagsHtml}</div>
+
+    <div class="section-label">Suggested next action</div>
+    <div class="msg" style="border-color:#e6dcfb;background:linear-gradient(180deg,#faf7ff,#ffffff);">
+      <div class="mh"><span class="ava" style="background:var(--purple-soft);color:#6d28d9;">✦</span><span class="mname" style="color:#6d28d9;">AI assistant</span></div>
+      <p>${suggestedAction(t)}</p>
+    </div>
+  `;
+  $("#drawerAccept").onclick = ()=>{ acceptRoute(t.id); closeDrawer(); };
+  $("#drawerReroute").onclick = ()=>{ toast("Manual reroute panel opened for "+t.id); };
+  $("#drawer").classList.add("open");
+  $("#scrim").classList.add("open");
+}
+function suggestedAction(t){
+  const m={
+    "Billing & Payments":"Verify the charge in the payments ledger, then issue a refund or apply a credit. Draft a reassurance reply confirming only one subscription is active.",
+    "Technical Support":"Assign to the on-call engineer, request reproduction details if missing, and link any matching incident. Acknowledge with an ETA.",
+    "Onboarding":"Send the relevant setup guide and offer a 15-minute onboarding call. Mark as a self-serve candidate.",
+    "Security & Trust":"Acknowledge within SLA, verify the requester's identity, and start the compliance workflow. Loop in the privacy lead.",
+    "Account Management":"Route to the named CSM, prepare a retention or right-sizing proposal, and schedule a renewal conversation."
+  };
+  return esc(m[t.team]||"Acknowledge the ticket and route to the suggested team.");
+}
+function closeDrawer(){ $("#drawer").classList.remove("open"); $("#scrim").classList.remove("open"); }
+
+/* ---------------- Actions ---------------- */
+function acceptRoute(id){
+  const t = tickets.find(x=>x.id===id);
+  if(!t) return;
+  t.status="routed"; t.unread=false;
+  toast("Routed "+id+" → "+t.team);
+  renderList(); renderReview();
+}
+let toastTimer=null;
+function toast(msg){
+  $("#toastMsg").textContent=msg;
+  $("#toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>$("#toast").classList.remove("show"),2600);
+}
+
+/* ---------------- Wire up ---------------- */
+$$(".tab").forEach(tab=>tab.addEventListener("click",()=>{
+  $$(".tab").forEach(x=>x.classList.remove("active"));
+  tab.classList.add("active");
+  activeTab=tab.dataset.tab;
+  renderList();
+}));
+$$(".chip[data-pri]").forEach(chip=>chip.addEventListener("click",()=>{
+  $$(".chip[data-pri]").forEach(x=>x.classList.remove("active"));
+  chip.classList.add("active");
+  activePri=chip.dataset.pri;
+  renderList();
+}));
+$("#inboxSearch").addEventListener("input",e=>{ searchTerm=e.target.value.trim(); renderList(); });
+$("#globalSearch").addEventListener("input",e=>{
+  searchTerm=e.target.value.trim();
+  $("#inboxSearch").value=searchTerm;
+  renderList();
+});
+$("#drawerClose").addEventListener("click",closeDrawer);
+$("#scrim").addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape") closeDrawer();
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){ e.preventDefault(); $("#globalSearch").focus(); }
+});
+
+$("#analyzeBtn").addEventListener("click",()=>{
+  const btn=$("#analyzeBtn");
+  btn.disabled=true;
+  const orig=btn.innerHTML;
+  btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin .8s linear infinite;"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg> Classifying…';
+  setTimeout(()=>{
+    btn.disabled=false; btn.innerHTML=orig;
+    toast("Re-classified 14 tickets · 11 high-confidence, 3 flagged for review");
+    renderReview();
+  },1300);
+});
+$("#bulkAcceptBtn").addEventListener("click",()=>{
+  let n=0;
+  tickets.forEach(t=>{ if(t.conf>=85 && t.status!=="routed"){ t.status="routed"; t.unread=false; n++; } });
+  renderList(); renderReview();
+  toast(n>0? ("Accepted "+n+" high-confidence routings") : "All high-confidence tickets already routed");
+});
+
+const spinStyle=document.createElement("style");
+spinStyle.textContent="@keyframes spin{to{transform:rotate(360deg)}}";
+document.head.appendChild(spinStyle);
+
+/* ---------------- Init ---------------- */
+renderList();
+renderReview();
+renderFeed();
+</script>
+</body>
+</html>

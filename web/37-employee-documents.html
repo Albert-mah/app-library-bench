@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dossier — Employee Document Management</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Employee Document Management (Dossier)",
+  "prefix": "edm_",
+  "collections": {
+    "edm_categories": {"titleField":"name","fields":{"name":"input","code":"input","icon":"input","retention_years":"integer","is_mandatory":"boolean"},"relations":{"parent":"m2o edm_categories (fk parent_id) — self relation for the filing tree"}},
+    "edm_employees": {"titleField":"full_name","fields":{"full_name":"input","employee_no":"input","department":"select:engineering|sales|hr|finance|operations|design","title":"input","email":"input"}},
+    "edm_documents": {"titleField":"title","fields":{"title":"input","doc_type":"select:contract|id|certification|visa|tax|policy_ack|medical|education","file_name":"input","file_ext":"select:pdf|docx|jpg|png|xlsx","file_size_kb":"integer","status":"select:active|expiring|expired|missing|pending_review|archived","issued_on":"date","expires_on":"date","is_confidential":"boolean","note":"textarea"},"relations":{"employee":"m2o edm_employees (fk employee_id)","category":"m2o edm_categories (fk category_id)"}}
+  },
+  "page": {
+    "name": "Document Vault",
+    "layout": "filing-tree = native Tree (edm_categories self-relation) | file-grid = native List + JSField card (edm_documents) | expiry-rail = native List + JSField alert card filtered status in (expiring,expired,missing)",
+    "regions": [
+      {"id":"tree","block":"native Tree block (edm_categories, self relation parent_id)","intent":"left filing cabinet — pick a category folder","behavior":"selecting a node pushes addFilterGroup category_id to the file-grid resource + refresh (cross-block filter)","content":["folder icon + name","count badge of documents in that category"]},
+      {"id":"toolbar","block":"toolbar JSAction (pills) on the file-grid block","intent":"status quick-filter pills (All / Active / Expiring / Expired / Missing) + employee search","behavior":"each pill pushes addFilterGroup status + refresh; search box filters employee.full_name"},
+      {"id":"grid","block":"List + JSField card + CSS auto-fill grid (repeat(auto-fill,minmax(300px,1fr)))","collection":"edm_documents","intent":"file cards in the open folder","sort":"expires_on asc","card":["file-type glyph tile (color by file_ext)","title + employee name + employee_no","doc_type chip","status pill (active/expiring/expired/missing/pending_review)","issued + expires dates","confidential lock icon","expiry progress bar tinted by urgency"],"onClick":"ctx.openView(<detail ViewActionModel uid>, {filterByTk})"},
+      {"id":"expiry","block":"List + JSField alert card","collection":"edm_documents","intent":"right rail — certificate / visa expiry reminders","filter":"status in (expiring, expired, missing)","sort":"expires_on asc","group":"Overdue / Due this month / Due soon","card":["urgency dot","employee + doc title","days-to-expiry countdown","renew action"]}
+    ]
+  },
+  "interactions": ["tree node select cross-filters the file grid by category_id","status pills + employee search cross-filter the grid","grid card click opens document detail popup","expiry rail renew button = native UpdateAction (status active, bump expires_on)"],
+  "jsKernels": ["file card JSField (file-type tile + status pill + expiry bar)","expiry alert card JSField (countdown + urgency group)"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (Tree for the category cabinet, List for the file grid and the expiry rail); the custom card look (file-type glyph, status pill, expiry progress) is a JS item rendered INSIDE the List. The category tree is a real native Tree on edm_categories self relation, not a hand-built JSBlock. Cross-block filtering is addFilterGroup + refresh, not a private endpoint. Do not rebuild the grid as a freestanding JSBlock."
+}
+</script>
+<style>
+  :root{
+    --teal:#13a89e; --teal-soft:#e6faf8; --teal-line:#a7e8e2; --teal-ink:#0c7c74;
+    --ink:#1f2933; --ink-2:#52606d; --ink-3:#9aa5b1;
+    --line:#f0f2f5; --line-2:#e4e7eb; --bg:#f4f6f8; --card:#fff;
+    --green:#2f9e44; --green-soft:#ebfbee;
+    --amber:#e8870e; --amber-soft:#fff4e6;
+    --red:#e03131; --red-soft:#fff0f0;
+    --slate:#5c7080; --slate-soft:#eef2f5;
+    --pdf:#d6453d; --doc:#2b6cb0; --img:#7048e8; --xls:#2f9e44;
+    --r:11px;
+    --shadow:0 1px 2px rgba(16,42,67,.04), 0 6px 18px rgba(16,42,67,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 24px; position:sticky; top:0; z-index:30;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:8px;
+    background:linear-gradient(135deg,var(--teal),#3ed0c5);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 2px 8px rgba(19,168,158,.35);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:8px}
+  .topnav a{
+    padding:6px 12px;border-radius:7px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--teal-soft);color:var(--teal-ink)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .topbtn{display:flex;align-items:center;gap:7px;background:var(--teal);color:#fff;border:none;border-radius:8px;
+    padding:8px 14px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(19,168,158,.28)}
+  .topbtn:hover{background:#0f968d}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:31px;height:31px;border-radius:50%;background:linear-gradient(135deg,#5c7080,#8395a7);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:18px 24px 4px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);
+    display:flex;align-items:center;gap:13px}
+  .kpi .ki{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:18px;flex:none}
+  .ki.t1{background:var(--teal-soft);color:var(--teal-ink)}
+  .ki.t2{background:var(--green-soft);color:var(--green)}
+  .ki.t3{background:var(--amber-soft);color:var(--amber)}
+  .ki.t4{background:var(--red-soft);color:var(--red)}
+  .kpi .kv{font-size:22px;font-weight:700;letter-spacing:-.5px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .kpi .kl{font-size:12px;color:var(--ink-3);margin-top:1px}
+  .kpi .ktrend{margin-left:auto;font-size:11px;font-weight:600;color:var(--green);background:var(--green-soft);
+    border-radius:8px;padding:3px 7px;align-self:flex-start}
+  .kpi .ktrend.down{color:var(--red);background:var(--red-soft)}
+
+  /* ---------- 3-pane workspace ---------- */
+  .workspace{
+    display:grid; grid-template-columns: 256px minmax(0,1fr) 320px; gap:0;
+    padding:16px 24px 24px; align-items:start;
+  }
+  .pane{background:var(--card);border:1px solid var(--line-2);box-shadow:var(--shadow)}
+  .pane-tree{border-radius:var(--r) 0 0 var(--r);overflow:hidden;align-self:stretch}
+  .pane-grid{border-left:none;border-right:none;background:transparent;border:none;box-shadow:none;padding:0 18px}
+  .pane-rail{border-radius:0 var(--r) var(--r) 0;overflow:hidden;align-self:stretch}
+
+  /* ---------- filing tree ---------- */
+  .tree-head{padding:15px 16px 11px;border-bottom:1px solid var(--line)}
+  .tree-head h3{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .tree-head p{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .tree{padding:8px 8px 14px}
+  .tnode{
+    display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;cursor:pointer;
+    font-size:13px;color:var(--ink-2);user-select:none;transition:.12s;position:relative;
+  }
+  .tnode:hover{background:var(--line)}
+  .tnode.on{background:var(--teal-soft);color:var(--teal-ink);font-weight:600}
+  .tnode.on::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:2px;background:var(--teal)}
+  .tnode .tw{width:14px;text-align:center;color:var(--ink-3);font-size:10px;flex:none}
+  .tnode .tic{font-size:15px;flex:none}
+  .tnode .tlabel{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tnode .tcount{font-size:11px;color:var(--ink-3);background:var(--line);border-radius:9px;padding:1px 7px;font-weight:600;font-variant-numeric:tabular-nums}
+  .tnode.on .tcount{background:#fff;color:var(--teal-ink)}
+  .tnode.child{padding-left:30px}
+  .tnode.child .tic{font-size:13px}
+  .tnode.mand .tlabel::after{content:"•";color:var(--red);margin-left:5px;font-weight:700}
+  .tree-foot{margin:6px 8px 0;border-top:1px dashed var(--line-2);padding-top:11px}
+  .tree-legend{font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px;padding:4px 9px}
+  .tree-legend b{color:var(--red)}
+
+  /* ---------- grid pane ---------- */
+  .grid-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .grid-head .gh-title h1{font-size:18px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:9px}
+  .grid-head .gh-title .crumb{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .gh-search{margin-left:auto;position:relative}
+  .gh-search input{width:230px;border:1.5px solid var(--line-2);border-radius:8px;padding:8px 11px 8px 32px;
+    font-family:inherit;font-size:13px;outline:none;background:#fff;transition:.13s}
+  .gh-search input:focus{border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-soft)}
+  .gh-search .si{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:13px}
+  .gh-sort{border:1.5px solid var(--line-2);border-radius:8px;padding:8px 11px;background:#fff;font-family:inherit;
+    font-size:12.5px;color:var(--ink-2);font-weight:500;cursor:pointer}
+
+  .status-pills{display:flex;gap:7px;margin-bottom:16px;flex-wrap:wrap}
+  .spill{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;
+    padding:6px 12px;border-radius:18px;border:1.5px solid var(--line-2);background:#fff;transition:.12s}
+  .spill:hover{border-color:#cdd5dd}
+  .spill .sc{font-size:11px;color:var(--ink-3);background:var(--line);border-radius:9px;padding:0 6px;font-variant-numeric:tabular-nums}
+  .spill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .spill.on .sc{background:rgba(255,255,255,.2);color:#fff}
+  .spill.on.s-expiring{background:var(--amber);border-color:var(--amber)}
+  .spill.on.s-expired{background:var(--red);border-color:var(--red)}
+  .spill.on.s-active{background:var(--green);border-color:var(--green)}
+
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .doc-card{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);
+    padding:15px 16px;cursor:pointer;transition:.14s;position:relative;overflow:hidden;
+  }
+  .doc-card:hover{box-shadow:0 4px 12px rgba(16,42,67,.1),0 12px 28px rgba(16,42,67,.08);transform:translateY(-2px)}
+  .doc-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+  .doc-card.st-active::before{background:var(--green)}
+  .doc-card.st-expiring::before{background:var(--amber)}
+  .doc-card.st-expired::before{background:var(--red)}
+  .doc-card.st-missing::before{background:var(--slate)}
+  .doc-card.st-pending_review::before{background:var(--teal)}
+  .dc-top{display:flex;gap:12px;align-items:flex-start}
+  .ftile{width:44px;height:52px;border-radius:7px;flex:none;display:grid;place-items:center;color:#fff;
+    font-size:10px;font-weight:800;letter-spacing:.5px;position:relative;box-shadow:0 2px 6px rgba(16,42,67,.18)}
+  .ftile::after{content:"";position:absolute;top:0;right:0;border-width:0 11px 11px 0;border-style:solid;
+    border-color:rgba(255,255,255,.5) #fff;border-top-right-radius:7px}
+  .ftile.pdf{background:linear-gradient(160deg,#e85d56,var(--pdf))}
+  .ftile.docx{background:linear-gradient(160deg,#3f86d4,var(--doc))}
+  .ftile.jpg,.ftile.png{background:linear-gradient(160deg,#8b5cf6,var(--img))}
+  .ftile.xlsx{background:linear-gradient(160deg,#40c057,var(--xls))}
+  .dc-main{flex:1;min-width:0}
+  .dc-title{font-size:14px;font-weight:700;line-height:1.3;display:flex;align-items:flex-start;gap:6px}
+  .dc-title .lock{color:var(--slate);font-size:12px;flex:none;margin-top:1px}
+  .dc-emp{font-size:12px;color:var(--ink-2);margin-top:3px;display:flex;align-items:center;gap:6px}
+  .dc-emp .eno{color:var(--ink-3);font-size:11px}
+  .dc-chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .chip{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:8px;letter-spacing:.2px}
+  .chip.type{background:var(--slate-soft);color:var(--slate)}
+  .chip.st-active{background:var(--green-soft);color:var(--green)}
+  .chip.st-expiring{background:var(--amber-soft);color:var(--amber)}
+  .chip.st-expired{background:var(--red-soft);color:var(--red)}
+  .chip.st-missing{background:var(--slate-soft);color:var(--slate)}
+  .chip.st-pending_review{background:var(--teal-soft);color:var(--teal-ink)}
+  .dc-dates{display:flex;justify-content:space-between;margin-top:13px;font-size:11.5px;color:var(--ink-3)}
+  .dc-dates b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
+  .dc-bar{margin-top:9px;height:5px;border-radius:3px;background:var(--line-2);overflow:hidden}
+  .dc-bar span{display:block;height:100%;border-radius:3px;transition:width .3s}
+  .dc-bar.b-active span{background:var(--green)}
+  .dc-bar.b-expiring span{background:var(--amber)}
+  .dc-bar.b-expired span{background:var(--red)}
+  .dc-bar.b-missing span{background:var(--slate)}
+  .dc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
+  .dc-foot .ttx{font-size:11px;font-weight:600}
+  .dc-foot .ttx.active{color:var(--green)} .dc-foot .ttx.expiring{color:var(--amber)}
+  .dc-foot .ttx.expired{color:var(--red)} .dc-foot .ttx.missing{color:var(--slate)}
+  .dc-foot .ttx.pending_review{color:var(--teal-ink)}
+  .dc-foot .fsz{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .grid-empty{grid-column:1/-1;border:1.5px dashed var(--line-2);border-radius:var(--r);padding:40px;text-align:center;color:var(--ink-3)}
+  .grid-empty .ge-ic{font-size:34px;margin-bottom:8px}
+
+  /* ---------- expiry rail ---------- */
+  .rail-head{padding:15px 16px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fff,#fdfdfe)}
+  .rail-head .rh-row{display:flex;align-items:center;justify-content:space-between}
+  .rail-head h3{font-size:14px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .rail-head .rh-n{font-size:11px;color:#fff;background:var(--red);border-radius:11px;padding:1px 9px;font-weight:700}
+  .rail-head p{font-size:11px;color:var(--ink-3);margin-top:3px}
+  .rail-body{max-height:638px;overflow:auto}
+  .r-group{padding:4px 0}
+  .r-label{position:sticky;top:0;background:#fff;display:flex;align-items:center;gap:8px;padding:11px 16px 6px;z-index:3}
+  .r-label .rl-dot{width:8px;height:8px;border-radius:50%}
+  .r-label.over .rl-dot{background:var(--red)} .r-label.month .rl-dot{background:var(--amber)} .r-label.soon .rl-dot{background:var(--teal)}
+  .r-label .rl-tx{font-size:11.5px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.4px}
+  .r-label .rl-n{font-size:11px;color:var(--ink-3);font-weight:600;margin-left:auto}
+  .alert{margin:0 12px 9px;background:#fff;border:1px solid var(--line-2);border-radius:10px;padding:11px 12px;
+    position:relative;border-left:3px solid var(--line-2);transition:.12s}
+  .alert:hover{box-shadow:var(--shadow)}
+  .alert.over{border-left-color:var(--red);background:linear-gradient(90deg,var(--red-soft),#fff 60%)}
+  .alert.month{border-left-color:var(--amber)}
+  .alert.soon{border-left-color:var(--teal)}
+  .al-top{display:flex;align-items:center;gap:8px}
+  .al-ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:13px;flex:none}
+  .al-ic.over{background:var(--red-soft);color:var(--red)}
+  .al-ic.month{background:var(--amber-soft);color:var(--amber)}
+  .al-ic.soon{background:var(--teal-soft);color:var(--teal-ink)}
+  .al-id{flex:1;min-width:0}
+  .al-id b{font-size:12.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .al-id span{font-size:11px;color:var(--ink-3)}
+  .al-count{text-align:right;flex:none}
+  .al-count .num{font-size:15px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+  .al-count.over .num{color:var(--red)} .al-count.month .num{color:var(--amber)} .al-count.soon .num{color:var(--teal-ink)}
+  .al-count .unit{font-size:9.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.3px}
+  .al-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+  .al-foot .al-due{font-size:11px;color:var(--ink-3)}
+  .al-foot .al-due b{color:var(--ink-2);font-weight:600}
+  .al-renew{border:none;background:var(--teal);color:#fff;border-radius:7px;padding:5px 11px;font-family:inherit;
+    font-size:11.5px;font-weight:600;cursor:pointer;transition:.12s}
+  .al-renew:hover{background:#0f968d}
+  .al-renew.done{background:var(--green-soft);color:var(--green);cursor:default}
+
+  /* ---------- detail popup ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(16,42,67,.45);opacity:0;pointer-events:none;transition:.18s;z-index:50}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:440px;max-width:92vw;background:var(--card);box-shadow:-12px 0 40px rgba(16,42,67,.22);
+    transform:translateX(100%);transition:.24s cubic-bezier(.4,0,.2,1);z-index:51;display:flex;flex-direction:column}
+  .drawer.show{transform:none}
+  .dw-head{padding:20px 22px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:flex-start}
+  .dw-head .ftile{width:50px;height:60px}
+  .dw-head .dh-main h2{font-size:16px;font-weight:700;line-height:1.3}
+  .dw-head .dh-main .dh-sub{font-size:12px;color:var(--ink-3);margin-top:4px}
+  .dw-close{margin-left:auto;border:none;background:var(--line);width:30px;height:30px;border-radius:8px;cursor:pointer;
+    font-size:16px;color:var(--ink-2);flex:none}
+  .dw-close:hover{background:var(--line-2)}
+  .dw-body{padding:18px 22px;overflow:auto;flex:1}
+  .dw-section{margin-bottom:20px}
+  .dw-section h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);margin-bottom:11px}
+  .dw-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .dw-row:last-child{border-bottom:none}
+  .dw-row .k{color:var(--ink-3)}
+  .dw-row .v{font-weight:600;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+  .dw-note{background:var(--slate-soft);border-radius:9px;padding:12px 13px;font-size:12.5px;color:var(--ink-2);line-height:1.55}
+  .dw-time{position:relative;padding-left:20px}
+  .dw-time .te{position:relative;padding:0 0 14px 16px;border-left:2px solid var(--line-2)}
+  .dw-time .te:last-child{border-left-color:transparent;padding-bottom:0}
+  .dw-time .te::before{content:"";position:absolute;left:-5px;top:2px;width:8px;height:8px;border-radius:50%;background:var(--teal)}
+  .dw-time .te .tt{font-size:12.5px;font-weight:600}
+  .dw-time .te .td{font-size:11px;color:var(--ink-3);margin-top:1px}
+  .dw-foot{padding:15px 22px;border-top:1px solid var(--line);display:flex;gap:10px;background:#fafbfc}
+  .dw-foot .btn{flex:1;border:none;border-radius:8px;padding:10px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .dw-foot .btn-pri{background:var(--teal);color:#fff}
+  .dw-foot .btn-pri:hover{background:#0f968d}
+  .dw-foot .btn-gh{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2);flex:none;padding:10px 14px}
+  .dw-foot .btn-gh:hover{border-color:#cdd5dd}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(16,42,67,.3);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+
+  @media(max-width:1180px){
+    .workspace{grid-template-columns:1fr;gap:16px}
+    .pane-tree,.pane-rail{border-radius:var(--r)}
+    .pane-grid{padding:0}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">D</span>Dossier <small>employee documents</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Vault</a>
+    <a href="#">People</a>
+    <a href="#">Compliance</a>
+    <a href="#">Audit log</a>
+  </nav>
+  <div class="top-right">
+    <button class="topbtn">＋ Upload document</button>
+    <div class="acct">
+      <div class="ava">RP</div>
+      <div class="who"><b>Renata Pike</b><br><span>HR Operations</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ KPI STRIP ============ -->
+<div class="kpis">
+  <div class="kpi"><div class="ki t1">🗂️</div><div><div class="kv" id="kpiTotal">0</div><div class="kl">Documents on file</div></div><span class="ktrend">+34 mo</span></div>
+  <div class="kpi"><div class="ki t2">✅</div><div><div class="kv" id="kpiActive">0</div><div class="kl">Active &amp; valid</div></div><span class="ktrend" id="kpiPct">0%</span></div>
+  <div class="kpi"><div class="ki t3">⏳</div><div><div class="kv" id="kpiExpiring">0</div><div class="kl">Expiring ≤ 60 days</div></div><span class="ktrend down">action</span></div>
+  <div class="kpi"><div class="ki t4">⚠️</div><div><div class="kv" id="kpiExpired">0</div><div class="kl">Expired / missing</div></div><span class="ktrend down">overdue</span></div>
+</div>
+
+<!-- ============ 3-PANE WORKSPACE ============ -->
+<div class="workspace">
+
+  <!-- LEFT: FILING TREE -->
+  <aside class="pane pane-tree">
+    <div class="tree-head">
+      <h3>🗄️ Filing cabinet</h3>
+      <p>Browse by document category</p>
+    </div>
+    <div class="tree" id="tree"></div>
+    <div class="tree-foot">
+      <div class="tree-legend"><b>•</b> mandatory for all employees</div>
+    </div>
+  </aside>
+
+  <!-- CENTER: FILE GRID -->
+  <main class="pane-grid">
+    <div class="grid-head">
+      <div class="gh-title">
+        <h1><span id="gridIcon">🗂️</span> <span id="gridTitle">All documents</span></h1>
+        <div class="crumb" id="gridCrumb">Vault › All categories</div>
+      </div>
+      <div class="gh-search">
+        <span class="si">🔍</span>
+        <input type="text" id="search" placeholder="Search employee or title…">
+      </div>
+      <select class="gh-sort" id="sort">
+        <option value="expires">Sort: Expiry soonest</option>
+        <option value="name">Sort: Employee A–Z</option>
+        <option value="issued">Sort: Newest issued</option>
+      </select>
+    </div>
+
+    <div class="status-pills" id="statusPills">
+      <span class="spill on" data-s="all">All <span class="sc" id="cAll">0</span></span>
+      <span class="spill" data-s="active">Active <span class="sc" id="cActive">0</span></span>
+      <span class="spill" data-s="expiring">Expiring <span class="sc" id="cExpiring">0</span></span>
+      <span class="spill" data-s="expired">Expired <span class="sc" id="cExpired">0</span></span>
+      <span class="spill" data-s="missing">Missing <span class="sc" id="cMissing">0</span></span>
+      <span class="spill" data-s="pending_review">Pending review <span class="sc" id="cPending">0</span></span>
+    </div>
+
+    <div class="card-grid" id="cardGrid"></div>
+  </main>
+
+  <!-- RIGHT: EXPIRY RAIL -->
+  <aside class="pane pane-rail">
+    <div class="rail-head">
+      <div class="rh-row">
+        <h3>🔔 Expiry reminders</h3>
+        <span class="rh-n" id="railN">0</span>
+      </div>
+      <p>Certifications, visas &amp; IDs needing renewal</p>
+    </div>
+    <div class="rail-body" id="rail"></div>
+  </aside>
+</div>
+
+<!-- detail drawer -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="dw-head" id="dwHead"></div>
+  <div class="dw-body" id="dwBody"></div>
+  <div class="dw-foot">
+    <button class="btn btn-pri" id="dwRenew">Renew &amp; bump expiry</button>
+    <button class="btn btn-gh" id="dwDownload">⬇ Download</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var TODAY = new Date("2026-06-07T00:00:00");
+
+  // ---------- filing categories (self-relation tree) ----------
+  var CATS = [
+    {id:"all", name:"All documents", icon:"🗂️", count:0, root:true},
+    {id:"contracts", name:"Contracts & Offers", icon:"📑", parent:null, mand:true},
+    {id:"identity",  name:"Identity & Right-to-Work", icon:"🪪", parent:null, mand:true},
+      {id:"id_visa",  name:"Visas & Permits", icon:"✈️", parent:"identity"},
+      {id:"id_tax",   name:"Tax & Payroll IDs", icon:"💳", parent:"identity"},
+    {id:"certs",     name:"Certifications", icon:"🎖️", parent:null},
+      {id:"cert_safety", name:"Safety & Compliance", icon:"🦺", parent:"certs", mand:true},
+      {id:"cert_prof",   name:"Professional Licenses", icon:"📜", parent:"certs"},
+    {id:"education", name:"Education & Degrees", icon:"🎓", parent:null},
+    {id:"policies",  name:"Policy Acknowledgements", icon:"✍️", parent:null, mand:true},
+    {id:"medical",   name:"Medical & Benefits", icon:"🩺", parent:null}
+  ];
+
+  // map document doc_type/category to a tree node id
+  var DOC_CAT = {
+    contract:"contracts", id:"id_visa", visa:"id_visa", tax:"id_tax",
+    certification:"cert_safety", policy_ack:"policies", education:"education", medical:"medical"
+  };
+
+  // ---------- documents ----------
+  function daydiff(dateStr){ if(!dateStr) return null; return Math.round((new Date(dateStr+"T00:00:00")-TODAY)/86400000); }
+
+  var DOCS = [
+    {id:1, title:"Employment Agreement", type:"contract", cat:"contracts", emp:"Marcus Bell", eno:"E-1042", dept:"engineering", ext:"pdf", size:842, status:"active", issued:"2024-03-01", expires:null, conf:true, note:"Standard full-time agreement, signed digitally via the onboarding flow. Includes IP assignment and remote-work addendum."},
+    {id:2, title:"Forklift Operator Certification", type:"certification", cat:"cert_safety", emp:"Dana Whitfield", eno:"E-2210", dept:"operations", ext:"pdf", size:611, status:"expiring", issued:"2023-06-20", expires:"2026-06-30", conf:false, note:"OSHA-aligned forklift cert. Renewal training booked with the safety vendor; awaiting completion certificate upload."},
+    {id:3, title:"H-1B Visa Approval Notice", type:"visa", cat:"id_visa", emp:"Priya Nadkarni", eno:"E-1188", dept:"engineering", ext:"pdf", size:1204, status:"expiring", issued:"2023-09-15", expires:"2026-07-14", conf:true, note:"I-797 approval. Extension petition must be filed at least 60 days before expiry — currently inside the window."},
+    {id:4, title:"First Aid & CPR Certificate", type:"certification", cat:"cert_safety", emp:"Owen Marsh", eno:"E-3301", dept:"operations", ext:"jpg", size:388, status:"expired", issued:"2022-04-10", expires:"2025-04-10", conf:false, note:"Lapsed certification. Employee removed from the first-responder roster until re-certified."},
+    {id:5, title:"Government ID — Passport", type:"id", cat:"id_visa", emp:"Sofia Reyes", eno:"E-1530", dept:"sales", ext:"png", size:540, status:"active", issued:"2021-08-01", expires:"2029-08-01", conf:true, note:"Passport scan held for right-to-work verification. Confidential — restricted to HR Operations role."},
+    {id:6, title:"W-4 Tax Withholding Form", type:"tax", cat:"id_tax", emp:"Marcus Bell", eno:"E-1042", dept:"engineering", ext:"pdf", size:212, status:"active", issued:"2025-01-12", expires:null, conf:true, note:"Current-year withholding election. Updated after the dependent change in January."},
+    {id:7, title:"PMP Certification", type:"certification", cat:"cert_prof", emp:"Lena Hoffmann", eno:"E-1777", dept:"engineering", ext:"pdf", size:705, status:"active", issued:"2024-11-05", expires:"2027-11-05", conf:false, note:"Project Management Professional. 60 PDUs logged toward the next renewal cycle."},
+    {id:8, title:"Code of Conduct Acknowledgement", type:"policy_ack", cat:"policies", emp:"Theo Vance", eno:"E-2904", dept:"design", ext:"pdf", size:96, status:"pending_review", issued:"2026-06-02", expires:null, conf:false, note:"Signed acknowledgement awaiting HR counter-signature before filing as complete."},
+    {id:9, title:"Bachelor's Degree Transcript", type:"education", cat:"education", emp:"Sofia Reyes", eno:"E-1530", dept:"sales", ext:"pdf", size:1320, status:"active", issued:"2019-05-20", expires:null, conf:false, note:"Verified against the issuing institution during background check."},
+    {id:10, title:"Work Permit — Renewal", type:"visa", cat:"id_visa", emp:"Amir Hassan", eno:"E-2055", dept:"operations", ext:"pdf", size:980, status:"missing", issued:null, expires:"2026-08-31", conf:true, note:"Prior permit expired; renewal document not yet uploaded. Flagged for immediate follow-up by HR."},
+    {id:11, title:"Anti-Harassment Training Record", type:"policy_ack", cat:"policies", emp:"Dana Whitfield", eno:"E-2210", dept:"operations", ext:"pdf", size:148, status:"active", issued:"2026-02-18", expires:"2027-02-18", conf:false, note:"Annual mandatory training. Completed via the LMS, certificate auto-filed."},
+    {id:12, title:"Health Insurance Enrollment", type:"medical", cat:"medical", emp:"Lena Hoffmann", eno:"E-1777", dept:"engineering", ext:"pdf", size:264, status:"active", issued:"2026-01-01", expires:"2026-12-31", conf:true, note:"Plan-year enrollment confirmation. Confidential medical category."},
+    {id:13, title:"Driver's License", type:"id", cat:"id_visa", emp:"Owen Marsh", eno:"E-3301", dept:"operations", ext:"jpg", size:402, status:"expiring", issued:"2022-05-22", expires:"2026-07-22", conf:true, note:"Required for the delivery-vehicle pool. Renewal reminder sent to the employee."},
+    {id:14, title:"NDA — Mutual", type:"contract", cat:"contracts", emp:"Theo Vance", eno:"E-2904", dept:"design", ext:"docx", size:178, status:"active", issued:"2025-07-30", expires:null, conf:true, note:"Mutual non-disclosure agreement covering client design work."},
+    {id:15, title:"Safety Induction Sign-off", type:"certification", cat:"cert_safety", emp:"Amir Hassan", eno:"E-2055", dept:"operations", ext:"pdf", size:120, status:"active", issued:"2025-10-14", expires:"2026-10-14", conf:false, note:"Site safety induction. Valid for 12 months."},
+    {id:16, title:"Master's Diploma", type:"education", cat:"education", emp:"Priya Nadkarni", eno:"E-1188", dept:"engineering", ext:"pdf", size:1410, status:"active", issued:"2018-06-15", expires:null, conf:false, note:"MS in Computer Science, verified."},
+    {id:17, title:"Offer Letter — Promotion", type:"contract", cat:"contracts", emp:"Lena Hoffmann", eno:"E-1777", dept:"engineering", ext:"pdf", size:233, status:"active", issued:"2026-03-01", expires:null, conf:true, note:"Promotion to Staff Engineer, effective Q2."},
+    {id:18, title:"Data Privacy Policy Sign-off", type:"policy_ack", cat:"policies", emp:"Sofia Reyes", eno:"E-1530", dept:"sales", ext:"pdf", size:88, status:"expiring", issued:"2025-06-25", expires:"2026-06-25", conf:false, note:"Annual GDPR/data-privacy acknowledgement due for renewal."},
+    {id:19, title:"CDL — Class A License", type:"certification", cat:"cert_prof", emp:"Amir Hassan", eno:"E-2055", dept:"operations", ext:"jpg", size:466, status:"expired", issued:"2021-09-09", expires:"2025-09-09", conf:true, note:"Commercial driver's license expired. Employee reassigned to non-driving duties pending renewal."},
+    {id:20, title:"Background Check Report", type:"id", cat:"id_tax", emp:"Theo Vance", eno:"E-2904", dept:"design", ext:"pdf", size:520, status:"active", issued:"2025-07-25", expires:null, conf:true, note:"Cleared, no adverse findings. Confidential."},
+    {id:21, title:"Vaccination Record", type:"medical", cat:"medical", emp:"Marcus Bell", eno:"E-1042", dept:"engineering", ext:"png", size:310, status:"active", issued:"2024-09-30", expires:null, conf:true, note:"On file for travel-related assignments. Confidential medical category."},
+    {id:22, title:"Remote Work Agreement", type:"contract", cat:"contracts", emp:"Priya Nadkarni", eno:"E-1188", dept:"engineering", ext:"docx", size:142, status:"pending_review", issued:"2026-06-04", expires:null, conf:false, note:"Updated remote-work addendum awaiting manager and HR sign-off."}
+  ];
+
+  var STATUS_TX = {active:"Active", expiring:"Expiring", expired:"Expired", missing:"Missing", pending_review:"Pending review"};
+  var TYPE_TX = {contract:"Contract", id:"ID", certification:"Certification", visa:"Visa", tax:"Tax", policy_ack:"Policy", medical:"Medical", education:"Education"};
+
+  var activeCat = "all", activeStatus = "all", searchQ = "", sortBy = "expires";
+
+  // ---------- count documents per category (incl. parent rollup) ----------
+  function catCount(catId){
+    if(catId==="all") return DOCS.length;
+    // direct + descendant
+    var kids = CATS.filter(function(c){return c.parent===catId;}).map(function(c){return c.id;});
+    return DOCS.filter(function(d){ return d.cat===catId || kids.indexOf(d.cat)>-1; }).length;
+  }
+
+  // ---------- render tree ----------
+  function renderTree(){
+    var host = document.getElementById("tree"); host.innerHTML="";
+    function nodeEl(c, child){
+      var n = document.createElement("div");
+      n.className = "tnode"+(child?" child":"")+(c.mand?" mand":"")+(c.id===activeCat?" on":"");
+      n.dataset.id = c.id;
+      var hasKids = CATS.some(function(x){return x.parent===c.id;});
+      n.innerHTML =
+        '<span class="tw">'+(child?"":(hasKids?"▾":""))+'</span>'+
+        '<span class="tic">'+c.icon+'</span>'+
+        '<span class="tlabel">'+c.name+'</span>'+
+        '<span class="tcount">'+catCount(c.id)+'</span>';
+      n.onclick = function(){ activeCat = c.id; activeStatus="all"; syncPills(); renderTree(); renderGrid(); };
+      return n;
+    }
+    CATS.forEach(function(c){
+      if(c.root){ host.appendChild(nodeEl(c,false)); return; }
+      if(c.parent==null){
+        host.appendChild(nodeEl(c,false));
+        CATS.filter(function(k){return k.parent===c.id;}).forEach(function(k){ host.appendChild(nodeEl(k,true)); });
+      }
+    });
+  }
+
+  // ---------- filter pipeline ----------
+  function inCat(d){
+    if(activeCat==="all") return true;
+    if(d.cat===activeCat) return true;
+    var kids = CATS.filter(function(c){return c.parent===activeCat;}).map(function(c){return c.id;});
+    return kids.indexOf(d.cat)>-1;
+  }
+  function visibleDocs(){
+    return DOCS.filter(function(d){
+      if(!inCat(d)) return false;
+      if(activeStatus!=="all" && d.status!==activeStatus) return false;
+      if(searchQ){
+        var q=searchQ.toLowerCase();
+        if((d.emp+" "+d.eno+" "+d.title).toLowerCase().indexOf(q)<0) return false;
+      }
+      return true;
+    }).sort(function(a,b){
+      if(sortBy==="name") return a.emp.localeCompare(b.emp);
+      if(sortBy==="issued") return (b.issued||"").localeCompare(a.issued||"");
+      // expires soonest, nulls last
+      var ax=a.expires||"9999", bx=b.expires||"9999";
+      return ax.localeCompare(bx);
+    });
+  }
+
+  // expiry % for the progress bar (0..100), based on validity window
+  function expiryPct(d){
+    if(d.status==="missing") return 100;
+    if(!d.expires) return 18; // no expiry = healthy baseline
+    var dd = daydiff(d.expires);
+    if(dd<=0) return 100;
+    if(dd>=365) return 12;
+    return Math.round((1 - dd/365)*100);
+  }
+  function ttx(d){
+    if(d.status==="missing") return "Not on file";
+    if(!d.expires) return "No expiry";
+    var dd = daydiff(d.expires);
+    if(dd<0) return Math.abs(dd)+"d overdue";
+    if(dd===0) return "Expires today";
+    return dd+"d left";
+  }
+
+  // ---------- render grid ----------
+  function renderGrid(){
+    var docs = visibleDocs();
+    var host = document.getElementById("cardGrid"); host.innerHTML="";
+
+    var cat = CATS.find(function(c){return c.id===activeCat;});
+    document.getElementById("gridIcon").textContent = cat.icon;
+    document.getElementById("gridTitle").textContent = cat.name;
+    var parent = cat.parent ? CATS.find(function(c){return c.id===cat.parent;}) : null;
+    document.getElementById("gridCrumb").textContent = "Vault › " + (parent? parent.name+" › " : "") + (cat.root?"All categories":cat.name);
+
+    if(docs.length===0){
+      host.innerHTML='<div class="grid-empty"><div class="ge-ic">🗂️</div>No documents match this folder &amp; filter.<br>Try another category or clear the status filter.</div>';
+      return;
+    }
+    docs.forEach(function(d){
+      var card=document.createElement("div");
+      card.className="doc-card st-"+d.status;
+      var ext = d.ext;
+      var pct = expiryPct(d);
+      card.innerHTML=
+        '<div class="dc-top">'+
+          '<div class="ftile '+ext+'">'+ext.toUpperCase()+'</div>'+
+          '<div class="dc-main">'+
+            '<div class="dc-title">'+esc(d.title)+(d.conf?'<span class="lock" title="Confidential">🔒</span>':'')+'</div>'+
+            '<div class="dc-emp">'+esc(d.emp)+' <span class="eno">'+d.eno+'</span></div>'+
+            '<div class="dc-chips">'+
+              '<span class="chip type">'+TYPE_TX[d.type]+'</span>'+
+              '<span class="chip st-'+d.status+'">'+STATUS_TX[d.status]+'</span>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="dc-dates">'+
+          '<span>Issued <b>'+fmtD(d.issued)+'</b></span>'+
+          '<span>Expires <b>'+fmtD(d.expires)+'</b></span>'+
+        '</div>'+
+        '<div class="dc-bar b-'+barClass(d)+'"><span style="width:'+pct+'%"></span></div>'+
+        '<div class="dc-foot">'+
+          '<span class="ttx '+d.status+'">'+ttx(d)+'</span>'+
+          '<span class="fsz">'+fmtSize(d.size)+' · '+ext.toUpperCase()+'</span>'+
+        '</div>';
+      card.onclick = function(){ openDrawer(d); };
+      host.appendChild(card);
+    });
+  }
+  function barClass(d){
+    if(d.status==="expired") return "expired";
+    if(d.status==="expiring") return "expiring";
+    if(d.status==="missing") return "missing";
+    return "active";
+  }
+
+  // ---------- status pill counts ----------
+  function syncPills(){
+    var scope = DOCS.filter(inCat);
+    function cnt(s){ return s==="all"? scope.length : scope.filter(function(d){return d.status===s;}).length; }
+    document.getElementById("cAll").textContent = cnt("all");
+    document.getElementById("cActive").textContent = cnt("active");
+    document.getElementById("cExpiring").textContent = cnt("expiring");
+    document.getElementById("cExpired").textContent = cnt("expired");
+    document.getElementById("cMissing").textContent = cnt("missing");
+    document.getElementById("cPending").textContent = cnt("pending_review");
+    document.querySelectorAll(".spill").forEach(function(p){
+      p.classList.toggle("on", p.dataset.s===activeStatus);
+    });
+  }
+  document.getElementById("statusPills").addEventListener("click", function(e){
+    var p=e.target.closest(".spill"); if(!p) return;
+    activeStatus = p.dataset.s; syncPills(); renderGrid();
+  });
+  document.getElementById("search").addEventListener("input", function(e){ searchQ=e.target.value; renderGrid(); });
+  document.getElementById("sort").addEventListener("change", function(e){ sortBy=e.target.value; renderGrid(); });
+
+  // ---------- expiry rail ----------
+  function railItems(){
+    return DOCS.filter(function(d){ return d.status==="expiring"||d.status==="expired"||d.status==="missing"; })
+      .map(function(d){
+        var dd = d.expires? daydiff(d.expires) : (d.status==="missing"? -999 : null);
+        return {d:d, dd:dd};
+      })
+      .sort(function(a,b){ return (a.dd===null?9999:a.dd)-(b.dd===null?9999:b.dd); });
+  }
+  function railBucket(it){
+    if(it.d.status==="missing" || (it.dd!=null && it.dd<0)) return "over";
+    if(it.dd!=null && it.dd<=30) return "month";
+    return "soon";
+  }
+  function renderRail(){
+    var items = railItems();
+    document.getElementById("railN").textContent = items.length;
+    var host=document.getElementById("rail"); host.innerHTML="";
+    var buckets={over:[],month:[],soon:[]};
+    items.forEach(function(it){ buckets[railBucket(it)].push(it); });
+    var meta={over:{tx:"Overdue / missing"},month:{tx:"Due this month"},soon:{tx:"Due soon"}};
+    ["over","month","soon"].forEach(function(b){
+      if(buckets[b].length===0) return;
+      var g=document.createElement("div"); g.className="r-group";
+      g.innerHTML='<div class="r-label '+b+'"><span class="rl-dot"></span><span class="rl-tx">'+meta[b].tx+'</span><span class="rl-n">'+buckets[b].length+'</span></div>';
+      buckets[b].forEach(function(it){
+        var d=it.d;
+        var icon = d.status==="missing"?"❓":(b==="over"?"🚨":(b==="month"?"⏳":"📅"));
+        var countTx = d.status==="missing" ? "—" : (it.dd<0? Math.abs(it.dd) : it.dd);
+        var unit = d.status==="missing" ? "missing" : (it.dd<0? "days over" : "days left");
+        var a=document.createElement("div"); a.className="alert "+b; a.dataset.id=d.id;
+        a.innerHTML=
+          '<div class="al-top">'+
+            '<div class="al-ic '+b+'">'+icon+'</div>'+
+            '<div class="al-id"><b>'+esc(d.title)+'</b><span>'+esc(d.emp)+' · '+d.eno+'</span></div>'+
+            '<div class="al-count '+b+'"><div class="num">'+countTx+'</div><div class="unit">'+unit+'</div></div>'+
+          '</div>'+
+          '<div class="al-foot">'+
+            '<span class="al-due">'+(d.status==="missing"?"No file on record":("Expires <b>"+fmtD(d.expires)+"</b>"))+'</span>'+
+            '<button class="al-renew" data-id="'+d.id+'">'+(d.status==="missing"?"Request":"Renew")+'</button>'+
+          '</div>';
+        g.appendChild(a);
+      });
+      host.appendChild(g);
+    });
+    if(items.length===0){
+      host.innerHTML='<div style="padding:40px 20px;text-align:center;color:var(--ink-3)"><div style="font-size:30px">🎉</div>All documents valid — nothing to renew.</div>';
+    }
+  }
+  document.getElementById("rail").addEventListener("click", function(e){
+    var b=e.target.closest(".al-renew"); if(!b) return;
+    e.stopPropagation();
+    renewDoc(+b.dataset.id);
+  });
+  // click alert (not button) opens the doc
+  document.getElementById("rail").addEventListener("click", function(e){
+    if(e.target.closest(".al-renew")) return;
+    var a=e.target.closest(".alert"); if(!a) return;
+    var d=DOCS.find(function(x){return x.id===+a.dataset.id;}); if(d) openDrawer(d);
+  });
+
+  // ---------- renew (native UpdateAction equivalent) ----------
+  function renewDoc(id){
+    var d=DOCS.find(function(x){return x.id===id;}); if(!d) return;
+    if(d.status==="missing"){ flash("Renewal requested from "+d.emp); return; }
+    var base = new Date(TODAY);
+    base.setFullYear(base.getFullYear()+ (d.type==="visa"?2:1));
+    d.expires = base.toISOString().slice(0,10);
+    d.issued = TODAY.toISOString().slice(0,10);
+    d.status = "active";
+    syncPills(); renderTree(); renderGrid(); renderRail(); renderKPIs();
+    flash("Renewed — "+d.title+" valid to "+fmtD(d.expires));
+  }
+
+  // ---------- detail drawer ----------
+  var overlay=document.getElementById("overlay"), drawer=document.getElementById("drawer"), curDoc=null;
+  function openDrawer(d){
+    curDoc=d;
+    document.getElementById("dwHead").innerHTML=
+      '<div class="ftile '+d.ext+'">'+d.ext.toUpperCase()+'</div>'+
+      '<div class="dh-main">'+
+        '<h2>'+esc(d.title)+(d.conf?' 🔒':'')+'</h2>'+
+        '<div class="dh-sub">'+esc(d.emp)+' · '+d.eno+' · '+cap(d.dept)+'</div>'+
+      '</div>'+
+      '<button class="dw-close" id="dwClose">×</button>';
+    document.getElementById("dwBody").innerHTML=
+      '<div class="dw-section">'+
+        '<h4>Document details</h4>'+
+        row("Status", '<span class="chip st-'+d.status+'">'+STATUS_TX[d.status]+'</span>')+
+        row("Type", TYPE_TX[d.type])+
+        row("Category", catName(d.cat))+
+        row("File", d.file_name||(d.title.replace(/[^a-z0-9]+/gi,"_").toLowerCase()+"."+d.ext))+
+        row("Size", fmtSize(d.size)+" · "+d.ext.toUpperCase())+
+        row("Confidential", d.conf?"Yes — restricted":"No")+
+      '</div>'+
+      '<div class="dw-section">'+
+        '<h4>Validity</h4>'+
+        row("Issued on", fmtD(d.issued))+
+        row("Expires on", fmtD(d.expires))+
+        row("Time remaining", ttx(d))+
+      '</div>'+
+      '<div class="dw-section">'+
+        '<h4>Notes</h4>'+
+        '<div class="dw-note">'+esc(d.note)+'</div>'+
+      '</div>'+
+      '<div class="dw-section">'+
+        '<h4>Activity</h4>'+
+        '<div class="dw-time">'+
+          tl("Filed in vault", fmtD(d.issued||"2026-06-01")+" · uploaded by HR Operations")+
+          tl("Categorised", "Routed to "+catName(d.cat))+
+          (d.status==="expiring"||d.status==="expired"?tl("Expiry alert raised","Reminder sent to "+d.emp):"")+
+          tl("Last viewed","Today · Renata Pike")+
+        '</div>'+
+      '</div>';
+    document.getElementById("dwClose").onclick=closeDrawer;
+    document.getElementById("dwRenew").textContent = d.status==="missing"?"Request upload":"Renew & bump expiry";
+    overlay.classList.add("show"); drawer.classList.add("show");
+  }
+  function row(k,v){ return '<div class="dw-row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
+  function tl(t,d){ return '<div class="te"><div class="tt">'+t+'</div><div class="td">'+d+'</div></div>'; }
+  function closeDrawer(){ overlay.classList.remove("show"); drawer.classList.remove("show"); curDoc=null; }
+  overlay.onclick=closeDrawer;
+  document.getElementById("dwRenew").onclick=function(){ if(curDoc){ var id=curDoc.id; closeDrawer(); renewDoc(id);} };
+  document.getElementById("dwDownload").onclick=function(){ if(curDoc) flash("Downloading "+curDoc.title+"…"); };
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape") closeDrawer(); });
+
+  // ---------- KPIs ----------
+  function renderKPIs(){
+    var total=DOCS.length;
+    var active=DOCS.filter(function(d){return d.status==="active";}).length;
+    var expiring=DOCS.filter(function(d){return d.status==="expiring";}).length;
+    var bad=DOCS.filter(function(d){return d.status==="expired"||d.status==="missing";}).length;
+    document.getElementById("kpiTotal").textContent=total;
+    document.getElementById("kpiActive").textContent=active;
+    document.getElementById("kpiExpiring").textContent=expiring;
+    document.getElementById("kpiExpired").textContent=bad;
+    document.getElementById("kpiPct").textContent=Math.round(active/total*100)+"%";
+  }
+
+  // ---------- helpers ----------
+  function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function cap(s){ return s? s.charAt(0).toUpperCase()+s.slice(1) : ""; }
+  function catName(id){ var c=CATS.find(function(x){return x.id===id;}); return c?c.name:id; }
+  function fmtD(s){ if(!s) return "—"; var d=new Date(s+"T00:00:00"); return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
+  function fmtSize(kb){ return kb>=1024 ? (kb/1024).toFixed(1)+" MB" : kb+" KB"; }
+
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2400); }
+
+  // ---------- init ----------
+  renderTree(); syncPills(); renderGrid(); renderRail(); renderKPIs();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Employee Documents: a document cabinet — category tree, file cards, and expiry tracking. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/37-employee-documents.html
+</script>
+</body>
+</html>

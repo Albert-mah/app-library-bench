@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Resume Screening System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-soft: #f1f3f6;
+    --panel: #ffffff;
+    --panel-2: #f1f3f6;
+    --line: #dfe3e9;
+    --line-soft: #e8ebf0;
+    --txt: #1f2937;
+    --txt-mid: #5b6675;
+    --txt-dim: #8a94a3;
+    --accent: #d97706;
+    --accent-2: #b45309;
+    --green: #16a34a;
+    --green-d: #15803d;
+    --amber: #d97706;
+    --red: #e23d54;
+    --cyan: #0ea5b7;
+    --shadow: 0 16px 40px -18px rgba(31,41,55,.28);
+    --r: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 82% -10%, rgba(217,119,6,.05), transparent 60%),
+      var(--bg);
+    color: var(--txt);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  ::selection { background: rgba(217,119,6,.22); }
+  /* ---------- App frame ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    min-height: 100vh;
+  }
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 11px;
+    padding: 4px 6px 18px;
+  }
+  .brand .logo {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    box-shadow: 0 6px 16px -6px rgba(217,119,6,.5);
+    flex: none;
+  }
+  .brand .logo svg { width: 20px; height: 20px; }
+  .brand h1 { font-size: 15px; margin: 0; letter-spacing: .2px; font-weight: 650; }
+  .brand .sub { font-size: 11px; color: var(--txt-dim); margin-top: 1px; }
+  .nav-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--txt-dim); padding: 14px 10px 6px; font-weight: 600;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 9px;
+    color: var(--txt-mid); cursor: pointer; font-weight: 500;
+    transition: .14s; position: relative;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  .nav-item:hover { background: var(--bg-soft); color: var(--txt); }
+  .nav-item.active {
+    background: linear-gradient(90deg, rgba(217,119,6,.14), rgba(217,119,6,.03));
+    color: #92400e;
+  }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: -16px; top: 8px; bottom: 8px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--accent);
+  }
+  .nav-item .badge {
+    margin-left: auto; font-size: 11px; background: var(--panel-2);
+    color: var(--txt-mid); padding: 1px 8px; border-radius: 999px; font-weight: 600;
+  }
+  .nav-item.active .badge { background: rgba(217,119,6,.18); color: #92400e; }
+  .side-foot { margin-top: auto; }
+  .quota {
+    background: var(--panel); border: 1px solid var(--line-soft);
+    border-radius: 11px; padding: 12px;
+  }
+  .quota .top { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--txt-mid); }
+  .quota .bar { height: 6px; background: #eceff3; border-radius: 999px; margin: 8px 0 4px; overflow: hidden; }
+  .quota .bar i { display: block; height: 100%; width: 68%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), #f59e0b); }
+  .quota .n { font-size: 11px; color: var(--txt-dim); }
+
+  /* ---------- Main ---------- */
+  .main { padding: 22px 28px 60px; min-width: 0; }
+  .topbar { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
+  .topbar .ttl h2 { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: .2px; }
+  .topbar .ttl p { margin: 3px 0 0; color: var(--txt-mid); font-size: 12.5px; }
+  .search {
+    margin-left: auto; position: relative;
+  }
+  .search input {
+    background: var(--panel); border: 1px solid var(--line);
+    color: var(--txt); border-radius: 10px; padding: 9px 14px 9px 36px;
+    width: 280px; font-size: 13px; outline: none; transition: .15s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,119,6,.16); }
+  .search svg { position: absolute; left: 11px; top: 9px; width: 16px; height: 16px; color: var(--txt-dim); }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel); color: var(--txt);
+    padding: 9px 15px; border-radius: 10px; font-size: 13px; font-weight: 550;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: .14s;
+  }
+  .btn svg { width: 15px; height: 15px; }
+  .btn:hover { border-color: #c7cdd6; background: var(--panel-2); }
+  .btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border: none; color: #fff; box-shadow: 0 8px 20px -10px rgba(217,119,6,.7);
+  }
+  .btn.primary:hover { filter: brightness(1.05); }
+
+  /* ---------- KPI cards ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--r);
+    padding: 15px 16px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .kpi .lbl { font-size: 12px; color: var(--txt-mid); display: flex; align-items: center; gap: 7px; }
+  .kpi .lbl .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .kpi .val { font-size: 27px; font-weight: 680; margin-top: 7px; letter-spacing: -.5px; }
+  .kpi .delta { font-size: 11.5px; margin-top: 3px; color: var(--txt-dim); }
+  .kpi .delta b { color: var(--green); font-weight: 650; }
+  .kpi .delta b.down { color: var(--red); }
+  .kpi .spark { position: absolute; right: 12px; bottom: 10px; opacity: .8; }
+
+  /* ---------- Pipeline content layout ---------- */
+  .work { display: grid; grid-template-columns: 1fr; gap: 18px; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--r); overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .panel .head {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; border-bottom: 1px solid var(--line-soft);
+  }
+  .panel .head h3 { margin: 0; font-size: 14.5px; font-weight: 620; }
+  .panel .head .meta { color: var(--txt-dim); font-size: 12px; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    padding: 7px 14px; border-radius: 8px; font-size: 12.5px; cursor: pointer;
+    color: var(--txt-mid); font-weight: 550; transition: .14s; border: 1px solid transparent;
+  }
+  .tab:hover { color: var(--txt); background: var(--panel-2); }
+  .tab.active { background: var(--panel-2); color: var(--txt); border-color: var(--line); }
+  .tab .cnt { color: var(--txt-dim); font-weight: 600; margin-left: 5px; }
+  .tab.active .cnt { color: var(--accent); }
+
+  .filters { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); color: var(--txt-mid); background: var(--bg-soft); transition: .14s;
+    font-weight: 500;
+  }
+  .chip:hover { border-color: #c7cdd6; color: var(--txt); }
+  .chip.on { background: rgba(217,119,6,.14); border-color: rgba(217,119,6,.5); color: #92400e; }
+  select.role-sel {
+    background: var(--bg-soft); border: 1px solid var(--line); color: var(--txt);
+    border-radius: 9px; padding: 7px 10px; font-size: 12.5px; outline: none; cursor: pointer;
+  }
+
+  /* ---------- Candidate row list ---------- */
+  .list { padding: 6px 8px 10px; }
+  .cand {
+    display: grid;
+    grid-template-columns: 46px 1fr 150px 132px 100px 30px;
+    align-items: center; gap: 14px;
+    padding: 13px 14px; border-radius: 11px; cursor: pointer;
+    border: 1px solid transparent; transition: .12s;
+  }
+  .cand:hover { background: var(--bg-soft); border-color: var(--line-soft); }
+  .cand + .cand { margin-top: 2px; }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center;
+    font-weight: 650; font-size: 14px; color: #fff; flex: none;
+  }
+  .cand .who .nm { font-weight: 600; font-size: 14px; }
+  .cand .who .rl { font-size: 12px; color: var(--txt-mid); margin-top: 2px; }
+  .cand .who .tags { margin-top: 6px; display: flex; gap: 5px; flex-wrap: wrap; }
+  .skill {
+    font-size: 10.5px; padding: 2px 7px; border-radius: 6px;
+    background: var(--panel-2); color: var(--txt-mid); border: 1px solid var(--line-soft);
+  }
+  .skill.match { background: rgba(22,163,74,.12); color: #15803d; border-color: rgba(22,163,74,.3); }
+
+  /* match score gauge (mini) */
+  .scorecell { display: flex; align-items: center; gap: 11px; }
+  .ring { --p: 0; width: 44px; height: 44px; flex: none; position: relative; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .num {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 12.5px; font-weight: 700;
+  }
+  .scorecell .lab { font-size: 11px; color: var(--txt-dim); }
+  .scorecell .lab b { display: block; font-size: 12.5px; font-weight: 600; }
+
+  .verdict { display: flex; }
+  .pill {
+    font-size: 11.5px; font-weight: 600; padding: 4px 11px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .pill .d { width: 6px; height: 6px; border-radius: 50%; }
+  .pill.strong { background: rgba(22,163,74,.12); color: #15803d; }
+  .pill.strong .d { background: var(--green); }
+  .pill.review { background: rgba(217,119,6,.14); color: #b45309; }
+  .pill.review .d { background: var(--amber); }
+  .pill.weak { background: rgba(226,61,84,.12); color: #be2438; }
+  .pill.weak .d { background: var(--red); }
+  .pill.maybe { background: rgba(14,165,183,.12); color: #0c7d8c; }
+  .pill.maybe .d { background: var(--cyan); }
+
+  .cand .stage { font-size: 12px; color: var(--txt-mid); }
+  .cand .stage b { color: var(--txt); font-weight: 600; display: block; font-size: 12.5px; }
+  .cand .chev { color: var(--txt-dim); justify-self: end; }
+  .cand .chev svg { width: 17px; height: 17px; }
+
+  .ai-flag {
+    margin-top: 6px; font-size: 11px; color: var(--accent);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .ai-flag svg { width: 12px; height: 12px; }
+
+  .empty {
+    padding: 50px 20px; text-align: center; color: var(--txt-dim);
+  }
+  .empty svg { width: 40px; height: 40px; opacity: .5; margin-bottom: 10px; }
+
+  /* ---------- Right side analytics row ---------- */
+  .grid2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; }
+  .bars { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 13px; }
+  .barrow { display: grid; grid-template-columns: 130px 1fr 42px; align-items: center; gap: 12px; }
+  .barrow .nm { font-size: 12.5px; color: var(--txt-mid); }
+  .barrow .track { height: 9px; background: #eceff3; border-radius: 999px; overflow: hidden; }
+  .barrow .track i { display: block; height: 100%; border-radius: 999px; transition: width .8s cubic-bezier(.3,.9,.3,1); }
+  .barrow .pct { font-size: 12px; font-weight: 600; text-align: right; }
+
+  .feed { padding: 6px 8px 12px; }
+  .fitem {
+    display: flex; gap: 12px; padding: 11px 12px; border-radius: 10px;
+  }
+  .fitem:hover { background: var(--bg-soft); }
+  .fitem .ic {
+    width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center;
+  }
+  .fitem .ic svg { width: 15px; height: 15px; }
+  .fitem .tx { font-size: 12.5px; color: var(--txt); }
+  .fitem .tx b { font-weight: 600; }
+  .fitem .tx .t { color: var(--txt-dim); font-size: 11px; margin-top: 2px; }
+
+  /* ---------- Drawer ---------- */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(31,41,55,.32); backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none; transition: .25s; z-index: 40;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 560px; max-width: 94vw;
+    background: var(--bg-soft); border-left: 1px solid var(--line);
+    box-shadow: var(--shadow); z-index: 50;
+    transform: translateX(100%); transition: transform .32s cubic-bezier(.32,.72,.3,1);
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer .dhead {
+    padding: 20px 22px; border-bottom: 1px solid var(--line-soft);
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .drawer .dhead .x {
+    margin-left: auto; cursor: pointer; color: var(--txt-dim); background: var(--panel);
+    border: 1px solid var(--line-soft); border-radius: 8px; width: 30px; height: 30px;
+    display: grid; place-items: center; transition: .14s;
+  }
+  .drawer .dhead .x:hover { color: var(--txt); border-color: var(--line); }
+  .dbody { overflow-y: auto; padding: 0 22px 28px; flex: 1; }
+  .dbody::-webkit-scrollbar { width: 9px; }
+  .dbody::-webkit-scrollbar-thumb { background: var(--line); border-radius: 9px; border: 2px solid var(--bg-soft); }
+
+  .d-name { font-size: 19px; font-weight: 660; }
+  .d-role { color: var(--txt-mid); font-size: 13px; margin-top: 2px; }
+  .d-contact { display: flex; gap: 14px; margin-top: 9px; flex-wrap: wrap; }
+  .d-contact span { font-size: 12px; color: var(--txt-dim); display: inline-flex; align-items: center; gap: 5px; }
+  .d-contact svg { width: 13px; height: 13px; }
+
+  .sec { margin-top: 22px; }
+  .sec > .lab {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--txt-dim);
+    font-weight: 650; margin-bottom: 11px; display: flex; align-items: center; gap: 7px;
+  }
+  .sec > .lab .ai {
+    font-size: 9.5px; letter-spacing: .05em; padding: 2px 7px; border-radius: 5px;
+    background: rgba(217,119,6,.12);
+    color: #b45309; border: 1px solid rgba(217,119,6,.35);
+  }
+
+  .scorebig {
+    display: flex; align-items: center; gap: 20px;
+    background: linear-gradient(135deg, #fffbf3, var(--panel-2));
+    border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px;
+  }
+  .scorebig .ringbig { width: 92px; height: 92px; flex: none; position: relative; }
+  .scorebig .ringbig .num { position: absolute; inset: 0; display: grid; place-items: center; flex-direction: column; }
+  .scorebig .ringbig .num b { font-size: 26px; font-weight: 720; line-height: 1; }
+  .scorebig .ringbig .num small { font-size: 10px; color: var(--txt-dim); }
+  .scorebig .rdesc .vd { font-size: 14px; font-weight: 620; margin-bottom: 4px; }
+  .scorebig .rdesc p { margin: 0; font-size: 12.5px; color: var(--txt-mid); line-height: 1.55; }
+
+  /* extracted fields with confidence */
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field {
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 10px; padding: 11px 13px;
+  }
+  .field .k { font-size: 11px; color: var(--txt-dim); display: flex; justify-content: space-between; }
+  .field .v { font-size: 13.5px; font-weight: 580; margin-top: 5px; }
+  .conf { font-size: 10px; padding: 1px 6px; border-radius: 5px; font-weight: 600; }
+  .conf.hi { background: rgba(22,163,74,.12); color: #15803d; }
+  .conf.md { background: rgba(217,119,6,.14); color: #b45309; }
+  .conf.lo { background: rgba(226,61,84,.12); color: #be2438; }
+
+  /* skill match breakdown */
+  .matchgrid { display: flex; flex-direction: column; gap: 9px; }
+  .mrow { display: grid; grid-template-columns: 1fr 90px 30px; align-items: center; gap: 10px; }
+  .mrow .mn { font-size: 12.5px; }
+  .mrow .mt { height: 7px; background: #eceff3; border-radius: 999px; overflow: hidden; }
+  .mrow .mt i { display: block; height: 100%; border-radius: 999px; }
+  .mrow .mok svg { width: 17px; height: 17px; }
+
+  /* reasoning bullet list */
+  .reasons { display: flex; flex-direction: column; gap: 9px; }
+  .reason {
+    display: flex; gap: 10px; font-size: 12.5px; color: var(--txt-mid);
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 9px; padding: 10px 12px;
+  }
+  .reason .ri { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
+  .reason .ri svg { width: 11px; height: 11px; }
+  .reason.pos .ri { background: rgba(54,211,153,.18); color: var(--green); }
+  .reason.neg .ri { background: rgba(246,101,122,.18); color: var(--red); }
+  .reason b { color: var(--txt); }
+
+  /* timeline */
+  .tl { position: relative; padding-left: 6px; }
+  .tl .ev { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }
+  .tl .ev::before {
+    content: ""; position: absolute; left: 5px; top: 16px; bottom: -2px; width: 1.5px; background: var(--line);
+  }
+  .tl .ev:last-child::before { display: none; }
+  .tl .ev .pt { width: 11px; height: 11px; border-radius: 50%; flex: none; margin-top: 3px; z-index: 1; border: 2px solid var(--bg-soft); }
+  .tl .ev .ec { font-size: 12.5px; }
+  .tl .ev .ec b { font-weight: 600; }
+  .tl .ev .ec .et { color: var(--txt-dim); font-size: 11px; margin-top: 1px; }
+
+  .dactions { padding: 16px 22px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; background: var(--bg-soft); }
+  .dactions .btn { flex: 1; justify-content: center; }
+  .btn.good { background: rgba(22,163,74,.12); border-color: rgba(22,163,74,.4); color: #15803d; }
+  .btn.good:hover { background: rgba(22,163,74,.18); }
+  .btn.bad { background: rgba(226,61,84,.1); border-color: rgba(226,61,84,.3); color: #be2438; }
+  .btn.bad:hover { background: rgba(226,61,84,.16); }
+
+  /* Upload / run AI banner */
+  .ai-bar {
+    background:
+      linear-gradient(120deg, rgba(217,119,6,.08), rgba(245,158,11,.05) 60%, transparent),
+      var(--panel);
+    border: 1px solid rgba(217,119,6,.28); border-radius: var(--r);
+    padding: 16px 18px; display: flex; align-items: center; gap: 16px; margin-bottom: 18px;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .ai-bar .glyph {
+    width: 44px; height: 44px; border-radius: 12px; flex: none; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 8px 18px -10px rgba(217,119,6,.7);
+  }
+  .ai-bar .glyph svg { width: 22px; height: 22px; }
+  .ai-bar .txt h4 { margin: 0; font-size: 14px; font-weight: 620; }
+  .ai-bar .txt p { margin: 3px 0 0; font-size: 12.5px; color: var(--txt-mid); }
+  .ai-bar .acts { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .dropzone {
+    border: 1.5px dashed var(--line); border-radius: 10px; padding: 7px 14px;
+    font-size: 12.5px; color: var(--txt-dim); display: flex; align-items: center; gap: 8px;
+    background: var(--bg-soft);
+  }
+  .dropzone svg { width: 15px; height: 15px; }
+
+  /* run progress toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(140%);
+    background: var(--panel); border: 1px solid rgba(217,119,6,.4); border-radius: 13px;
+    padding: 14px 18px; box-shadow: var(--shadow); z-index: 60; width: 380px;
+    transition: transform .35s cubic-bezier(.3,.8,.3,1);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast .tt { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+  .toast .tt .spin {
+    width: 16px; height: 16px; border: 2px solid rgba(217,119,6,.3); border-top-color: var(--accent);
+    border-radius: 50%; animation: sp .7s linear infinite;
+  }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .toast .pbar { height: 5px; background: #eceff3; border-radius: 999px; margin-top: 11px; overflow: hidden; }
+  .toast .pbar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #f59e0b); border-radius: 999px; transition: width .3s; }
+  .toast .ps { font-size: 11.5px; color: var(--txt-dim); margin-top: 7px; }
+
+  .donut-wrap { display: flex; align-items: center; gap: 20px; padding: 18px; }
+  .donut { width: 132px; height: 132px; flex: none; }
+  .legend { display: flex; flex-direction: column; gap: 9px; flex: 1; }
+  .legend .lg { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .legend .lg .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .legend .lg .ct { margin-left: auto; font-weight: 600; color: var(--txt); }
+  .legend .lg .nm { color: var(--txt-mid); }
+
+  @media (max-width: 1080px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .kpis { grid-template-columns: repeat(2,1fr); }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <path d="M14 2v6h6"/><path d="M9 13h2"/><path d="M9 17h4"/>
+        </svg>
+      </div>
+      <div>
+        <h1>TalentSift AI</h1>
+        <div class="sub">Resume Screening</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Screening</div>
+    <div class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Candidate Pipeline <span class="badge">24</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Match Insights
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Review Queue <span class="badge">6</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      Interviews
+    </div>
+
+    <div class="nav-label">Configure</div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6H4M14 12H4M18 18H4"/></svg>
+      Job Requisitions
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Scoring Rubric
+    </div>
+
+    <div class="side-foot">
+      <div class="quota">
+        <div class="top"><span>AI screening credits</span><span>4.8k / 7k</span></div>
+        <div class="bar"><i></i></div>
+        <div class="n">Resets in 11 days · Pro plan</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <main class="main">
+    <div class="topbar">
+      <div class="ttl">
+        <h2>Candidate Pipeline</h2>
+        <p>Senior Backend Engineer · Req #ENG-2048 · 24 applicants screened by AI</p>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchBox" type="text" placeholder="Search candidates, skills, schools…" />
+      </div>
+      <button class="btn primary" id="runBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>
+        Run AI Screening
+      </button>
+    </div>
+
+    <!-- AI upload / run surface -->
+    <div class="ai-bar">
+      <div class="glyph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+      </div>
+      <div class="txt">
+        <h4>AI evaluates every resume against the Senior Backend Engineer rubric</h4>
+        <p>Drop new applications below — the model extracts fields, scores fit, and routes each candidate automatically.</p>
+      </div>
+      <div class="acts">
+        <div class="dropzone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Drop resumes (PDF / DOCX)
+        </div>
+        <button class="btn" id="rescoreBtn">Re-score all</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="lbl"><span class="dot" style="background:var(--accent)"></span>Total applicants</div>
+        <div class="val">24</div>
+        <div class="delta"><b>+7</b> this week</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,20 10,18 20,21 30,12 40,14 52,6 64,3" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="lbl"><span class="dot" style="background:var(--green)"></span>Strong matches</div>
+        <div class="val">7</div>
+        <div class="delta"><b>29%</b> of pool · ≥85 score</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,22 12,20 24,16 36,17 48,9 64,5" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="lbl"><span class="dot" style="background:var(--amber)"></span>Needs review</div>
+        <div class="val">6</div>
+        <div class="delta">Low-confidence AI verdicts</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,8 12,10 24,7 36,14 48,11 64,16" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="lbl"><span class="dot" style="background:var(--cyan)"></span>Avg. screen time</div>
+        <div class="val">3.4s</div>
+        <div class="delta"><b class="down">-94%</b> vs manual</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline points="0,4 12,8 24,7 36,13 48,16 64,20" fill="none" stroke="#0ea5b7" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <div class="work">
+      <!-- Candidate list panel -->
+      <div class="panel">
+        <div class="head">
+          <h3>Ranked candidates</h3>
+          <span class="meta" id="resultCount">24 shown</span>
+          <div class="filters">
+            <span class="chip on" data-f="all">All</span>
+            <span class="chip" data-f="strong">Strong</span>
+            <span class="chip" data-f="maybe">Maybe</span>
+            <span class="chip" data-f="review">Review</span>
+            <span class="chip" data-f="weak">Weak</span>
+            <select class="role-sel" id="sortSel">
+              <option value="score">Sort: AI score</option>
+              <option value="name">Sort: Name</option>
+              <option value="exp">Sort: Experience</option>
+            </select>
+          </div>
+        </div>
+        <div class="list" id="candList"><!-- rows injected --></div>
+      </div>
+
+      <!-- Analytics row -->
+      <div class="grid2">
+        <div class="panel">
+          <div class="head">
+            <h3>Skill coverage across pool</h3>
+            <span class="meta">Required vs. observed</span>
+          </div>
+          <div class="bars" id="skillBars"></div>
+        </div>
+
+        <div class="panel">
+          <div class="head">
+            <h3>Verdict distribution</h3>
+            <span class="meta">AI routing</span>
+          </div>
+          <div class="donut-wrap">
+            <svg class="donut" viewBox="0 0 42 42" id="donut"></svg>
+            <div class="legend">
+              <div class="lg"><span class="sw" style="background:#16a34a"></span><span class="nm">Strong match</span><span class="ct">7</span></div>
+              <div class="lg"><span class="sw" style="background:#0ea5b7"></span><span class="nm">Maybe</span><span class="ct">6</span></div>
+              <div class="lg"><span class="sw" style="background:#d97706"></span><span class="nm">Needs review</span><span class="ct">6</span></div>
+              <div class="lg"><span class="sw" style="background:#e23d54"></span><span class="nm">Weak / reject</span><span class="ct">5</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity feed -->
+      <div class="panel">
+        <div class="head">
+          <h3>AI activity</h3>
+          <span class="meta">Recent automated actions</span>
+        </div>
+        <div class="feed" id="feed"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ========== DRAWER ========== -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhead">
+    <div class="avatar" id="dAvatar" style="width:52px;height:52px;border-radius:14px;font-size:17px;">--</div>
+    <div>
+      <div class="d-name" id="dName">—</div>
+      <div class="d-role" id="dRole">—</div>
+      <div class="d-contact" id="dContact"></div>
+    </div>
+    <div class="x" id="closeDrawer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </div>
+  </div>
+  <div class="dbody" id="dBody"><!-- injected --></div>
+  <div class="dactions">
+    <button class="btn bad">Reject</button>
+    <button class="btn">Move to review</button>
+    <button class="btn good">Advance to interview</button>
+  </div>
+</aside>
+
+<!-- run toast -->
+<div class="toast" id="toast">
+  <div class="tt"><span class="spin"></span><span id="toastTitle">Running AI screening…</span></div>
+  <div class="pbar"><i id="toastBar"></i></div>
+  <div class="ps" id="toastStep">Parsing resumes…</div>
+</div>
+
+<script>
+/* ---------------- Seed data ---------------- */
+const REQUIRED_SKILLS = ["Go","Kubernetes","PostgreSQL","gRPC","AWS","System Design","CI/CD","Redis"];
+
+const palette = ["#d97706","#b45309","#16a34a","#0ea5b7","#7c3aed","#e23d54","#2563eb","#c2410c"];
+function colorFor(name){ let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))>>>0; return palette[h%palette.length]; }
+function initials(n){ return n.split(" ").map(s=>s[0]).slice(0,2).join("").toUpperCase(); }
+
+const CANDIDATES = [
+  { name:"Elena Vasquez", role:"Staff Backend Engineer · 9 yrs", exp:9, score:94, verdict:"strong",
+    email:"elena.vasquez@mail.com", phone:"+1 415 0192", loc:"Austin, TX", stage:"AI-screened", source:"LinkedIn",
+    salary:"$185k expected", edu:"M.S. Computer Science, UT Austin",
+    skills:[["Go",97,1],["Kubernetes",92,1],["System Design",95,1],["PostgreSQL",88,1],["gRPC",90,1],["AWS",85,1]],
+    reasons:[["pos","Led migration of a monolith to <b>40+ Go microservices</b> serving 2M RPS."],["pos","Deep <b>distributed systems</b> background — exactly matches the rubric's top weight."],["pos","Open-source contributor to a CNCF project."]],
+    summary:"Exceptional fit. Resume demonstrates staff-level systems ownership and direct experience with the full required stack. AI recommends fast-tracking to onsite.",
+    fields:[["Years of experience","9 years","hi"],["Current title","Staff Engineer @ Cloudscale","hi"],["Notice period","4 weeks","md"],["Visa status","US Citizen","hi"]],
+    tl:[["AI screened · score 94","2h ago","#16a34a"],["Resume parsed (3 pages)","2h ago","#d97706"],["Applied via LinkedIn","Yesterday","#8a94a3"]] },
+
+  { name:"Marcus Bell", role:"Senior Backend Engineer · 7 yrs", exp:7, score:91, verdict:"strong",
+    email:"m.bell@mail.com", phone:"+1 206 7741", loc:"Seattle, WA", stage:"AI-screened", source:"Referral",
+    salary:"$170k expected", edu:"B.S. Software Engineering, UW",
+    skills:[["Go",90,1],["Kubernetes",88,1],["AWS",93,1],["PostgreSQL",84,1],["CI/CD",89,1],["Redis",80,1]],
+    reasons:[["pos","Strong AWS + Kubernetes operational track record at scale."],["pos","Built internal <b>CI/CD platform</b> reducing deploy time 70%."],["neg","Limited explicit <b>gRPC</b> evidence — verify in screen."]],
+    summary:"Strong match with proven cloud-native delivery. One minor gap on gRPC, otherwise hits every rubric pillar. Recommended for technical screen.",
+    fields:[["Years of experience","7 years","hi"],["Current title","Senior Eng @ Datafold","hi"],["Notice period","2 weeks","hi"],["Visa status","Green Card","hi"]],
+    tl:[["AI screened · score 91","3h ago","#16a34a"],["Referred by E. Vasquez","3h ago","#b45309"],["Resume parsed","3h ago","#d97706"]] },
+
+  { name:"Priya Nair", role:"Backend Engineer · 6 yrs", exp:6, score:88, verdict:"strong",
+    email:"priya.nair@mail.com", phone:"+44 20 5523", loc:"London, UK", stage:"AI-screened", source:"Career site",
+    salary:"£105k expected", edu:"M.Eng. Computing, Imperial College",
+    skills:[["Go",85,1],["gRPC",91,1],["PostgreSQL",90,1],["System Design",82,1],["Redis",86,1],["Kubernetes",74,0]],
+    reasons:[["pos","Excellent <b>gRPC + Postgres</b> depth, well documented with metrics."],["pos","Owned payments service handling £400M/yr volume."],["neg","Would require <b>relocation / visa sponsorship</b>."]],
+    summary:"Strong technical match, especially on data-layer and API design. Logistics around relocation need HR review before advancing.",
+    fields:[["Years of experience","6 years","hi"],["Current title","Backend Eng @ Monzo","hi"],["Notice period","8 weeks","md"],["Visa status","Needs sponsorship","lo"]],
+    tl:[["AI screened · score 88","5h ago","#16a34a"],["Flagged: relocation","5h ago","#d97706"],["Resume parsed","5h ago","#d97706"]] },
+
+  { name:"David Okafor", role:"Senior Engineer · 8 yrs", exp:8, score:86, verdict:"strong",
+    email:"d.okafor@mail.com", phone:"+1 312 8830", loc:"Chicago, IL", stage:"AI-screened", source:"LinkedIn",
+    salary:"$175k expected", edu:"B.S. Computer Science, UIUC",
+    skills:[["Go",83,1],["AWS",88,1],["System Design",90,1],["Kubernetes",80,1],["CI/CD",85,1],["PostgreSQL",78,1]],
+    reasons:[["pos","Architected event-driven platform with strong design write-up."],["pos","Mentored 6 engineers — leadership signal present."],["neg","Most recent <b>Go</b> usage was 18 months ago."]],
+    summary:"Solid senior candidate with strong architecture instincts. Recent hands-on Go is slightly dated; confirm currency during screen.",
+    fields:[["Years of experience","8 years","hi"],["Current title","Senior Eng @ Grubhub","hi"],["Notice period","3 weeks","hi"],["Visa status","US Citizen","hi"]],
+    tl:[["AI screened · score 86","6h ago","#16a34a"],["Resume parsed","6h ago","#d97706"],["Applied via LinkedIn","6h ago","#8a94a3"]] },
+
+  { name:"Sofia Rossi", role:"Platform Engineer · 6 yrs", exp:6, score:84, verdict:"maybe",
+    email:"sofia.rossi@mail.com", phone:"+39 02 9981", loc:"Milan, IT", stage:"AI-screened", source:"Career site",
+    salary:"€95k expected", edu:"M.S. Computer Engineering, Politecnico Milano",
+    skills:[["Kubernetes",94,1],["CI/CD",90,1],["AWS",82,1],["Go",70,1],["Redis",75,1],["gRPC",60,0]],
+    reasons:[["pos","Outstanding <b>Kubernetes / platform</b> expertise."],["neg","Primary language is Rust, not Go — partial transferability."],["neg","Less product-facing backend experience."]],
+    summary:"Borderline. Phenomenal infra and platform background, but role weights application-level Go more than infra. Worth a conversation.",
+    fields:[["Years of experience","6 years","hi"],["Current title","Platform Eng @ Nexi","hi"],["Notice period","6 weeks","md"],["Visa status","EU Citizen","md"]],
+    tl:[["AI screened · score 84","8h ago","#0ea5b7"],["Resume parsed","8h ago","#d97706"],["Applied via career site","8h ago","#8a94a3"]] },
+
+  { name:"James Carter", role:"Backend Engineer · 5 yrs", exp:5, score:81, verdict:"maybe",
+    email:"j.carter@mail.com", phone:"+1 646 3320", loc:"New York, NY", stage:"AI-screened", source:"Referral",
+    salary:"$155k expected", edu:"B.S. Information Systems, NYU",
+    skills:[["Go",78,1],["PostgreSQL",80,1],["Redis",82,1],["AWS",76,1],["gRPC",65,0],["Kubernetes",58,0]],
+    reasons:[["pos","Good Go + data-layer fundamentals, clean progression."],["neg","Thin on <b>large-scale system design</b> evidence."],["neg","No Kubernetes in production yet."]],
+    summary:"Promising mid-level engineer trending toward senior. Meets core stack but gaps in scale/design keep this just below the strong bar.",
+    fields:[["Years of experience","5 years","hi"],["Current title","Backend Eng @ Peloton","hi"],["Notice period","2 weeks","hi"],["Visa status","US Citizen","hi"]],
+    tl:[["AI screened · score 81","10h ago","#0ea5b7"],["Resume parsed","10h ago","#d97706"],["Referred internally","11h ago","#b45309"]] },
+
+  { name:"Aisha Rahman", role:"Senior Backend Engineer · 7 yrs", exp:7, score:79, verdict:"maybe",
+    email:"aisha.r@mail.com", phone:"+1 408 2218", loc:"San Jose, CA", stage:"AI-screened", source:"LinkedIn",
+    salary:"$165k expected", edu:"M.S. Distributed Systems, SJSU",
+    skills:[["System Design",86,1],["PostgreSQL",83,1],["AWS",80,1],["Go",68,1],["Kubernetes",72,1],["gRPC",55,0]],
+    reasons:[["pos","Strong design + database depth across fintech."],["neg","Career gap of 14 months — context unknown."],["neg","Go experience present but not primary."]],
+    summary:"Capable senior with a strong design background. AI flagged an unexplained employment gap for recruiter follow-up before advancing.",
+    fields:[["Years of experience","7 years","hi"],["Current title","Open to work","md"],["Notice period","Immediate","hi"],["Visa status","H-1B transfer","md"]],
+    tl:[["AI screened · score 79","12h ago","#0ea5b7"],["Flagged: career gap","12h ago","#d97706"],["Resume parsed","12h ago","#d97706"]] },
+
+  { name:"Tom Fischer", role:"Backend Engineer · 6 yrs", exp:6, score:76, verdict:"review",
+    email:"t.fischer@mail.com", phone:"+49 30 1147", loc:"Berlin, DE", stage:"Needs review", source:"Career site",
+    salary:"€88k expected", edu:"B.S. Informatik, TU Berlin",
+    skills:[["Go",80,1],["PostgreSQL",78,1],["Redis",74,1],["AWS",70,1],["Kubernetes",62,0],["gRPC",50,0]],
+    reasons:[["neg","Resume formatting blocked clean parsing of <b>2 sections</b>."],["pos","Visible Go projects on linked GitHub."],["neg","Low confidence on total years of experience."]],
+    summary:"AI confidence is low due to a non-standard resume layout. Several fields could not be extracted reliably — manual review requested.",
+    fields:[["Years of experience","~6 years","lo"],["Current title","Backend Eng @ N26","md"],["Notice period","Not stated","lo"],["Visa status","EU Citizen","md"]],
+    tl:[["Routed to review","13h ago","#d97706"],["Parse confidence: 61%","13h ago","#d97706"],["Resume parsed (partial)","13h ago","#d97706"]] },
+
+  { name:"Lin Wei", role:"Software Engineer · 5 yrs", exp:5, score:74, verdict:"review",
+    email:"lin.wei@mail.com", phone:"+65 6722", loc:"Singapore", stage:"Needs review", source:"Referral",
+    salary:"S$120k expected", edu:"B.Eng. Computer Science, NUS",
+    skills:[["Go",72,1],["gRPC",78,1],["PostgreSQL",70,1],["AWS",68,1],["Kubernetes",55,0],["Redis",60,0]],
+    reasons:[["neg","Two roles overlap in dates — needs clarification."],["pos","Strong gRPC microservice work at a unicorn."],["neg","Seniority signal ambiguous from titles."]],
+    summary:"Good technical signals but timeline inconsistencies lowered AI confidence. Recruiter should clarify overlapping employment before scoring final.",
+    fields:[["Years of experience","5 years","md"],["Current title","SWE @ Sea","md"],["Notice period","4 weeks","md"],["Visa status","PR (Singapore)","hi"]],
+    tl:[["Routed to review","15h ago","#d97706"],["Date overlap detected","15h ago","#d97706"],["Resume parsed","15h ago","#d97706"]] },
+
+  { name:"Hannah Schmidt", role:"Backend Engineer · 4 yrs", exp:4, score:72, verdict:"review",
+    email:"h.schmidt@mail.com", phone:"+1 503 4419", loc:"Portland, OR", stage:"Needs review", source:"Career site",
+    salary:"$140k expected", edu:"B.S. Computer Science, Oregon State",
+    skills:[["Go",70,1],["PostgreSQL",74,1],["CI/CD",76,1],["AWS",66,1],["Kubernetes",50,0],["System Design",58,0]],
+    reasons:[["neg","Years of experience near the lower threshold for senior."],["pos","Rapid growth trajectory and clear ownership."],["neg","Design depth not yet demonstrated at scale."]],
+    summary:"Strong junior-to-mid candidate slightly under the senior experience bar. Flagged for review to decide if trajectory justifies an exception.",
+    fields:[["Years of experience","4 years","hi"],["Current title","Backend Eng @ Nike Digital","hi"],["Notice period","2 weeks","hi"],["Visa status","US Citizen","hi"]],
+    tl:[["Routed to review","17h ago","#d97706"],["Under experience threshold","17h ago","#d97706"],["Resume parsed","17h ago","#d97706"]] },
+
+  { name:"Diego Morales", role:"Full-Stack Engineer · 7 yrs", exp:7, score:69, verdict:"review",
+    email:"d.morales@mail.com", phone:"+34 91 7763", loc:"Madrid, ES", stage:"Needs review", source:"LinkedIn",
+    salary:"€80k expected", edu:"B.S. Telecom Engineering, UPM",
+    skills:[["PostgreSQL",80,1],["AWS",74,1],["Redis",70,1],["Go",55,1],["gRPC",45,0],["Kubernetes",48,0]],
+    reasons:[["neg","Primarily a <b>full-stack / frontend</b> profile."],["pos","Good database and AWS exposure."],["neg","Backend depth in Go is limited."]],
+    summary:"Experienced but broad full-stack profile. Backend specialization required by this req is only partially met — review to confirm fit direction.",
+    fields:[["Years of experience","7 years","hi"],["Current title","Full-Stack @ Cabify","hi"],["Notice period","4 weeks","md"],["Visa status","EU Citizen","md"]],
+    tl:[["Routed to review","19h ago","#d97706"],["Profile mismatch flag","19h ago","#d97706"],["Resume parsed","19h ago","#d97706"]] },
+
+  { name:"Yuki Tanaka", role:"Junior Backend Engineer · 2 yrs", exp:2, score:54, verdict:"weak",
+    email:"y.tanaka@mail.com", phone:"+81 3 5566", loc:"Tokyo, JP", stage:"AI-screened", source:"Career site",
+    salary:"¥9.5M expected", edu:"B.Eng. Information Science, Univ. of Tokyo",
+    skills:[["Go",60,1],["PostgreSQL",58,1],["AWS",50,1],["Redis",44,0],["gRPC",30,0],["Kubernetes",25,0]],
+    reasons:[["neg","Only <b>2 years</b> experience vs. senior requirement."],["pos","Solid fundamentals for the experience level."],["neg","No production-scale or system-design evidence."]],
+    summary:"Below the senior bar by experience. Promising fundamentals but does not meet core requirements for this requisition. Consider for junior pool.",
+    fields:[["Years of experience","2 years","hi"],["Current title","Backend Eng @ Mercari","hi"],["Notice period","4 weeks","md"],["Visa status","Japan resident","hi"]],
+    tl:[["AI screened · score 54","20h ago","#e23d54"],["Below seniority bar","20h ago","#e23d54"],["Resume parsed","20h ago","#d97706"]] },
+
+  { name:"Robert King", role:"DevOps Engineer · 8 yrs", exp:8, score:51, verdict:"weak",
+    email:"r.king@mail.com", phone:"+1 720 9182", loc:"Denver, CO", stage:"AI-screened", source:"LinkedIn",
+    salary:"$160k expected", edu:"B.S. Network Engineering, CU Boulder",
+    skills:[["Kubernetes",92,1],["CI/CD",90,1],["AWS",88,1],["Go",40,1],["PostgreSQL",45,0],["gRPC",20,0]],
+    reasons:[["neg","Infra/DevOps focus — not an application backend role."],["pos","Excellent Kubernetes and pipeline expertise."],["neg","Little software-engineering / coding depth in Go."]],
+    summary:"Strong DevOps profile but a poor match for an application backend role. AI routed to weak. Could be a fit for a separate SRE requisition.",
+    fields:[["Years of experience","8 years","hi"],["Current title","DevOps @ Twilio","hi"],["Notice period","3 weeks","hi"],["Visa status","US Citizen","hi"]],
+    tl:[["AI screened · score 51","22h ago","#e23d54"],["Role-type mismatch","22h ago","#e23d54"],["Resume parsed","22h ago","#d97706"]] },
+
+  { name:"Nadia Petrov", role:"Data Engineer · 5 yrs", exp:5, score:47, verdict:"weak",
+    email:"n.petrov@mail.com", phone:"+1 415 7740", loc:"Remote", stage:"AI-screened", source:"Career site",
+    salary:"$150k expected", edu:"M.S. Data Science, Georgia Tech",
+    skills:[["PostgreSQL",88,1],["AWS",72,1],["Go",35,1],["Redis",50,0],["gRPC",18,0],["Kubernetes",40,0]],
+    reasons:[["neg","Data-pipeline focus (Python/Spark), not backend services."],["pos","Strong SQL and warehouse modeling skills."],["neg","Minimal Go and service-architecture experience."]],
+    summary:"Specialized data-engineering background that does not align with this backend services role. AI marked as weak match.",
+    fields:[["Years of experience","5 years","hi"],["Current title","Data Eng @ Snowflake","hi"],["Notice period","2 weeks","hi"],["Visa status","US Citizen","hi"]],
+    tl:[["AI screened · score 47","1d ago","#e23d54"],["Domain mismatch","1d ago","#e23d54"],["Resume parsed","1d ago","#d97706"]] },
+
+  { name:"Omar Haddad", role:"Backend Engineer · 6 yrs", exp:6, score:83, verdict:"maybe",
+    email:"o.haddad@mail.com", phone:"+971 4 8821", loc:"Dubai, AE", stage:"AI-screened", source:"LinkedIn",
+    salary:"$160k expected", edu:"B.S. Computer Engineering, AUS",
+    skills:[["Go",82,1],["gRPC",80,1],["AWS",84,1],["PostgreSQL",79,1],["Kubernetes",70,1],["Redis",72,1]],
+    reasons:[["pos","Well-rounded coverage of the full required stack."],["pos","Built high-throughput logistics backend."],["neg","Timezone overlap with team may be limited."]],
+    summary:"Well-balanced candidate hitting every rubric skill at a solid level. Main consideration is timezone/remote logistics, not technical fit.",
+    fields:[["Years of experience","6 years","hi"],["Current title","Backend Eng @ Careem","hi"],["Notice period","4 weeks","md"],["Visa status","Needs sponsorship","lo"]],
+    tl:[["AI screened · score 83","1d ago","#0ea5b7"],["Resume parsed","1d ago","#d97706"],["Applied via LinkedIn","1d ago","#8a94a3"]] },
+
+  { name:"Grace Lim", role:"Senior Engineer · 8 yrs", exp:8, score:90, verdict:"strong",
+    email:"g.lim@mail.com", phone:"+1 650 3318", loc:"Palo Alto, CA", stage:"AI-screened", source:"Referral",
+    salary:"$190k expected", edu:"M.S. Computer Science, Stanford",
+    skills:[["Go",92,1],["System Design",94,1],["Kubernetes",85,1],["gRPC",88,1],["AWS",83,1],["PostgreSQL",86,1]],
+    reasons:[["pos","Stanford + Big Tech pedigree with deep Go services."],["pos","Designed multi-region replication system."],["pos","Clear staff-track trajectory."]],
+    summary:"Top-tier match. Comprehensive coverage of the rubric with standout system-design work. AI strongly recommends prioritizing outreach.",
+    fields:[["Years of experience","8 years","hi"],["Current title","Senior Eng @ Stripe","hi"],["Notice period","4 weeks","hi"],["Visa status","US Citizen","hi"]],
+    tl:[["AI screened · score 90","1d ago","#16a34a"],["Referred by hiring mgr","1d ago","#b45309"],["Resume parsed","1d ago","#d97706"]] },
+];
+
+/* ---------------- Rendering ---------------- */
+const verdictMeta = {
+  strong: { label:"Strong match", cls:"strong", color:"#16a34a" },
+  maybe:  { label:"Maybe",        cls:"maybe",  color:"#0ea5b7" },
+  review: { label:"Needs review", cls:"review", color:"#d97706" },
+  weak:   { label:"Weak / reject",cls:"weak",   color:"#e23d54" },
+};
+function scoreColor(s){ return s>=85?"#16a34a": s>=78?"#0ea5b7": s>=66?"#d97706":"#e23d54"; }
+
+let activeFilter = "all";
+let activeSort = "score";
+let searchTerm = "";
+
+function ringSVG(score, size, sw){
+  const r = (size/2) - sw;
+  const c = 2*Math.PI*r;
+  const off = c*(1 - score/100);
+  const col = scoreColor(score);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e8ebf0" stroke-width="${sw}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}"
+      stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/>
+  </svg>`;
+}
+
+function renderList(){
+  const list = document.getElementById("candList");
+  let data = CANDIDATES.filter(c=>{
+    if(activeFilter!=="all" && c.verdict!==activeFilter) return false;
+    if(searchTerm){
+      const hay = (c.name+" "+c.role+" "+c.edu+" "+c.skills.map(s=>s[0]).join(" ")+" "+c.loc).toLowerCase();
+      if(!hay.includes(searchTerm)) return false;
+    }
+    return true;
+  });
+  if(activeSort==="score") data.sort((a,b)=>b.score-a.score);
+  if(activeSort==="name") data.sort((a,b)=>a.name.localeCompare(b.name));
+  if(activeSort==="exp") data.sort((a,b)=>b.exp-a.exp);
+
+  document.getElementById("resultCount").textContent = data.length + (data.length===1?" shown":" shown");
+
+  if(data.length===0){
+    list.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <div>No candidates match this view.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = data.map((c)=>{
+    const idx = CANDIDATES.indexOf(c);
+    const v = verdictMeta[c.verdict];
+    const topSkills = c.skills.slice(0,4).map(s=>`<span class="skill ${s[2]?'match':''}">${s[0]}</span>`).join("");
+    const flag = c.verdict==="review"
+      ? `<div class="ai-flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Low AI confidence — review fields</div>`
+      : `<div class="ai-flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M4.9 4.9l2.8 2.8M2 12h4M4.9 19.1l2.8-2.8M12 18v4M19.1 19.1l-2.8-2.8M22 12h-4M19.1 4.9l-2.8 2.8"/></svg>${c.reasons[0][1].replace(/<[^>]+>/g,'')}</div>`;
+    return `<div class="cand" data-i="${idx}">
+      <div class="avatar" style="background:linear-gradient(135deg, ${colorFor(c.name)}, ${colorFor(c.role)})">${initials(c.name)}</div>
+      <div class="who">
+        <div class="nm">${c.name}</div>
+        <div class="rl">${c.role} · ${c.loc}</div>
+        <div class="tags">${topSkills}</div>
+        ${flag}
+      </div>
+      <div class="scorecell">
+        <div class="ring">${ringSVG(c.score,44,4)}<div class="num" style="color:${scoreColor(c.score)}">${c.score}</div></div>
+        <div class="lab"><b>Fit score</b>AI rated</div>
+      </div>
+      <div class="verdict"><span class="pill ${v.cls}"><span class="d"></span>${v.label}</span></div>
+      <div class="stage"><b>${c.stage}</b>via ${c.source}</div>
+      <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></div>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll(".cand").forEach(el=>{
+    el.addEventListener("click",()=>openDrawer(parseInt(el.dataset.i)));
+  });
+}
+
+/* ---- skill coverage bars ---- */
+function renderSkillBars(){
+  const wrap = document.getElementById("skillBars");
+  const coverage = REQUIRED_SKILLS.map(sk=>{
+    let total=0,have=0;
+    CANDIDATES.forEach(c=>{ total++; const f=c.skills.find(s=>s[0]===sk); if(f && f[1]>=65) have++; });
+    return { sk, pct: Math.round(have/total*100) };
+  }).sort((a,b)=>b.pct-a.pct);
+  wrap.innerHTML = coverage.map(c=>{
+    const col = c.pct>=60?"#16a34a": c.pct>=40?"#d97706":"#e23d54";
+    return `<div class="barrow">
+      <div class="nm">${c.sk}</div>
+      <div class="track"><i style="width:0%;background:linear-gradient(90deg, ${col}, ${col}cc)" data-w="${c.pct}"></i></div>
+      <div class="pct">${c.pct}%</div>
+    </div>`;
+  }).join("");
+  requestAnimationFrame(()=>{ wrap.querySelectorAll(".track i").forEach(i=>i.style.width=i.dataset.w+"%"); });
+}
+
+/* ---- donut ---- */
+function renderDonut(){
+  const counts = { strong:0, maybe:0, review:0, weak:0 };
+  CANDIDATES.forEach(c=>counts[c.verdict]++);
+  const order = [["strong","#16a34a"],["maybe","#0ea5b7"],["review","#d97706"],["weak","#e23d54"]];
+  const total = CANDIDATES.length;
+  const svg = document.getElementById("donut");
+  let acc = 0;
+  let parts = order.map(([k,col])=>{
+    const frac = counts[k]/total*100;
+    const seg = `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="${col}" stroke-width="5.2"
+      stroke-dasharray="${frac} ${100-frac}" stroke-dashoffset="${25 - acc}" />`;
+    acc += frac;
+    return seg;
+  }).join("");
+  svg.innerHTML = `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="#e8ebf0" stroke-width="5.2"/>${parts}
+    <text x="21" y="20.4" text-anchor="middle" font-size="6.5" font-weight="700" fill="#1f2937">${total}</text>
+    <text x="21" y="25.5" text-anchor="middle" font-size="3" fill="#8a94a3">candidates</text>`;
+}
+
+/* ---- activity feed ---- */
+const FEED = [
+  ["score","#16a34a","AI screened <b>Grace Lim</b> → Strong match (90)","1d ago",
+    `<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>`],
+  ["flag","#d97706","Routed <b>Tom Fischer</b> to review — parse confidence 61%","13h ago",
+    `<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>`],
+  ["field","#d97706","Extracted 14 fields from <b>Priya Nair</b>'s resume","5h ago",
+    `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>`],
+  ["reject","#e23d54","Marked <b>Robert King</b> weak — role-type mismatch","22h ago",
+    `<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>`],
+  ["score","#16a34a","Re-scored 24 candidates after rubric update","2h ago",
+    `<path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 3v6h-6"/>`],
+];
+function renderFeed(){
+  document.getElementById("feed").innerHTML = FEED.map(([t,col,txt,time,path])=>`
+    <div class="fitem">
+      <div class="ic" style="background:${col}22;color:${col}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>
+      </div>
+      <div class="tx">${txt}<div class="t">${time}</div></div>
+    </div>`).join("");
+}
+
+/* ---------------- Drawer ---------------- */
+function openDrawer(i){
+  const c = CANDIDATES[i];
+  const v = verdictMeta[c.verdict];
+  document.getElementById("dAvatar").textContent = initials(c.name);
+  document.getElementById("dAvatar").style.background = `linear-gradient(135deg, ${colorFor(c.name)}, ${colorFor(c.role)})`;
+  document.getElementById("dName").textContent = c.name;
+  document.getElementById("dRole").textContent = c.role;
+  document.getElementById("dContact").innerHTML = `
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>${c.email}</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/></svg>${c.phone}</span>
+    <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>${c.loc}</span>`;
+
+  const matched = c.skills.map(s=>{
+    const col = s[1]>=80?"#16a34a": s[1]>=60?"#d97706":"#e23d54";
+    const ok = s[2]
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="#8a94a3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>`;
+    return `<div class="mrow">
+      <div class="mn">${s[0]} ${s[2]?'':'<span style="color:#8a94a3;font-size:11px">(not required-grade)</span>'}</div>
+      <div class="mt"><i style="width:${s[1]}%;background:${col}"></i></div>
+      <div class="mok">${ok}</div></div>`;
+  }).join("");
+
+  const reasons = c.reasons.map(r=>`
+    <div class="reason ${r[0]}">
+      <div class="ri">${ r[0]==="pos"
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>` }</div>
+      <div>${r[1]}</div></div>`).join("");
+
+  const fields = c.fields.map(f=>`
+    <div class="field">
+      <div class="k"><span>${f[0]}</span><span class="conf ${f[2]}">${f[2]==='hi'?'High':f[2]==='md'?'Med':'Low'} conf.</span></div>
+      <div class="v">${f[1]}</div></div>`).join("");
+
+  const extras = `
+    <div class="field"><div class="k"><span>Education</span><span class="conf hi">High conf.</span></div><div class="v">${c.edu}</div></div>
+    <div class="field"><div class="k"><span>Compensation</span><span class="conf md">Med conf.</span></div><div class="v">${c.salary}</div></div>`;
+
+  const tl = c.tl.map(t=>`
+    <div class="ev"><div class="pt" style="background:${t[2]}"></div>
+    <div class="ec"><b>${t[0]}</b><div class="et">${t[1]}</div></div></div>`).join("");
+
+  document.getElementById("dBody").innerHTML = `
+    <div class="sec" style="margin-top:20px">
+      <div class="scorebig">
+        <div class="ringbig">${ringSVG(c.score,92,7)}<div class="num"><b style="color:${scoreColor(c.score)}">${c.score}</b><small>fit score</small></div></div>
+        <div class="rdesc">
+          <div class="vd"><span class="pill ${v.cls}"><span class="d"></span>${v.label}</span></div>
+          <p>${c.summary}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="lab">AI reasoning <span class="ai">GENERATED</span></div>
+      <div class="reasons">${reasons}</div>
+    </div>
+
+    <div class="sec">
+      <div class="lab">Extracted fields <span class="ai">AUTO-PARSED</span></div>
+      <div class="fields">${fields}${extras}</div>
+    </div>
+
+    <div class="sec">
+      <div class="lab">Skill match vs. rubric</div>
+      <div class="matchgrid">${matched}</div>
+    </div>
+
+    <div class="sec">
+      <div class="lab">Activity</div>
+      <div class="tl">${tl}</div>
+    </div>`;
+
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("scrim").classList.add("open");
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("scrim").classList.remove("open");
+}
+
+/* ---------------- Wiring ---------------- */
+document.querySelectorAll(".chip").forEach(ch=>{
+  ch.addEventListener("click",()=>{
+    document.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));
+    ch.classList.add("on");
+    activeFilter = ch.dataset.f;
+    renderList();
+  });
+});
+document.getElementById("sortSel").addEventListener("change",e=>{ activeSort=e.target.value; renderList(); });
+document.getElementById("searchBox").addEventListener("input",e=>{ searchTerm=e.target.value.trim().toLowerCase(); renderList(); });
+document.getElementById("closeDrawer").addEventListener("click",closeDrawer);
+document.getElementById("scrim").addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+
+document.querySelectorAll(".nav-item").forEach(n=>{
+  n.addEventListener("click",()=>{
+    document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active"));
+    n.classList.add("active");
+  });
+});
+
+/* ---- Run AI screening toast simulation ---- */
+function runScreening(label){
+  const toast=document.getElementById("toast");
+  const bar=document.getElementById("toastBar");
+  const step=document.getElementById("toastStep");
+  const title=document.getElementById("toastTitle");
+  title.textContent = label;
+  const steps=[
+    ["Parsing resumes…",18],
+    ["Extracting fields & entities…",42],
+    ["Matching against rubric…",68],
+    ["Scoring fit & routing…",88],
+    ["Done — 24 candidates ranked",100],
+  ];
+  toast.classList.add("show");
+  bar.style.width="0%";
+  let i=0;
+  const t=setInterval(()=>{
+    if(i>=steps.length){
+      clearInterval(t);
+      title.innerHTML="AI screening complete";
+      document.querySelector("#toast .spin").style.display="none";
+      setTimeout(()=>{ toast.classList.remove("show"); document.querySelector("#toast .spin").style.display=""; },1600);
+      return;
+    }
+    step.textContent=steps[i][0];
+    bar.style.width=steps[i][1]+"%";
+    i++;
+  },620);
+}
+document.getElementById("runBtn").addEventListener("click",()=>runScreening("Running AI screening…"));
+document.getElementById("rescoreBtn").addEventListener("click",()=>runScreening("Re-scoring all candidates…"));
+
+/* ---- init ---- */
+renderList();
+renderSkillBars();
+renderDonut();
+renderFeed();
+</script>
+</body>
+</html>

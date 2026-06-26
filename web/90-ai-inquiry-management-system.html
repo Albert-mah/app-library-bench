@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Inquiry Management System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --panel:#ffffff;
+    --panel-2:#f6f7f9;
+    --panel-3:#eef1f5;
+    --line:#e3e7ec;
+    --line-soft:#edf0f4;
+    --txt:#1f2937;
+    --txt-2:#4b5563;
+    --txt-3:#8a96a8;
+    --accent:#0d9488;
+    --accent-2:#0f766e;
+    --teal:#0d9488;
+    --amber:#d97706;
+    --rose:#e11d6f;
+    --green:#15a06b;
+    --red:#dc2626;
+    --hot:#ea580c;
+    --shadow:0 10px 30px rgba(15,23,42,.10);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    font-size:13.5px;
+    line-height:1.5;
+    overflow:hidden;
+  }
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#cdd5df;border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:#b3bdca}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:grid;grid-template-columns:230px 1fr;grid-template-rows:60px 1fr;height:100vh}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    grid-column:1 / 3;
+    display:flex;align-items:center;gap:18px;
+    padding:0 22px;
+    border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.85);
+    backdrop-filter:blur(8px);
+  }
+  .brand{display:flex;align-items:center;gap:11px;width:208px}
+  .brand .logo{
+    width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;box-shadow:0 6px 14px rgba(13,148,136,.28);
+  }
+  .brand .logo svg{width:19px;height:19px}
+  .brand .name{font-weight:700;font-size:14px;letter-spacing:.2px}
+  .brand .name small{display:block;font-weight:500;color:var(--txt-3);font-size:10.5px;letter-spacing:.5px}
+
+  .searchbox{
+    flex:1;max-width:430px;position:relative;
+  }
+  .searchbox input{
+    width:100%;height:38px;border-radius:10px;
+    background:var(--panel-2);border:1px solid var(--line);
+    color:var(--txt);padding:0 14px 0 38px;font-size:13px;outline:none;
+    transition:.2s;
+  }
+  .searchbox input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(13,148,136,.15)}
+  .searchbox svg{position:absolute;left:12px;top:10px;width:18px;height:18px;color:var(--txt-3)}
+
+  .topbar .spacer{flex:1}
+  .pill-stat{
+    display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:10px;
+    background:var(--panel-2);border:1px solid var(--line);font-size:12px;color:var(--txt-2);
+  }
+  .pill-stat b{color:var(--txt)}
+  .pill-stat .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(21,160,107,.18)}
+  .avatar{
+    width:36px;height:36px;border-radius:50%;
+    background:linear-gradient(135deg,#0d9488,#0f766e);
+    display:grid;place-items:center;font-weight:700;font-size:13px;color:#ffffff;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    border-right:1px solid var(--line);
+    padding:18px 14px;display:flex;flex-direction:column;gap:5px;
+    background:#ffffff;
+    overflow-y:auto;
+  }
+  .nav-group-label{font-size:10px;text-transform:uppercase;letter-spacing:1.3px;color:var(--txt-3);margin:14px 10px 6px}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;
+    color:var(--txt-2);cursor:pointer;font-size:13px;font-weight:500;transition:.15s;position:relative;
+  }
+  .nav-item svg{width:17px;height:17px;flex-shrink:0}
+  .nav-item:hover{background:var(--panel-2);color:var(--txt)}
+  .nav-item.active{background:rgba(13,148,136,.10);color:var(--accent-2)}
+  .nav-item.active svg{color:var(--accent)}
+  .nav-item.active::before{content:"";position:absolute;left:-14px;top:8px;bottom:8px;width:3px;border-radius:3px;background:linear-gradient(var(--accent),var(--accent-2))}
+  .nav-item .badge{margin-left:auto;background:var(--panel-3);color:var(--txt-2);font-size:10.5px;padding:1px 7px;border-radius:20px;font-weight:600}
+  .nav-item.active .badge{background:var(--accent);color:#fff}
+  .nav-item .badge.hot{background:rgba(234,88,12,.14);color:var(--hot)}
+
+  .side-card{
+    margin-top:auto;border:1px solid var(--line);border-radius:12px;padding:13px;
+    background:linear-gradient(135deg,rgba(13,148,136,.10),rgba(13,148,136,.03));
+  }
+  .side-card .t{font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:7px}
+  .side-card .t svg{width:14px;height:14px;color:var(--teal)}
+  .side-card p{font-size:11px;color:var(--txt-2);line-height:1.5}
+  .side-card .bar{height:6px;border-radius:6px;background:var(--panel-3);margin:9px 0 6px;overflow:hidden}
+  .side-card .bar i{display:block;height:100%;width:78%;background:linear-gradient(90deg,var(--teal),var(--accent-2));border-radius:6px}
+  .side-card small{font-size:10px;color:var(--txt-3)}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;overflow:hidden}
+
+  .main-head{padding:18px 24px 0;display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+  .main-head h1{font-size:20px;font-weight:700;letter-spacing:-.2px}
+  .main-head .sub{color:var(--txt-3);font-size:12.5px;margin-top:3px}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{background:var(--panel-3);border-color:#cbd2db}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#fff;
+    box-shadow:0 6px 16px rgba(13,148,136,.30);
+  }
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn svg{width:16px;height:16px}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:16px 24px 4px}
+  .kpi{
+    border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;
+    background:var(--panel);box-shadow:0 1px 2px rgba(15,23,42,.04);position:relative;overflow:hidden;
+  }
+  .kpi .label{font-size:11.5px;color:var(--txt-3);display:flex;align-items:center;gap:7px}
+  .kpi .label .ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center}
+  .kpi .label .ic svg{width:14px;height:14px}
+  .kpi .val{font-size:25px;font-weight:750;margin-top:7px;letter-spacing:-.5px}
+  .kpi .delta{font-size:11px;margin-top:2px;display:flex;align-items:center;gap:5px}
+  .kpi .delta.up{color:var(--green)} .kpi .delta.down{color:var(--rose)}
+  .kpi .spark{position:absolute;right:12px;bottom:10px;opacity:.85}
+  .ic.blue{background:rgba(13,148,136,.12);color:var(--accent)}
+  .ic.teal{background:rgba(13,148,136,.12);color:var(--teal)}
+  .ic.amber{background:rgba(217,119,6,.12);color:var(--amber)}
+  .ic.rose{background:rgba(225,29,111,.12);color:var(--rose)}
+
+  /* Workspace split */
+  .workspace{flex:1;display:grid;grid-template-columns:minmax(420px,1.15fr) 1.4fr;gap:16px;padding:14px 24px 22px;overflow:hidden;min-height:0}
+
+  .col{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);overflow:hidden}
+  .col-head{padding:13px 16px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .col-head .ttl{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:8px}
+  .col-head .count{background:var(--panel-3);color:var(--txt-2);font-size:11px;padding:1px 8px;border-radius:20px;font-weight:600}
+
+  /* Tabs */
+  .tabs{display:flex;gap:4px;margin-left:auto;background:var(--panel-2);padding:3px;border-radius:9px;border:1px solid var(--line-soft)}
+  .tab{padding:5px 11px;border-radius:7px;font-size:11.5px;color:var(--txt-2);cursor:pointer;font-weight:600;transition:.15s;white-space:nowrap}
+  .tab:hover{color:var(--txt)}
+  .tab.active{background:#ffffff;color:var(--accent-2);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+
+  .filterbar{padding:9px 16px;border-bottom:1px solid var(--line-soft);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .chip{
+    padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;
+    border:1px solid var(--line);color:var(--txt-2);background:transparent;transition:.15s;white-space:nowrap;
+  }
+  .chip:hover{border-color:#c3ccd6;color:var(--txt)}
+  .chip.active{background:rgba(13,148,136,.12);border-color:var(--accent);color:var(--accent-2)}
+  .chip .n{opacity:.7;margin-left:3px}
+
+  /* Inquiry list */
+  .inq-list{overflow-y:auto;flex:1;padding:8px}
+  .inq{
+    border:1px solid transparent;border-radius:11px;padding:12px 13px;cursor:pointer;margin-bottom:7px;
+    transition:.15s;position:relative;background:var(--panel-2);
+  }
+  .inq:hover{border-color:#dde3ea;background:var(--panel-3)}
+  .inq.sel{border-color:var(--accent);background:rgba(13,148,136,.07)}
+  .inq.sel::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--accent)}
+  .inq-top{display:flex;align-items:center;gap:9px}
+  .flag{width:30px;height:22px;border-radius:5px;flex-shrink:0;display:grid;place-items:center;font-size:10px;font-weight:700;color:#0d1117;letter-spacing:.3px}
+  .inq .who{font-weight:700;font-size:13px}
+  .inq .co{font-size:11px;color:var(--txt-3)}
+  .inq .when{margin-left:auto;font-size:10.5px;color:var(--txt-3);white-space:nowrap}
+  .inq .prod{font-size:12px;color:var(--txt-2);margin-top:7px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .inq-meta{display:flex;align-items:center;gap:7px;margin-top:9px;flex-wrap:wrap}
+  .score-badge{
+    display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:7px;
+  }
+  .score-badge svg{width:11px;height:11px}
+  .sb-hot{background:rgba(234,88,12,.13);color:var(--hot)}
+  .sb-warm{background:rgba(217,119,6,.14);color:var(--amber)}
+  .sb-cold{background:rgba(13,148,136,.12);color:var(--accent-2)}
+  .tag{font-size:10px;padding:2px 8px;border-radius:6px;background:var(--panel);border:1px solid var(--line);color:var(--txt-2);font-weight:600}
+  .status-pill{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:5px}
+  .status-pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+  .sp-new{background:rgba(21,160,107,.12);color:var(--green)}
+  .sp-progress{background:rgba(217,119,6,.13);color:var(--amber)}
+  .sp-quoted{background:rgba(124,58,237,.12);color:#6d28d9}
+  .sp-won{background:rgba(13,148,136,.12);color:var(--teal)}
+  .sp-lost{background:rgba(220,38,38,.11);color:var(--red)}
+  .ai-tick{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--teal);font-weight:600}
+  .ai-tick svg{width:12px;height:12px}
+
+  .empty{padding:50px 24px;text-align:center;color:var(--txt-3)}
+  .empty svg{width:46px;height:46px;opacity:.5;margin-bottom:12px}
+
+  /* ---------- Review pane ---------- */
+  .review{overflow-y:auto;flex:1;padding:0}
+  .rv-hero{padding:18px 20px;border-bottom:1px solid var(--line-soft);background:var(--panel-2)}
+  .rv-hero .row1{display:flex;align-items:flex-start;gap:13px}
+  .rv-hero .who{font-size:18px;font-weight:750;letter-spacing:-.2px}
+  .rv-hero .co{color:var(--txt-2);font-size:12.5px;margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .rv-hero .co .dotsep{width:3px;height:3px;border-radius:50%;background:var(--txt-3)}
+  .rv-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
+
+  .gauge-wrap{display:flex;align-items:center;gap:18px;margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  .gauge{position:relative;width:96px;height:96px;flex-shrink:0}
+  .gauge .num{position:absolute;inset:0;display:grid;place-items:center;flex-direction:column;text-align:center}
+  .gauge .num b{font-size:26px;font-weight:800;line-height:1}
+  .gauge .num small{font-size:9.5px;color:var(--txt-3);text-transform:uppercase;letter-spacing:1px}
+  .gauge-info{flex:1}
+  .gauge-info .lab{font-size:11px;color:var(--txt-3);text-transform:uppercase;letter-spacing:1px}
+  .gauge-info .verdict{font-size:15px;font-weight:700;margin:3px 0 8px}
+  .gauge-bars{display:flex;flex-direction:column;gap:6px}
+  .gbar{display:grid;grid-template-columns:90px 1fr 32px;align-items:center;gap:9px;font-size:11px}
+  .gbar .gt{color:var(--txt-2)}
+  .gbar .gtrack{height:6px;border-radius:6px;background:var(--panel-3);overflow:hidden}
+  .gbar .gtrack i{display:block;height:100%;border-radius:6px}
+  .gbar .gv{text-align:right;color:var(--txt-2);font-weight:600}
+
+  .section{padding:16px 20px;border-bottom:1px solid var(--line-soft)}
+  .section-h{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+  .section-h .lab{font-size:12px;font-weight:700;letter-spacing:.3px}
+  .section-h .ai-chip{
+    display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;
+    background:rgba(13,148,136,.10);color:var(--accent-2);border:1px solid rgba(13,148,136,.28);
+  }
+  .ai-chip svg{width:11px;height:11px}
+  .section-h .right{margin-left:auto;font-size:10.5px;color:var(--txt-3)}
+
+  /* extracted fields grid */
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .field{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel-2);position:relative}
+  .field .k{font-size:10px;color:var(--txt-3);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px}
+  .field .v{font-size:13.5px;font-weight:650;margin-top:4px;color:var(--txt)}
+  .field.full{grid-column:1 / 3}
+  .conf{
+    position:absolute;top:9px;right:10px;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:6px;display:inline-flex;align-items:center;gap:3px;
+  }
+  .conf::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+  .conf.hi{background:rgba(21,160,107,.13);color:var(--green)}
+  .conf.mid{background:rgba(217,119,6,.14);color:var(--amber)}
+  .conf.low{background:rgba(220,38,38,.12);color:var(--red)}
+  .field .edit{position:absolute;bottom:8px;right:9px;opacity:0;font-size:10px;color:var(--accent);cursor:pointer;font-weight:600;transition:.15s}
+  .field:hover .edit{opacity:1}
+
+  /* original message */
+  .orig-msg{
+    border:1px solid var(--line);border-radius:10px;padding:13px 15px;background:var(--panel-2);
+    font-size:12.5px;line-height:1.65;color:var(--txt-2);position:relative;
+  }
+  .orig-msg .hl{background:rgba(217,119,6,.16);color:#92560a;border-radius:3px;padding:0 2px;font-weight:600;border-bottom:1px dashed rgba(217,119,6,.5)}
+  .orig-msg .hl.b{background:rgba(13,148,136,.16);color:var(--accent-2);border-color:rgba(13,148,136,.5)}
+  .orig-msg .hl.c{background:rgba(37,99,235,.14);color:#1d4ed8;border-color:rgba(37,99,235,.45)}
+
+  /* draft reply */
+  .draft{
+    border:1px solid var(--line);border-radius:11px;background:var(--panel-2);overflow:hidden;
+  }
+  .draft .dhead{padding:9px 13px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;gap:8px;font-size:11px;color:var(--txt-2);background:rgba(13,148,136,.06)}
+  .draft .dhead .lang-toggle{margin-left:auto;display:flex;gap:3px;background:var(--panel);border-radius:7px;padding:2px;border:1px solid var(--line-soft)}
+  .draft .dhead .lt{padding:2px 9px;font-size:10.5px;border-radius:5px;cursor:pointer;color:var(--txt-3);font-weight:600}
+  .draft .dhead .lt.on{background:var(--panel-3);color:var(--txt)}
+  .draft .dbody{padding:13px 15px;font-size:12.5px;line-height:1.7;color:var(--txt);white-space:pre-wrap}
+  .draft .dfoot{padding:9px 13px;border-top:1px solid var(--line-soft);display:flex;gap:8px;align-items:center}
+  .btn-sm{height:30px;padding:0 12px;font-size:11.5px;border-radius:8px}
+
+  /* suggestions / next best action */
+  .nba{display:flex;flex-direction:column;gap:8px}
+  .nba-item{
+    display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);transition:.15s;cursor:pointer;
+  }
+  .nba-item:hover{border-color:#dde3ea;background:var(--panel-3)}
+  .nba-rank{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:11px;font-weight:800;flex-shrink:0;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
+  .nba-item .ntxt{font-size:12.5px;font-weight:600}
+  .nba-item .ndesc{font-size:11px;color:var(--txt-3);margin-top:1px}
+  .nba-item .nmeta{margin-left:auto;text-align:right;flex-shrink:0}
+  .nba-item .nmeta b{font-size:11px;color:var(--teal)}
+  .nba-item .nmeta small{display:block;font-size:9.5px;color:var(--txt-3)}
+
+  /* activity feed */
+  .feed{position:relative;padding-left:6px}
+  .feed-item{display:flex;gap:11px;padding-bottom:14px;position:relative}
+  .feed-item:last-child{padding-bottom:0}
+  .feed-item::before{content:"";position:absolute;left:8px;top:20px;bottom:-2px;width:1.5px;background:var(--line)}
+  .feed-item:last-child::before{display:none}
+  .feed-dot{width:17px;height:17px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;z-index:1;border:2px solid var(--panel)}
+  .feed-dot svg{width:9px;height:9px;color:#fff}
+  .fd-ai{background:var(--accent-2)} .fd-ok{background:var(--green)} .fd-sys{background:var(--txt-3)} .fd-warn{background:var(--amber)}
+  .feed-body{flex:1;font-size:12px}
+  .feed-body .ft{color:var(--txt)}
+  .feed-body .ft b{font-weight:700}
+  .feed-body .fw{color:var(--txt-3);font-size:10.5px;margin-top:1px}
+
+  .reasoning{
+    border-left:3px solid var(--accent);padding:9px 13px;border-radius:0 9px 9px 0;
+    background:rgba(13,148,136,.06);font-size:12px;color:var(--txt-2);line-height:1.6;
+  }
+  .reasoning b{color:var(--txt)}
+
+  .placeholder-pane{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--txt-3);text-align:center;padding:40px}
+  .placeholder-pane svg{width:60px;height:60px;opacity:.4;margin-bottom:16px}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+    background:var(--panel-3);border:1px solid var(--accent);border-radius:11px;padding:12px 18px;
+    display:flex;align-items:center;gap:11px;font-size:13px;font-weight:600;box-shadow:var(--shadow);
+    opacity:0;transition:.35s cubic-bezier(.2,.9,.3,1.2);z-index:99;pointer-events:none;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .toast svg{width:18px;height:18px;color:var(--teal)}
+
+  .runbar{
+    display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line-soft);
+    background:linear-gradient(90deg,rgba(13,148,136,.09),rgba(13,148,136,.03));
+  }
+  .runbar .lblob{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--txt-2)}
+  .runbar .lblob svg{width:16px;height:16px;color:var(--teal)}
+  .runbar b{color:var(--txt)}
+
+  @media (max-width:1180px){
+    .workspace{grid-template-columns:1fr}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="name">Inquiro AI<small>客户询盘管理</small></div>
+    </div>
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" placeholder="Search inquiries, companies, products…">
+    </div>
+    <div class="spacer"></div>
+    <div class="pill-stat"><span class="dot"></span> AI engine <b>active</b></div>
+    <div class="pill-stat">Triaged today <b>34</b></div>
+    <div class="avatar">EM</div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="nav-group-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Triage Inbox <span class="badge hot">9</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg> Pipeline Board <span class="badge">42</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg> Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Quotes & Docs</div>
+    <div class="nav-group-label">Routing</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg> My Assignments <span class="badge">7</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Sales Team</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> AI Settings</div>
+
+    <div class="side-card">
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg> Auto-triage rate</div>
+      <div class="bar"><i></i></div>
+      <p>AI auto-classified <b style="color:var(--txt)">78%</b> of this week's inquiries.</p>
+      <small>26 needed human review</small>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="main-head">
+      <div>
+        <h1>Triage Inbox</h1>
+        <div class="sub">Incoming inquiries are scored, enriched and routed by AI — review and act below.</div>
+      </div>
+      <button class="btn primary" id="runBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+        Run AI triage
+      </button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="label"><span class="ic blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg></span> New inquiries (7d)</div>
+        <div class="val">218</div>
+        <div class="delta up">▲ 12.4% vs prev week</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline fill="none" stroke="#0d9488" stroke-width="2" points="0,20 10,17 20,18 30,11 40,13 52,6 64,4"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><span class="ic amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span> Hot leads flagged</div>
+        <div class="val">41</div>
+        <div class="delta up">▲ 6 today by AI</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline fill="none" stroke="#d97706" stroke-width="2" points="0,16 10,18 20,12 30,14 40,8 52,10 64,5"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><span class="ic teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span> Avg. first response</div>
+        <div class="val">1.8<span style="font-size:14px;color:var(--txt-3)">h</span></div>
+        <div class="delta up">▼ 64% with AI drafts</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline fill="none" stroke="#0d9488" stroke-width="2" points="0,4 10,7 20,6 30,12 40,11 52,16 64,19"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><span class="ic rose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Quote conversion</div>
+        <div class="val">31.6<span style="font-size:14px;color:var(--txt-3)">%</span></div>
+        <div class="delta up">▲ 4.1 pts QoQ</div>
+        <svg class="spark" width="64" height="26" viewBox="0 0 64 26"><polyline fill="none" stroke="#e11d6f" stroke-width="2" points="0,18 10,15 20,16 30,12 40,9 52,8 64,5"/></svg>
+      </div>
+    </div>
+
+    <!-- WORKSPACE SPLIT -->
+    <div class="workspace">
+      <!-- LEFT: inquiry list -->
+      <section class="col">
+        <div class="col-head">
+          <span class="ttl">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#0d9488" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Inquiries
+          </span>
+          <span class="count" id="listCount">14</span>
+          <div class="tabs" id="tabs">
+            <div class="tab active" data-tab="all">All</div>
+            <div class="tab" data-tab="hot">Hot</div>
+            <div class="tab" data-tab="new">Unreviewed</div>
+            <div class="tab" data-tab="mine">Mine</div>
+          </div>
+        </div>
+        <div class="filterbar" id="chips">
+          <span class="chip active" data-f="all">All sources</span>
+          <span class="chip" data-f="Website">Website <span class="n" id="c-web">0</span></span>
+          <span class="chip" data-f="Email">Email <span class="n" id="c-mail">0</span></span>
+          <span class="chip" data-f="Alibaba">Alibaba <span class="n" id="c-ali">0</span></span>
+          <span class="chip" data-f="WhatsApp">WhatsApp <span class="n" id="c-wa">0</span></span>
+        </div>
+        <div class="inq-list" id="inqList"></div>
+      </section>
+
+      <!-- RIGHT: review pane -->
+      <section class="col">
+        <div class="runbar" id="runbar">
+          <span class="lblob">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+            AI analyzed this inquiry <b id="analyzedWhen">3 min ago</b> · model <b>inquiro-extract v4</b>
+          </span>
+          <span style="margin-left:auto;font-size:11px;color:var(--txt-3)" id="msgId">INQ-2041</span>
+        </div>
+        <div class="review" id="review"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastTxt">Done</span>
+</div>
+
+<script>
+/* ============ SEED DATA ============ */
+const FLAGS = {
+  US:{bg:'#5b8cff',t:'US'}, DE:{bg:'#f5b13d',t:'DE'}, JP:{bg:'#f6608a',t:'JP'},
+  GB:{bg:'#7c5cff',t:'GB'}, BR:{bg:'#3fd483',t:'BR'}, AE:{bg:'#2dd4bf',t:'AE'},
+  IN:{bg:'#ff8c42',t:'IN'}, AU:{bg:'#67c2ff',t:'AU'}, FR:{bg:'#a0a8ff',t:'FR'},
+  KR:{bg:'#ff6b8b',t:'KR'}, MX:{bg:'#6fd99a',t:'MX'}, CA:{bg:'#ff6b3d',t:'CA'}
+};
+
+const DATA = [
+  {id:'INQ-2041',who:'Daniel Okafor',co:'Lagos Solar Holdings',country:'US',source:'Website',product:'500 units of 450W monocrystalline solar panels, DDP Lagos, need spec sheet + lead time',score:92,band:'hot',status:'new',mine:true,reviewed:false,when:'3 min ago',
+    intent:'Bulk purchase — solar PV modules', budget:'$185,000', qty:'500 units', incoterm:'DDP Lagos', timeline:'Within 6 weeks', region:'West Africa', email:'daniel.o@lagossolar.com',
+    msg:`Hi, we are expanding a utility project and need <span class="hl">500 units of 450W monocrystalline solar panels</span>. Please send your best DDP price to <span class="hl c">Lagos, Nigeria</span>, datasheet and certifications. We'd like to <span class="hl b">close this within 6 weeks</span> — budget approved around <span class="hl">USD 185k</span>. Can you also confirm warranty terms?`,
+    reasons:'High intent: explicit quantity, named Incoterm, approved budget and a tight timeline. Company matches an existing high-value account profile. Mentions certifications → ready-to-quote stage.',
+    feed:[
+      {t:'ai',w:'3 min ago',txt:'AI <b>extracted 7 fields</b> and classified intent as <b>Bulk purchase</b>'},
+      {t:'ai',w:'3 min ago',txt:'Lead scored <b>92 / 100 — Hot</b>, routed to <b>Enterprise desk</b>'},
+      {t:'ai',w:'2 min ago',txt:'Drafted a multilingual reply with quote attached'},
+      {t:'sys',w:'just now',txt:'Awaiting your review'}
+    ],
+    nba:[
+      {r:1,t:'Send quote QT-8841 ($178,500)',d:'Pre-filled from catalog & target margin',m:'+£0',mm:'1-click'},
+      {r:2,t:'Book a fit-call with the buyer',d:'Tuesday 10:00 slot suggested',m:'High',mm:'win lift'},
+      {r:3,t:'Attach IEC 61215 certificate',d:'Buyer explicitly asked',m:'Req.',mm:'compliance'}
+    ],
+    sub:{value:88,fit:94,urgency:96}},
+
+  {id:'INQ-2040',who:'Hannah Vogel',co:'Vogel Maschinenbau GmbH',country:'DE',source:'Email',product:'CNC spindle motors — recurring supply, RFQ for Q3 framework agreement',score:84,band:'hot',status:'progress',mine:true,reviewed:true,when:'24 min ago',
+    intent:'Framework / recurring supply', budget:'€60,000 / quarter', qty:'120 units/qtr', incoterm:'FCA Stuttgart', timeline:'Q3 onboarding', region:'Europe', email:'h.vogel@vogel-mb.de',
+    msg:`Guten Tag, we are evaluating suppliers for a <span class="hl">Q3 framework agreement</span> covering <span class="hl">CNC spindle motors, ~120 units per quarter</span>. Please quote on <span class="hl c">FCA Stuttgart</span> basis with volume tiers. Reliability and lead-time consistency matter more than lowest price.`,
+    reasons:'Recurring revenue signal (framework agreement) raises lifetime value. Buyer prioritizes reliability over price → good margin fit. Medium urgency, strong strategic value.',
+    feed:[
+      {t:'ai',w:'24 min ago',txt:'AI detected <b>recurring-supply</b> intent — flagged for account team'},
+      {t:'ai',w:'23 min ago',txt:'Scored <b>84 — Hot</b>, tagged <b>strategic</b>'},
+      {t:'ok',w:'18 min ago',txt:'<b>You</b> accepted the AI routing'},
+    ],
+    nba:[
+      {r:1,t:'Propose 3-tier volume pricing',d:'AI prepared 120 / 240 / 360 tiers',m:'+9%',mm:'margin'},
+      {r:2,t:'Loop in account manager',d:'Strategic recurring deal',m:'Rec.',mm:'routing'}
+    ],
+    sub:{value:90,fit:86,urgency:62}},
+
+  {id:'INQ-2039',who:'Kenji Tanaka',co:'Sakura Robotics K.K.',country:'JP',source:'Alibaba',product:'Harmonic drive gears, sample request before bulk order',score:71,band:'warm',status:'progress',mine:false,reviewed:true,when:'1 h ago',
+    intent:'Sample then bulk', budget:'TBD', qty:'5 samples → 2,000', incoterm:'CIF Yokohama', timeline:'8–10 weeks', region:'East Asia', email:'tanaka@sakura-robotics.jp',
+    msg:`Hello, before placing a bulk order we'd like <span class="hl">5 sample units of harmonic drive gears</span>. If quality meets spec, target volume is <span class="hl">around 2,000 units</span>, <span class="hl c">CIF Yokohama</span>. Could you share MOQ and sample cost?`,
+    reasons:'Sample-first behaviour signals genuine but unconfirmed intent. Large potential volume offsets the lower immediate score. Watch for quality-gate conversion.',
+    feed:[
+      {t:'ai',w:'1 h ago',txt:'AI classified as <b>Sample request</b> with high upside'},
+      {t:'ai',w:'1 h ago',txt:'Scored <b>71 — Warm</b>'},
+      {t:'sys',w:'52 min ago',txt:'Assigned to <b>APAC desk</b>'}
+    ],
+    nba:[
+      {r:1,t:'Send sample quote + MOQ sheet',d:'AI filled MOQ from catalog',m:'+£0',mm:'1-click'},
+      {r:2,t:'Set quality-gate follow-up',d:'Reminder in 14 days',m:'Auto',mm:'cadence'}
+    ],
+    sub:{value:74,fit:80,urgency:55}},
+
+  {id:'INQ-2038',who:'Olivia Bennett',co:'Bennett Retail Group',country:'GB',source:'Website',product:'LED panel lights for 14 store refit, design + install enquiry',score:66,band:'warm',status:'new',mine:false,reviewed:false,when:'1 h ago',
+    intent:'Project — supply & install', budget:'£42,000 est.', qty:'~640 panels', incoterm:'DAP London', timeline:'Phased, 3 months', region:'Europe', email:'o.bennett@bennettretail.co.uk',
+    msg:`We're refitting <span class="hl">14 retail stores</span> and need <span class="hl">LED panel lighting (~640 panels)</span> with a lighting design and an install partner. Phased rollout over <span class="hl b">three months</span>, delivery <span class="hl c">DAP London</span>.`,
+    reasons:'Project scope adds services revenue but lengthens cycle. Needs an install partner → cross-team. Decent value, moderate urgency.',
+    feed:[
+      {t:'ai',w:'1 h ago',txt:'AI tagged <b>project / install</b> and split into supply + service'},
+      {t:'ai',w:'1 h ago',txt:'Scored <b>66 — Warm</b>'},
+      {t:'warn',w:'58 min ago',txt:'Missing install-partner region — flagged for clarification'}
+    ],
+    nba:[
+      {r:1,t:'Request store floorplans',d:'Needed for lighting design',m:'Req.',mm:'data gap'},
+      {r:2,t:'Send phased-supply outline',d:'AI drafted a 3-phase plan',m:'+£0',mm:'draft'}
+    ],
+    sub:{value:70,fit:64,urgency:58}},
+
+  {id:'INQ-2037',who:'Lucas Almeida',co:'Almeida AgroTech',country:'BR',source:'WhatsApp',product:'Drip irrigation kits, 200 hectares, price + freight to Santos',score:58,band:'warm',status:'new',mine:false,reviewed:false,when:'2 h ago',
+    intent:'Bulk purchase — agri kits', budget:'TBD', qty:'200 ha coverage', incoterm:'CFR Santos', timeline:'Next season', region:'South America', email:'lucas@almeidaagro.com.br',
+    msg:`Boa tarde! We need <span class="hl">drip irrigation kits to cover 200 hectares</span>. Please send price and freight <span class="hl c">CFR Santos</span>. Planting season starts in a few months so no rush yet.`,
+    reasons:'Genuine sizing but soft timeline ("no rush") and undefined budget lower urgency. Seasonal buyer — nurture for next-season conversion.',
+    feed:[
+      {t:'ai',w:'2 h ago',txt:'AI extracted coverage area & translated PT→EN'},
+      {t:'ai',w:'2 h ago',txt:'Scored <b>58 — Warm</b>, marked <b>seasonal</b>'},
+    ],
+    nba:[
+      {r:1,t:'Send rough budgetary estimate',d:'Per-hectare pricing model',m:'+£0',mm:'nurture'},
+      {r:2,t:'Add to seasonal nurture list',d:'Re-engage 6 weeks pre-season',m:'Auto',mm:'cadence'}
+    ],
+    sub:{value:62,fit:60,urgency:40}},
+
+  {id:'INQ-2036',who:'Aisha Al-Mansoori',co:'Gulf Build Materials',country:'AE',source:'Email',product:'Structural steel I-beams, urgent — site shortage, 80 tonnes',score:88,band:'hot',status:'new',mine:true,reviewed:false,when:'2 h ago',
+    intent:'Urgent restock — construction', budget:'$96,000', qty:'80 tonnes', incoterm:'CIF Jebel Ali', timeline:'ASAP — 2 weeks', region:'Middle East', email:'aisha@gulfbuild.ae',
+    msg:`URGENT — we have a <span class="hl b">site shortage</span> and need <span class="hl">80 tonnes of structural steel I-beams</span> delivered <span class="hl c">CIF Jebel Ali</span> within <span class="hl b">two weeks</span>. Budget is approved at <span class="hl">~USD 96k</span>. Please confirm availability today.`,
+    reasons:'Explicit urgency keyword "URGENT", tight 2-week window, approved budget and named port → top-tier hot lead. Time-sensitive: respond within the hour.',
+    feed:[
+      {t:'ai',w:'2 h ago',txt:'AI detected <b>urgency keywords</b> — escalated priority'},
+      {t:'ai',w:'2 h ago',txt:'Scored <b>88 — Hot</b>, SLA timer <b>started</b>'},
+      {t:'warn',w:'2 h ago',txt:'Respond within 1h to keep SLA green'}
+    ],
+    nba:[
+      {r:1,t:'Confirm stock availability now',d:'Live inventory check',m:'Urgent',mm:'SLA'},
+      {r:2,t:'Send expedited-freight quote',d:'AI added 14% rush surcharge option',m:'+£0',mm:'draft'}
+    ],
+    sub:{value:84,fit:82,urgency:98}},
+
+  {id:'INQ-2035',who:'Marco Rossi',co:'Rossi Hydraulics',country:'FR',source:'Alibaba',product:'Hydraulic cylinders, comparing 3 suppliers, price only',score:44,band:'cold',status:'progress',mine:false,reviewed:true,when:'3 h ago',
+    intent:'Price comparison', budget:'Lowest', qty:'50 units', incoterm:'EXW', timeline:'Undecided', region:'Europe', email:'m.rossi@rossihyd.it',
+    msg:`Just need <span class="hl">lowest price for 50 hydraulic cylinders</span>, <span class="hl c">EXW</span>. Comparing several suppliers. Send price list.`,
+    reasons:'Price-only, supplier-shopping behaviour and undecided timeline → low conversion probability. Auto-routed to self-serve catalog to protect rep time.',
+    feed:[
+      {t:'ai',w:'3 h ago',txt:'AI classified as <b>price-shopper</b> — low priority'},
+      {t:'ai',w:'3 h ago',txt:'Scored <b>44 — Cold</b>, sent <b>self-serve catalog</b>'},
+    ],
+    nba:[
+      {r:1,t:'Auto-send catalog link',d:'No rep time required',m:'Auto',mm:'self-serve'}
+    ],
+    sub:{value:42,fit:38,urgency:30}},
+
+  {id:'INQ-2034',who:'Priya Sharma',co:'Indus Pharma Equipment',country:'IN',source:'Website',product:'GMP-grade tablet press, validation docs required, single high-value unit',score:79,band:'hot',status:'quoted',mine:true,reviewed:true,when:'4 h ago',
+    intent:'High-value capital equipment', budget:'$240,000', qty:'1 unit', incoterm:'CIF Nhava Sheva', timeline:'Q4 procurement', region:'South Asia', email:'priya@induspharma.in',
+    msg:`We require a <span class="hl">GMP-grade rotary tablet press</span> with full <span class="hl b">validation documentation (IQ/OQ/PQ)</span>. Single unit, <span class="hl c">CIF Nhava Sheva</span>. This is a <span class="hl">Q4 capital procurement (~USD 240k)</span>.`,
+    reasons:'Single high-value unit with regulatory documentation needs → long but lucrative sale. Compliance docs requested, indicating serious procurement. Already quoted.',
+    feed:[
+      {t:'ai',w:'4 h ago',txt:'AI flagged <b>compliance docs</b> requirement (IQ/OQ/PQ)'},
+      {t:'ai',w:'4 h ago',txt:'Scored <b>79 — Hot</b>'},
+      {t:'ok',w:'2 h ago',txt:'Quote <b>QT-8829</b> sent ($236,000)'}
+    ],
+    nba:[
+      {r:1,t:'Attach validation pack',d:'AI located docs in library',m:'Req.',mm:'compliance'},
+      {r:2,t:'Schedule technical demo',d:'High-ticket capital sale',m:'High',mm:'win lift'}
+    ],
+    sub:{value:96,fit:78,urgency:54}},
+
+  {id:'INQ-2033',who:'Sophie Laurent',co:'Laurent Cosmetics',country:'FR',source:'Email',product:'Airless pump bottles, custom branding, 50k units',score:69,band:'warm',status:'progress',mine:false,reviewed:true,when:'5 h ago',
+    intent:'Custom OEM packaging', budget:'€38,000', qty:'50,000 units', incoterm:'FOB Shenzhen', timeline:'10 weeks', region:'Europe', email:'sophie@laurentcosmetics.fr',
+    msg:`We need <span class="hl">50,000 airless pump bottles</span> with <span class="hl b">custom branding & Pantone-matched caps</span>, <span class="hl c">FOB Shenzhen</span>. Please advise tooling cost and lead time.`,
+    reasons:'OEM customization (tooling, Pantone match) means higher margin but requires a sample-approval loop. Solid volume, moderate urgency.',
+    feed:[
+      {t:'ai',w:'5 h ago',txt:'AI detected <b>custom OEM</b> — added tooling step'},
+      {t:'ai',w:'5 h ago',txt:'Scored <b>69 — Warm</b>'},
+    ],
+    nba:[
+      {r:1,t:'Send tooling + unit cost quote',d:'AI estimated mold cost band',m:'+£0',mm:'draft'},
+      {r:2,t:'Request brand artwork',d:'Needed for Pantone proof',m:'Req.',mm:'data gap'}
+    ],
+    sub:{value:72,fit:70,urgency:50}},
+
+  {id:'INQ-2032',who:'Tom Becker',co:'Becker Outdoor Co.',country:'AU',source:'WhatsApp',product:'Camping stoves, seasonal restock, repeat customer',score:74,band:'warm',status:'progress',mine:false,reviewed:true,when:'6 h ago',
+    intent:'Repeat seasonal order', budget:'AUD 22,000', qty:'1,500 units', incoterm:'FOB Ningbo', timeline:'4 weeks', region:'Oceania', email:'tom@beckeroutdoor.com.au',
+    msg:`Hey team, time for our <span class="hl b">seasonal restock</span> — <span class="hl">1,500 camping stoves</span>, same spec as last order, <span class="hl c">FOB Ningbo</span>. Can you reuse our previous PO terms?`,
+    reasons:'Repeat customer with known terms → fast, low-friction conversion. AI matched to prior order history. Reliable warm lead.',
+    feed:[
+      {t:'ai',w:'6 h ago',txt:'AI matched buyer to <b>3 prior orders</b>'},
+      {t:'ai',w:'6 h ago',txt:'Scored <b>74 — Warm</b>, reused last PO terms'},
+    ],
+    nba:[
+      {r:1,t:'Re-issue prior quote (updated)',d:'AI cloned last PO terms',m:'+£0',mm:'1-click'}
+    ],
+    sub:{value:68,fit:88,urgency:56}},
+
+  {id:'INQ-2031',who:'Grace Kim',co:'Seoul Display Labs',country:'KR',source:'Website',product:'OLED test driver boards, R&D batch, NDA mentioned',score:62,band:'warm',status:'new',mine:false,reviewed:false,when:'7 h ago',
+    intent:'R&D / prototype batch', budget:'TBD', qty:'30 boards', incoterm:'DDP Seoul', timeline:'Flexible', region:'East Asia', email:'grace.kim@seouldisplay.kr',
+    msg:`For an internal R&D programme we need <span class="hl">30 OLED test driver boards</span>. We can sign an <span class="hl b">NDA</span> before sharing full specs. Delivery <span class="hl c">DDP Seoul</span>.`,
+    reasons:'R&D batch with NDA signals early-stage but potentially strategic relationship. Small immediate value, possible long-term account. Needs technical pre-sales.',
+    feed:[
+      {t:'ai',w:'7 h ago',txt:'AI flagged <b>NDA</b> and routed to <b>technical sales</b>'},
+      {t:'ai',w:'7 h ago',txt:'Scored <b>62 — Warm</b>'},
+    ],
+    nba:[
+      {r:1,t:'Send NDA template',d:'Pre-spec gate',m:'Req.',mm:'legal'},
+      {r:2,t:'Assign technical pre-sales',d:'R&D requires engineer',m:'Rec.',mm:'routing'}
+    ],
+    sub:{value:58,fit:66,urgency:44}},
+
+  {id:'INQ-2030',who:'Carlos Mendez',co:'Mendez Logistics',country:'MX',source:'Email',product:'Pallet wrapping machines, 6 DCs, financing question',score:51,band:'cold',status:'new',mine:false,reviewed:false,when:'8 h ago',
+    intent:'Multi-site + financing query', budget:'Asking terms', qty:'6 machines', incoterm:'DAP Monterrey', timeline:'Pending finance', region:'North America', email:'carlos@mendezlog.mx',
+    msg:`We're considering <span class="hl">6 pallet wrapping machines</span> across our DCs but first need to understand <span class="hl b">financing / leasing options</span>. Timeline depends on finance approval.`,
+    reasons:'Financing-dependent timeline introduces uncertainty and delay. Decent unit count but conversion blocked until finance resolved. Nurture with finance options.',
+    feed:[
+      {t:'ai',w:'8 h ago',txt:'AI detected <b>financing dependency</b> — flagged as blocked'},
+      {t:'ai',w:'8 h ago',txt:'Scored <b>51 — Cold</b>'},
+    ],
+    nba:[
+      {r:1,t:'Send leasing options sheet',d:'AI attached finance partner info',m:'+£0',mm:'nurture'}
+    ],
+    sub:{value:60,fit:52,urgency:34}},
+
+  {id:'INQ-2029',who:'Emma Thompson',co:'Northline Distributors',country:'CA',source:'Alibaba',product:'Generic "send catalog" message, no product specified',score:22,band:'cold',status:'new',mine:false,reviewed:false,when:'9 h ago',
+    intent:'Low-signal / vague', budget:'Unknown', qty:'Unspecified', incoterm:'—', timeline:'Unknown', region:'North America', email:'emma@northline.ca',
+    msg:`Please send your full <span class="hl">catalog</span> and price list. Thanks.`,
+    reasons:'No product, quantity, geography or timeline → minimal buying signal. Auto-handled with catalog link, no rep assignment, to protect pipeline focus.',
+    feed:[
+      {t:'ai',w:'9 h ago',txt:'AI classified as <b>low-signal</b> — auto-replied'},
+      {t:'ai',w:'9 h ago',txt:'Scored <b>22 — Cold</b>, no rep assigned'},
+    ],
+    nba:[
+      {r:1,t:'Auto-send catalog + qualifier form',d:'Capture missing details',m:'Auto',mm:'self-serve'}
+    ],
+    sub:{value:20,fit:24,urgency:20}}
+];
+
+const DRAFTS = {
+  en:`Hi Daniel,
+
+Thank you for your enquiry about 450W monocrystalline solar panels.
+
+We can supply 500 units DDP Lagos with full IEC 61215 / 61730 certification and a 12-year product / 25-year performance warranty. Based on your approved budget, our best offer is USD 178,500 (USD 357/unit), with delivery in 4–5 weeks — comfortably inside your 6-week window.
+
+I've attached the datasheet and certificates. Quote QT-8841 is ready — shall I email it now?
+
+Best regards,
+Elena Morozova · Enterprise Desk`,
+  zh:`Daniel 您好：
+
+感谢您就 450W 单晶硅太阳能板的询盘。
+
+我们可按 DDP 拉各斯条款供应 500 件,附完整 IEC 61215 / 61730 认证,提供 12 年产品质保、25 年性能质保。根据您已批的预算,最优报价为 178,500 美元(357 美元/件),交期 4–5 周,完全在您 6 周窗口内。
+
+随附规格书与证书,报价单 QT-8841 已就绪,需要我现在发出吗?
+
+此致
+Elena Morozova · 大客户组`
+};
+
+/* ============ STATE ============ */
+let state = {tab:'all', source:'all', q:'', selected:'INQ-2041', lang:'en'};
+
+/* ============ HELPERS ============ */
+const $ = s => document.querySelector(s);
+const bandClass = b => b==='hot'?'sb-hot':b==='warm'?'sb-warm':'sb-cold';
+const bandColor = b => b==='hot'?'var(--hot)':b==='warm'?'var(--amber)':'var(--accent)';
+const statusClass = s => ({new:'sp-new',progress:'sp-progress',quoted:'sp-quoted',won:'sp-won',lost:'sp-lost'})[s];
+const statusLabel = s => ({new:'New',progress:'In progress',quoted:'Quoted',won:'Won',lost:'Lost'})[s];
+const confClass = v => v>=90?'hi':v>=75?'mid':'low';
+const confLabel = v => v>=90?'high':v>=75?'med':'low';
+
+function boltIcon(){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>';}
+
+/* ============ FILTER + RENDER LIST ============ */
+function filtered(){
+  return DATA.filter(d=>{
+    if(state.tab==='hot' && d.band!=='hot') return false;
+    if(state.tab==='new' && d.reviewed) return false;
+    if(state.tab==='mine' && !d.mine) return false;
+    if(state.source!=='all' && d.source!==state.source) return false;
+    if(state.q){
+      const hay=(d.who+' '+d.co+' '+d.product+' '+d.intent).toLowerCase();
+      if(!hay.includes(state.q.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
+
+function renderList(){
+  const list = filtered();
+  $('#listCount').textContent = list.length;
+  // source counts
+  const cnt = s => DATA.filter(d=>d.source===s).length;
+  $('#c-web').textContent = cnt('Website');
+  $('#c-mail').textContent = cnt('Email');
+  $('#c-ali').textContent = cnt('Alibaba');
+  $('#c-wa').textContent = cnt('WhatsApp');
+
+  const el = $('#inqList');
+  if(!list.length){
+    el.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <div style="font-weight:600;color:var(--txt-2)">No inquiries match</div>
+      <div style="font-size:11.5px;margin-top:4px">Try clearing a filter or the search box.</div>
+    </div>`;
+    return;
+  }
+  // keep selection valid
+  if(!list.find(d=>d.id===state.selected)) state.selected = list[0].id;
+
+  el.innerHTML = list.map(d=>{
+    const f = FLAGS[d.country];
+    return `<div class="inq ${d.id===state.selected?'sel':''}" data-id="${d.id}">
+      <div class="inq-top">
+        <span class="flag" style="background:${f.bg}">${f.t}</span>
+        <div>
+          <div class="who">${d.who}</div>
+          <div class="co">${d.co}</div>
+        </div>
+        <span class="when">${d.when}</span>
+      </div>
+      <div class="prod">${d.product}</div>
+      <div class="inq-meta">
+        <span class="score-badge ${bandClass(d.band)}">${boltIcon()}${d.score}</span>
+        <span class="status-pill ${statusClass(d.status)}">${statusLabel(d.status)}</span>
+        <span class="tag">${d.source}</span>
+        ${d.reviewed
+          ? '<span class="ai-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>reviewed</span>'
+          : '<span class="ai-tick" style="color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>needs review</span>'}
+      </div>
+    </div>`;
+  }).join('');
+
+  el.querySelectorAll('.inq').forEach(n=>{
+    n.addEventListener('click',()=>{ state.selected=n.dataset.id; renderList(); renderReview(); });
+  });
+}
+
+/* ============ GAUGE (SVG donut) ============ */
+function gaugeSVG(score,band){
+  const r=40, c=2*Math.PI*r, off=c*(1-score/100);
+  const col=bandColor(band);
+  return `<svg width="96" height="96" viewBox="0 0 96 96">
+    <circle cx="48" cy="48" r="${r}" fill="none" stroke="#e9edf2" stroke-width="9"/>
+    <circle cx="48" cy="48" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 48 48)"
+      style="transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)"/>
+  </svg>`;
+}
+
+/* ============ RENDER REVIEW PANE ============ */
+function renderReview(){
+  const d = DATA.find(x=>x.id===state.selected);
+  const wrap = $('#review');
+  $('#msgId').textContent = d.id;
+  $('#analyzedWhen').textContent = d.when;
+  if(!d){ wrap.innerHTML=''; return; }
+  const f = FLAGS[d.country];
+  const verdict = d.band==='hot'?'High-priority lead':d.band==='warm'?'Qualified — nurture':'Low priority — auto-handled';
+
+  const draftBlock = (d.band!=='cold') ? `
+    <div class="section">
+      <div class="section-h">
+        <span class="lab">AI-drafted reply</span>
+        <span class="ai-chip">${boltIcon()} generated</span>
+        <span class="right">tone: professional · editable</span>
+      </div>
+      <div class="draft">
+        <div class="dhead">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v12H5.2L4 17.2z"/></svg>
+          Reply to <b style="color:var(--txt);margin:0 3px">${d.email}</b>
+          <div class="lang-toggle">
+            <span class="lt ${state.lang==='en'?'on':''}" data-lang="en">EN</span>
+            <span class="lt ${state.lang==='zh'?'on':''}" data-lang="zh">中文</span>
+          </div>
+        </div>
+        <div class="dbody" id="draftBody">${state.lang==='en'?DRAFTS.en:DRAFTS.zh}</div>
+        <div class="dfoot">
+          <button class="btn primary btn-sm" data-act="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg> Approve &amp; send</button>
+          <button class="btn btn-sm" data-act="regen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg> Regenerate</button>
+          <button class="btn btn-sm" data-act="edit">Edit</button>
+        </div>
+      </div>
+    </div>` : '';
+
+  wrap.innerHTML = `
+    <div class="rv-hero">
+      <div class="row1">
+        <span class="flag" style="background:${f.bg};width:38px;height:28px;font-size:11px">${f.t}</span>
+        <div>
+          <div class="who">${d.who}</div>
+          <div class="co">
+            ${d.co}<span class="dotsep"></span>${d.region}<span class="dotsep"></span>via ${d.source}
+            <span class="status-pill ${statusClass(d.status)}" style="margin-left:4px">${statusLabel(d.status)}</span>
+          </div>
+        </div>
+        <div class="rv-actions">
+          <button class="btn btn-sm" data-act="assign"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg> Reassign</button>
+          <button class="btn primary btn-sm" data-act="quote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg> Build quote</button>
+        </div>
+      </div>
+
+      <div class="gauge-wrap">
+        <div class="gauge">
+          ${gaugeSVG(d.score,d.band)}
+          <div class="num"><div><b style="color:${bandColor(d.band)}">${d.score}</b><br><small>lead score</small></div></div>
+        </div>
+        <div class="gauge-info">
+          <div class="lab">AI verdict</div>
+          <div class="verdict" style="color:${bandColor(d.band)}">${verdict}</div>
+          <div class="gauge-bars">
+            ${subBar('Deal value',d.sub.value)}
+            ${subBar('Account fit',d.sub.fit)}
+            ${subBar('Urgency',d.sub.urgency)}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-h">
+        <span class="lab">Why this score</span>
+        <span class="ai-chip">${boltIcon()} reasoning</span>
+      </div>
+      <div class="reasoning">${d.reasons}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-h">
+        <span class="lab">Extracted fields</span>
+        <span class="ai-chip">${boltIcon()} 7 fields</span>
+        <span class="right">hover a field to correct</span>
+      </div>
+      <div class="fields">
+        ${field('Intent',d.intent,96,'full')}
+        ${field('Estimated value',d.budget,93)}
+        ${field('Quantity',d.qty,90)}
+        ${field('Incoterm',d.incoterm,d.incoterm==='—'?40:97)}
+        ${field('Timeline',d.timeline,d.timeline==='Unknown'?42:84)}
+        ${field('Region',d.region,99)}
+        ${field('Contact',d.email,99,'full')}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-h">
+        <span class="lab">Original message</span>
+        <span class="right">AI highlights show extracted evidence</span>
+      </div>
+      <div class="orig-msg">${d.msg}</div>
+    </div>
+
+    ${draftBlock}
+
+    <div class="section">
+      <div class="section-h">
+        <span class="lab">Next best actions</span>
+        <span class="ai-chip">${boltIcon()} ranked</span>
+      </div>
+      <div class="nba">
+        ${d.nba.map(n=>`
+          <div class="nba-item" data-act="nba">
+            <span class="nba-rank">${n.r}</span>
+            <div><div class="ntxt">${n.t}</div><div class="ndesc">${n.d}</div></div>
+            <div class="nmeta"><b>${n.m}</b><small>${n.mm}</small></div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="section" style="border-bottom:none">
+      <div class="section-h">
+        <span class="lab">Activity</span>
+        <span class="right">${d.feed.length} events</span>
+      </div>
+      <div class="feed">
+        ${d.feed.map(ev=>feedItem(ev)).join('')}
+      </div>
+    </div>
+  `;
+
+  // wire up interactions inside pane
+  wrap.querySelectorAll('.lt').forEach(b=>b.addEventListener('click',()=>{
+    state.lang=b.dataset.lang;
+    $('#draftBody').textContent = state.lang==='en'?DRAFTS.en:DRAFTS.zh;
+    wrap.querySelectorAll('.lt').forEach(x=>x.classList.toggle('on',x.dataset.lang===state.lang));
+  }));
+  wrap.querySelectorAll('[data-act]').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const a=b.dataset.act;
+      const map={send:'Reply approved and sent',regen:'AI regenerated the draft',edit:'Opening editor…',assign:'Reassign panel opened',quote:'Quote builder opened',nba:'Action queued',quoteb:'Quote ready'};
+      toast(map[a]||'Done');
+    });
+  });
+  wrap.querySelectorAll('.field .edit').forEach(b=>b.addEventListener('click',(e)=>{e.stopPropagation();toast('Field correction saved — model will learn');}));
+
+  wrap.scrollTop = 0;
+}
+
+function subBar(label,v){
+  const col = v>=80?'var(--green)':v>=55?'var(--amber)':'var(--rose)';
+  return `<div class="gbar"><span class="gt">${label}</span>
+    <span class="gtrack"><i style="width:${v}%;background:${col}"></i></span>
+    <span class="gv">${v}</span></div>`;
+}
+function field(k,v,conf,extra=''){
+  const cls=confClass(conf);
+  return `<div class="field ${extra}">
+    <div class="k">${k}</div>
+    <div class="v">${v}</div>
+    <span class="conf ${cls}">${conf}% ${confLabel(conf)}</span>
+    <span class="edit">correct</span>
+  </div>`;
+}
+function feedItem(ev){
+  const icons={
+    ai:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+    ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>',
+    sys:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/></svg>',
+    warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>'
+  };
+  const dot={ai:'fd-ai',ok:'fd-ok',sys:'fd-sys',warn:'fd-warn'}[ev.t];
+  return `<div class="feed-item">
+    <span class="feed-dot ${dot}">${icons[ev.t]}</span>
+    <div class="feed-body"><div class="ft">${ev.txt}</div><div class="fw">${ev.w}</div></div>
+  </div>`;
+}
+
+/* ============ TOAST ============ */
+let toastTimer;
+function toast(msg){
+  $('#toastTxt').textContent=msg;
+  $('#toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2200);
+}
+
+/* ============ WIRE GLOBAL CONTROLS ============ */
+$('#tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab'); if(!t)return;
+  state.tab=t.dataset.tab;
+  $('#tabs').querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
+  renderList(); renderReview();
+});
+$('#chips').addEventListener('click',e=>{
+  const c=e.target.closest('.chip'); if(!c)return;
+  state.source=c.dataset.f;
+  $('#chips').querySelectorAll('.chip').forEach(x=>x.classList.toggle('active',x===c));
+  renderList(); renderReview();
+});
+$('#search').addEventListener('input',e=>{ state.q=e.target.value; renderList(); renderReview(); });
+
+$('#runBtn').addEventListener('click',function(){
+  const btn=this;
+  const orig=btn.innerHTML;
+  btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg> Analyzing…';
+  btn.style.pointerEvents='none';
+  setTimeout(()=>{
+    btn.innerHTML=orig; btn.style.pointerEvents='';
+    toast('AI triage complete — 3 new inquiries scored & routed');
+  },1500);
+});
+
+// spin keyframe
+const style=document.createElement('style');
+style.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(style);
+
+/* ============ INIT ============ */
+renderList();
+renderReview();
+</script>
+</body>
+</html>

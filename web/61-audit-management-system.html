@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Audit Management System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-2: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #eef2f6;
+    --line: #e2e6ec;
+    --line-soft: #edf0f4;
+    --ink: #1f2937;
+    --ink-2: #475569;
+    --ink-3: #8492a6;
+    --accent: #0284c7;
+    --accent-2: #0369a1;
+    --teal: #0e9f8e;
+    --amber: #d97706;
+    --red: #dc2626;
+    --green: #16a34a;
+    --purple: #7c3aed;
+    --shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 560px at 90% -12%, rgba(2, 132, 199, 0.05), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(2, 132, 199, 0.18); }
+
+  .app {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    grid-template-rows: 60px 1fr;
+    grid-template-areas: "brand topbar" "nav main";
+    height: 100vh;
+  }
+
+  /* ------ Brand / sidebar ------ */
+  .brand {
+    grid-area: brand;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 18px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: #ffffff;
+  }
+  .brand .logo {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+    box-shadow: 0 6px 16px rgba(2, 132, 199, 0.28);
+    flex: none;
+  }
+  .brand .logo svg { width: 19px; height: 19px; }
+  .brand .name { font-weight: 700; letter-spacing: .2px; font-size: 15px; }
+  .brand .sub { font-size: 11px; color: var(--ink-3); letter-spacing: .4px; }
+
+  .nav {
+    grid-area: nav;
+    border-right: 1px solid var(--line);
+    background: #ffffff;
+    padding: 14px 12px;
+    overflow-y: auto;
+  }
+  .nav .group-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px;
+    color: var(--ink-3); margin: 16px 10px 7px;
+  }
+  .nav .group-label:first-child { margin-top: 2px; }
+  .nav a {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 9px;
+    color: var(--ink-2); text-decoration: none;
+    font-size: 13.2px; font-weight: 500;
+    margin-bottom: 2px;
+    position: relative;
+    transition: background .14s, color .14s;
+  }
+  .nav a svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  .nav a:hover { background: var(--panel-2); color: var(--ink); }
+  .nav a.active {
+    background: rgba(2, 132, 199, 0.10);
+    color: var(--accent);
+  }
+  .nav a.active svg { opacity: 1; }
+  .nav a.active::before {
+    content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px;
+    width: 3px; border-radius: 0 3px 3px 0;
+    background: var(--accent);
+  }
+  .nav a .count {
+    margin-left: auto; font-size: 11px; font-weight: 600;
+    background: var(--panel-2); color: var(--ink-2);
+    padding: 1px 7px; border-radius: 20px;
+  }
+  .nav a.active .count { background: rgba(2, 132, 199, 0.18); color: var(--accent); }
+
+  .nav .pro-card {
+    margin-top: 20px; padding: 13px; border-radius: 12px;
+    background: linear-gradient(150deg, rgba(2, 132, 199, 0.10), rgba(2, 132, 199, 0.03));
+    border: 1px solid var(--line);
+  }
+  .pro-card .pc-title { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .pro-card .pc-sub { font-size: 11.5px; color: var(--ink-3); margin: 6px 0 10px; line-height: 1.45; }
+  .pro-card .pc-bar { height: 6px; border-radius: 6px; background: var(--bg); overflow: hidden; }
+  .pro-card .pc-bar i { display: block; height: 100%; width: 68%; border-radius: 6px;
+    background: linear-gradient(90deg, var(--teal), var(--accent)); }
+  .pro-card .pc-meta { font-size: 10.5px; color: var(--ink-3); margin-top: 7px; }
+
+  /* ------ Topbar ------ */
+  .topbar {
+    grid-area: topbar;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(6px);
+  }
+  .crumbs { font-size: 13px; color: var(--ink-3); }
+  .crumbs b { color: var(--ink); font-weight: 600; }
+  .search {
+    margin-left: 8px; flex: 1; max-width: 420px;
+    display: flex; align-items: center; gap: 9px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 12px;
+  }
+  .search svg { width: 15px; height: 15px; color: var(--ink-3); flex: none; }
+  .search input {
+    border: 0; background: transparent; color: var(--ink);
+    outline: none; width: 100%; font-size: 13px;
+  }
+  .search input::placeholder { color: var(--ink-3); }
+  .search kbd {
+    font-size: 10.5px; color: var(--ink-3); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 6px; background: var(--panel);
+  }
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg-2);
+    display: grid; place-items: center; cursor: pointer; color: var(--ink-2);
+    position: relative; transition: border-color .14s, color .14s;
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--ink); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .icon-btn .dot { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px;
+    border-radius: 50%; background: var(--red); border: 2px solid var(--bg-2); }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #ffffff;
+  }
+
+  /* ------ Main ------ */
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    padding: 22px 24px 40px;
+  }
+  .page-head { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 20px; flex-wrap: wrap; }
+  .page-head h1 { margin: 0; font-size: 22px; letter-spacing: -.3px; }
+  .page-head .zh { color: var(--ink-3); font-size: 13px; font-weight: 500; margin-left: 2px; }
+  .page-head p { margin: 5px 0 0; color: var(--ink-3); font-size: 13px; }
+  .head-right { margin-left: auto; display: flex; gap: 10px; }
+  .btn {
+    border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
+    padding: 9px 15px; border-radius: 10px; font-size: 13px; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    transition: border-color .14s, background .14s, transform .06s;
+  }
+  .btn svg { width: 15px; height: 15px; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    border: 0; color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.22);
+  }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.ai {
+    border: 0; color: #ffffff;
+    background: linear-gradient(135deg, var(--teal), #15b8a6);
+    box-shadow: 0 4px 12px rgba(14, 159, 142, 0.22);
+  }
+
+  /* ------ KPI cards ------ */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 17px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .kpi::after {
+    content: ""; position: absolute; right: -28px; top: -28px;
+    width: 96px; height: 96px; border-radius: 50%;
+    background: radial-gradient(circle, var(--glow), transparent 70%); opacity: .18;
+  }
+  .kpi .kpi-top { display: flex; align-items: center; justify-content: space-between; }
+  .kpi .kpi-label { font-size: 12px; color: var(--ink-3); font-weight: 600; }
+  .kpi .kpi-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; }
+  .kpi .kpi-ic svg { width: 16px; height: 16px; }
+  .kpi .kpi-val { font-size: 27px; font-weight: 700; letter-spacing: -.5px; margin: 11px 0 2px; }
+  .kpi .kpi-foot { font-size: 11.5px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+  .trend { font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+  .trend.up { color: var(--green); }
+  .trend.down { color: var(--red); }
+  .trend.warn { color: var(--amber); }
+  .spark { margin-top: 9px; }
+
+  /* ------ Layout split ------ */
+  .content-grid { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 15px 18px; border-bottom: 1px solid var(--line-soft);
+  }
+  .card-head h2 { margin: 0; font-size: 15px; font-weight: 650; }
+  .card-head .ch-sub { font-size: 11.5px; color: var(--ink-3); }
+  .card-head .ch-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 10px; }
+  .tab {
+    border: 0; background: transparent; color: var(--ink-2);
+    font-size: 12.5px; font-weight: 600; padding: 6px 12px;
+    border-radius: 7px; cursor: pointer; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px; transition: background .14s, color .14s;
+  }
+  .tab .pill { font-size: 10.5px; background: var(--panel-2); padding: 0 6px; border-radius: 10px; color: var(--ink-2); }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: #ffffff; color: var(--accent); box-shadow: 0 1px 3px rgba(15,23,42,.10); }
+  .tab.active .pill { background: var(--accent); color: #fff; }
+
+  /* filter chips */
+  .filterbar { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--line); background: var(--bg-2); color: var(--ink-2);
+    font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 20px; cursor: pointer;
+    transition: all .14s;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--ink); }
+  .chip.active { background: rgba(2, 132, 199, 0.12); border-color: var(--accent); color: var(--accent); }
+  .filter-spacer { margin-left: auto; }
+  .mini-search {
+    display: flex; align-items: center; gap: 7px; background: var(--bg-2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px;
+  }
+  .mini-search svg { width: 13px; height: 13px; color: var(--ink-3); }
+  .mini-search input { border: 0; background: transparent; outline: none; color: var(--ink); font-size: 12.5px; width: 150px; }
+  .mini-search input::placeholder { color: var(--ink-3); }
+
+  /* ------ Findings list ------ */
+  .findings { padding: 6px 8px 10px; }
+  .finding {
+    display: grid; grid-template-columns: 4px 1fr auto; gap: 0;
+    align-items: stretch; padding: 0;
+    border-radius: 11px; margin: 6px 4px;
+    border: 1px solid transparent; cursor: pointer;
+    transition: background .14s, border-color .14s;
+    position: relative;
+  }
+  .finding:hover { background: var(--panel-2); border-color: var(--line); }
+  .finding.selected { background: rgba(2, 132, 199, 0.07); border-color: var(--accent); }
+  .finding .sev-bar { border-radius: 11px 0 0 11px; }
+  .finding .f-body { padding: 13px 14px; min-width: 0; }
+  .finding .f-meta-col { padding: 13px 16px 13px 8px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; justify-content: center; }
+  .finding .f-top { display: flex; align-items: center; gap: 9px; margin-bottom: 4px; }
+  .finding .f-id { font-size: 11px; color: var(--ink-3); font-weight: 700; letter-spacing: .3px; }
+  .finding .f-title { font-size: 13.7px; font-weight: 650; color: var(--ink); }
+  .finding .f-desc {
+    font-size: 12.2px; color: var(--ink-3); margin-top: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+  }
+  .finding .f-tags { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; align-items: center; }
+  .tag {
+    font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+    background: var(--bg); color: var(--ink-2); border: 1px solid var(--line);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .tag.ai { background: rgba(14,159,142,.10); color: #0c7a6d; border-color: rgba(14,159,142,.28); }
+
+  .sev { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .sev.critical { background: rgba(220,38,38,.12); color: #b91c1c; }
+  .sev.high { background: rgba(217,119,6,.12); color: #b45309; }
+  .sev.medium { background: rgba(2,132,199,.12); color: #0369a1; }
+  .sev.low { background: rgba(22,163,74,.12); color: #15803d; }
+
+  .status-pill { font-size: 10.5px; font-weight: 700; padding: 3px 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .status-pill .d { width: 6px; height: 6px; border-radius: 50%; }
+  .status-pill.open { background: rgba(220,38,38,.10); color: #b91c1c; } .status-pill.open .d { background: #dc2626; }
+  .status-pill.review { background: rgba(217,119,6,.10); color: #b45309; } .status-pill.review .d { background: #d97706; }
+  .status-pill.progress { background: rgba(2,132,199,.10); color: #0369a1; } .status-pill.progress .d { background: #0284c7; }
+  .status-pill.resolved { background: rgba(22,163,74,.10); color: #15803d; } .status-pill.resolved .d { background: #16a34a; }
+
+  .conf {
+    display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--ink-3); font-weight: 600;
+  }
+  .conf .bar { width: 46px; height: 5px; border-radius: 5px; background: var(--bg); overflow: hidden; }
+  .conf .bar i { display: block; height: 100%; border-radius: 5px; }
+
+  .empty-state { display: none; flex-direction: column; align-items: center; gap: 12px; padding: 60px 20px; color: var(--ink-3); }
+  .empty-state svg { width: 46px; height: 46px; opacity: .4; }
+  .empty-state.show { display: flex; }
+
+  /* ------ Right column: AI panel + activity ------ */
+  .ai-panel { background: linear-gradient(165deg, rgba(14,159,142,.05), var(--bg-2) 55%); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+  .ai-head { padding: 15px 17px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 11px; }
+  .ai-head .ai-orb {
+    width: 34px; height: 34px; border-radius: 10px; flex: none;
+    background: linear-gradient(135deg, var(--teal), #15b8a6);
+    display: grid; place-items: center; color: #ffffff;
+    box-shadow: 0 4px 12px rgba(14,159,142,.26);
+  }
+  .ai-head .ai-orb svg { width: 18px; height: 18px; }
+  .ai-head h2 { margin: 0; font-size: 14.5px; }
+  .ai-head .ai-sub { font-size: 11px; color: var(--ink-3); }
+  .ai-head .live { margin-left: auto; font-size: 10px; color: var(--teal); font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+  .ai-head .live .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 0 rgba(14,159,142,.5); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(14,159,142,.4);} 70% { box-shadow: 0 0 0 8px rgba(14,159,142,0);} 100% { box-shadow: 0 0 0 0 rgba(14,159,142,0);} }
+
+  .upload-zone { margin: 15px 17px; border: 1.5px dashed var(--line); border-radius: 12px; padding: 16px; text-align: center; transition: border-color .14s, background .14s; cursor: pointer; }
+  .upload-zone:hover { border-color: var(--teal); background: rgba(14,159,142,.04); }
+  .upload-zone .uz-ic { width: 40px; height: 40px; margin: 0 auto 8px; border-radius: 11px; background: var(--panel-2); display: grid; place-items: center; color: var(--teal); }
+  .upload-zone .uz-ic svg { width: 20px; height: 20px; }
+  .upload-zone .uz-title { font-size: 12.8px; font-weight: 650; }
+  .upload-zone .uz-sub { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+  .upload-zone .files { display: flex; gap: 6px; justify-content: center; margin-top: 11px; flex-wrap: wrap; }
+  .file-chip { font-size: 10.5px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 7px; padding: 4px 8px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 5px; }
+  .file-chip svg { width: 11px; height: 11px; color: var(--accent); }
+
+  .ai-run { margin: 0 17px 14px; }
+  .ai-progress { margin: 0 17px 14px; display: none; }
+  .ai-progress.show { display: block; }
+  .ai-progress .pr-row { font-size: 11.5px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .ai-progress .pr-row .tick { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
+  .ai-progress .pr-row.done .tick { border-color: var(--teal); background: var(--teal); display:grid; place-items:center; }
+  .ai-progress .pr-row.done .tick::after { content:"✓"; font-size: 9px; color:#ffffff; font-weight: 900; }
+
+  .ai-result { padding: 4px 17px 16px; display: none; }
+  .ai-result.show { display: block; }
+  .ai-verdict {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+    margin-bottom: 13px;
+  }
+  .ai-verdict .av-top { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .ai-verdict .av-score { font-size: 26px; font-weight: 800; letter-spacing: -.5px; }
+  .ai-verdict .av-label { font-size: 11px; color: var(--ink-3); font-weight: 600; }
+  .ai-verdict .av-badge { margin-left: auto; }
+  .ai-verdict .av-reason { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+  .ai-verdict .av-reason b { color: var(--ink); }
+
+  .extract-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-3); font-weight: 700; margin: 14px 0 8px; }
+  .ex-field { display: flex; align-items: center; gap: 10px; padding: 8px 11px; background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: 9px; margin-bottom: 7px; }
+  .ex-field .ex-k { font-size: 11px; color: var(--ink-3); width: 96px; flex: none; font-weight: 600; }
+  .ex-field .ex-v { font-size: 12.5px; color: var(--ink); font-weight: 600; flex: 1; min-width: 0; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conf-badge { font-size: 9.5px; font-weight: 800; padding: 2px 7px; border-radius: 6px; flex: none; }
+  .conf-badge.hi { background: rgba(22,163,74,.12); color: #15803d; }
+  .conf-badge.mid { background: rgba(217,119,6,.12); color: #b45309; }
+  .conf-badge.lo { background: rgba(220,38,38,.12); color: #b91c1c; }
+
+  .ai-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .ai-actions .btn { flex: 1; justify-content: center; }
+
+  /* activity feed */
+  .feed { padding: 6px 17px 14px; }
+  .feed-item { display: flex; gap: 11px; padding: 9px 0; position: relative; }
+  .feed-item:not(:last-child)::before { content:""; position: absolute; left: 13px; top: 30px; bottom: -4px; width: 1.5px; background: var(--line-soft); }
+  .feed-ic { width: 27px; height: 27px; border-radius: 8px; flex: none; display: grid; place-items: center; z-index: 1; }
+  .feed-ic svg { width: 14px; height: 14px; }
+  .feed-ic.ai { background: rgba(14,159,142,.12); color: var(--teal); }
+  .feed-ic.user { background: rgba(2,132,199,.12); color: var(--accent); }
+  .feed-ic.flag { background: rgba(220,38,38,.12); color: var(--red); }
+  .feed-ic.ok { background: rgba(22,163,74,.12); color: var(--green); }
+  .feed-body { min-width: 0; }
+  .feed-body .ft { font-size: 12.4px; color: var(--ink); line-height: 1.4; }
+  .feed-body .ft b { font-weight: 700; }
+  .feed-body .ft .ai-name { color: var(--teal); font-weight: 700; }
+  .feed-body .fm { font-size: 10.5px; color: var(--ink-3); margin-top: 2px; }
+
+  /* ------ Drawer ------ */
+  .scrim { position: fixed; inset: 0; background: rgba(15,23,42,.34); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 40; }
+  .scrim.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 540px; max-width: 94vw;
+    background: var(--panel);
+    border-left: 1px solid var(--line); box-shadow: var(--shadow);
+    transform: translateX(100%); transition: transform .26s cubic-bezier(.4,0,.2,1);
+    z-index: 41; display: flex; flex-direction: column;
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-head { padding: 18px 22px; border-bottom: 1px solid var(--line-soft); }
+  .drawer-head .dh-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .drawer-head .dh-id { font-size: 11.5px; color: var(--ink-3); font-weight: 700; }
+  .drawer-head h2 { margin: 8px 0 0; font-size: 19px; letter-spacing: -.2px; line-height: 1.3; }
+  .drawer-head .dh-close { margin-left: auto; }
+  .drawer-body { padding: 18px 22px 30px; overflow-y: auto; flex: 1; }
+  .dsec { margin-bottom: 22px; }
+  .dsec-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-3); font-weight: 700; margin-bottom: 11px; display: flex; align-items: center; gap: 8px; }
+  .dsec-title .ai-tag { font-size: 9px; background: rgba(14,159,142,.12); color: var(--teal); padding: 2px 7px; border-radius: 6px; letter-spacing: .5px; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .meta-cell { background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; }
+  .meta-cell .mk { font-size: 10.5px; color: var(--ink-3); font-weight: 600; }
+  .meta-cell .mv { font-size: 13.5px; color: var(--ink); font-weight: 650; margin-top: 4px; display: flex; align-items: center; gap: 7px; }
+  .dnarr { font-size: 13px; color: var(--ink-2); line-height: 1.65; }
+  .ai-box { background: linear-gradient(160deg, rgba(14,159,142,.06), var(--bg-2)); border: 1px solid rgba(14,159,142,.20); border-radius: 12px; padding: 14px; }
+  .ai-box .abh { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; font-size: 12px; font-weight: 700; color: var(--teal); }
+  .ai-box .abh svg { width: 15px; height: 15px; }
+  .ai-box p { margin: 0; font-size: 12.6px; color: var(--ink-2); line-height: 1.6; }
+  .reco-list { list-style: none; padding: 0; margin: 10px 0 0; }
+  .reco-list li { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 12.6px; color: var(--ink-2); border-top: 1px solid rgba(14,159,142,.16); }
+  .reco-list li:first-child { border-top: 0; }
+  .reco-list li .rn { width: 18px; height: 18px; border-radius: 6px; background: rgba(14,159,142,.14); color: var(--teal); font-size: 10.5px; font-weight: 800; display: grid; place-items: center; flex: none; margin-top: 1px; }
+
+  .evi { display: flex; align-items: center; gap: 11px; padding: 10px 12px; background: var(--bg-2); border: 1px solid var(--line-soft); border-radius: 10px; margin-bottom: 8px; }
+  .evi .evi-ic { width: 32px; height: 32px; border-radius: 8px; background: var(--panel-2); display: grid; place-items: center; color: var(--accent); flex: none; }
+  .evi .evi-ic svg { width: 16px; height: 16px; }
+  .evi .evi-name { font-size: 12.5px; font-weight: 600; }
+  .evi .evi-meta { font-size: 10.5px; color: var(--ink-3); }
+  .evi .evi-flag { margin-left: auto; }
+
+  .timeline2 { position: relative; padding-left: 6px; }
+  .tl2 { display: flex; gap: 11px; padding-bottom: 14px; position: relative; }
+  .tl2:not(:last-child)::before { content:""; position: absolute; left: 6px; top: 16px; bottom: -2px; width: 1.5px; background: var(--line-soft); }
+  .tl2 .tdot { width: 13px; height: 13px; border-radius: 50%; border: 2.5px solid var(--accent); background: var(--bg); flex: none; margin-top: 2px; z-index: 1; }
+  .tl2.ai .tdot { border-color: var(--teal); }
+  .tl2 .tl-t { font-size: 12.5px; color: var(--ink); }
+  .tl2 .tl-t b { font-weight: 700; }
+  .tl2 .tl-m { font-size: 10.5px; color: var(--ink-3); margin-top: 1px; }
+
+  .drawer-foot { padding: 14px 22px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; background: var(--bg-2); }
+  .drawer-foot .btn { flex: 1; justify-content: center; }
+
+  /* bottom row */
+  .bottom-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-top: 16px; }
+  .bar-chart { padding: 16px 18px; }
+  .bc-row { display: grid; grid-template-columns: 130px 1fr 44px; gap: 12px; align-items: center; margin-bottom: 11px; }
+  .bc-row .bcl { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+  .bc-track { height: 10px; border-radius: 6px; background: var(--bg); overflow: hidden; }
+  .bc-track i { display: block; height: 100%; border-radius: 6px; transition: width .8s cubic-bezier(.4,0,.2,1); }
+  .bc-val { font-size: 12px; font-weight: 700; text-align: right; color: var(--ink); }
+
+  .donut-wrap { display: flex; align-items: center; gap: 18px; padding: 16px 18px; }
+  .donut-legend { flex: 1; }
+  .dl-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; font-size: 12.5px; }
+  .dl-row .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .dl-row .dl-n { color: var(--ink-2); }
+  .dl-row .dl-v { margin-left: auto; font-weight: 700; color: var(--ink); }
+
+  .scroll-thin::-webkit-scrollbar { width: 9px; height: 9px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: var(--line); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; }
+  .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #ffffff; border: 1px solid var(--line); border-radius: 11px;
+    padding: 12px 18px; font-size: 13px; color: var(--ink); box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 10px; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 60;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast .tic { width: 22px; height: 22px; border-radius: 7px; background: rgba(22,163,74,.14); color: var(--green); display: grid; place-items: center; }
+  .toast .tic svg { width: 13px; height: 13px; }
+
+  @media (max-width: 1180px) {
+    .content-grid { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .bottom-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; grid-template-areas: "topbar" "main"; }
+    .brand, .nav { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Brand -->
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+    </div>
+    <div>
+      <div class="name">Auditible</div>
+      <div class="sub">审计管理系统</div>
+    </div>
+  </div>
+
+  <!-- Sidebar nav -->
+  <nav class="nav scroll-thin">
+    <div class="group-label">Workspace</div>
+    <a href="#" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      Findings <span class="count">42</span>
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Engagements <span class="count">8</span>
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+      Evidence Vault
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+      Controls <span class="count">156</span>
+    </a>
+    <div class="group-label">Governance</div>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Risk Register <span class="count">23</span>
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+      Reports
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </a>
+
+    <div class="pro-card">
+      <div class="pc-title">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--teal)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+        Q3 SOX Cycle
+      </div>
+      <div class="pc-sub">156 controls tested · 23 days to fieldwork close.</div>
+      <div class="pc-bar"><i></i></div>
+      <div class="pc-meta">68% complete · on track</div>
+    </div>
+  </nav>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="crumbs">Engagements / <b>FY26 SOX Q3</b> / Findings</div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="globalSearch" placeholder="Search findings, controls, evidence…" />
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="top-actions">
+      <div class="icon-btn" title="AI insights"><span class="dot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg>
+      </div>
+      <div class="icon-btn" title="Notifications"><span class="dot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </div>
+      <div class="avatar">MA</div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main scroll-thin">
+    <div class="page-head">
+      <div>
+        <h1>Findings Review <span class="zh">审计发现复核</span></h1>
+        <p>Triage findings, review AI-extracted evidence, and route remediation owners.</p>
+      </div>
+      <div class="head-right">
+        <button class="btn" id="exportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+          Export
+        </button>
+        <button class="btn primary" id="newFindingBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          New Finding
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="kpis">
+      <div class="kpi" style="--glow: rgba(220,38,38,.5)">
+        <div class="kpi-top">
+          <div class="kpi-label">Open Findings</div>
+          <div class="kpi-ic" style="background: rgba(220,38,38,.12); color: var(--red)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          </div>
+        </div>
+        <div class="kpi-val">42</div>
+        <div class="kpi-foot"><span class="trend down">▲ 6</span> new this week · 9 critical</div>
+        <svg class="spark" width="100%" height="30" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#dc2626" stroke-width="2" points="0,22 25,18 50,20 75,12 100,14 125,8 150,11 175,5 200,7"/></svg>
+      </div>
+      <div class="kpi" style="--glow: rgba(217,119,6,.5)">
+        <div class="kpi-top">
+          <div class="kpi-label">Overdue Remediation</div>
+          <div class="kpi-ic" style="background: rgba(217,119,6,.12); color: var(--amber)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+        </div>
+        <div class="kpi-val">7</div>
+        <div class="kpi-foot"><span class="trend warn">●</span> avg 14 days past SLA</div>
+        <svg class="spark" width="100%" height="30" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#d97706" stroke-width="2" points="0,12 25,14 50,10 75,16 100,11 125,18 150,15 175,20 200,18"/></svg>
+      </div>
+      <div class="kpi" style="--glow: rgba(14,159,142,.5)">
+        <div class="kpi-top">
+          <div class="kpi-label">AI Evidence Reviewed</div>
+          <div class="kpi-ic" style="background: rgba(14,159,142,.12); color: var(--teal)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg>
+          </div>
+        </div>
+        <div class="kpi-val">1,284</div>
+        <div class="kpi-foot"><span class="trend up">▲ 18%</span> docs auto-classified</div>
+        <svg class="spark" width="100%" height="30" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#0e9f8e" stroke-width="2" points="0,24 25,22 50,18 75,19 100,13 125,12 150,8 175,7 200,4"/></svg>
+      </div>
+      <div class="kpi" style="--glow: rgba(22,163,74,.5)">
+        <div class="kpi-top">
+          <div class="kpi-label">Control Pass Rate</div>
+          <div class="kpi-ic" style="background: rgba(22,163,74,.12); color: var(--green)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+          </div>
+        </div>
+        <div class="kpi-val">87.4%</div>
+        <div class="kpi-foot"><span class="trend up">▲ 3.1%</span> vs. last quarter</div>
+        <svg class="spark" width="100%" height="30" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#16a34a" stroke-width="2" points="0,18 25,16 50,17 75,12 100,13 125,9 150,10 175,6 200,5"/></svg>
+      </div>
+    </div>
+
+    <!-- Split content -->
+    <div class="content-grid">
+      <!-- Left: findings list -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Findings</h2>
+          <div class="ch-right">
+            <div class="tabs" id="tabs">
+              <button class="tab active" data-tab="all">All <span class="pill" id="cAll">12</span></button>
+              <button class="tab" data-tab="open">Open <span class="pill" id="cOpen">5</span></button>
+              <button class="tab" data-tab="review">In Review <span class="pill" id="cReview">3</span></button>
+              <button class="tab" data-tab="resolved">Resolved <span class="pill" id="cResolved">2</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="filterbar">
+          <button class="chip active" data-sev="all">All severity</button>
+          <button class="chip" data-sev="critical">Critical</button>
+          <button class="chip" data-sev="high">High</button>
+          <button class="chip" data-sev="medium">Medium</button>
+          <button class="chip" data-sev="low">Low</button>
+          <div class="filter-spacer"></div>
+          <div class="mini-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input id="listSearch" placeholder="Filter findings…" />
+          </div>
+        </div>
+        <div class="findings" id="findingsList"></div>
+        <div class="empty-state" id="emptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <div>No findings match your filters.</div>
+          <button class="btn" id="clearFilters">Clear filters</button>
+        </div>
+      </section>
+
+      <!-- Right: AI assistant panel + activity -->
+      <aside style="display:flex; flex-direction: column; gap: 16px;">
+        <div class="ai-panel">
+          <div class="ai-head">
+            <div class="ai-orb">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg>
+            </div>
+            <div>
+              <h2>Evidence Analyzer</h2>
+              <div class="ai-sub">Auto-extract &amp; score audit evidence</div>
+            </div>
+            <span class="live"><span class="pulse"></span>READY</span>
+          </div>
+
+          <div class="upload-zone" id="uploadZone">
+            <div class="uz-ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+            </div>
+            <div class="uz-title">Drop evidence to analyze</div>
+            <div class="uz-sub">PDF, XLSX, screenshots, log exports</div>
+            <div class="files">
+              <span class="file-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>access-review-Q3.pdf</span>
+              <span class="file-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>privileged-roles.xlsx</span>
+            </div>
+          </div>
+
+          <div class="ai-run">
+            <button class="btn ai" id="analyzeBtn" style="width:100%; justify-content:center;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg>
+              Analyze Evidence
+            </button>
+          </div>
+
+          <div class="ai-progress" id="aiProgress">
+            <div class="pr-row" data-step="0"><span class="tick"></span>Parsing 2 documents…</div>
+            <div class="pr-row" data-step="1"><span class="tick"></span>Extracting control attributes…</div>
+            <div class="pr-row" data-step="2"><span class="tick"></span>Cross-checking against policy…</div>
+            <div class="pr-row" data-step="3"><span class="tick"></span>Scoring &amp; drafting summary…</div>
+          </div>
+
+          <div class="ai-result" id="aiResult">
+            <div class="ai-verdict">
+              <div class="av-top">
+                <div>
+                  <div class="av-score" style="color: var(--amber)">62<span style="font-size:14px; color:var(--ink-3)">/100</span></div>
+                  <div class="av-label">Evidence Sufficiency</div>
+                </div>
+                <span class="av-badge sev high">Partial</span>
+              </div>
+              <div class="av-reason">Detected <b>3 privileged accounts</b> in <b>privileged-roles.xlsx</b> with no recertification entry in the access review. Approval signature present but <b>dated after</b> the review period. Recommend follow-up evidence before sign-off.</div>
+            </div>
+
+            <div class="extract-label">Extracted Fields</div>
+            <div class="ex-field"><span class="ex-k">Control ID</span><span class="ex-v">AC-2 · Account Mgmt</span><span class="conf-badge hi">99%</span></div>
+            <div class="ex-field"><span class="ex-k">Review Date</span><span class="ex-v">Aug 14, 2026</span><span class="conf-badge hi">96%</span></div>
+            <div class="ex-field"><span class="ex-k">Approver</span><span class="ex-v">L. Okafor (CISO)</span><span class="conf-badge mid">81%</span></div>
+            <div class="ex-field"><span class="ex-k">Exceptions</span><span class="ex-v">3 accounts flagged</span><span class="conf-badge lo">64%</span></div>
+
+            <div class="ai-actions">
+              <button class="btn" id="aiDismiss">Dismiss</button>
+              <button class="btn primary" id="aiAttach">Attach to Finding</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Activity</h2>
+            <div class="ch-sub">Live feed</div>
+          </div>
+          <div class="feed" id="activityFeed">
+            <div class="feed-item">
+              <div class="feed-ic ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg></div>
+              <div class="feed-body"><div class="ft"><span class="ai-name">Analyzer</span> auto-classified <b>34 evidence files</b> for control AC-2.</div><div class="fm">2 minutes ago</div></div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-ic flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg></div>
+              <div class="feed-body"><div class="ft"><span class="ai-name">Analyzer</span> flagged <b>F-1041</b> as a potential SoD conflict.</div><div class="fm">38 minutes ago</div></div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-ic user"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+              <div class="feed-body"><div class="ft"><b>D. Reyes</b> assigned remediation owner to <b>F-1037</b>.</div><div class="fm">1 hour ago</div></div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-ic ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+              <div class="feed-body"><div class="ft"><b>F-1029</b> remediation verified and <b>resolved</b>.</div><div class="fm">3 hours ago</div></div>
+            </div>
+            <div class="feed-item">
+              <div class="feed-ic ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg></div>
+              <div class="feed-body"><div class="ft"><span class="ai-name">Analyzer</span> drafted a remediation summary for <b>F-1033</b>.</div><div class="fm">Yesterday</div></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Bottom charts -->
+    <div class="bottom-grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>Findings by Control Domain</h2>
+          <div class="ch-sub">Current cycle</div>
+        </div>
+        <div class="bar-chart" id="barChart">
+          <div class="bc-row"><div class="bcl">Access Control</div><div class="bc-track"><i style="width:0; background:linear-gradient(90deg,#dc2626,#ef4444)" data-w="86"></i></div><div class="bc-val">12</div></div>
+          <div class="bc-row"><div class="bcl">Change Mgmt</div><div class="bc-track"><i style="width:0; background:linear-gradient(90deg,#d97706,#f59e0b)" data-w="64"></i></div><div class="bc-val">9</div></div>
+          <div class="bc-row"><div class="bcl">Data Protection</div><div class="bc-track"><i style="width:0; background:linear-gradient(90deg,#0284c7,#38bdf8)" data-w="50"></i></div><div class="bc-val">7</div></div>
+          <div class="bc-row"><div class="bcl">Vendor Risk</div><div class="bc-track"><i style="width:0; background:linear-gradient(90deg,#7c3aed,#a78bfa)" data-w="43"></i></div><div class="bc-val">6</div></div>
+          <div class="bc-row"><div class="bcl">Financial Close</div><div class="bc-track"><i style="width:0; background:linear-gradient(90deg,#0e9f8e,#2dd4bf)" data-w="36"></i></div><div class="bc-val">5</div></div>
+          <div class="bc-row"><div class="bcl">Physical Security</div><div class="bc-track"><i style="width:0; background:linear-gradient(90deg,#16a34a,#4ade80)" data-w="21"></i></div><div class="bc-val">3</div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Severity Mix</h2>
+          <div class="ch-sub">42 open findings</div>
+        </div>
+        <div class="donut-wrap">
+          <svg width="132" height="132" viewBox="0 0 42 42">
+            <circle cx="21" cy="21" r="15.915" fill="none" stroke="#eef2f6" stroke-width="6"/>
+            <circle cx="21" cy="21" r="15.915" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="21 79" stroke-dashoffset="25" stroke-linecap="round"/>
+            <circle cx="21" cy="21" r="15.915" fill="none" stroke="#d97706" stroke-width="6" stroke-dasharray="29 71" stroke-dashoffset="4" stroke-linecap="round"/>
+            <circle cx="21" cy="21" r="15.915" fill="none" stroke="#0284c7" stroke-width="6" stroke-dasharray="31 69" stroke-dashoffset="-25" stroke-linecap="round"/>
+            <circle cx="21" cy="21" r="15.915" fill="none" stroke="#16a34a" stroke-width="6" stroke-dasharray="19 81" stroke-dashoffset="-56" stroke-linecap="round"/>
+            <text x="21" y="20" text-anchor="middle" font-size="7" font-weight="700" fill="#1f2937">42</text>
+            <text x="21" y="26" text-anchor="middle" font-size="3" fill="#8492a6">findings</text>
+          </svg>
+          <div class="donut-legend">
+            <div class="dl-row"><span class="sw" style="background:#dc2626"></span><span class="dl-n">Critical</span><span class="dl-v">9</span></div>
+            <div class="dl-row"><span class="sw" style="background:#d97706"></span><span class="dl-n">High</span><span class="dl-v">12</span></div>
+            <div class="dl-row"><span class="sw" style="background:#0284c7"></span><span class="dl-n">Medium</span><span class="dl-v">13</span></div>
+            <div class="dl-row"><span class="sw" style="background:#16a34a"></span><span class="dl-n">Low</span><span class="dl-v">8</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer scroll-thin" id="drawer">
+  <div class="drawer-head">
+    <div class="dh-top">
+      <span class="dh-id" id="dId">F-1041</span>
+      <span class="sev critical" id="dSev">Critical</span>
+      <span class="status-pill open" id="dStatus"><span class="d"></span>Open</span>
+      <div class="dh-close">
+        <div class="icon-btn" id="drawerClose" style="width:32px;height:32px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </div>
+      </div>
+    </div>
+    <h2 id="dTitle">Segregation of duties conflict in payment approval</h2>
+  </div>
+  <div class="drawer-body scroll-thin" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn" id="reassignBtn">Reassign</button>
+    <button class="btn ai" id="draftBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg>
+      Draft Remediation
+    </button>
+    <button class="btn primary" id="resolveBtn">Mark Resolved</button>
+  </div>
+</aside>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="tic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></span>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+const FINDINGS = [
+  {
+    id:"F-1041", sev:"critical", status:"open", domain:"Access Control",
+    title:"Segregation of duties conflict in payment approval",
+    desc:"Same user can both create and approve outbound wire transfers above $50k.",
+    control:"AC-5 · Separation of Duties", owner:"Unassigned", source:"AI Detection",
+    due:"2026-07-02", risk:"High", aiConf:0.94, ref:"ERP-FIN-2207",
+    narrative:"During the Q3 access certification, the analyzer identified that user account <b>j.tanaka</b> holds both the 'AP Clerk' and 'Payment Approver' roles in the finance ERP. This permits a single individual to originate and authorize payments above the $50,000 threshold without a second approver, creating a material misappropriation risk in the disbursement cycle.",
+    aiSummary:"This finding maps to a textbook segregation-of-duties violation under control AC-5. Confidence 94% — the role pairing appears in 4 of 12 sampled transactions, two of which exceeded the dual-approval threshold. No compensating monitoring control was evidenced.",
+    recos:["Remove the 'Payment Approver' role from any account holding 'AP Clerk'.","Configure ERP workflow to enforce a mandatory second approver above $50k.","Backfill review of 14 prior high-value disbursements processed by this account."],
+    evidence:[{n:"role-matrix-export.xlsx", m:"Extracted 4 conflicting pairs · 412 KB", flag:"flagged"},{n:"wire-transfer-sample.pdf", m:"12 transactions sampled · 1.1 MB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> detected SoD conflict from role-matrix export.",m:"38 minutes ago"},{ai:false,t:"<b>System</b> created finding and assigned severity Critical.",m:"36 minutes ago"},{ai:false,t:"Awaiting remediation owner assignment.",m:"now"}]
+  },
+  {
+    id:"F-1040", sev:"high", status:"review", domain:"Change Mgmt",
+    title:"Production deployments missing change-approval records",
+    desc:"6 of 40 sampled releases pushed to prod without a linked CR ticket.",
+    control:"CM-3 · Change Control", owner:"D. Reyes", source:"Manual",
+    due:"2026-07-09", risk:"High", aiConf:0.88, ref:"DEVOPS-CR-118",
+    narrative:"Sampling of the deployment pipeline revealed 6 production releases between June 1–18 that were not traceable to an approved change request in the ITSM system. Two of these touched the customer billing service. The deployment logs show the commits but no corresponding change ticket or CAB sign-off.",
+    aiSummary:"The analyzer correlated 40 deployment events against the change ledger and found 6 orphaned releases (15%). Confidence 88%. Pattern suggests an emergency-change path that bypasses the standard approval gate is being used for routine work.",
+    recos:["Enforce CR ticket validation as a required pipeline gate before prod promotion.","Retroactively document the 6 unlinked changes with post-implementation review.","Audit the emergency-change path usage over the last 90 days."],
+    evidence:[{n:"deploy-log-jun.csv", m:"40 events parsed · 88 KB", flag:"flagged"},{n:"cab-minutes-jun.pdf", m:"Cross-referenced · 640 KB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> correlated deploy logs to change ledger.",m:"2 days ago"},{ai:false,t:"<b>D. Reyes</b> opened review and requested evidence.",m:"1 day ago"},{ai:false,t:"Evidence under review by control owner.",m:"4 hours ago"}]
+  },
+  {
+    id:"F-1039", sev:"high", status:"open", domain:"Data Protection",
+    title:"Customer PII exported to unencrypted shared drive",
+    desc:"Quarterly report containing 8,200 records stored without encryption at rest.",
+    control:"DP-7 · Data Encryption", owner:"M. Albright", source:"AI Detection",
+    due:"2026-06-30", risk:"High", aiConf:0.91, ref:"DLP-EVT-552",
+    narrative:"A DLP scan surfaced a quarterly analytics export containing 8,200 customer records (names, emails, partial card data) saved to a team shared drive without encryption at rest. The file was accessible to 23 users outside the data-handling group for 11 days before detection.",
+    aiSummary:"The analyzer classified the document as containing regulated PII with 91% confidence based on column headers and value patterns. The storage location is outside the approved encrypted enclave. Exposure window: 11 days, 23 over-permissioned readers.",
+    recos:["Move the export to the encrypted data enclave and purge the shared-drive copy.","Revoke shared-drive access for the 23 non-data-handling users.","Notify privacy office to assess breach-notification thresholds."],
+    evidence:[{n:"dlp-scan-result.json", m:"PII columns detected · 24 KB", flag:"flagged"},{n:"access-acl-snapshot.csv", m:"23 readers identified · 12 KB", flag:"flagged"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> classified export as regulated PII.",m:"5 hours ago"},{ai:false,t:"<b>M. Albright</b> assigned as remediation owner.",m:"3 hours ago"},{ai:false,t:"Privacy office notification pending.",m:"now"}]
+  },
+  {
+    id:"F-1038", sev:"medium", status:"progress", domain:"Vendor Risk",
+    title:"3 critical vendors missing current SOC 2 reports",
+    desc:"SOC 2 Type II reports expired for payment and hosting providers.",
+    control:"VR-2 · Third-Party Assurance", owner:"S. Kapoor", source:"Manual",
+    due:"2026-07-15", risk:"Medium", aiConf:0.79, ref:"TPRM-2026-Q3",
+    narrative:"The third-party risk register shows three vendors classified as critical (payment gateway, cloud hosting, and email delivery) whose SOC 2 Type II reports lapsed more than 90 days ago. No bridge letters or updated reports have been received, leaving an assurance gap for outsourced controls.",
+    aiSummary:"The analyzer matched vendor records to the assurance-document vault and found 3 critical vendors with expired SOC 2 coverage (oldest lapsed 142 days). Confidence 79% — two vendors may have newer reports filed under alternate entity names.",
+    recos:["Request current SOC 2 Type II or bridge letters from the three vendors.","Update the risk register and re-rate residual risk pending evidence.","Add an automated 30-day expiry alert for critical-vendor assurance docs."],
+    evidence:[{n:"vendor-register.xlsx", m:"3 expired entries · 220 KB", flag:"flagged"},{n:"soc2-vault-index.pdf", m:"Cross-checked · 1.4 MB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> matched vendors to expired assurance docs.",m:"4 days ago"},{ai:false,t:"<b>S. Kapoor</b> requested updated reports from vendors.",m:"2 days ago"},{ai:false,t:"Awaiting vendor response.",m:"1 day ago"}]
+  },
+  {
+    id:"F-1037", sev:"critical", status:"open", domain:"Access Control",
+    title:"12 dormant privileged accounts not deactivated",
+    desc:"Admin accounts inactive 90+ days still hold full system privileges.",
+    control:"AC-2 · Account Management", owner:"D. Reyes", source:"AI Detection",
+    due:"2026-06-28", risk:"High", aiConf:0.96, ref:"IAM-DORM-31",
+    narrative:"The analyzer cross-referenced the identity directory against authentication logs and identified 12 privileged (admin-tier) accounts with no successful login in over 90 days that remain active. Four belong to former employees whose HR termination dates predate the review by several months.",
+    aiSummary:"High-confidence finding (96%). The dormant-privileged pattern is unambiguous — zero auth events in 90+ days while retaining elevated entitlements. Four accounts correlate to terminated personnel, elevating this from hygiene to an active access-revocation gap.",
+    recos:["Immediately disable the 4 accounts tied to terminated employees.","Review and deprovision the remaining 8 dormant privileged accounts.","Implement automated 60-day dormancy disablement for privileged tiers."],
+    evidence:[{n:"idp-account-dump.csv", m:"12 dormant admins · 156 KB", flag:"flagged"},{n:"auth-log-90d.json", m:"0 events confirmed · 3.2 MB", flag:"flagged"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> cross-referenced directory with auth logs.",m:"6 hours ago"},{ai:false,t:"<b>D. Reyes</b> assigned as remediation owner.",m:"1 hour ago"},{ai:false,t:"Emergency disablement pending approval.",m:"now"}]
+  },
+  {
+    id:"F-1036", sev:"medium", status:"review", domain:"Financial Close",
+    title:"Manual journal entries lack secondary review",
+    desc:"18% of month-end manual JEs posted without independent approval.",
+    control:"FC-4 · Journal Entry Review", owner:"L. Okafor", source:"AI Detection",
+    due:"2026-07-11", risk:"Medium", aiConf:0.83, ref:"GL-JE-0925",
+    narrative:"Analysis of the May and June close cycles found that 18% of manual journal entries were posted without the required secondary reviewer sign-off. The largest unreviewed entry was a $340k reclassification. The GL workflow allows posting before review when the preparer has elevated GL rights.",
+    aiSummary:"The analyzer sampled 220 manual journal entries and flagged 40 without a distinct reviewer (18%). Confidence 83%. The control design gap is that preparers with elevated GL rights can self-post, bypassing the review gate for material entries.",
+    recos:["Disable self-posting for preparers with elevated GL rights.","Require secondary review for all manual JEs above a $50k materiality line.","Re-review the 40 unreviewed entries from the May–June close."],
+    evidence:[{n:"je-export-may-jun.xlsx", m:"220 entries analyzed · 780 KB", flag:"flagged"},{n:"gl-workflow-config.pdf", m:"Reviewed · 410 KB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> sampled manual JEs and flagged 40.",m:"3 days ago"},{ai:false,t:"<b>L. Okafor</b> opened review of control design.",m:"2 days ago"},{ai:false,t:"Config evidence under review.",m:"6 hours ago"}]
+  },
+  {
+    id:"F-1035", sev:"high", status:"progress", domain:"Change Mgmt",
+    title:"Database schema changes deployed outside maintenance window",
+    desc:"4 schema migrations applied during business hours without rollback plan.",
+    control:"CM-6 · Configuration Settings", owner:"A. Novak", source:"Manual",
+    due:"2026-07-18", risk:"High", aiConf:0.74, ref:"DBA-MIG-44",
+    narrative:"Four production database schema migrations were applied during business hours, contrary to the approved maintenance-window policy. None had a documented rollback plan attached to the change record. One migration caused a 22-minute partial outage of the reporting service.",
+    aiSummary:"The analyzer parsed migration timestamps against the published maintenance windows and found 4 out-of-window deployments (74% confidence — two timestamps were ambiguous across timezones). Rollback documentation was absent in all four change records.",
+    recos:["Restrict schema-migration tooling to maintenance windows via pipeline policy.","Require an attached, tested rollback script before migration approval.","Add post-deploy verification gating for the reporting service."],
+    evidence:[{n:"migration-history.log", m:"4 out-of-window events · 96 KB", flag:"flagged"},{n:"maintenance-calendar.ics", m:"Windows confirmed · 18 KB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> parsed migration timestamps vs. windows.",m:"5 days ago"},{ai:false,t:"<b>A. Novak</b> began remediation planning.",m:"3 days ago"},{ai:false,t:"Pipeline policy change in progress.",m:"1 day ago"}]
+  },
+  {
+    id:"F-1034", sev:"low", status:"open", domain:"Physical Security",
+    title:"Badge access logs retained below policy minimum",
+    desc:"Door-access logs purged at 30 days vs. required 12-month retention.",
+    control:"PS-3 · Physical Access Logging", owner:"Unassigned", source:"Manual",
+    due:"2026-07-25", risk:"Low", aiConf:0.71, ref:"FAC-LOG-09",
+    narrative:"The badge-access system at the primary data center is configured to purge logs after 30 days, well below the 12-month retention required by policy. This limits the ability to investigate physical-access incidents retrospectively, though no incident is currently implicated.",
+    aiSummary:"Low-severity configuration gap. The analyzer read the retention setting (30 days) and compared it to the policy minimum (365 days), confidence 71%. No active incident depends on the missing history, so risk is procedural rather than material.",
+    recos:["Reconfigure badge-system retention to 12 months minimum.","Export and archive existing logs before the next purge cycle.","Add retention settings to the quarterly physical-security config review."],
+    evidence:[{n:"badge-config.txt", m:"30-day retention confirmed · 4 KB", flag:"flagged"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> read retention config vs. policy.",m:"1 week ago"},{ai:false,t:"<b>System</b> created low-severity finding.",m:"1 week ago"},{ai:false,t:"Awaiting owner assignment.",m:"now"}]
+  },
+  {
+    id:"F-1033", sev:"medium", status:"resolved", domain:"Data Protection",
+    title:"Backup restoration not tested in current quarter",
+    desc:"DR backups for core ledger never restore-tested in Q3 — now remediated.",
+    control:"DP-9 · Backup & Recovery", owner:"M. Albright", source:"Manual",
+    due:"2026-06-20", risk:"Medium", aiConf:0.86, ref:"DR-TEST-Q3",
+    narrative:"The core ledger backup set had not undergone a documented restoration test during Q3, despite the policy requiring quarterly proof of recoverability. A full restore test was completed on June 19 with a verified RTO of 47 minutes, closing the gap.",
+    aiSummary:"The analyzer confirmed the restoration test evidence (logs, checksums, sign-off) and validated the recovery point against the ledger snapshot. Confidence 86%. The finding is satisfied — recoverability is now demonstrated for the current quarter.",
+    recos:["Maintain the quarterly restore-test cadence going forward.","Automate restore-test scheduling and evidence capture.","Track RTO/RPO trend across quarters in the resilience dashboard."],
+    evidence:[{n:"restore-test-log.pdf", m:"RTO 47 min verified · 520 KB", flag:"ok"},{n:"checksum-report.txt", m:"Integrity confirmed · 8 KB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> validated restore-test evidence.",m:"4 days ago"},{ai:false,t:"<b>M. Albright</b> completed restoration test.",m:"4 days ago"},{ai:false,t:"<b>Finding resolved</b> — recoverability demonstrated.",m:"3 days ago"}]
+  },
+  {
+    id:"F-1032", sev:"high", status:"open", domain:"Access Control",
+    title:"Multi-factor authentication not enforced for VPN",
+    desc:"Remote access gateway permits password-only login for 41 users.",
+    control:"AC-7 · Authentication", owner:"Unassigned", source:"AI Detection",
+    due:"2026-07-05", risk:"High", aiConf:0.92, ref:"VPN-MFA-17",
+    narrative:"The remote-access VPN gateway policy exempts 41 users from multi-factor authentication, allowing password-only remote login. The exemption group was originally intended for service accounts but has drifted to include 9 standard interactive user accounts.",
+    aiSummary:"The analyzer parsed the gateway policy and identified 41 MFA-exempt principals, of which 9 are interactive human accounts (92% confidence). Password-only remote access for human users is a direct authentication-control weakness exploitable via credential stuffing.",
+    recos:["Remove the 9 interactive accounts from the MFA exemption group.","Migrate remaining service accounts to certificate-based authentication.","Alert on any future additions to the MFA-exempt policy group."],
+    evidence:[{n:"vpn-policy-export.xml", m:"41 exemptions parsed · 64 KB", flag:"flagged"},{n:"identity-type-map.csv", m:"9 human accounts flagged · 22 KB", flag:"flagged"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> parsed VPN policy for MFA exemptions.",m:"8 hours ago"},{ai:false,t:"<b>System</b> created finding, severity High.",m:"7 hours ago"},{ai:false,t:"Awaiting owner assignment.",m:"now"}]
+  },
+  {
+    id:"F-1031", sev:"low", status:"review", domain:"Vendor Risk",
+    title:"Vendor contract clauses missing right-to-audit",
+    desc:"5 of 30 reviewed vendor contracts lack a right-to-audit provision.",
+    control:"VR-5 · Contract Provisions", owner:"S. Kapoor", source:"AI Detection",
+    due:"2026-08-01", risk:"Low", aiConf:0.77, ref:"LEGAL-RTA-12",
+    narrative:"A contract-clause review across 30 active vendor agreements found that 5 omit an explicit right-to-audit provision. None of the five are critical-tier vendors, but the absence limits the organization's ability to validate outsourced control claims if a future incident warrants it.",
+    aiSummary:"The analyzer performed clause extraction across 30 contracts and flagged 5 lacking right-to-audit language (77% confidence — two used non-standard phrasing that may constitute an equivalent provision). All five are low-criticality vendors.",
+    recos:["Add right-to-audit clauses at the next renewal for the 5 vendors.","Confirm whether the 2 non-standard clauses satisfy the requirement.","Adopt a standard right-to-audit template in the contract playbook."],
+    evidence:[{n:"contract-clause-scan.json", m:"30 contracts analyzed · 340 KB", flag:"flagged"},{n:"vendor-tier-map.xlsx", m:"Criticality confirmed · 90 KB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> extracted clauses across 30 contracts.",m:"2 days ago"},{ai:false,t:"<b>S. Kapoor</b> opened review of flagged contracts.",m:"1 day ago"},{ai:false,t:"Legal validating non-standard clauses.",m:"5 hours ago"}]
+  },
+  {
+    id:"F-1029", sev:"medium", status:"resolved", domain:"Financial Close",
+    title:"Bank reconciliation variances exceeded threshold",
+    desc:"Two accounts showed unexplained variances >$10k — now reconciled.",
+    control:"FC-2 · Account Reconciliation", owner:"L. Okafor", source:"Manual",
+    due:"2026-06-15", risk:"Medium", aiConf:0.81, ref:"REC-VAR-08",
+    narrative:"Month-end reconciliation of two operating bank accounts showed unexplained variances of $12,400 and $11,900 that remained open past the close deadline. Both were subsequently traced to timing differences on in-transit deposits and fully reconciled with supporting documentation.",
+    aiSummary:"The analyzer matched the reconciling items to subsequent-month bank activity and confirmed both variances cleared as legitimate in-transit timing differences. Confidence 81%. The finding is resolved with documented root cause and no loss.",
+    recos:["Maintain the reconciliation-variance threshold monitoring.","Automate in-transit deposit matching to reduce false variances.","Track aged reconciling items on the close dashboard."],
+    evidence:[{n:"bank-rec-jun.xlsx", m:"2 variances cleared · 280 KB", flag:"ok"},{n:"deposit-trace.pdf", m:"In-transit confirmed · 160 KB", flag:"ok"}],
+    timeline:[{ai:true,t:"<b>Analyzer</b> matched variances to next-month activity.",m:"6 days ago"},{ai:false,t:"<b>L. Okafor</b> documented root cause.",m:"5 days ago"},{ai:false,t:"<b>Finding resolved</b> — variances reconciled.",m:"3 hours ago"}]
+  }
+];
+
+const SEV_LABEL = {critical:"Critical", high:"High", medium:"Medium", low:"Low"};
+const STATUS_LABEL = {open:"Open", review:"In Review", progress:"In Progress", resolved:"Resolved"};
+const STATUS_CLASS = {open:"open", review:"review", progress:"progress", resolved:"resolved"};
+
+let state = { tab:"all", sev:"all", q:"" };
+
+function confColor(c){ return c>=0.9?"#16a34a": c>=0.78?"#d97706":"#dc2626"; }
+
+function matchesTab(f){
+  if(state.tab==="all") return true;
+  if(state.tab==="open") return f.status==="open";
+  if(state.tab==="review") return f.status==="review" || f.status==="progress";
+  if(state.tab==="resolved") return f.status==="resolved";
+  return true;
+}
+function render(){
+  const list = document.getElementById("findingsList");
+  const q = state.q.toLowerCase();
+  const items = FINDINGS.filter(f =>
+    matchesTab(f) &&
+    (state.sev==="all" || f.sev===state.sev) &&
+    (q==="" || (f.title+f.id+f.domain+f.control+f.owner).toLowerCase().includes(q))
+  );
+  list.innerHTML = items.map(f => `
+    <div class="finding" data-id="${f.id}">
+      <div class="sev-bar" style="background:${sevBarColor(f.sev)}"></div>
+      <div class="f-body">
+        <div class="f-top">
+          <span class="f-id">${f.id}</span>
+          <span class="sev ${f.sev}">${SEV_LABEL[f.sev]}</span>
+          <span class="f-title">${f.title}</span>
+        </div>
+        <div class="f-desc">${f.desc}</div>
+        <div class="f-tags">
+          <span class="tag"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/></svg>${f.control}</span>
+          <span class="tag">${f.domain}</span>
+          ${f.source==="AI Detection" ? `<span class="tag ai"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg>AI-detected</span>` : ``}
+        </div>
+      </div>
+      <div class="f-meta-col">
+        <span class="status-pill ${STATUS_CLASS[f.status]}"><span class="d"></span>${STATUS_LABEL[f.status]}</span>
+        <div class="conf" title="AI confidence">
+          <div class="bar"><i style="width:${Math.round(f.aiConf*100)}%; background:${confColor(f.aiConf)}"></i></div>
+          ${Math.round(f.aiConf*100)}%
+        </div>
+        <span class="f-id">Due ${fmtDate(f.due)}</span>
+      </div>
+    </div>
+  `).join("");
+
+  document.getElementById("emptyState").classList.toggle("show", items.length===0);
+
+  // wire clicks
+  list.querySelectorAll(".finding").forEach(el => {
+    el.addEventListener("click", () => openDrawer(el.dataset.id, el));
+  });
+  updateTabCounts();
+}
+
+function sevBarColor(s){ return s==="critical"?"#dc2626": s==="high"?"#d97706": s==="medium"?"#0284c7":"#16a34a"; }
+function fmtDate(d){ const dt=new Date(d+"T00:00:00"); return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"}); }
+
+function updateTabCounts(){
+  document.getElementById("cAll").textContent = FINDINGS.length;
+  document.getElementById("cOpen").textContent = FINDINGS.filter(f=>f.status==="open").length;
+  document.getElementById("cReview").textContent = FINDINGS.filter(f=>f.status==="review"||f.status==="progress").length;
+  document.getElementById("cResolved").textContent = FINDINGS.filter(f=>f.status==="resolved").length;
+}
+
+/* ------ Drawer ------ */
+function openDrawer(id, srcEl){
+  const f = FINDINGS.find(x=>x.id===id);
+  if(!f) return;
+  document.querySelectorAll(".finding").forEach(e=>e.classList.remove("selected"));
+  if(srcEl) srcEl.classList.add("selected");
+
+  document.getElementById("dId").textContent = f.id + " · " + f.ref;
+  const sevEl = document.getElementById("dSev");
+  sevEl.textContent = SEV_LABEL[f.sev]; sevEl.className = "sev "+f.sev;
+  const stEl = document.getElementById("dStatus");
+  stEl.className = "status-pill "+STATUS_CLASS[f.status];
+  stEl.innerHTML = `<span class="d"></span>${STATUS_LABEL[f.status]}`;
+  document.getElementById("dTitle").textContent = f.title;
+
+  document.getElementById("drawerBody").innerHTML = `
+    <div class="dsec">
+      <div class="meta-grid">
+        <div class="meta-cell"><div class="mk">Control</div><div class="mv">${f.control}</div></div>
+        <div class="meta-cell"><div class="mk">Domain</div><div class="mv">${f.domain}</div></div>
+        <div class="meta-cell"><div class="mk">Remediation Owner</div><div class="mv">${ownerBadge(f.owner)}</div></div>
+        <div class="meta-cell"><div class="mk">Target Date</div><div class="mv">${new Date(f.due+"T00:00:00").toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div></div>
+        <div class="meta-cell"><div class="mk">Inherent Risk</div><div class="mv">${riskBadge(f.risk)}</div></div>
+        <div class="meta-cell"><div class="mk">Detected By</div><div class="mv">${f.source==="AI Detection"?'<span style="color:var(--teal)">Evidence Analyzer</span>':'Manual testing'}</div></div>
+      </div>
+    </div>
+
+    <div class="dsec">
+      <div class="dsec-title">Description</div>
+      <div class="dnarr">${f.narrative}</div>
+    </div>
+
+    <div class="dsec">
+      <div class="dsec-title">AI Assessment <span class="ai-tag">${Math.round(f.aiConf*100)}% CONFIDENCE</span></div>
+      <div class="ai-box">
+        <div class="abh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg>Analyzer reasoning</div>
+        <p>${f.aiSummary}</p>
+        <ul class="reco-list">
+          ${f.recos.map((r,i)=>`<li><span class="rn">${i+1}</span><span>${r}</span></li>`).join("")}
+        </ul>
+      </div>
+    </div>
+
+    <div class="dsec">
+      <div class="dsec-title">Linked Evidence <span class="ai-tag">AUTO-CLASSIFIED</span></div>
+      ${f.evidence.map(e=>`
+        <div class="evi">
+          <div class="evi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+          <div style="min-width:0">
+            <div class="evi-name">${e.n}</div>
+            <div class="evi-meta">${e.m}</div>
+          </div>
+          <span class="evi-flag ${e.flag==="flagged"?"sev high":"status-pill resolved"}">${e.flag==="flagged"?"⚑ Flagged":'<span class="d"></span>Clean'}</span>
+        </div>
+      `).join("")}
+    </div>
+
+    <div class="dsec">
+      <div class="dsec-title">Activity Timeline</div>
+      <div class="timeline2">
+        ${f.timeline.map(t=>`
+          <div class="tl2 ${t.ai?"ai":""}">
+            <span class="tdot"></span>
+            <div><div class="tl-t">${t.t}</div><div class="tl-m">${t.m}</div></div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+  document.getElementById("drawer").classList.add("show");
+  document.getElementById("scrim").classList.add("show");
+}
+function ownerBadge(o){
+  if(o==="Unassigned") return '<span style="color:var(--amber)">⚠ Unassigned</span>';
+  const init = o.replace(/[^A-Z]/g,"").slice(0,2);
+  return `<span style="display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(2,132,199,.16);color:#0369a1;font-size:9px;font-weight:800">${init}</span>${o}`;
+}
+function riskBadge(r){
+  const c = r==="High"?"var(--red)": r==="Medium"?"var(--amber)":"var(--green)";
+  return `<span style="color:${c}">● ${r}</span>`;
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("show");
+  document.getElementById("scrim").classList.remove("show");
+  document.querySelectorAll(".finding").forEach(e=>e.classList.remove("selected"));
+}
+
+/* ------ Events ------ */
+document.getElementById("tabs").addEventListener("click", e=>{
+  const t = e.target.closest(".tab"); if(!t) return;
+  document.querySelectorAll("#tabs .tab").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active"); state.tab = t.dataset.tab; render();
+});
+document.querySelectorAll(".chip[data-sev]").forEach(c=>{
+  c.addEventListener("click", ()=>{
+    document.querySelectorAll(".chip[data-sev]").forEach(x=>x.classList.remove("active"));
+    c.classList.add("active"); state.sev = c.dataset.sev; render();
+  });
+});
+document.getElementById("listSearch").addEventListener("input", e=>{ state.q = e.target.value; render(); });
+document.getElementById("globalSearch").addEventListener("input", e=>{
+  state.q = e.target.value; document.getElementById("listSearch").value = e.target.value; render();
+});
+document.getElementById("clearFilters").addEventListener("click", ()=>{
+  state = {tab:"all", sev:"all", q:""};
+  document.querySelectorAll("#tabs .tab").forEach((x,i)=>x.classList.toggle("active", i===0));
+  document.querySelectorAll(".chip[data-sev]").forEach((x,i)=>x.classList.toggle("active", i===0));
+  document.getElementById("listSearch").value=""; document.getElementById("globalSearch").value="";
+  render();
+});
+document.getElementById("drawerClose").addEventListener("click", closeDrawer);
+document.getElementById("scrim").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+/* ------ AI analyze flow ------ */
+const analyzeBtn = document.getElementById("analyzeBtn");
+const aiProgress = document.getElementById("aiProgress");
+const aiResult = document.getElementById("aiResult");
+let analyzing = false;
+analyzeBtn.addEventListener("click", ()=>{
+  if(analyzing) return;
+  analyzing = true;
+  aiResult.classList.remove("show");
+  aiProgress.classList.add("show");
+  aiProgress.querySelectorAll(".pr-row").forEach(r=>r.classList.remove("done"));
+  analyzeBtn.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg> Analyzing…`;
+  analyzeBtn.style.opacity = ".85";
+  const rows = [...aiProgress.querySelectorAll(".pr-row")];
+  let i = 0;
+  const tick = ()=>{
+    if(i<rows.length){ rows[i].classList.add("done"); i++; setTimeout(tick, 620); }
+    else {
+      aiProgress.classList.remove("show");
+      aiResult.classList.add("show");
+      analyzeBtn.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/></svg> Re-analyze`;
+      analyzeBtn.style.opacity = "1";
+      analyzing = false;
+      pushActivity("ai", `<span class="ai-name">Analyzer</span> scored new evidence: <b>62/100</b> sufficiency, 3 exceptions flagged.`);
+    }
+  };
+  setTimeout(tick, 500);
+});
+document.getElementById("uploadZone").addEventListener("click", ()=> analyzeBtn.click());
+document.getElementById("aiDismiss").addEventListener("click", ()=>{ aiResult.classList.remove("show"); });
+document.getElementById("aiAttach").addEventListener("click", ()=>{
+  toast("Evidence attached to F-1037 — analyzer summary added.");
+  pushActivity("user", `<b>M. Albright</b> attached AI-scored evidence to <b>F-1037</b>.`);
+});
+
+/* ------ Drawer footer actions ------ */
+document.getElementById("resolveBtn").addEventListener("click", ()=>{
+  const id = document.getElementById("dId").textContent.split(" · ")[0];
+  const f = FINDINGS.find(x=>x.id===id);
+  if(f){ f.status="resolved"; toast(`${id} marked resolved.`); render(); closeDrawer();
+    pushActivity("ok", `<b>${id}</b> remediation verified and <b>resolved</b>.`); }
+});
+document.getElementById("draftBtn").addEventListener("click", ()=>{
+  const id = document.getElementById("dId").textContent.split(" · ")[0];
+  toast(`Analyzer drafting remediation plan for ${id}…`);
+  pushActivity("ai", `<span class="ai-name">Analyzer</span> drafted a remediation plan for <b>${id}</b>.`);
+});
+document.getElementById("reassignBtn").addEventListener("click", ()=> toast("Reassignment panel opened."));
+document.getElementById("newFindingBtn").addEventListener("click", ()=> toast("New finding composer opened."));
+document.getElementById("exportBtn").addEventListener("click", ()=> toast("Exporting findings register to XLSX…"));
+
+/* ------ Activity + toast ------ */
+function pushActivity(type, html){
+  const feed = document.getElementById("activityFeed");
+  const icons = {
+    ai:'<path d="M12 2L9.2 8.6 2 9.3l5.4 4.7L5.7 21 12 17l6.3 4-1.7-7 5.4-4.7-7.2-.7z"/>',
+    user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    ok:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',
+    flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>'
+  };
+  const item = document.createElement("div");
+  item.className = "feed-item";
+  item.style.opacity = "0";
+  item.innerHTML = `
+    <div class="feed-ic ${type}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icons[type]}</svg></div>
+    <div class="feed-body"><div class="ft">${html}</div><div class="fm">just now</div></div>`;
+  feed.insertBefore(item, feed.firstChild);
+  requestAnimationFrame(()=>{ item.style.transition="opacity .35s"; item.style.opacity="1"; });
+  while(feed.children.length > 7) feed.removeChild(feed.lastChild);
+}
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById("toast");
+  document.getElementById("toastMsg").textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove("show"), 2600);
+}
+
+/* ------ Bar chart animate ------ */
+function animateBars(){
+  document.querySelectorAll("#barChart .bc-track i").forEach((bar,i)=>{
+    setTimeout(()=>{ bar.style.width = bar.dataset.w+"%"; }, 120 + i*90);
+  });
+}
+
+/* spin keyframe */
+const styleEl = document.createElement("style");
+styleEl.textContent = "@keyframes spin{to{transform:rotate(360deg)}}";
+document.head.appendChild(styleEl);
+
+render();
+animateBars();
+</script>
+</body>
+</html>

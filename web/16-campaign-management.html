@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campaign Management — Marketing Command Center</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Ant Design neutrals */
+    --bg-base:       #f5f5f5;
+    --bg-surface:    #ffffff;
+    --bg-surface2:   #fafafa;
+    --border:        #e8e8e8;
+    --border-light:  #f0f0f0;
+    --text-primary:  #262626;
+    --text-secondary:#595959;
+    --text-tertiary: #8c8c8c;
+    --text-disabled: #bfbfbf;
+
+    /* Primary — vibrant magenta-adjacent marketing tone */
+    --primary:       #eb2f96;
+    --primary-light: #ffd6e7;
+    --primary-bg:    #fff0f6;
+    --primary-dark:  #c41d7f;
+
+    /* Channel palette */
+    --ch-email:      #1677ff;
+    --ch-social:     #722ed1;
+    --ch-search:     #13c2c2;
+    --ch-ads:        #fa8c16;
+    --ch-events:     #52c41a;
+    --ch-content:    #eb2f96;
+
+    /* Status */
+    --st-active:     #52c41a;
+    --st-planned:    #1677ff;
+    --st-paused:     #fa8c16;
+    --st-complete:   #8c8c8c;
+    --st-draft:      #d9d9d9;
+
+    --radius:        8px;
+    --radius-sm:     4px;
+    --shadow-sm:     0 1px 4px rgba(0,0,0,.08);
+    --shadow-md:     0 2px 12px rgba(0,0,0,.1);
+
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--primary);
+    letter-spacing: -.3px;
+  }
+  .topbar-logo svg { width: 22px; height: 22px; }
+  .topbar-divider { width: 1px; height: 24px; background: var(--border); }
+  .topbar-title { color: var(--text-primary); font-weight: 600; font-size: 14px; }
+  .topbar-spacer { flex: 1; }
+  .quarter-tabs { display: flex; gap: 2px; background: var(--bg-base); border-radius: 6px; padding: 2px; }
+  .quarter-tab {
+    padding: 4px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all .15s;
+    border: none;
+    background: none;
+  }
+  .quarter-tab.active { background: var(--bg-surface); color: var(--primary); box-shadow: var(--shadow-sm); }
+  .topbar-btn {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+    transition: background .15s;
+  }
+  .topbar-btn:hover { background: var(--primary-dark); }
+
+  /* ── Layout ── */
+  .layout {
+    display: grid;
+    grid-template-rows: auto auto auto;
+    gap: 16px;
+    padding: 16px 24px 24px;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  /* ── Section heading ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+  }
+  .section-line { flex: 1; height: 1px; background: var(--border-light); }
+  .section-action {
+    font-size: 12px;
+    color: var(--primary);
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  /* ════════════════════════════════
+     SECTION 1 — GANTT TIMELINE
+  ════════════════════════════════ */
+  .gantt-card {
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .gantt-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-surface2);
+  }
+  .gantt-toolbar-title { font-weight: 600; font-size: 13px; }
+  .gantt-toolbar-spacer { flex: 1; }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .pill-all    { background: #f5f5f5; color: var(--text-secondary); }
+  .pill-active { background: #f6ffed; color: #389e0d; }  .pill-active .dot { background: #52c41a; }
+  .pill-planned{ background: #e6f4ff; color: #0958d9; }  .pill-planned .dot { background: #1677ff; }
+  .pill-paused { background: #fff7e6; color: #d46b08; }  .pill-paused .dot { background: #fa8c16; }
+  .pill-complete{ background: #f5f5f5; color: #595959; } .pill-complete .dot { background: #8c8c8c; }
+
+  .gantt-body {
+    display: flex;
+    overflow-x: auto;
+  }
+  /* Left label column */
+  .gantt-labels {
+    min-width: 220px;
+    max-width: 220px;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .gantt-header-cell {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-surface2);
+  }
+  .gantt-row {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border-light);
+    gap: 10px;
+  }
+  .gantt-row:last-child { border-bottom: none; }
+  .gantt-row:hover { background: var(--bg-surface2); }
+
+  .channel-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .campaign-name { font-weight: 600; font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+  .campaign-channel-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* Chart area */
+  .gantt-chart-scroll { flex: 1; overflow-x: auto; }
+  .gantt-chart { min-width: 700px; }
+
+  .gantt-months {
+    display: grid;
+    height: 36px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-surface2);
+  }
+  .gantt-month {
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    border-right: 1px solid var(--border-light);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+
+  .gantt-bar-row {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    border-bottom: 1px solid var(--border-light);
+    position: relative;
+    padding: 0 8px;
+  }
+  .gantt-bar-row:last-child { border-bottom: none; }
+  .gantt-bar-row:hover { background: rgba(235, 47, 150, .03); }
+
+  /* Vertical grid lines */
+  .gantt-bar-row::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent calc(100% / 6 - 1px),
+      var(--border-light) calc(100% / 6 - 1px),
+      var(--border-light) calc(100% / 6)
+    );
+    pointer-events: none;
+  }
+
+  .gantt-bar {
+    position: absolute;
+    height: 22px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    padding: 0 9px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: filter .15s, transform .1s;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+    z-index: 1;
+  }
+  .gantt-bar:hover { filter: brightness(1.1); transform: scaleY(1.06); }
+
+  /* Today line */
+  .gantt-today-line {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: var(--primary);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .gantt-today-line::before {
+    content: 'Today';
+    position: absolute;
+    top: -17px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--primary);
+    white-space: nowrap;
+  }
+
+  /* ════════════════════════════════
+     SECTION 2 — KPI + FUNNEL
+  ════════════════════════════════ */
+  .mid-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1.3fr;
+    gap: 12px;
+  }
+
+  .kpi-card {
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--accent, var(--primary));
+  }
+  .kpi-icon {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--icon-bg, var(--primary-bg));
+    margin-bottom: 2px;
+  }
+  .kpi-icon svg { width: 16px; height: 16px; }
+  .kpi-label { font-size: 11px; color: var(--text-tertiary); font-weight: 500; letter-spacing: .2px; }
+  .kpi-value { font-size: 24px; font-weight: 700; letter-spacing: -.5px; color: var(--text-primary); line-height: 1; }
+  .kpi-sub { font-size: 11px; color: var(--text-tertiary); display: flex; align-items: center; gap: 4px; }
+  .kpi-badge-up   { color: #389e0d; font-weight: 600; }
+  .kpi-badge-down { color: #cf1322; font-weight: 600; }
+
+  /* Spend mini bar */
+  .spend-bar-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .spend-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--primary);
+    transition: width .4s ease;
+  }
+
+  /* Funnel card */
+  .funnel-card {
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .funnel-title { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
+  .funnel-stages { display: flex; flex-direction: column; gap: 6px; }
+  .funnel-stage { display: flex; align-items: center; gap: 10px; }
+  .funnel-bar-wrap { flex: 1; position: relative; height: 22px; }
+  .funnel-bar-bg {
+    position: absolute;
+    inset: 0;
+    background: var(--border-light);
+    border-radius: 4px;
+  }
+  .funnel-bar-fill {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    transition: width .4s ease;
+  }
+  .funnel-stage-name { font-size: 11px; color: var(--text-secondary); width: 52px; flex-shrink: 0; font-weight: 500; }
+  .funnel-stage-val  { font-size: 11px; font-weight: 700; color: var(--text-primary); width: 46px; text-align: right; flex-shrink: 0; }
+  .funnel-stage-cr   { font-size: 10px; color: var(--text-tertiary); width: 34px; text-align: right; flex-shrink: 0; }
+
+  .funnel-chevrons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+  .funnel-chevron { font-size: 9px; color: var(--text-disabled); margin: -2px 0; }
+
+
+  /* ════════════════════════════════
+     SECTION 3 — CHANNEL BREAKDOWN
+  ════════════════════════════════ */
+  .channels-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 12px;
+  }
+
+  /* Donut */
+  .donut-card {
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .donut-title { font-size: 12px; font-weight: 600; color: var(--text-primary); align-self: flex-start; }
+  .donut-wrap { position: relative; width: 110px; height: 110px; flex-shrink: 0; }
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .donut-center-val { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+  .donut-center-label { font-size: 10px; color: var(--text-tertiary); }
+  .donut-legend { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+  .donut-legend-item { display: flex; align-items: center; gap: 7px; }
+  .donut-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .donut-legend-name { flex: 1; font-size: 11px; color: var(--text-secondary); }
+  .donut-legend-pct  { font-size: 11px; font-weight: 700; color: var(--text-primary); }
+
+  /* Channel perf table */
+  .ch-perf-card {
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .ch-perf-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-surface2);
+    gap: 12px;
+  }
+  .ch-perf-header-title { font-size: 13px; font-weight: 600; flex: 1; }
+  .ch-sort-btn {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: none;
+    transition: all .15s;
+  }
+  .ch-sort-btn.active { color: var(--primary); border-color: var(--primary-light); background: var(--primary-bg); }
+
+  .ch-table { width: 100%; border-collapse: collapse; }
+  .ch-table th {
+    padding: 8px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-surface2);
+    white-space: nowrap;
+  }
+  .ch-table th.right, .ch-table td.right { text-align: right; }
+  .ch-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 12px;
+    vertical-align: middle;
+  }
+  .ch-table tr:last-child td { border-bottom: none; }
+  .ch-table tr:hover td { background: var(--bg-surface2); }
+
+  .ch-name-cell { display: flex; align-items: center; gap: 9px; }
+  .ch-icon {
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .ch-name-text { font-weight: 600; }
+  .ch-name-sub  { font-size: 10px; color: var(--text-tertiary); }
+
+  /* Sparkline row bars */
+  .perf-bar-track {
+    height: 6px;
+    background: var(--border-light);
+    border-radius: 3px;
+    overflow: hidden;
+    width: 90px;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .perf-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+
+  .roi-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .roi-high  { background: #f6ffed; color: #389e0d; }
+  .roi-mid   { background: #fff7e6; color: #d46b08; }
+  .roi-low   { background: #fff1f0; color: #cf1322; }
+
+  .trend-up   { color: #52c41a; }
+  .trend-down { color: #ff4d4f; }
+  .trend-flat { color: var(--text-tertiary); }
+
+  /* Tooltip */
+  .tooltip-wrap { position: relative; display: inline-block; }
+  .tooltip-wrap:hover .tooltip-box { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .tooltip-box {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #262626;
+    color: #fff;
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all .15s;
+    z-index: 200;
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  }
+  .tooltip-box::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #262626;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── Topbar ── -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 3h18M3 9h18M3 15h9M3 21h6" stroke-linecap="round"/>
+      <circle cx="18" cy="18" r="4" fill="var(--primary)" stroke="none"/>
+      <path d="M16.5 18l1 1.5 2-2.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Amplify
+  </div>
+  <div class="topbar-divider"></div>
+  <span class="topbar-title">Campaign Command Center</span>
+  <div class="topbar-spacer"></div>
+  <div class="quarter-tabs">
+    <button class="quarter-tab">Q1</button>
+    <button class="quarter-tab active">Q2</button>
+    <button class="quarter-tab">Q3</button>
+    <button class="quarter-tab">Q4</button>
+  </div>
+  <button class="topbar-btn">+ New Campaign</button>
+</div>
+
+<div class="layout">
+
+  <!-- ════════════════════════════════
+       SECTION 1 — GANTT
+  ════════════════════════════════ -->
+  <div>
+    <div class="section-header">
+      <span class="section-label">Campaign Timeline</span>
+      <div class="section-line"></div>
+      <span class="section-action">Apr – Sep 2026</span>
+    </div>
+
+    <div class="gantt-card">
+      <div class="gantt-toolbar">
+        <span class="gantt-toolbar-title">8 campaigns · Q2–Q3</span>
+        <div class="gantt-toolbar-spacer"></div>
+        <!-- Status filters (visual only) -->
+        <div class="status-pill pill-active"><span class="dot"></span>Active 3</div>
+        <div class="status-pill pill-planned"><span class="dot"></span>Planned 2</div>
+        <div class="status-pill pill-paused"><span class="dot"></span>Paused 1</div>
+        <div class="status-pill pill-complete"><span class="dot"></span>Done 2</div>
+      </div>
+
+      <div class="gantt-body">
+        <!-- Label column -->
+        <div class="gantt-labels">
+          <div class="gantt-header-cell">Campaign</div>
+          <!-- rows -->
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--ch-email)"></span>
+            <div>
+              <div class="campaign-name">Spring Launch</div>
+              <span class="campaign-channel-tag" style="background:#e6f4ff;color:#0958d9">Email</span>
+            </div>
+          </div>
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--ch-social)"></span>
+            <div>
+              <div class="campaign-name">Creator Collab</div>
+              <span class="campaign-channel-tag" style="background:#f9f0ff;color:#531dab">Social</span>
+            </div>
+          </div>
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--ch-search)"></span>
+            <div>
+              <div class="campaign-name">Mid-Year SEO Blitz</div>
+              <span class="campaign-channel-tag" style="background:#e6fffb;color:#087368">Search</span>
+            </div>
+          </div>
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--ch-ads)"></span>
+            <div>
+              <div class="campaign-name">Retargeting Wave</div>
+              <span class="campaign-channel-tag" style="background:#fff7e6;color:#d46b08">Ads</span>
+            </div>
+          </div>
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--primary)"></span>
+            <div>
+              <div class="campaign-name">Summer Brand Push</div>
+              <span class="campaign-channel-tag" style="background:var(--primary-bg);color:var(--primary-dark)">Multi</span>
+            </div>
+          </div>
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--ch-events)"></span>
+            <div>
+              <div class="campaign-name">Webinar Series</div>
+              <span class="campaign-channel-tag" style="background:#f6ffed;color:#389e0d">Events</span>
+            </div>
+          </div>
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--ch-content)"></span>
+            <div>
+              <div class="campaign-name">Back-to-School</div>
+              <span class="campaign-channel-tag" style="background:var(--primary-bg);color:var(--primary-dark)">Content</span>
+            </div>
+          </div>
+          <div class="gantt-row">
+            <span class="channel-dot" style="background:var(--ch-search)"></span>
+            <div>
+              <div class="campaign-name">Black Friday Push</div>
+              <span class="campaign-channel-tag" style="background:#e6f4ff;color:#0958d9">Paid</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart area -->
+        <div class="gantt-chart-scroll">
+          <div class="gantt-chart" id="ganttChart">
+            <!-- months header rendered by JS -->
+            <div class="gantt-months" id="ganttMonths"></div>
+            <!-- bar rows -->
+            <div id="ganttBars"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════
+       SECTION 2 — KPIs + FUNNEL
+  ════════════════════════════════ -->
+  <div>
+    <div class="section-header">
+      <span class="section-label">Performance Overview</span>
+      <div class="section-line"></div>
+      <span class="section-action">vs. last quarter ↑</span>
+    </div>
+
+    <div class="mid-grid">
+      <!-- Total Budget -->
+      <div class="kpi-card" style="--accent:var(--primary)">
+        <div class="kpi-icon" style="--icon-bg:var(--primary-bg)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="var(--primary)" stroke-width="1.5">
+            <rect x="1" y="3" width="14" height="10" rx="2"/>
+            <circle cx="8" cy="8" r="2"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Total Budget</div>
+        <div class="kpi-value">$840K</div>
+        <div class="spend-bar-track">
+          <div class="spend-bar-fill" style="width:68%;background:var(--primary)"></div>
+        </div>
+        <div class="kpi-sub">$570K spent · 68% utilized</div>
+      </div>
+
+      <!-- Spend to Date -->
+      <div class="kpi-card" style="--accent:#1677ff">
+        <div class="kpi-icon" style="--icon-bg:#e6f4ff">
+          <svg viewBox="0 0 16 16" fill="none" stroke="#1677ff" stroke-width="1.5">
+            <path d="M2 14L6 9l3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Spend to Date</div>
+        <div class="kpi-value">$570K</div>
+        <div class="kpi-sub"><span class="kpi-badge-up">▲ 12%</span>&nbsp;vs Q1 pace</div>
+      </div>
+
+      <!-- Conversions -->
+      <div class="kpi-card" style="--accent:var(--ch-events)">
+        <div class="kpi-icon" style="--icon-bg:#f6ffed">
+          <svg viewBox="0 0 16 16" fill="none" stroke="var(--ch-events)" stroke-width="1.5">
+            <path d="M8 2v12M4 8l4-4 4 4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Conversions</div>
+        <div class="kpi-value">14,382</div>
+        <div class="kpi-sub"><span class="kpi-badge-up">▲ 28%</span>&nbsp;vs Q1</div>
+      </div>
+
+      <!-- Blended ROI -->
+      <div class="kpi-card" style="--accent:var(--ch-ads)">
+        <div class="kpi-icon" style="--icon-bg:#fff7e6">
+          <svg viewBox="0 0 16 16" fill="none" stroke="var(--ch-ads)" stroke-width="1.5">
+            <path d="M3 13L8 4l5 9H3z" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Blended ROI</div>
+        <div class="kpi-value">3.8×</div>
+        <div class="kpi-sub"><span class="kpi-badge-up">▲ 0.4×</span>&nbsp;vs target 3.4×</div>
+      </div>
+
+      <!-- Funnel -->
+      <div class="funnel-card">
+        <div class="funnel-title">Conversion Funnel · All Channels</div>
+        <div class="funnel-stages" id="funnelStages">
+          <!-- rendered by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════
+       SECTION 3 — CHANNEL BREAKDOWN
+  ════════════════════════════════ -->
+  <div>
+    <div class="section-header">
+      <span class="section-label">Channel Mix &amp; Performance</span>
+      <div class="section-line"></div>
+      <span class="section-action">All active campaigns</span>
+    </div>
+
+    <div class="channels-grid">
+      <!-- Donut -->
+      <div class="donut-card">
+        <div class="donut-title">Budget Allocation</div>
+        <div class="donut-wrap">
+          <svg viewBox="0 0 110 110" width="110" height="110" id="donutSvg">
+            <!-- rendered by JS -->
+          </svg>
+          <div class="donut-center">
+            <div class="donut-center-val">$840K</div>
+            <div class="donut-center-label">Total</div>
+          </div>
+        </div>
+        <div class="donut-legend" id="donutLegend"></div>
+      </div>
+
+      <!-- Channel perf table -->
+      <div class="ch-perf-card">
+        <div class="ch-perf-header">
+          <span class="ch-perf-header-title">Channel Performance Breakdown</span>
+          <button class="ch-sort-btn active">ROI</button>
+          <button class="ch-sort-btn">Spend</button>
+          <button class="ch-sort-btn">CVR</button>
+        </div>
+        <table class="ch-table">
+          <thead>
+            <tr>
+              <th style="width:160px">Channel</th>
+              <th class="right">Budget</th>
+              <th class="right">Spend</th>
+              <th class="right">Impressions</th>
+              <th class="right">Clicks</th>
+              <th class="right">CVR</th>
+              <th class="right">Revenue</th>
+              <th class="right">ROI</th>
+              <th class="right">Trend</th>
+            </tr>
+          </thead>
+          <tbody id="chTableBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /layout -->
+
+<script>
+// ── Data ─────────────────────────────────────────────────
+const MONTHS = ['Apr','May','Jun','Jul','Aug','Sep'];
+const MONTH_START = new Date('2026-04-01');
+const MONTH_END   = new Date('2026-09-30');
+const TOTAL_DAYS  = Math.round((MONTH_END - MONTH_START) / 86400000) + 1;
+
+const campaigns = [
+  { name:'Spring Launch',    channel:'email',   status:'complete', start:'2026-04-01', end:'2026-04-28', color:'#1677ff', budget:80000,  spend:78400  },
+  { name:'Creator Collab',   channel:'social',  status:'active',   start:'2026-04-15', end:'2026-06-15', color:'#722ed1', budget:140000, spend:83000  },
+  { name:'Mid-Year SEO Blitz',channel:'search', status:'active',   start:'2026-05-01', end:'2026-07-31', color:'#13c2c2', budget:60000,  spend:28000  },
+  { name:'Retargeting Wave', channel:'ads',     status:'paused',   start:'2026-05-10', end:'2026-06-20', color:'#fa8c16', budget:95000,  spend:52000  },
+  { name:'Summer Brand Push',channel:'multi',   status:'planned',  start:'2026-06-20', end:'2026-08-31', color:'#eb2f96', budget:200000, spend:0      },
+  { name:'Webinar Series',   channel:'events',  status:'active',   start:'2026-05-20', end:'2026-07-10', color:'#52c41a', budget:45000,  spend:21000  },
+  { name:'Back-to-School',   channel:'content', status:'planned',  start:'2026-07-15', end:'2026-09-05', color:'#c41d7f', budget:120000, spend:0      },
+  { name:'Black Friday Push',channel:'paid',    status:'complete', start:'2026-04-01', end:'2026-04-14', color:'#0958d9', budget:100000, spend:96000  },
+];
+
+const channelData = [
+  { name:'Email',   icon:'✉️',  color:'#1677ff', bgColor:'#e6f4ff', budget:160000, spend:142000, impr:'4.2M',  clicks:'187K', cvr:'5.8%', revenue:891000, roi:6.3, trend:'up'   },
+  { name:'Social',  icon:'💬',  color:'#722ed1', bgColor:'#f9f0ff', budget:180000, spend:121000, impr:'8.9M',  clicks:'312K', cvr:'2.1%', revenue:384000, roi:3.2, trend:'up'   },
+  { name:'Search',  icon:'🔍',  color:'#13c2c2', bgColor:'#e6fffb', budget:120000, spend:68000,  impr:'2.1M',  clicks:'96K',  cvr:'4.4%', revenue:267000, roi:3.9, trend:'flat' },
+  { name:'Paid Ads',icon:'📣',  color:'#fa8c16', bgColor:'#fff7e6', budget:210000, spend:148000, impr:'11.2M', clicks:'524K', cvr:'1.2%', revenue:371000, roi:2.5, trend:'down' },
+  { name:'Events',  icon:'🎙️', color:'#52c41a', bgColor:'#f6ffed', budget:80000,  spend:41000,  impr:'620K',  clicks:'43K',  cvr:'7.2%', revenue:195000, roi:4.8, trend:'up'   },
+  { name:'Content', icon:'📝',  color:'#eb2f96', bgColor:'#fff0f6', budget:90000,  spend:50000,  impr:'3.4M',  clicks:'78K',  cvr:'2.9%', revenue:108000, roi:2.2, trend:'flat' },
+];
+
+const funnelData = [
+  { stage:'Impress', value:30400000, label:'30.4M',  color:'#1677ff' },
+  { stage:'Clicks',  value:1240000,  label:'1.24M',  color:'#722ed1' },
+  { stage:'Leads',   value:86000,    label:'86.0K',  color:'#eb2f96' },
+  { stage:'MQLs',    value:22400,    label:'22.4K',  color:'#fa8c16' },
+  { stage:'Closed',  value:14382,    label:'14,382', color:'#52c41a' },
+];
+
+const donutData = [
+  { label:'Email',   pct:19, color:'#1677ff' },
+  { label:'Social',  pct:21, color:'#722ed1' },
+  { label:'Paid Ads',pct:25, color:'#fa8c16' },
+  { label:'Search',  pct:14, color:'#13c2c2' },
+  { label:'Events',  pct:10, color:'#52c41a' },
+  { label:'Content', pct:11, color:'#eb2f96' },
+];
+
+// ── Helpers ───────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmt = n => n >= 1000000 ? `$${(n/1000000).toFixed(1)}M` : n >= 1000 ? `$${(n/1000).toFixed(0)}K` : `$${n}`;
+const dayOffset = dateStr => Math.round((new Date(dateStr) - MONTH_START) / 86400000);
+const pct = (days) => (days / TOTAL_DAYS * 100).toFixed(2) + '%';
+
+// ── Gantt ─────────────────────────────────────────────────
+function buildGantt() {
+  // Months header
+  const mEl = $('ganttMonths');
+  const cols = MONTHS.map(() => '1fr').join(' ');
+  mEl.style.gridTemplateColumns = cols;
+  MONTHS.forEach(m => {
+    const d = document.createElement('div');
+    d.className = 'gantt-month';
+    d.textContent = m + ' 2026';
+    mEl.appendChild(d);
+  });
+
+  // Bar rows
+  const wrap = $('ganttBars');
+  const statusAlpha = { active:1, planned:.7, paused:.6, complete:.4 };
+
+  // Today line — Q2-relative position
+  const today = new Date('2026-06-04');
+  const todayOff = Math.round((today - MONTH_START) / 86400000);
+  const todayPct = (todayOff / TOTAL_DAYS * 100).toFixed(2);
+
+  campaigns.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'gantt-bar-row';
+
+    const s = Math.max(0, dayOffset(c.start));
+    const e = Math.min(TOTAL_DAYS, dayOffset(c.end));
+    const left = (s / TOTAL_DAYS * 100).toFixed(2);
+    const width = ((e - s) / TOTAL_DAYS * 100).toFixed(2);
+
+    // Today line
+    const todayLine = document.createElement('div');
+    todayLine.className = 'gantt-today-line';
+    todayLine.style.left = todayPct + '%';
+    row.appendChild(todayLine);
+
+    const bar = document.createElement('div');
+    bar.className = 'gantt-bar';
+    bar.style.left = left + '%';
+    bar.style.width = width + '%';
+    bar.style.background = c.color;
+    bar.style.opacity = statusAlpha[c.status];
+    if (c.status === 'complete') {
+      bar.style.background = `repeating-linear-gradient(45deg, ${c.color}, ${c.color} 4px, ${c.color}99 4px, ${c.color}99 8px)`;
+      bar.style.opacity = '0.6';
+    }
+    bar.title = `${c.name} · ${c.start} – ${c.end} · ${fmt(c.budget)} budget`;
+    bar.textContent = c.name;
+    row.appendChild(bar);
+    wrap.appendChild(row);
+  });
+}
+
+// ── Funnel ────────────────────────────────────────────────
+function buildFunnel() {
+  const wrap = $('funnelStages');
+  const max = funnelData[0].value;
+  funnelData.forEach((f, i) => {
+    const pctW = (f.value / max * 100).toFixed(1);
+    const cr = i > 0
+      ? ' ' + (f.value / funnelData[i-1].value * 100).toFixed(1) + '%'
+      : '';
+
+    const row = document.createElement('div');
+    row.className = 'funnel-stage';
+    row.innerHTML = `
+      <span class="funnel-stage-name">${f.stage}</span>
+      <div class="funnel-bar-wrap">
+        <div class="funnel-bar-bg"></div>
+        <div class="funnel-bar-fill" style="width:${pctW}%;background:${f.color}">
+          ${pctW > 20 ? f.label : ''}
+        </div>
+      </div>
+      <span class="funnel-stage-val">${f.label}</span>
+      <span class="funnel-stage-cr">${cr}</span>
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+// ── Donut ─────────────────────────────────────────────────
+function buildDonut() {
+  const svg = $('donutSvg');
+  const cx = 55, cy = 55, r = 36, gap = 2;
+  const circ = 2 * Math.PI * r;
+  let cumDeg = -90;
+
+  donutData.forEach(d => {
+    const seg = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    const dashLen = (d.pct / 100) * circ - gap;
+    const dashOff = circ - (dashLen);
+    const rotation = cumDeg;
+    seg.setAttribute('cx', cx); seg.setAttribute('cy', cy); seg.setAttribute('r', r);
+    seg.setAttribute('fill','none');
+    seg.setAttribute('stroke', d.color);
+    seg.setAttribute('stroke-width','16');
+    seg.setAttribute('stroke-dasharray', `${dashLen} ${circ - dashLen}`);
+    seg.setAttribute('stroke-dashoffset', circ * 0.25);
+    seg.setAttribute('transform', `rotate(${rotation} ${cx} ${cy})`);
+    seg.style.cursor = 'pointer';
+    svg.appendChild(seg);
+    cumDeg += (d.pct / 100) * 360;
+  });
+
+  // Legend
+  const legend = $('donutLegend');
+  donutData.forEach(d => {
+    const item = document.createElement('div');
+    item.className = 'donut-legend-item';
+    item.innerHTML = `
+      <span class="donut-legend-dot" style="background:${d.color}"></span>
+      <span class="donut-legend-name">${d.label}</span>
+      <span class="donut-legend-pct">${d.pct}%</span>
+    `;
+    legend.appendChild(item);
+  });
+}
+
+// ── Channel Table ─────────────────────────────────────────
+function buildChannelTable() {
+  const tbody = $('chTableBody');
+  const maxRevenue = Math.max(...channelData.map(c => c.revenue));
+  channelData.forEach(c => {
+    const spendPct = (c.spend / c.budget * 100).toFixed(0);
+    const revBarPct = (c.revenue / maxRevenue * 100).toFixed(0);
+    const roiClass = c.roi >= 4 ? 'roi-high' : c.roi >= 3 ? 'roi-mid' : 'roi-low';
+    const trendIcon = c.trend === 'up' ? '<span class="trend-up">▲</span>'
+                    : c.trend === 'down' ? '<span class="trend-down">▼</span>'
+                    : '<span class="trend-flat">—</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="ch-name-cell">
+          <div class="ch-icon" style="background:${c.bgColor}">${c.icon}</div>
+          <div>
+            <div class="ch-name-text">${c.name}</div>
+            <div class="ch-name-sub">${spendPct}% utilized</div>
+          </div>
+        </div>
+      </td>
+      <td class="right" style="font-weight:600">${fmt(c.budget)}</td>
+      <td class="right">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+          ${fmt(c.spend)}
+          <div class="perf-bar-track"><div class="perf-bar-fill" style="width:${spendPct}%;background:${c.color}"></div></div>
+        </div>
+      </td>
+      <td class="right" style="color:var(--text-secondary)">${c.impr}</td>
+      <td class="right" style="color:var(--text-secondary)">${c.clicks}</td>
+      <td class="right" style="font-weight:600;color:${c.color}">${c.cvr}</td>
+      <td class="right">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">
+          <div class="perf-bar-track"><div class="perf-bar-fill" style="width:${revBarPct}%;background:${c.color}66"></div></div>
+          ${fmt(c.revenue)}
+        </div>
+      </td>
+      <td class="right"><span class="roi-badge ${roiClass}">${c.roi}×</span></td>
+      <td class="right">${trendIcon}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────
+buildGantt();
+buildFunnel();
+buildDonut();
+buildChannelTable();
+
+// Quarter tab switch (visual only)
+document.querySelectorAll('.quarter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.quarter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// Sort buttons (visual toggle only)
+document.querySelectorAll('.ch-sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.ch-sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Campaign Command: a native gantt, KPI cards, donut charts, and data tables. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/16-campaign-management.html
+</script>
+</body>
+</html>

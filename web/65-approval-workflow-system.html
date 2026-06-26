@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Approval Workflow System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #fbfcfd;
+    --border: #e6e8ec;
+    --border-strong: #d3d7de;
+    --text: #1f2630;
+    --text-2: #5a6573;
+    --text-3: #8a93a0;
+    --accent: #65a30d;
+    --accent-soft: #f0f7e2;
+    --accent-line: #c4e08a;
+    --amber: #d97706;
+    --amber-soft: #fdf2e1;
+    --red: #dc2626;
+    --red-soft: #fdeaea;
+    --blue: #2563eb;
+    --blue-soft: #eaf0fd;
+    --green: #16a34a;
+    --green-soft: #e9f6ee;
+    --violet: #7c3aed;
+    --violet-soft: #f1ebfd;
+    --shadow-sm: 0 1px 2px rgba(20,30,45,.04), 0 1px 1px rgba(20,30,45,.03);
+    --shadow-md: 0 4px 14px rgba(20,30,45,.07), 0 1px 3px rgba(20,30,45,.05);
+    --shadow-lg: 0 16px 48px rgba(20,30,45,.16), 0 4px 12px rgba(20,30,45,.08);
+    --radius: 10px;
+    --radius-sm: 7px;
+    --mono: "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-line); }
+
+  /* ---------- Layout ---------- */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px; border-bottom: 1px solid var(--border);
+  }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #4d7c0f);
+    display: grid; place-items: center; flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(101,163,13,.3);
+  }
+  .brand-name { font-weight: 700; font-size: 14px; letter-spacing: -.2px; }
+  .brand-sub { font-size: 10.5px; color: var(--text-3); font-weight: 500; }
+  .nav { padding: 10px 10px; flex: 1; overflow-y: auto; }
+  .nav-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--text-3); padding: 12px 10px 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: var(--radius-sm);
+    color: var(--text-2); font-weight: 500; cursor: pointer;
+    font-size: 12.5px; margin-bottom: 1px; user-select: none;
+    transition: background .12s, color .12s;
+  }
+  .nav-item:hover { background: var(--bg); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: #3f6212; font-weight: 600; }
+  .nav-item.active svg { color: var(--accent); }
+  .nav-item svg { width: 16px; height: 16px; color: var(--text-3); flex-shrink: 0; }
+  .nav-item.active .nav-count { background: var(--accent); color: #fff; }
+  .nav-count {
+    margin-left: auto; background: var(--bg); color: var(--text-2);
+    font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 20px;
+    min-width: 20px; text-align: center;
+  }
+  .sidebar-foot {
+    border-top: 1px solid var(--border); padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg,#84cc16,#4d7c0f); color: #fff;
+    display: grid; place-items: center; font-weight: 700; font-size: 11px;
+  }
+  .who-name { font-weight: 600; font-size: 12.5px; }
+  .who-role { font-size: 10.5px; color: var(--text-3); }
+
+  /* ---------- Main ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    background: rgba(255,255,255,.82); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 13px 24px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 30;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
+  .topbar .crumb { font-size: 11px; color: var(--text-3); font-weight: 500; }
+  .search {
+    margin-left: auto; position: relative; width: 280px;
+  }
+  .search input {
+    width: 100%; padding: 7px 12px 7px 32px; font-size: 12.5px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface-2); color: var(--text); outline: none;
+    transition: border .12s, box-shadow .12s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background:#fff; }
+  .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--text-3); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 13px; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600;
+    border: 1px solid var(--border-strong); background: #fff; color: var(--text);
+    cursor: pointer; transition: all .12s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--text-3); background: var(--surface-2); }
+  .btn svg { width: 15px; height: 15px; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 1px 3px rgba(101,163,13,.35); }
+  .btn-primary:hover { background: #5b9410; border-color: #5b9410; }
+  .btn-ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+  .btn-ghost:hover { background: var(--bg); }
+
+  .content { padding: 20px 24px 40px; max-width: 1320px; width: 100%; margin: 0 auto; }
+
+  /* ---------- Stat strip ---------- */
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 13px 15px; box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+  }
+  .stat::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background: var(--accent); }
+  .stat.s-amber::before { background: var(--amber); }
+  .stat.s-blue::before { background: var(--blue); }
+  .stat.s-violet::before { background: var(--violet); }
+  .stat.s-green::before { background: var(--green); }
+  .stat-top { display: flex; align-items: center; justify-content: space-between; }
+  .stat-label { font-size: 10.5px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+  .stat-val { font-size: 26px; font-weight: 750; letter-spacing: -1px; margin-top: 4px; }
+  .stat-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; display:flex; align-items:center; gap:5px; }
+  .delta { font-weight: 700; }
+  .delta.up { color: var(--green); }
+  .delta.down { color: var(--red); }
+  .stat-ic { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+  .stat.s-amber .stat-ic { background: var(--amber-soft); color: var(--amber); }
+  .stat.s-blue .stat-ic { background: var(--blue-soft); color: var(--blue); }
+  .stat.s-violet .stat-ic { background: var(--violet-soft); color: var(--violet); }
+  .stat.s-green .stat-ic { background: var(--green-soft); color: var(--green); }
+  .stat-ic svg { width: 16px; height: 16px; }
+
+  /* ---------- Workspace grid ---------- */
+  .workspace { display: grid; grid-template-columns: 1fr 312px; gap: 16px; align-items: start; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px; padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-head h2 { font-size: 13.5px; font-weight: 700; letter-spacing: -.2px; }
+  .panel-head .sub { font-size: 11px; color: var(--text-3); }
+
+  /* ---------- Tabs ---------- */
+  .tabs { display: flex; gap: 2px; background: var(--bg); padding: 3px; border-radius: 8px; }
+  .tab {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    color: var(--text-2); cursor: pointer; user-select: none; transition: all .12s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: #fff; color: var(--text); box-shadow: var(--shadow-sm); }
+  .tab .tcount { font-size: 10px; font-weight: 700; color: var(--text-3); }
+  .tab.active .tcount { color: var(--accent); }
+
+  /* ---------- Filter bar ---------- */
+  .filterbar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .chip-filter {
+    padding: 4px 11px; border-radius: 20px; font-size: 11.5px; font-weight: 600;
+    border: 1px solid var(--border-strong); background: #fff; color: var(--text-2);
+    cursor: pointer; user-select: none; transition: all .12s;
+  }
+  .chip-filter:hover { border-color: var(--text-3); }
+  .chip-filter.active { background: var(--text); border-color: var(--text); color: #fff; }
+  .filter-spacer { margin-left: auto; }
+  .sort-sel {
+    font-size: 11.5px; font-weight: 600; color: var(--text-2); border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm); padding: 5px 8px; background: #fff; cursor: pointer; outline: none;
+  }
+
+  /* ---------- Approval rows ---------- */
+  .rows { display: flex; flex-direction: column; }
+  .arow {
+    padding: 13px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+    transition: background .12s; position: relative;
+  }
+  .arow:hover { background: var(--surface-2); }
+  .arow:last-child { border-bottom: none; }
+  .arow-top { display: flex; align-items: flex-start; gap: 12px; }
+  .arow-icon {
+    width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+    font-size: 15px; border: 1px solid var(--border);
+  }
+  .arow-main { flex: 1; min-width: 0; }
+  .arow-title { font-weight: 650; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .arow-id { font-family: var(--mono); font-size: 10.5px; color: var(--text-3); background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+  .arow-meta { font-size: 11.5px; color: var(--text-2); margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border-strong); }
+  .arow-amount { font-weight: 700; font-size: 13.5px; text-align: right; white-space: nowrap; }
+  .arow-amount .cur { font-size: 10px; color: var(--text-3); font-weight: 600; }
+  .arow-age { font-size: 11px; color: var(--text-3); text-align: right; margin-top: 2px; }
+
+  /* ---------- Stepper (signature) ---------- */
+  .stepper { display: flex; align-items: center; margin-top: 12px; padding-left: 46px; }
+  .step { display: flex; align-items: center; flex: 1; min-width: 0; }
+  .step:last-child { flex: 0 0 auto; }
+  .step-node {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+    font-size: 10px; font-weight: 700; border: 2px solid var(--border-strong); background: #fff; color: var(--text-3);
+    position: relative; z-index: 2;
+  }
+  .step-node svg { width: 12px; height: 12px; }
+  .step.done .step-node { background: var(--green); border-color: var(--green); color: #fff; }
+  .step.current .step-node { background: #fff; border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .step.rejected .step-node { background: var(--red); border-color: var(--red); color: #fff; }
+  .step.pending .step-node { background: #fff; border-color: var(--border-strong); color: var(--text-3); border-style: dashed; }
+  .step.auto .step-node { background: var(--violet-soft); border-color: var(--violet); color: var(--violet); }
+  .step-line { flex: 1; height: 2px; background: var(--border); min-width: 14px; position: relative; }
+  .step.done .step-line { background: var(--green); }
+  .step-info { position: absolute; top: 26px; left: 0; white-space: nowrap; }
+  .step-wrap { position: relative; }
+  .step-role { font-size: 9.5px; font-weight: 700; color: var(--text-2); }
+  .step-who { font-size: 9.5px; color: var(--text-3); }
+  .stepper-legendwrap { padding-bottom: 30px; }
+
+  /* tiny inline stepper labels approach: use title attr instead, keep clean */
+  .stepmini { display: flex; align-items: center; gap: 0; margin-top: 11px; }
+  .smk { display:flex; align-items:center; }
+  .smk-node {
+    width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 9px; font-weight: 800; border: 2px solid var(--border-strong); background: #fff; color: var(--text-3);
+    flex-shrink: 0;
+  }
+  .smk-node svg { width: 11px; height: 11px; }
+  .smk.done .smk-node { background: var(--green); border-color: var(--green); color: #fff; }
+  .smk.current .smk-node { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .smk.rejected .smk-node { background: var(--red); border-color: var(--red); color: #fff; }
+  .smk.auto .smk-node { background: var(--violet-soft); border-color: var(--violet); color: var(--violet); }
+  .smk-line { width: 30px; height: 2px; background: var(--border); flex-shrink: 0; }
+  .smk.done .smk-line { background: var(--green); }
+  .smk-lbl { font-size: 9.5px; font-weight: 700; margin-left: 5px; margin-right: 5px; color: var(--text-2); }
+  .smk.current .smk-lbl { color: var(--accent); }
+  .smk.pending .smk-lbl { color: var(--text-3); font-weight: 600; }
+
+  /* ---------- Badges / pills ---------- */
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px; letter-spacing: .2px; white-space: nowrap;
+  }
+  .pill svg { width: 11px; height: 11px; }
+  .pill-pending { background: var(--amber-soft); color: var(--amber); }
+  .pill-approved { background: var(--green-soft); color: var(--green); }
+  .pill-rejected { background: var(--red-soft); color: var(--red); }
+  .pill-review { background: var(--blue-soft); color: var(--blue); }
+  .pill-escalated { background: var(--violet-soft); color: var(--violet); }
+  .pill-ai { background: linear-gradient(135deg, #f0f7e2, #e6f2cf); color: #3f6212; border: 1px solid var(--accent-line); }
+  .risk { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 5px; }
+  .risk-low { background: var(--green-soft); color: var(--green); }
+  .risk-med { background: var(--amber-soft); color: var(--amber); }
+  .risk-high { background: var(--red-soft); color: var(--red); }
+
+  /* AI score badge */
+  .ai-score { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; }
+  .ai-score .conf-bar { width: 44px; height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
+  .ai-score .conf-fill { height: 100%; border-radius: 3px; }
+
+  /* ---------- Right rail ---------- */
+  .rail { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 78px; }
+  .ai-card {
+    background: linear-gradient(170deg, #fbfdf6, #ffffff);
+    border: 1px solid var(--accent-line);
+  }
+  .ai-card .panel-head { border-bottom-color: var(--accent-line); }
+  .ai-head-badge { display: inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color: var(--accent); background:#fff; border:1px solid var(--accent-line); padding:2px 7px; border-radius:20px; }
+  .feed { padding: 6px 0; max-height: 360px; overflow-y: auto; }
+  .feed-item { display: flex; gap: 10px; padding: 9px 16px; position: relative; }
+  .feed-item:hover { background: var(--surface-2); }
+  .feed-ic { width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; display: grid; place-items: center; }
+  .feed-ic svg { width: 13px; height: 13px; }
+  .fi-green { background: var(--green-soft); color: var(--green); }
+  .fi-violet { background: var(--violet-soft); color: var(--violet); }
+  .fi-blue { background: var(--blue-soft); color: var(--blue); }
+  .fi-amber { background: var(--amber-soft); color: var(--amber); }
+  .feed-body { flex: 1; min-width: 0; }
+  .feed-txt { font-size: 11.5px; line-height: 1.4; }
+  .feed-txt b { font-weight: 700; }
+  .feed-time { font-size: 10px; color: var(--text-3); margin-top: 1px; }
+
+  /* donut + bars */
+  .chart-wrap { padding: 14px 16px; }
+  .donut-row { display: flex; align-items: center; gap: 16px; }
+  .donut-legend { display: flex; flex-direction: column; gap: 7px; flex: 1; }
+  .leg { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+  .leg-sw { width: 9px; height: 9px; border-radius: 2.5px; flex-shrink: 0; }
+  .leg-val { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .leg-name { color: var(--text-2); }
+
+  .bars { display: flex; flex-direction: column; gap: 9px; padding: 4px 16px 14px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; font-size: 11.5px; }
+  .bar-name { width: 88px; color: var(--text-2); font-weight: 600; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .bar-val { width: 30px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Drawer ---------- */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(20,30,45,.34); backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 100;
+  }
+  .scrim.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 560px; max-width: 94vw;
+    background: var(--surface); box-shadow: var(--shadow-lg); z-index: 101;
+    transform: translateX(100%); transition: transform .26s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
+  .drawer-head .dh-icon { width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center; font-size: 18px; border: 1px solid var(--border); flex-shrink: 0; }
+  .drawer-body { overflow-y: auto; flex: 1; padding: 18px 20px 32px; }
+  .drawer-foot { border-top: 1px solid var(--border); padding: 12px 20px; display: flex; gap: 8px; align-items: center; background: var(--surface-2); }
+  .close-x { margin-left: auto; width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border); background: #fff; cursor: pointer; display: grid; place-items: center; color: var(--text-2); }
+  .close-x:hover { background: var(--bg); color: var(--text); }
+  .close-x svg { width: 16px; height: 16px; }
+
+  .sec { margin-bottom: 20px; }
+  .sec-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); margin-bottom: 9px; display: flex; align-items: center; gap: 7px; }
+  .sec-title .line { flex: 1; height: 1px; background: var(--border); }
+  .kv { display: grid; grid-template-columns: 130px 1fr; gap: 7px 12px; font-size: 12.5px; }
+  .kv dt { color: var(--text-2); font-weight: 500; }
+  .kv dd { font-weight: 600; }
+
+  /* AI extracted card in drawer */
+  .extract {
+    background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius); padding: 13px 15px;
+  }
+  .extract-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px 16px; margin-top: 10px; }
+  .ef-label { font-size: 10px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+  .ef-val { font-size: 13px; font-weight: 700; margin-top: 1px; display: flex; align-items: center; gap: 6px; }
+  .conf-mini { font-size: 9.5px; font-weight: 700; padding: 0px 5px; border-radius: 4px; }
+  .conf-hi { background: #fff; color: var(--green); border: 1px solid #bfe3cb; }
+  .conf-md { background: #fff; color: var(--amber); border: 1px solid #f3d9a8; }
+
+  .reason-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 12px; line-height: 1.55; color: var(--text); }
+  .reason-box .rb-lead { font-weight: 700; color: var(--accent); display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+
+  .suggest { display: flex; gap: 8px; padding: 10px 12px; border: 1px solid var(--accent-line); border-radius: var(--radius-sm); background: #fcfef7; align-items: flex-start; }
+  .suggest svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+  .suggest-txt { font-size: 12px; line-height: 1.5; }
+  .suggest-txt b { color: var(--accent); }
+
+  /* timeline in drawer */
+  .vchain { position: relative; padding-left: 6px; }
+  .vstep { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }
+  .vstep:last-child { padding-bottom: 0; }
+  .vstep::before { content:""; position: absolute; left: 10px; top: 24px; bottom: -2px; width: 2px; background: var(--border); }
+  .vstep:last-child::before { display: none; }
+  .vstep.done::before { background: var(--green); }
+  .vnode { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-size: 10px; font-weight: 800; border: 2px solid var(--border-strong); background: #fff; z-index: 1; }
+  .vnode svg { width: 12px; height: 12px; }
+  .vstep.done .vnode { background: var(--green); border-color: var(--green); color: #fff; }
+  .vstep.current .vnode { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .vstep.auto .vnode { background: var(--violet-soft); border-color: var(--violet); color: var(--violet); }
+  .vstep.rejected .vnode { background: var(--red); border-color: var(--red); color: #fff; }
+  .vstep.pending .vnode { border-style: dashed; }
+  .vbody { flex: 1; padding-top: 1px; }
+  .vrole { font-weight: 700; font-size: 12.5px; }
+  .vwho { font-size: 11.5px; color: var(--text-2); }
+  .vnote { font-size: 11.5px; color: var(--text-2); margin-top: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; }
+  .vtime { font-size: 10.5px; color: var(--text-3); margin-top: 3px; }
+
+  .empty { padding: 50px 20px; text-align: center; color: var(--text-3); }
+  .empty svg { width: 38px; height: 38px; opacity: .5; margin-bottom: 10px; }
+  .empty h3 { font-size: 14px; color: var(--text-2); margin-bottom: 4px; }
+
+  .compose { display: flex; gap: 8px; margin-top: 10px; }
+  .compose input {
+    flex: 1; padding: 8px 11px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    font-size: 12.5px; outline: none;
+  }
+  .compose input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: #fff; padding: 10px 18px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
+    box-shadow: var(--shadow-lg); z-index: 200; opacity: 0; pointer-events: none; transition: all .25s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 16px; height: 16px; color: #a3e635; }
+
+  .hidden { display: none !important; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #d4d9e0; border-radius: 6px; border: 2px solid var(--surface); }
+  ::-webkit-scrollbar-thumb:hover { background: #b9c0ca; }
+
+  @media (max-width: 1080px) {
+    .workspace { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2,1fr); }
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">FlowSign</div>
+        <div class="brand-sub">Approval Workspace</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <div class="nav-label">Workspace</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        My Approvals <span class="nav-count">7</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        My Requests <span class="nav-count">4</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Delegated to me <span class="nav-count">2</span>
+      </div>
+      <div class="nav-label">Library</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        Approval Types
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+        Analytics
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 7v6c0 5 3.8 8.4 9 9 5.2-.6 9-4 9-9V7z"/></svg>
+        Policy Rules
+      </div>
+      <div class="nav-label">Automation</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></svg>
+        AI Triage <span class="nav-count" style="background:var(--accent);color:#fff">on</span>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="avatar">DK</div>
+      <div>
+        <div class="who-name">Dana Keller</div>
+        <div class="who-role">Finance Director</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <div class="crumb">Workspace / Approvals</div>
+        <h1>My Approvals</h1>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search requests, requesters, IDs…" />
+      </div>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
+      <button class="btn btn-primary" id="bulkBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Bulk approve</button>
+    </header>
+
+    <div class="content">
+      <!-- STAT STRIP -->
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-top">
+            <span class="stat-label">Awaiting You</span>
+            <span class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+          </div>
+          <div class="stat-val">7</div>
+          <div class="stat-meta"><span class="delta up">2 urgent</span> · need action</div>
+        </div>
+        <div class="stat s-amber">
+          <div class="stat-top">
+            <span class="stat-label">SLA at risk</span>
+            <span class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+          </div>
+          <div class="stat-val">2</div>
+          <div class="stat-meta">breach in <b>&lt; 6h</b></div>
+        </div>
+        <div class="stat s-violet">
+          <div class="stat-top">
+            <span class="stat-label">AI Auto-routed</span>
+            <span class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M18 12h4"/><path d="M12 18v4"/><path d="M2 12h4"/><circle cx="12" cy="12" r="3"/></svg></span>
+          </div>
+          <div class="stat-val">34</div>
+          <div class="stat-meta"><span class="delta up">+12%</span> this week</div>
+        </div>
+        <div class="stat s-green">
+          <div class="stat-top">
+            <span class="stat-label">Approved (MTD)</span>
+            <span class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          </div>
+          <div class="stat-val">118</div>
+          <div class="stat-meta">$1.94M cleared</div>
+        </div>
+        <div class="stat s-blue">
+          <div class="stat-top">
+            <span class="stat-label">Avg cycle time</span>
+            <span class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="16 7 21 12 16 17"/></svg></span>
+          </div>
+          <div class="stat-val">9.4<span style="font-size:14px;color:var(--text-3)">h</span></div>
+          <div class="stat-meta"><span class="delta down">−2.1h</span> vs last mo</div>
+        </div>
+      </div>
+
+      <!-- WORKSPACE -->
+      <div class="workspace">
+        <!-- LEFT: queue -->
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Pending Approvals</h2>
+              <div class="tabs" id="tabs">
+                <div class="tab active" data-tab="all">All <span class="tcount" id="cnt-all">7</span></div>
+                <div class="tab" data-tab="urgent">Urgent <span class="tcount" id="cnt-urgent">2</span></div>
+                <div class="tab" data-tab="mine">My stage <span class="tcount" id="cnt-mine">5</span></div>
+                <div class="tab" data-tab="watch">Watching <span class="tcount" id="cnt-watch">2</span></div>
+              </div>
+            </div>
+            <div class="filterbar">
+              <span class="chip-filter active" data-f="all">All types</span>
+              <span class="chip-filter" data-f="Expense">Expense</span>
+              <span class="chip-filter" data-f="Purchase">Purchase</span>
+              <span class="chip-filter" data-f="Leave">Leave</span>
+              <span class="chip-filter" data-f="Contract">Contract</span>
+              <span class="chip-filter" data-f="Access">Access</span>
+              <span class="filter-spacer"></span>
+              <select class="sort-sel" id="sortSel">
+                <option value="age">Sort: Oldest first</option>
+                <option value="amount">Sort: Amount</option>
+                <option value="risk">Sort: AI risk</option>
+                <option value="sla">Sort: SLA urgency</option>
+              </select>
+            </div>
+            <div class="rows" id="rows"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT RAIL -->
+        <div class="rail">
+          <!-- AI activity card -->
+          <div class="panel ai-card">
+            <div class="panel-head">
+              <h2>AI Triage</h2>
+              <span class="ai-head-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>live</span>
+            </div>
+            <div class="feed" id="feed"></div>
+          </div>
+
+          <!-- Donut -->
+          <div class="panel">
+            <div class="panel-head"><h2>Queue by status</h2></div>
+            <div class="chart-wrap">
+              <div class="donut-row">
+                <svg width="104" height="104" viewBox="0 0 42 42" class="donut">
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#eef0f3" stroke-width="6"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#d97706" stroke-width="6" stroke-dasharray="32 68" stroke-dashoffset="0" transform="rotate(-90 21 21)"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#2563eb" stroke-width="6" stroke-dasharray="22 78" stroke-dashoffset="-32" transform="rotate(-90 21 21)"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#7c3aed" stroke-width="6" stroke-dasharray="16 84" stroke-dashoffset="-54" transform="rotate(-90 21 21)"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#65a30d" stroke-width="6" stroke-dasharray="30 70" stroke-dashoffset="-70" transform="rotate(-90 21 21)"/>
+                  <text x="21" y="20.5" text-anchor="middle" font-size="8" font-weight="800" fill="#1f2630">63</text>
+                  <text x="21" y="26.5" text-anchor="middle" font-size="3.4" fill="#8a93a0">open</text>
+                </svg>
+                <div class="donut-legend">
+                  <div class="leg"><span class="leg-sw" style="background:#d97706"></span><span class="leg-name">Pending</span><span class="leg-val">20</span></div>
+                  <div class="leg"><span class="leg-sw" style="background:#2563eb"></span><span class="leg-name">In review</span><span class="leg-val">14</span></div>
+                  <div class="leg"><span class="leg-sw" style="background:#7c3aed"></span><span class="leg-name">Escalated</span><span class="leg-val">10</span></div>
+                  <div class="leg"><span class="leg-sw" style="background:#65a30d"></span><span class="leg-name">Ready</span><span class="leg-val">19</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bars: by type -->
+          <div class="panel">
+            <div class="panel-head"><h2>This week by type</h2><span class="sub" style="margin-left:auto">requests</span></div>
+            <div class="bars">
+              <div class="bar-row"><span class="bar-name">Expense</span><span class="bar-track"><span class="bar-fill" style="width:90%"></span></span><span class="bar-val">41</span></div>
+              <div class="bar-row"><span class="bar-name">Purchase</span><span class="bar-track"><span class="bar-fill" style="width:64%;background:#2563eb"></span></span><span class="bar-val">29</span></div>
+              <div class="bar-row"><span class="bar-name">Leave</span><span class="bar-track"><span class="bar-fill" style="width:48%;background:#7c3aed"></span></span><span class="bar-val">22</span></div>
+              <div class="bar-row"><span class="bar-name">Contract</span><span class="bar-track"><span class="bar-fill" style="width:30%;background:#d97706"></span></span><span class="bar-val">14</span></div>
+              <div class="bar-row"><span class="bar-name">Access</span><span class="bar-track"><span class="bar-fill" style="width:18%;background:#16a34a"></span></span><span class="bar-val">8</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head" id="drawerHead"></div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot" id="drawerFoot"></div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- SEED DATA ---------------- */
+const ICONS = {
+  Expense:   {emoji:"💳", tint:"#eaf0fd", fg:"#2563eb"},
+  Purchase:  {emoji:"🧾", tint:"#f0f7e2", fg:"#65a30d"},
+  Leave:     {emoji:"🌴", tint:"#f1ebfd", fg:"#7c3aed"},
+  Contract:  {emoji:"📑", tint:"#fdf2e1", fg:"#d97706"},
+  Access:    {emoji:"🔐", tint:"#e9f6ee", fg:"#16a34a"},
+  Travel:    {emoji:"✈️", tint:"#eaf0fd", fg:"#2563eb"},
+  Vendor:    {emoji:"🏢", tint:"#fdf2e1", fg:"#d97706"}
+};
+
+function chain(steps){ return steps; }
+// step state: done | current | pending | rejected | auto
+const DATA = [
+  {
+    id:"REQ-4821", type:"Expense", title:"Q2 Client Offsite — Lisbon", requester:"Marco Reyes",
+    dept:"Sales · EMEA", amount:14280, cur:"EUR", submitted:"2026-06-21 09:12", ageH:48, urgent:true, watching:false, myStage:true,
+    risk:"med", aiScore:72, aiClass:"Needs review", sla:"6h", status:"pending",
+    chain:[
+      {role:"Auto-check",who:"AI Policy Engine",state:"auto",note:"Receipts OCR'd, 1 line over per-diem cap flagged.",time:"Jun 21 · 09:13"},
+      {role:"Team Lead",who:"Priya Anand",state:"done",note:"Approved — offsite was pre-cleared in OKR plan.",time:"Jun 21 · 11:40"},
+      {role:"Finance Director",who:"Dana Keller (you)",state:"current",note:"",time:"awaiting"},
+      {role:"VP Finance",who:"Helena Cho",state:"pending",note:"",time:""}
+    ],
+    extract:[
+      {l:"Total claimed",v:"€14,280",c:"hi"},
+      {l:"Policy cap",v:"€13,500",c:"hi"},
+      {l:"Over budget",v:"€780 (5.8%)",c:"md"},
+      {l:"Receipts",v:"11 / 11 matched",c:"hi"}
+    ],
+    reason:"Spend exceeds the EMEA offsite per-diem cap by €780 on dinner line items (Jun 19–20). All receipts reconcile to card transactions. Requester's history is clean (0 prior overages in 18mo). Recommend approve with a note; overage is within director discretion (≤€1,000).",
+    suggestion:"Approve — overage is minor and pre-cleared. Add note for the €780 dinner variance so VP sign-off is fast."
+  },
+  {
+    id:"REQ-4815", type:"Purchase", title:"Datadog enterprise renewal (24mo)", requester:"Liam Foster",
+    dept:"Platform Eng", amount:96000, cur:"USD", submitted:"2026-06-20 16:30", ageH:65, urgent:true, watching:true, myStage:true,
+    risk:"high", aiScore:54, aiClass:"Escalate", sla:"4h", status:"escalated",
+    chain:[
+      {role:"Auto-check",who:"AI Policy Engine",state:"auto",note:"Contract value > $50k → routed to dual sign-off + Procurement.",time:"Jun 20 · 16:31"},
+      {role:"Eng Manager",who:"Sara Mendel",state:"done",note:"Approved — usage grew 3x, renewal locks 24mo pricing.",time:"Jun 20 · 18:05"},
+      {role:"Procurement",who:"Owen Pratt",state:"done",note:"Negotiated 12% off list; T&Cs reviewed.",time:"Jun 21 · 10:22"},
+      {role:"Finance Director",who:"Dana Keller (you)",state:"current",note:"",time:"awaiting"},
+      {role:"CFO",who:"Marcus Webb",state:"pending",note:"",time:""}
+    ],
+    extract:[
+      {l:"Contract value",v:"$96,000",c:"hi"},
+      {l:"Term",v:"24 months",c:"hi"},
+      {l:"Discount vs list",v:"12% ($13.1k)",c:"hi"},
+      {l:"Auto-renew clause",v:"Yes — 60d notice",c:"md"}
+    ],
+    reason:"High-value renewal exceeding the $50k dual-approval threshold. Procurement secured a 12% discount and removed the prior 90-day auto-renew lock (now 60d). Budget line 'Observability' has $108k remaining for FY. Risk score is elevated only due to amount; vendor and terms are sound.",
+    suggestion:"Approve and forward to CFO. Flag the auto-renew clause in the note — Finance prefers explicit opt-in renewals over $75k."
+  },
+  {
+    id:"REQ-4809", type:"Leave", title:"Parental leave — 12 weeks", requester:"Aisha Bello",
+    dept:"Design", amount:0, cur:"", submitted:"2026-06-20 08:00", ageH:73, urgent:false, watching:false, myStage:false,
+    risk:"low", aiScore:96, aiClass:"Auto-approve eligible", sla:"2d", status:"review",
+    chain:[
+      {role:"Auto-check",who:"AI Policy Engine",state:"auto",note:"Eligibility verified (>12mo tenure). No coverage conflict.",time:"Jun 20 · 08:01"},
+      {role:"Manager",who:"Theo Vance",state:"done",note:"Approved. Coverage plan attached.",time:"Jun 20 · 09:30"},
+      {role:"HR Partner",who:"Nadia Cruz",state:"current",note:"",time:"awaiting"},
+      {role:"Finance (payroll)",who:"Dana Keller (you)",state:"pending",note:"",time:""}
+    ],
+    extract:[
+      {l:"Leave type",v:"Statutory parental",c:"hi"},
+      {l:"Duration",v:"12 weeks",c:"hi"},
+      {l:"Start date",v:"Aug 4, 2026",c:"hi"},
+      {l:"Coverage plan",v:"Attached ✓",c:"hi"}
+    ],
+    reason:"Fully policy-compliant statutory leave. Tenure (3.2 yrs) and notice period (45 days) both exceed minimums. A coverage plan is attached and the team has no other overlapping leave in the window. Confidence is high; this matched 41/41 auto-approval criteria.",
+    suggestion:"Safe to approve — payroll only needs to confirm the salary-continuation rate. No exceptions detected."
+  },
+  {
+    id:"REQ-4802", type:"Contract", title:"NDA + MSA — Brightloom Analytics", requester:"Grace Okoro",
+    dept:"Legal Ops", amount:0, cur:"", submitted:"2026-06-19 14:45", ageH:90, urgent:false, watching:true, myStage:true,
+    risk:"med", aiScore:81, aiClass:"Review clauses", sla:"1d", status:"pending",
+    chain:[
+      {role:"Auto-check",who:"AI Clause Scanner",state:"auto",note:"2 non-standard clauses found (liability cap, IP).",time:"Jun 19 · 14:46"},
+      {role:"Legal Counsel",who:"David Roth",state:"done",note:"Liability cap acceptable; IP clause redlined.",time:"Jun 20 · 09:10"},
+      {role:"Finance Director",who:"Dana Keller (you)",state:"current",note:"",time:"awaiting"},
+      {role:"General Counsel",who:"Elena Mraz",state:"pending",note:"",time:""}
+    ],
+    extract:[
+      {l:"Counterparty",v:"Brightloom Analytics",c:"hi"},
+      {l:"Liability cap",v:"12× fees",c:"md"},
+      {l:"Payment terms",v:"Net-45",c:"hi"},
+      {l:"Non-standard clauses",v:"2 flagged",c:"md"}
+    ],
+    reason:"The MSA carries a 12× liability cap (vs our 6× standard) but Counsel accepted it given the low contract value. Payment terms shifted from our preferred Net-30 to Net-45. The IP assignment clause was redlined and agreed. Financial exposure is limited; main concern is the Net-45 cash-flow impact.",
+    suggestion:"Approve. Consider asking Sales to push back to Net-30 on the next renewal — Net-45 adds ~$4k working-capital drag."
+  },
+  {
+    id:"REQ-4798", type:"Access", title:"Production DB read access — analytics", requester:"Kenji Tan",
+    dept:"Data Science", amount:0, cur:"", submitted:"2026-06-19 11:20", ageH:94, urgent:false, watching:false, myStage:true,
+    risk:"high", aiScore:48, aiClass:"Escalate — sensitive", sla:"1d", status:"escalated",
+    chain:[
+      {role:"Auto-check",who:"AI Risk Engine",state:"auto",note:"Scope includes PII tables → escalated to Security.",time:"Jun 19 · 11:21"},
+      {role:"Manager",who:"Rhea Kapoor",state:"done",note:"Approved for read-only, 90-day expiry.",time:"Jun 19 · 13:00"},
+      {role:"Security Lead",who:"Tomás Vidal",state:"rejected",note:"Denied: requested 'all schemas'. Needs scoped grant.",time:"Jun 20 · 16:40"},
+      {role:"Finance Director",who:"Dana Keller (you)",state:"pending",note:"",time:""}
+    ],
+    extract:[
+      {l:"Access scope",v:"All schemas (read)",c:"md"},
+      {l:"PII tables in scope",v:"7",c:"md"},
+      {l:"Requested duration",v:"Permanent",c:"md"},
+      {l:"Policy match",v:"Failed (2 rules)",c:"md"}
+    ],
+    reason:"Request was rejected by Security because the scope ('all schemas, permanent') includes 7 tables containing customer PII and violates the least-privilege rule. The requester's stated need only covers 3 analytics schemas. This will not reach your stage until re-scoped.",
+    suggestion:"No action needed from you — request was returned to the requester. Suggest a scoped, time-boxed grant (3 schemas, 90 days)."
+  },
+  {
+    id:"REQ-4790", type:"Travel", title:"Conference travel — Re:Invent", requester:"Sofia Marin",
+    dept:"DevRel", amount:6420, cur:"USD", submitted:"2026-06-18 17:05", ageH:113, urgent:false, watching:false, myStage:true,
+    risk:"low", aiScore:88, aiClass:"Within policy", sla:"2d", status:"pending",
+    chain:[
+      {role:"Auto-check",who:"AI Policy Engine",state:"auto",note:"Fare & hotel within policy bands. No exceptions.",time:"Jun 18 · 17:06"},
+      {role:"Manager",who:"Owen Pratt",state:"done",note:"Approved — speaking slot confirmed.",time:"Jun 19 · 08:20"},
+      {role:"Finance Director",who:"Dana Keller (you)",state:"current",note:"",time:"awaiting"}
+    ],
+    extract:[
+      {l:"Total estimate",v:"$6,420",c:"hi"},
+      {l:"Flight class",v:"Economy",c:"hi"},
+      {l:"Hotel / night",v:"$245 (cap $280)",c:"hi"},
+      {l:"Conference ROI tag",v:"Speaking slot",c:"hi"}
+    ],
+    reason:"All line items fall within travel policy bands — economy fare, hotel under the $280/night cap, and standard per-diem. The trip has a confirmed speaking slot which qualifies it as a marketing investment. Zero exceptions; this is a clean 2-stage approval.",
+    suggestion:"Approve — fully within policy and ties to a confirmed speaking engagement. One-click is safe here."
+  },
+  {
+    id:"REQ-4781", type:"Vendor", title:"New vendor onboarding — Helio Cloud", requester:"Ben Larsson",
+    dept:"IT Procurement", amount:38000, cur:"USD", submitted:"2026-06-17 10:00", ageH:153, urgent:false, watching:false, myStage:true,
+    risk:"med", aiScore:69, aiClass:"Needs review", sla:"3d", status:"review",
+    chain:[
+      {role:"Auto-check",who:"AI Risk Engine",state:"auto",note:"New vendor — KYC + SOC2 check passed, tax form pending.",time:"Jun 17 · 10:01"},
+      {role:"Procurement",who:"Owen Pratt",state:"done",note:"Vendor vetted, SOC2 Type II on file.",time:"Jun 17 · 15:30"},
+      {role:"Finance Director",who:"Dana Keller (you)",state:"current",note:"",time:"awaiting"},
+      {role:"Controller",who:"Jamie Wu",state:"pending",note:"",time:""}
+    ],
+    extract:[
+      {l:"First-year spend",v:"$38,000",c:"hi"},
+      {l:"SOC2 Type II",v:"Verified ✓",c:"hi"},
+      {l:"W-9 / tax form",v:"Pending ⚠",c:"md"},
+      {l:"Duplicate vendor?",v:"No match found",c:"hi"}
+    ],
+    reason:"New vendor passed KYC and SOC2 verification with no duplicate in the master vendor list. The only gap is the W-9 tax form, still pending from the vendor. Approving the relationship is fine, but payment should be blocked until the tax form lands. Spend is below the $50k dual-approval line.",
+    suggestion:"Approve onboarding, but hold first payment until the W-9 is received. The system will auto-release once tax form is filed."
+  }
+];
+
+/* AI activity feed */
+const FEED = [
+  {ic:"fi-violet", svg:'<path d="M12 2v4"/><path d="M18 12h4"/><path d="M12 18v4"/><path d="M2 12h4"/><circle cx="12" cy="12" r="3"/>', txt:'Auto-routed <b>REQ-4815</b> to dual sign-off — contract value over $50k', time:"2m ago"},
+  {ic:"fi-green", svg:'<polyline points="20 6 9 17 4 12"/>', txt:'Marked <b>REQ-4809</b> as auto-approval eligible (41/41 criteria)', time:"14m ago"},
+  {ic:"fi-amber", svg:'<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>', txt:'Flagged €780 per-diem overage on <b>REQ-4821</b> for your review', time:"31m ago"},
+  {ic:"fi-blue", svg:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', txt:'Scanned MSA on <b>REQ-4802</b> — found 2 non-standard clauses', time:"1h ago"},
+  {ic:"fi-violet", svg:'<path d="M12 2L3 7v6c0 5 3.8 8.4 9 9 5.2-.6 9-4 9-9V7z"/>', txt:'Escalated <b>REQ-4798</b> to Security — PII tables in access scope', time:"2h ago"},
+  {ic:"fi-green", svg:'<polyline points="20 6 9 17 4 12"/>', txt:'Reconciled 11/11 receipts on <b>REQ-4821</b> via OCR', time:"3h ago"},
+  {ic:"fi-blue", svg:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', txt:'No duplicate vendor found for <b>Helio Cloud</b> (REQ-4781)', time:"5h ago"}
+];
+
+/* ---------------- RENDER ---------------- */
+const rowsEl = document.getElementById('rows');
+const state = { tab:'all', type:'all', q:'', sort:'age', resolved:{} };
+
+function fmtAmt(a, cur){
+  if(!a) return '<span style="color:var(--text-3);font-weight:600">—</span>';
+  const n = a.toLocaleString('en-US');
+  return `${n}<span class="cur"> ${cur}</span>`;
+}
+function statusPill(s){
+  const map = {
+    pending:['pill-pending','Pending you'],
+    review:['pill-review','In review'],
+    escalated:['pill-escalated','Escalated'],
+    approved:['pill-approved','Approved'],
+    rejected:['pill-rejected','Returned']
+  };
+  const [c,l] = map[s] || map.pending;
+  return `<span class="pill ${c}">${l}</span>`;
+}
+function riskBadge(r){
+  const m={low:['risk-low','LOW'],med:['risk-med','MED'],high:['risk-high','HIGH']};
+  const [c,l]=m[r];
+  return `<span class="risk ${c}" title="AI risk level">${l} RISK</span>`;
+}
+function confColor(s){ if(s>=80) return '#16a34a'; if(s>=60) return '#d97706'; return '#dc2626'; }
+
+function miniStepper(ch){
+  // build compact horizontal stepper
+  let html = '<div class="stepmini">';
+  ch.forEach((s,i)=>{
+    let node;
+    if(s.state==='done') node = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    else if(s.state==='auto') node = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>';
+    else if(s.state==='rejected') node = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    else node = (i+1);
+    const short = s.role.length>14 ? s.role.slice(0,12)+'…' : s.role;
+    html += `<div class="smk ${s.state}"><div class="smk-node">${node}</div>`;
+    if(s.state==='current' || (s.state!=='done' && s.state!=='auto')) {
+      html += `<span class="smk-lbl">${short}</span>`;
+    }
+    html += `</div>`;
+    if(i<ch.length-1) html += '<div class="smk-line ' + (ch[i+1].state==='done'||s.state==='done'?'':'')+'" '+(s.state==='done'?'style="background:var(--green)"':'')+'></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function ageLabel(h){
+  if(h<24) return h+'h ago';
+  const d = Math.floor(h/24);
+  return d+'d ago';
+}
+
+function rowHTML(r){
+  const ic = ICONS[r.type];
+  const resolved = state.resolved[r.id];
+  let pill = statusPill(r.status);
+  if(resolved==='approved') pill = `<span class="pill pill-approved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approved</span>`;
+  if(resolved==='rejected') pill = `<span class="pill pill-rejected">Rejected</span>`;
+  return `
+  <div class="arow" data-id="${r.id}">
+    <div class="arow-top">
+      <div class="arow-icon" style="background:${ic.tint};color:${ic.fg}">${ic.emoji}</div>
+      <div class="arow-main">
+        <div class="arow-title">${r.title} <span class="arow-id">${r.id}</span></div>
+        <div class="arow-meta">
+          <span>${r.requester}</span><span class="dot"></span>
+          <span>${r.dept}</span><span class="dot"></span>
+          <span>${r.type}</span><span class="dot"></span>
+          ${riskBadge(r.risk)}
+          <span class="pill pill-ai" title="AI classification"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/></svg>${r.aiClass} ${r.aiScore}%</span>
+        </div>
+      </div>
+      <div>
+        <div class="arow-amount">${fmtAmt(r.amount, r.cur)}</div>
+        <div class="arow-age">${ageLabel(r.ageH)} ${r.urgent?'· <span style="color:var(--red);font-weight:700">SLA '+r.sla+'</span>':''}</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+      ${miniStepper(r.chain)}
+      <span style="margin-left:auto">${pill}</span>
+    </div>
+  </div>`;
+}
+
+function passesFilters(r){
+  if(state.type!=='all' && r.type!==state.type) return false;
+  if(state.tab==='urgent' && !r.urgent) return false;
+  if(state.tab==='mine' && !r.myStage) return false;
+  if(state.tab==='watch' && !r.watching) return false;
+  if(state.q){
+    const blob = (r.title+' '+r.requester+' '+r.id+' '+r.dept+' '+r.type+' '+r.aiClass).toLowerCase();
+    if(!blob.includes(state.q.toLowerCase())) return false;
+  }
+  return true;
+}
+
+function sortRows(list){
+  const arr = [...list];
+  if(state.sort==='age') arr.sort((a,b)=>b.ageH-a.ageH);
+  else if(state.sort==='amount') arr.sort((a,b)=>b.amount-a.amount);
+  else if(state.sort==='risk'){ const o={high:0,med:1,low:2}; arr.sort((a,b)=>o[a.risk]-o[b.risk]); }
+  else if(state.sort==='sla') arr.sort((a,b)=>(b.urgent?1:0)-(a.urgent?1:0) || a.ageH-b.ageH);
+  return arr;
+}
+
+function render(){
+  const list = sortRows(DATA.filter(passesFilters));
+  if(list.length===0){
+    rowsEl.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <h3>No approvals match</h3>
+      <div>Try clearing a filter or search term.</div>
+    </div>`;
+  } else {
+    rowsEl.innerHTML = list.map(rowHTML).join('');
+    rowsEl.querySelectorAll('.arow').forEach(el=>{
+      el.addEventListener('click', ()=> openDrawer(el.dataset.id));
+    });
+  }
+  // counts
+  document.getElementById('cnt-all').textContent = DATA.filter(r=>true).length;
+  document.getElementById('cnt-urgent').textContent = DATA.filter(r=>r.urgent).length;
+  document.getElementById('cnt-mine').textContent = DATA.filter(r=>r.myStage).length;
+  document.getElementById('cnt-watch').textContent = DATA.filter(r=>r.watching).length;
+}
+
+/* ---------------- DRAWER ---------------- */
+const scrim = document.getElementById('scrim');
+const drawer = document.getElementById('drawer');
+
+function verticalChain(ch){
+  return ch.map(s=>{
+    let node;
+    if(s.state==='done') node='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    else if(s.state==='auto') node='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>';
+    else if(s.state==='rejected') node='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    else node = '';
+    const stamp = s.time==='awaiting' ? '<span style="color:var(--accent);font-weight:700">⏳ Awaiting action</span>' : (s.time||'Not started');
+    return `<div class="vstep ${s.state}">
+      <div class="vnode">${node}</div>
+      <div class="vbody">
+        <div class="vrole">${s.role} ${s.state==='auto'?'<span class="pill pill-ai" style="font-size:9px;margin-left:4px">AI</span>':''}</div>
+        <div class="vwho">${s.who}</div>
+        ${s.note?`<div class="vnote">${s.note}</div>`:''}
+        <div class="vtime">${stamp}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openDrawer(id){
+  const r = DATA.find(x=>x.id===id);
+  if(!r) return;
+  const ic = ICONS[r.type];
+  document.getElementById('drawerHead').innerHTML = `
+    <div class="dh-icon" style="background:${ic.tint};color:${ic.fg}">${ic.emoji}</div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="arow-id">${r.id}</span>${statusPill(state.resolved[r.id]==='approved'?'approved':state.resolved[r.id]==='rejected'?'rejected':r.status)}
+      </div>
+      <div style="font-size:15px;font-weight:700;margin-top:3px;letter-spacing:-.2px">${r.title}</div>
+      <div style="font-size:11.5px;color:var(--text-2);margin-top:2px">${r.requester} · ${r.dept} · submitted ${r.submitted}</div>
+    </div>
+    <button class="close-x" id="closeX"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+  `;
+
+  const confFill = confColor(r.aiScore);
+  document.getElementById('drawerBody').innerHTML = `
+    <!-- AI extraction -->
+    <div class="sec">
+      <div class="sec-title">AI Analysis <span class="line"></span>
+        <span class="ai-score" title="AI confidence">
+          <span style="color:${confFill}">${r.aiScore}%</span>
+          <span class="conf-bar"><span class="conf-fill" style="width:${r.aiScore}%;background:${confFill}"></span></span>
+        </span>
+      </div>
+      <div class="extract">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="pill pill-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/></svg>${r.aiClass}</span>
+          ${riskBadge(r.risk)}
+        </div>
+        <div class="extract-grid">
+          ${r.extract.map(e=>`<div>
+            <div class="ef-label">${e.l}</div>
+            <div class="ef-val">${e.v}<span class="conf-mini ${e.c==='hi'?'conf-hi':'conf-md'}">${e.c==='hi'?'high':'check'}</span></div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- reasoning -->
+    <div class="sec">
+      <div class="sec-title">Why this routing <span class="line"></span></div>
+      <div class="reason-box">
+        <div class="rb-lead"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4 12h2M18 12h2"/></svg>AI reasoning</div>
+        ${r.reason}
+      </div>
+    </div>
+
+    <!-- suggestion -->
+    <div class="sec">
+      <div class="suggest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2Z"/></svg>
+        <div class="suggest-txt"><b>Suggested action.</b> ${r.suggestion}</div>
+      </div>
+    </div>
+
+    <!-- request details -->
+    <div class="sec">
+      <div class="sec-title">Request details <span class="line"></span></div>
+      <dl class="kv">
+        <dt>Type</dt><dd>${r.type}</dd>
+        <dt>Amount</dt><dd>${r.amount?r.amount.toLocaleString('en-US')+' '+r.cur:'—'}</dd>
+        <dt>Requester</dt><dd>${r.requester}</dd>
+        <dt>Department</dt><dd>${r.dept}</dd>
+        <dt>SLA window</dt><dd>${r.urgent?'<span style="color:var(--red);font-weight:700">'+r.sla+' remaining</span>':r.sla}</dd>
+        <dt>In queue</dt><dd>${ageLabel(r.ageH)}</dd>
+      </dl>
+    </div>
+
+    <!-- approval chain -->
+    <div class="sec">
+      <div class="sec-title">Approval chain <span class="line"></span></div>
+      <div class="vchain">${verticalChain(r.chain)}</div>
+    </div>
+
+    <!-- comment compose -->
+    <div class="sec" style="margin-bottom:0">
+      <div class="sec-title">Add a note <span class="line"></span></div>
+      <div class="compose">
+        <input id="noteInput" type="text" placeholder="Optional note for next approver…" />
+        <button class="btn" id="noteSend">Post</button>
+      </div>
+    </div>
+  `;
+
+  const isResolved = state.resolved[r.id];
+  const atMyStage = r.chain.some(s=>s.state==='current' && s.who.includes('you'));
+  document.getElementById('drawerFoot').innerHTML = isResolved
+    ? `<span style="font-size:12px;color:var(--text-2);font-weight:600">You ${isResolved} this request.</span>
+       <button class="btn btn-ghost" style="margin-left:auto" id="undoBtn">Undo</button>`
+    : `<button class="btn" id="rejectBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
+       <button class="btn" id="delegateBtn">Delegate</button>
+       <button class="btn btn-primary" style="margin-left:auto" id="approveBtn">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+         ${atMyStage?'Approve at your stage':'Approve'}
+       </button>`;
+
+  // bind
+  document.getElementById('closeX').onclick = closeDrawer;
+  const ap = document.getElementById('approveBtn');
+  if(ap) ap.onclick = ()=>{ state.resolved[r.id]='approved'; toast('Approved '+r.id+' — forwarded to next approver'); closeDrawer(); render(); };
+  const rj = document.getElementById('rejectBtn');
+  if(rj) rj.onclick = ()=>{ state.resolved[r.id]='rejected'; toast('Rejected '+r.id+' — returned to requester'); closeDrawer(); render(); };
+  const dl = document.getElementById('delegateBtn');
+  if(dl) dl.onclick = ()=>{ toast('Delegated '+r.id+' to Jamie Wu'); };
+  const ud = document.getElementById('undoBtn');
+  if(ud) ud.onclick = ()=>{ delete state.resolved[r.id]; openDrawer(r.id); render(); };
+  const ns = document.getElementById('noteSend');
+  if(ns) ns.onclick = ()=>{ const v=document.getElementById('noteInput').value.trim(); if(v){ toast('Note posted to '+r.id); document.getElementById('noteInput').value=''; } };
+
+  scrim.classList.add('show');
+  drawer.classList.add('show');
+}
+function closeDrawer(){ scrim.classList.remove('show'); drawer.classList.remove('show'); }
+scrim.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+/* ---------------- FEED ---------------- */
+document.getElementById('feed').innerHTML = FEED.map(f=>`
+  <div class="feed-item">
+    <div class="feed-ic ${f.ic}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${f.svg}</svg></div>
+    <div class="feed-body">
+      <div class="feed-txt">${f.txt}</div>
+      <div class="feed-time">${f.time}</div>
+    </div>
+  </div>`).join('');
+
+/* ---------------- CONTROLS ---------------- */
+document.getElementById('tabs').addEventListener('click', e=>{
+  const t = e.target.closest('.tab'); if(!t) return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); state.tab = t.dataset.tab; render();
+});
+document.querySelectorAll('.chip-filter').forEach(c=>{
+  c.addEventListener('click', ()=>{
+    document.querySelectorAll('.chip-filter').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active'); state.type = c.dataset.f; render();
+  });
+});
+document.getElementById('sortSel').addEventListener('change', e=>{ state.sort = e.target.value; render(); });
+document.getElementById('searchInput').addEventListener('input', e=>{ state.q = e.target.value; render(); });
+document.getElementById('bulkBtn').addEventListener('click', ()=>{
+  const low = DATA.filter(r=>r.risk==='low' && !state.resolved[r.id]);
+  low.forEach(r=> state.resolved[r.id]='approved');
+  toast(low.length?('Bulk-approved '+low.length+' low-risk requests'):'No low-risk requests to approve');
+  render();
+});
+
+/* ---------------- TOAST ---------------- */
+let toastT;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'+msg;
+  el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(()=> el.classList.remove('show'), 2600);
+}
+
+render();
+</script>
+</body>
+</html>

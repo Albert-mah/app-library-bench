@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Postflow — Composer &amp; Queue</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Social Media Composer (Postflow)",
+  "prefix": "smc_",
+  "collections": {
+    "smc_accounts": {"titleField":"name","fields":{"name":"input","platform":"select:x|linkedin|instagram|facebook|youtube|wechat","handle":"input","follower_count":"integer","is_active":"boolean"}},
+    "smc_tags": {"titleField":"name","fields":{"name":"input","color":"select"}},
+    "smc_posts": {"titleField":"title_short","fields":{"title_short":"input","body":"textarea","media_note":"input","has_media":"boolean","platform":"select:x|linkedin|instagram|facebook|youtube|wechat","status":"select:draft|scheduled|needs_approval|published|archived","scheduled_at":"datetime"},"relations":{"account":"m2o smc_accounts (fk account_id)","tags":"m2m smc_tags"}}
+  },
+  "page": {
+    "name": "Composer",
+    "layout": "composer = native Form (with nested JS items incl. the live phone-preview JS item) | scheduled-queue = native List + JS item card",
+    "regions": [
+      {"id":"composer","block":"native Form block (smc_posts, create mode) — NOT a freestanding JSBlock","intent":"compose a post","content":["platform = JS item rendering pills (sets the platform field)","body = textarea field + char counter (JS item, per-platform limit)","media_note field","status field","scheduled_at datetime field"],"actions":["Add to queue = submit/JS action (status=scheduled)","Save draft = JS action (status=draft)"]},
+      {"id":"preview","block":"JS item bound to the composer Form — phone/device frame LIVE preview","intent":"WYSIWYG preview that updates AS the composer changes","binds":"ctx.form.getFieldsValue() + ctx.blockModel.on('formValuesChange', render)","shows":["platform-skinned card","account avatar + handle","body text","media placeholder when has_media"]},
+      {"id":"queue","block":"List + JS item card","collection":"smc_posts","intent":"scheduled queue timeline","sort":"scheduled_at asc","group":"by day (Today / Tomorrow / date)","card":["platform color left-border","handle + scheduled time","body 2-line clamp","status pill","media icon"]}
+    ]
+  },
+  "interactions": ["phone preview binds composer form live (formValuesChange)","platform pill changes preview skin/limit","queue grouped by day","Add to queue writes smc_posts"],
+  "jsKernels": ["phone-frame live preview (binds composer form)","queue JS item card"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (Form for the composer, List for the queue); reproduce the custom look/behavior with JS items/actions/cards nested INSIDE them. Any NON-native field or interactive element MUST be a JS item/block — e.g. the phone preview is a live device-frame JS item (NOT a native field, NOT a small static card), and the platform pills are a JS item. The queue is a real native List of smc_posts (not omitted). Do not rebuild the form as a freestanding JSBlock."
+}
+</script>
+<style>
+  :root{
+    --magenta:#eb2f96; --magenta-soft:#fff0f6; --magenta-line:#ffadd2;
+    --ink:#1f1f1f; --ink-2:#595959; --ink-3:#8c8c8c;
+    --line:#f0f0f0; --line-2:#e8e8e8; --bg:#f5f6f8; --card:#fff;
+    --x:#1d1d1f; --linkedin:#0a66c2; --instagram:#d6249f; --facebook:#1877f2;
+    --youtube:#ff0000; --wechat:#07c160;
+    --green:#52c41a; --gold:#faad14; --r:10px;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 6px 18px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:54px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 22px; position:sticky; top:0; z-index:30;
+  }
+  .brand{display:flex; align-items:center; gap:9px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:26px;height:26px;border-radius:8px;
+    background:linear-gradient(135deg,var(--magenta),#ff7ac0);
+    display:grid;place-items:center;color:#fff;font-size:14px;font-weight:800;
+    box-shadow:0 2px 8px rgba(235,47,150,.35);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:8px}
+  .topnav a{
+    padding:6px 12px;border-radius:7px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--magenta-soft);color:var(--magenta)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .acct{display:flex;align-items:center;gap:7px}
+  .acct .ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7265e6,#b37feb);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.1}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+  .chip-live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);
+    background:#f6ffed;border:1px solid #d9f7be;padding:4px 9px;border-radius:20px}
+  .chip-live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* ---------- workspace 2-pane ---------- */
+  .workspace{
+    display:grid; grid-template-columns: minmax(0,1fr) 392px; gap:0;
+    height:calc(100vh - 54px);
+  }
+  .composer-pane{
+    display:grid; grid-template-columns: minmax(0,1fr) 320px; gap:24px;
+    padding:26px 28px; overflow:auto; align-content:start;
+  }
+  .queue-pane{
+    background:linear-gradient(180deg,#fafbfc,#f5f6f8);
+    border-left:1px solid var(--line-2);
+    overflow:auto; padding:0;
+  }
+  @media(max-width:1180px){
+    .workspace{grid-template-columns:1fr; height:auto}
+    .queue-pane{border-left:none;border-top:1px solid var(--line-2)}
+    .composer-pane{grid-template-columns:1fr}
+    .phone-wrap{order:-1}
+  }
+
+  /* ---------- composer card ---------- */
+  .pane-head{margin-bottom:16px}
+  .pane-head h1{font-size:19px;font-weight:700;letter-spacing:-.3px}
+  .pane-head p{color:var(--ink-3);font-size:12.5px;margin-top:2px}
+
+  .composer{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .comp-section{padding:16px 18px;border-bottom:1px solid var(--line)}
+  .comp-section:last-child{border-bottom:none}
+  .lbl{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);margin-bottom:10px;display:block}
+
+  /* platform pills */
+  .pills{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{
+    display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;
+    border:1.5px solid var(--line-2);background:#fff;border-radius:22px;padding:6px 12px 6px 7px;
+    font-size:13px;font-weight:500;color:var(--ink-2);transition:.13s;
+  }
+  .pill .ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;flex:none}
+  .pill:hover{border-color:#d9d9d9}
+  .pill.active{color:#fff;border-color:transparent}
+  .pill.active.x{background:var(--x)}
+  .pill.active.linkedin{background:var(--linkedin)}
+  .pill.active.instagram{background:var(--instagram)}
+  .pill.active.facebook{background:var(--facebook)}
+  .pill.active.youtube{background:var(--youtube)}
+  .pill.active.wechat{background:var(--wechat)}
+  .pill .check{display:none;font-size:11px}
+  .pill.active .check{display:inline}
+  .ic.x{background:var(--x)} .ic.linkedin{background:var(--linkedin)}
+  .ic.instagram{background:linear-gradient(135deg,#feda75,#d62976,#962fbf)}
+  .ic.facebook{background:var(--facebook)} .ic.youtube{background:var(--youtube)} .ic.wechat{background:var(--wechat)}
+
+  /* textarea */
+  .ta-wrap{position:relative}
+  textarea#composerText{
+    width:100%;min-height:128px;resize:vertical;border:1.5px solid var(--line-2);border-radius:9px;
+    padding:13px 14px;font-family:inherit;font-size:14.5px;line-height:1.55;color:var(--ink);outline:none;transition:.13s;
+  }
+  textarea#composerText:focus{border-color:var(--magenta-line);box-shadow:0 0 0 3px var(--magenta-soft)}
+  .ta-meta{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
+  .emoji-row{display:flex;gap:3px}
+  .emoji-row button{border:none;background:none;cursor:pointer;font-size:16px;padding:3px 4px;border-radius:6px;line-height:1}
+  .emoji-row button:hover{background:var(--line)}
+  .counter{font-size:12.5px;font-weight:600;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+  .counter .num{font-variant-numeric:tabular-nums}
+  .counter.warn .num{color:var(--gold)}
+  .counter.over .num{color:#ff4d4f}
+  .ring{width:20px;height:20px}
+  .ring circle{fill:none;stroke-width:3}
+  .ring .bg{stroke:var(--line-2)}
+  .ring .fg{stroke:var(--magenta);stroke-linecap:round;transition:stroke-dashoffset .2s, stroke .2s}
+
+  /* media drop */
+  .drop{
+    border:1.5px dashed var(--line-2);border-radius:9px;padding:18px;text-align:center;cursor:pointer;
+    color:var(--ink-3);transition:.13s;background:#fcfcfd;
+  }
+  .drop:hover{border-color:var(--magenta-line);background:var(--magenta-soft);color:var(--magenta)}
+  .drop .big{font-size:22px;margin-bottom:4px}
+  .drop b{color:var(--ink-2);font-weight:600;font-size:13px}
+  .drop.has{display:flex;gap:10px;flex-wrap:wrap;text-align:left;padding:12px;border-style:solid}
+  .thumb{width:62px;height:62px;border-radius:8px;background:#e9ecf2 center/cover;position:relative;flex:none;
+    display:grid;place-items:center;font-size:20px;color:#b0b7c3}
+  .thumb .rm{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#1f1f1f;color:#fff;
+    border:2px solid #fff;font-size:11px;display:grid;place-items:center;cursor:pointer}
+
+  /* schedule row */
+  .sched-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .field label{font-size:12px;color:var(--ink-2);font-weight:500;display:block;margin-bottom:5px}
+  .field input{width:100%;border:1.5px solid var(--line-2);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:13.5px;outline:none}
+  .field input:focus{border-color:var(--magenta-line);box-shadow:0 0 0 3px var(--magenta-soft)}
+  .best-times{margin-top:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink-3)}
+  .best-times .tslot{border:1px solid var(--line-2);background:#fff;border-radius:7px;padding:4px 9px;cursor:pointer;font-weight:600;color:var(--ink-2)}
+  .best-times .tslot:hover{border-color:var(--magenta-line);color:var(--magenta);background:var(--magenta-soft)}
+
+  /* actions */
+  .comp-actions{display:flex;align-items:center;gap:10px;padding:15px 18px;background:#fafbfc}
+  .btn{border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:.13s}
+  .btn-primary{background:var(--magenta);color:#fff;box-shadow:0 2px 8px rgba(235,47,150,.3)}
+  .btn-primary:hover{background:#d9277f}
+  .btn-ghost{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#d9d9d9}
+  .comp-actions .spacer{margin-left:auto;font-size:12px;color:var(--ink-3)}
+
+  /* ---------- phone preview ---------- */
+  .phone-wrap{position:sticky;top:80px;align-self:start}
+  .phone-tabs{display:flex;gap:6px;margin-bottom:12px;justify-content:center;flex-wrap:wrap}
+  .ptab{font-size:11px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:4px 9px;border-radius:14px;border:1px solid transparent}
+  .ptab.on{background:#fff;border-color:var(--line-2);color:var(--ink);box-shadow:var(--shadow)}
+  .phone{
+    width:280px;margin:0 auto;background:#000;border-radius:38px;padding:10px;box-shadow:0 18px 40px rgba(0,0,0,.18);
+  }
+  .phone-screen{background:#fff;border-radius:30px;overflow:hidden;height:520px;position:relative}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:24px;background:#000;border-radius:0 0 16px 16px;z-index:5}
+  .pv-head{display:flex;align-items:center;gap:9px;padding:18px 14px 10px;border-bottom:1px solid var(--line)}
+  .pv-ava{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;
+    background:linear-gradient(135deg,var(--magenta),#ff8fc7)}
+  .pv-id{line-height:1.2;flex:1;min-width:0}
+  .pv-id b{font-size:13.5px;display:flex;align-items:center;gap:5px}
+  .pv-id b .badge{width:15px;height:15px;border-radius:50%;color:#fff;font-size:8px;display:grid;place-items:center;font-weight:800}
+  .pv-id span{font-size:11.5px;color:var(--ink-3)}
+  .pv-more{color:var(--ink-3);font-size:16px}
+  .pv-body{padding:12px 14px}
+  .pv-text{font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;color:var(--ink)}
+  .pv-text .tag{color:var(--linkedin);font-weight:500}
+  .pv-text .placeholder{color:var(--ink-3);font-style:italic}
+  .pv-media{margin-top:11px;border-radius:10px;height:150px;background:linear-gradient(135deg,#fdeff5,#e6f0ff);
+    display:grid;place-items:center;color:#c0c8d4;font-size:30px;border:1px solid var(--line)}
+  .pv-actions{display:flex;gap:22px;padding:12px 16px;border-top:1px solid var(--line);color:var(--ink-3);font-size:13px;margin-top:6px}
+  .pv-actions span{display:flex;align-items:center;gap:5px}
+  .pv-foot{position:absolute;bottom:0;left:0;right:0;text-align:center;padding:7px;font-size:10px;color:var(--ink-3);border-top:1px solid var(--line);background:#fafbfc}
+
+  /* ---------- queue ---------- */
+  .q-head{padding:18px 20px 12px;position:sticky;top:0;background:#fafbfc;z-index:5;border-bottom:1px solid var(--line)}
+  .q-head .row{display:flex;align-items:center;justify-content:space-between}
+  .q-head h2{font-size:15px;font-weight:700}
+  .q-head .cnt{font-size:11.5px;color:#fff;background:var(--magenta);border-radius:11px;padding:1px 9px;font-weight:700}
+  .q-filters{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
+  .qf{font-size:11.5px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:4px 10px;border-radius:14px;border:1px solid var(--line-2);background:#fff}
+  .qf.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .day-group{padding:6px 0}
+  .day-label{position:sticky;top:96px;display:flex;align-items:center;gap:10px;padding:12px 20px 8px;background:linear-gradient(180deg,#fafbfc,rgba(250,251,252,0));z-index:4}
+  .day-label .d-day{font-size:13px;font-weight:700;color:var(--ink)}
+  .day-label .d-date{font-size:11.5px;color:var(--ink-3)}
+  .day-label .d-line{flex:1;height:1px;background:var(--line-2)}
+  .day-label .d-n{font-size:11px;color:var(--ink-3);font-weight:600}
+
+  .q-card{
+    margin:0 16px 10px;background:#fff;border:1px solid var(--line-2);border-radius:var(--r);padding:12px 13px;
+    box-shadow:0 1px 2px rgba(0,0,0,.03);position:relative;cursor:pointer;transition:.13s;border-left:3px solid var(--line-2);
+  }
+  .q-card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+  .q-card.x{border-left-color:var(--x)} .q-card.linkedin{border-left-color:var(--linkedin)}
+  .q-card.instagram{border-left-color:var(--instagram)} .q-card.facebook{border-left-color:var(--facebook)}
+  .q-card.youtube{border-left-color:var(--youtube)} .q-card.wechat{border-left-color:var(--wechat)}
+  .qc-top{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .qc-badge{width:22px;height:22px;border-radius:6px;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}
+  .qc-badge.x{background:var(--x)} .qc-badge.linkedin{background:var(--linkedin)}
+  .qc-badge.instagram{background:linear-gradient(135deg,#feda75,#d62976,#962fbf)}
+  .qc-badge.facebook{background:var(--facebook)} .qc-badge.youtube{background:var(--youtube)} .qc-badge.wechat{background:var(--wechat)}
+  .qc-handle{font-size:12px;font-weight:600;color:var(--ink-2)}
+  .qc-time{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-weight:600;font-variant-numeric:tabular-nums}
+  .qc-text{font-size:12.5px;color:var(--ink);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .qc-foot{display:flex;align-items:center;gap:8px;margin-top:9px}
+  .qc-status{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.2px}
+  .st-scheduled{background:var(--magenta-soft);color:var(--magenta)}
+  .st-draft{background:#f0f0f0;color:var(--ink-2)}
+  .st-needs{background:#fffbe6;color:#d48806}
+  .st-published{background:#f6ffed;color:#389e0d}
+  .qc-thumb{width:18px;height:18px;border-radius:4px;background:#e9ecf2;display:grid;place-items:center;font-size:10px;color:#aeb6c2}
+  .qc-tools{margin-left:auto;display:flex;gap:3px;opacity:0;transition:.13s}
+  .q-card:hover .qc-tools{opacity:1}
+  .qc-tools button{border:none;background:var(--line);width:24px;height:24px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--ink-2)}
+  .qc-tools button:hover{background:var(--magenta-soft);color:var(--magenta)}
+  .empty-day{margin:0 16px 10px;border:1.5px dashed var(--line-2);border-radius:var(--r);padding:14px;text-align:center;color:var(--ink-3);font-size:12px}
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--magenta)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">P</span>Postflow <small>composer</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Compose</a>
+    <a href="#">Calendar</a>
+    <a href="#">Analytics</a>
+    <a href="#">Inbox</a>
+  </nav>
+  <div class="top-right">
+    <span class="chip-live"><i></i> 6 channels connected</span>
+    <div class="acct">
+      <div class="ava">AM</div>
+      <div class="who"><b>Aria Madsen</b><br><span>Northbeam Studio</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ============ LEFT: COMPOSER + PHONE PREVIEW ============ -->
+  <section class="composer-pane">
+    <div>
+      <div class="pane-head">
+        <h1>New post</h1>
+        <p>Write once, tailor per network, drop it on the queue.</p>
+      </div>
+
+      <div class="composer">
+        <!-- platforms -->
+        <div class="comp-section">
+          <span class="lbl">Publish to</span>
+          <div class="pills" id="pills">
+            <div class="pill active x"        data-p="x"><span class="ic x">𝕏</span>X <span class="check">✓</span></div>
+            <div class="pill linkedin"        data-p="linkedin"><span class="ic linkedin">in</span>LinkedIn <span class="check">✓</span></div>
+            <div class="pill instagram"       data-p="instagram"><span class="ic instagram">◎</span>Instagram <span class="check">✓</span></div>
+            <div class="pill facebook"        data-p="facebook"><span class="ic facebook">f</span>Facebook <span class="check">✓</span></div>
+            <div class="pill youtube"         data-p="youtube"><span class="ic youtube">▶</span>YouTube <span class="check">✓</span></div>
+            <div class="pill wechat"          data-p="wechat"><span class="ic wechat">Wx</span>WeChat <span class="check">✓</span></div>
+          </div>
+        </div>
+
+        <!-- text -->
+        <div class="comp-section">
+          <span class="lbl">Message</span>
+          <div class="ta-wrap">
+            <textarea id="composerText" placeholder="What do you want to share? Use #hashtags and @mentions…">Behind the scenes of our spring drop ✨ Three weeks of prototyping, one obsessive color study, and a lot of cold brew. Full reveal Friday. #design #buildinpublic @northbeam</textarea>
+            <div class="ta-meta">
+              <div class="emoji-row">
+                <button data-e="✨">✨</button>
+                <button data-e="🔥">🔥</button>
+                <button data-e="🚀">🚀</button>
+                <button data-e="💡">💡</button>
+                <button data-e="🎉">🎉</button>
+                <button data-e="#">#</button>
+              </div>
+              <div class="counter" id="counter">
+                <svg class="ring" viewBox="0 0 24 24"><circle class="bg" cx="12" cy="12" r="9"/><circle class="fg" id="ring" cx="12" cy="12" r="9" transform="rotate(-90 12 12)"/></svg>
+                <span><span class="num" id="count">0</span> / <span id="limit">280</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- media -->
+        <div class="comp-section">
+          <span class="lbl">Media</span>
+          <div class="drop has" id="drop">
+            <div class="thumb" style="background-image:linear-gradient(135deg,#ffd6e7,#ffadd2)">🖼️<span class="rm" data-rm>×</span></div>
+            <div class="thumb" style="background-image:linear-gradient(135deg,#d3adf7,#b37feb)">🎬<span class="rm" data-rm>×</span></div>
+            <div class="thumb" id="addMedia" style="cursor:pointer;font-size:22px">＋</div>
+          </div>
+        </div>
+
+        <!-- schedule -->
+        <div class="comp-section">
+          <span class="lbl">Schedule</span>
+          <div class="sched-grid">
+            <div class="field"><label>Date</label><input type="date" id="schedDate" value="2026-06-05"></div>
+            <div class="field"><label>Time</label><input type="time" id="schedTime" value="09:30"></div>
+          </div>
+          <div class="best-times">
+            <span>⚡ Best times for your audience:</span>
+            <span class="tslot" data-t="08:00">8:00 AM</span>
+            <span class="tslot" data-t="12:30">12:30 PM</span>
+            <span class="tslot" data-t="18:45">6:45 PM</span>
+          </div>
+        </div>
+
+        <!-- actions -->
+        <div class="comp-actions">
+          <button class="btn btn-primary" id="addToQueue">Add to queue</button>
+          <button class="btn btn-ghost" id="saveDraft">Save draft</button>
+          <span class="spacer" id="audienceLine">Reaches ~3 networks</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- phone preview -->
+    <div class="phone-wrap">
+      <div class="phone-tabs" id="phoneTabs"></div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="notch"></div>
+          <div class="pv-head">
+            <div class="pv-ava" id="pvAva">NB</div>
+            <div class="pv-id">
+              <b id="pvName">Northbeam Studio <span class="badge" id="pvBadge">𝕏</span></b>
+              <span id="pvHandle">@northbeam · now</span>
+            </div>
+            <div class="pv-more">⋯</div>
+          </div>
+          <div class="pv-body">
+            <div class="pv-text" id="pvText"></div>
+            <div class="pv-media" id="pvMedia">🖼️</div>
+          </div>
+          <div class="pv-actions" id="pvActions"></div>
+          <div class="pv-foot" id="pvFoot">Live preview · X</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RIGHT: SCHEDULED QUEUE TIMELINE ============ -->
+  <aside class="queue-pane">
+    <div class="q-head">
+      <div class="row">
+        <h2>Scheduled queue</h2>
+        <span class="cnt" id="queueCount">0</span>
+      </div>
+      <div class="q-filters" id="qFilters">
+        <span class="qf on" data-f="all">All</span>
+        <span class="qf" data-f="x">X</span>
+        <span class="qf" data-f="linkedin">LinkedIn</span>
+        <span class="qf" data-f="instagram">Instagram</span>
+        <span class="qf" data-f="facebook">Facebook</span>
+        <span class="qf" data-f="youtube">YouTube</span>
+        <span class="qf" data-f="wechat">WeChat</span>
+      </div>
+    </div>
+    <div id="queue"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var PLATFORMS = {
+    x:        {name:"X",         glyph:"𝕏",  limit:280,  handle:"@northbeam",          display:"Northbeam Studio", acts:["♡ 1.2K","↺ 340","💬 88","↗"]},
+    linkedin: {name:"LinkedIn",  glyph:"in", limit:3000, handle:"Northbeam Studio · 12,400 followers", display:"Northbeam Studio", acts:["👍 React","💬 Comment","↺ Repost","↗ Send"]},
+    instagram:{name:"Instagram", glyph:"◎",  limit:2200, handle:"northbeam.studio",    display:"northbeam.studio", acts:["♡","💬","↗","🔖"]},
+    facebook: {name:"Facebook",  glyph:"f",  limit:63206,handle:"Northbeam Studio",     display:"Northbeam Studio", acts:["👍 Like","💬 Comment","↗ Share"]},
+    youtube:  {name:"YouTube",   glyph:"▶",  limit:5000, handle:"Northbeam · 48.2K subscribers", display:"Northbeam", acts:["👍 2.4K","👎","💬 112","↗ Share"]},
+    wechat:   {name:"WeChat",    glyph:"Wx", limit:2000, handle:"Northbeam Studio",   display:"Northbeam Studio", acts:["Like","Comment","Share","Fav"]}
+  };
+  var ORDER = ["x","linkedin","instagram","facebook","youtube","wechat"];
+
+  var selected = ["x","linkedin","facebook"]; // initial active pills
+  var previewPlatform = "x";
+
+  var ta       = document.getElementById("composerText");
+  var countEl  = document.getElementById("count");
+  var limitEl  = document.getElementById("limit");
+  var counter  = document.getElementById("counter");
+  var ring     = document.getElementById("ring");
+  var R = 9, CIRC = 2*Math.PI*R;
+  ring.setAttribute("stroke-dasharray", CIRC.toFixed(1));
+
+  // ---------- platform pills ----------
+  document.getElementById("pills").addEventListener("click", function(e){
+    var pill = e.target.closest(".pill"); if(!pill) return;
+    var p = pill.dataset.p;
+    if(pill.classList.contains("active")){
+      if(selected.length===1){ flash("Keep at least one network selected"); return; }
+      pill.classList.remove("active");
+      selected = selected.filter(function(x){return x!==p;});
+      if(previewPlatform===p) previewPlatform = selected[0];
+    } else {
+      pill.classList.add("active");
+      selected.push(p);
+      previewPlatform = p; // preview the one you just turned on
+    }
+    selected.sort(function(a,b){return ORDER.indexOf(a)-ORDER.indexOf(b);});
+    renderPhoneTabs(); renderPreview(); updateCounter(); updateAudience();
+  });
+
+  // ---------- emoji / hashtag insert ----------
+  document.querySelector(".emoji-row").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    var ins = b.dataset.e==="#" ? " #" : (" "+b.dataset.e);
+    var s = ta.selectionStart, val = ta.value;
+    ta.value = val.slice(0,s) + ins + val.slice(s);
+    ta.focus(); ta.selectionStart = ta.selectionEnd = s+ins.length;
+    onType();
+  });
+
+  // ---------- media ----------
+  var mediaCount = 2;
+  document.getElementById("drop").addEventListener("click", function(e){
+    if(e.target.dataset.rm!==undefined){
+      e.target.closest(".thumb").remove(); mediaCount--; renderPreview(); return;
+    }
+    if(e.target.id==="addMedia"){
+      mediaCount++;
+      var cols=["linear-gradient(135deg,#b5f5ec,#5cdbd3)","linear-gradient(135deg,#fff1b8,#ffd666)","linear-gradient(135deg,#d6e4ff,#85a5ff)"];
+      var t=document.createElement("div");
+      t.className="thumb"; t.style.backgroundImage=cols[mediaCount%cols.length]; t.innerHTML='🖼️<span class="rm" data-rm>×</span>';
+      e.target.parentNode.insertBefore(t, e.target);
+      renderPreview(); flash("Media added");
+    }
+  });
+
+  // ---------- best times ----------
+  document.querySelector(".best-times").addEventListener("click", function(e){
+    var s=e.target.closest(".tslot"); if(!s) return;
+    document.getElementById("schedTime").value = s.dataset.t;
+    flash("Time set to "+s.textContent);
+  });
+
+  // ---------- typing ----------
+  ta.addEventListener("input", onType);
+  function onType(){ updateCounter(); renderPreview(); }
+
+  function updateCounter(){
+    var len = ta.value.length;
+    var limit = PLATFORMS[previewPlatform].limit;
+    limitEl.textContent = limit;
+    countEl.textContent = len;
+    var ratio = Math.min(len/limit, 1);
+    ring.setAttribute("stroke-dashoffset", (CIRC*(1-ratio)).toFixed(1));
+    counter.classList.toggle("warn", ratio>=0.8 && ratio<1);
+    counter.classList.toggle("over", len>limit);
+    ring.style.stroke = len>limit ? "#ff4d4f" : (ratio>=0.8 ? "#faad14" : "#eb2f96");
+  }
+
+  function updateAudience(){
+    var n=selected.length;
+    document.getElementById("audienceLine").textContent = "Reaches ~"+n+" network"+(n===1?"":"s");
+  }
+
+  // ---------- phone preview ----------
+  function renderPhoneTabs(){
+    var wrap=document.getElementById("phoneTabs"); wrap.innerHTML="";
+    selected.forEach(function(p){
+      var t=document.createElement("span");
+      t.className="ptab"+(p===previewPlatform?" on":"");
+      t.textContent=PLATFORMS[p].name; t.dataset.p=p;
+      t.onclick=function(){ previewPlatform=p; renderPhoneTabs(); renderPreview(); updateCounter(); };
+      wrap.appendChild(t);
+    });
+  }
+
+  function highlight(txt){
+    var esc = txt.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    return esc.replace(/([#@][\w]+)/g,'<span class="tag">$1</span>');
+  }
+
+  var platColor = {x:"#1d1d1f",linkedin:"#0a66c2",instagram:"#d6249f",facebook:"#1877f2",youtube:"#ff0000",wechat:"#07c160"};
+
+  function renderPreview(){
+    var p = PLATFORMS[previewPlatform];
+    document.getElementById("pvBadge").textContent = p.glyph;
+    document.getElementById("pvBadge").style.background = platColor[previewPlatform];
+    document.getElementById("pvAva").textContent = previewPlatform==="wechat" ? "N" : "NB";
+    document.getElementById("pvName").childNodes[0].nodeValue = p.display+" ";
+    document.getElementById("pvHandle").textContent = p.handle + (previewPlatform==="youtube"||previewPlatform==="wechat"?" · just now":" · now");
+
+    var txt = ta.value.trim();
+    var body = document.getElementById("pvText");
+    if(txt){ body.innerHTML = highlight(txt); }
+    else { body.innerHTML = '<span class="placeholder">Your post preview shows up here as you type…</span>'; }
+
+    var media=document.getElementById("pvMedia");
+    if(mediaCount>0){
+      media.style.display="grid";
+      media.textContent = previewPlatform==="youtube" ? "▶" : (mediaCount>1 ? "🖼️ +"+(mediaCount-1) : "🖼️");
+      media.style.height = previewPlatform==="instagram" ? "230px" : "150px";
+    } else { media.style.display="none"; }
+
+    var acts=document.getElementById("pvActions"); acts.innerHTML="";
+    p.acts.forEach(function(a){ var s=document.createElement("span"); s.textContent=a; acts.appendChild(s); });
+    document.getElementById("pvFoot").textContent = "Live preview · "+p.name;
+  }
+
+  // ---------- QUEUE DATA ----------
+  var QUEUE = [
+    {day:"Today",    date:"Wed, Jun 3", p:"x",         handle:"@northbeam",     time:"2:15 PM", status:"scheduled", media:true,  text:"Hot take: your design system is only as good as the team that ignores it. We rebuilt ours around 4 tokens. Thread 🧵👇"},
+    {day:"Today",    date:"Wed, Jun 3", p:"instagram",  handle:"northbeam.studio",time:"6:45 PM", status:"scheduled", media:true,  text:"Golden hour at the studio 🌇 Swipe for the moodboard that started it all. #studiolife #design"},
+    {day:"Today",    date:"Wed, Jun 3", p:"linkedin",   handle:"Northbeam Studio",time:"8:00 PM", status:"needs",     media:false, text:"We're hiring a Senior Product Designer. Remote-first, async by default. Here's what the first 90 days actually look like →"},
+    {day:"Tomorrow", date:"Thu, Jun 4", p:"youtube",    handle:"Northbeam",      time:"10:00 AM",status:"scheduled", media:true,  text:"New build log is live ▶ We redesigned our onboarding in 48 hours. Full breakdown, no edits, real friction."},
+    {day:"Tomorrow", date:"Thu, Jun 4", p:"facebook",   handle:"Northbeam Studio",time:"1:30 PM", status:"draft",     media:false, text:"Customer spotlight: how Meadowlane Co. cut their reporting time by 60% — story in comments."},
+    {day:"Tomorrow", date:"Thu, Jun 4", p:"wechat",     handle:"Northbeam Studio",       time:"7:00 PM", status:"scheduled", media:true,  text:"Spring collection — behind the scenes. Three weeks of sampling, one color experiment, full reveal Friday. #design #bts"},
+    {day:"Fri, Jun 5",date:"Friday",    p:"x",          handle:"@northbeam",     time:"9:30 AM", status:"scheduled", media:true,  text:"The spring drop is LIVE 🚀 Everything we teased, finally shippable. Link below."},
+    {day:"Fri, Jun 5",date:"Friday",    p:"linkedin",   handle:"Northbeam Studio",time:"11:15 AM",status:"scheduled", media:true,  text:"Shipping in public taught us more in 6 months than 2 years of stealth. Five lessons, no fluff."},
+    {day:"Fri, Jun 5",date:"Friday",    p:"instagram",  handle:"northbeam.studio",time:"5:00 PM", status:"published", media:true,  text:"It's here 🎉 The spring collection, shot on film. Which one's your favorite? 1, 2, or 3?"}
+  ];
+
+  var activeFilter="all";
+  document.getElementById("qFilters").addEventListener("click",function(e){
+    var f=e.target.closest(".qf"); if(!f) return;
+    document.querySelectorAll(".qf").forEach(function(x){x.classList.remove("on");});
+    f.classList.add("on"); activeFilter=f.dataset.f; renderQueue();
+  });
+
+  function statusClass(s){return {scheduled:"st-scheduled",draft:"st-draft",needs:"st-needs",published:"st-published"}[s];}
+  function statusText(s){return {scheduled:"Scheduled",draft:"Draft",needs:"Needs approval",published:"Published"}[s];}
+
+  function renderQueue(){
+    var list = QUEUE.filter(function(q){return activeFilter==="all"||q.p===activeFilter;});
+    document.getElementById("queueCount").textContent = QUEUE.filter(function(q){return q.status!=="published";}).length;
+    var host=document.getElementById("queue"); host.innerHTML="";
+
+    // group by day, preserving QUEUE order
+    var groups=[], map={};
+    list.forEach(function(q){ if(!map[q.day]){map[q.day]={day:q.day,date:q.date,items:[]};groups.push(map[q.day]);} map[q.day].items.push(q); });
+
+    if(groups.length===0){
+      host.innerHTML='<div class="empty-day" style="margin-top:24px">No posts on this network yet — compose one on the left.</div>';
+      return;
+    }
+
+    groups.forEach(function(g){
+      var grp=document.createElement("div"); grp.className="day-group";
+      grp.innerHTML='<div class="day-label"><span class="d-day">'+g.day+'</span><span class="d-date">'+g.date+'</span><span class="d-line"></span><span class="d-n">'+g.items.length+' post'+(g.items.length>1?"s":"")+'</span></div>';
+      g.items.forEach(function(q){
+        var pl=PLATFORMS[q.p];
+        var card=document.createElement("div"); card.className="q-card "+q.p;
+        card.innerHTML=
+          '<div class="qc-top">'+
+            '<span class="qc-badge '+q.p+'">'+pl.glyph+'</span>'+
+            '<span class="qc-handle">'+q.handle+'</span>'+
+            '<span class="qc-time">'+q.time+'</span>'+
+          '</div>'+
+          '<div class="qc-text">'+q.text.replace(/&/g,"&amp;").replace(/</g,"&lt;")+'</div>'+
+          '<div class="qc-foot">'+
+            '<span class="qc-status '+statusClass(q.status)+'">'+statusText(q.status)+'</span>'+
+            (q.media?'<span class="qc-thumb">🖼️</span>':'')+
+            '<span class="qc-tools">'+
+              '<button title="Edit" data-act="edit">✎</button>'+
+              '<button title="Duplicate" data-act="dup">⧉</button>'+
+              '<button title="Delete" data-act="del">🗑</button>'+
+            '</span>'+
+          '</div>';
+        card.addEventListener("click",function(ev){
+          var b=ev.target.closest("button");
+          if(b){
+            ev.stopPropagation();
+            var act=b.dataset.act;
+            if(act==="del"){ QUEUE.splice(QUEUE.indexOf(q),1); renderQueue(); flash("Post removed from queue"); }
+            else if(act==="dup"){ var c=Object.assign({},q,{status:"draft"}); QUEUE.splice(QUEUE.indexOf(q)+1,0,c); renderQueue(); flash("Post duplicated as draft"); }
+            else if(act==="edit"){ loadIntoComposer(q); flash("Loaded into composer"); }
+            return;
+          }
+          loadIntoComposer(q);
+        });
+        grp.appendChild(card);
+      });
+      host.appendChild(grp);
+    });
+  }
+
+  function loadIntoComposer(q){
+    ta.value=q.text;
+    selected=[q.p];
+    document.querySelectorAll(".pill").forEach(function(pl){
+      pl.classList.toggle("active", pl.dataset.p===q.p);
+    });
+    previewPlatform=q.p;
+    renderPhoneTabs(); renderPreview(); updateCounter(); updateAudience();
+    document.querySelector(".composer").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  // ---------- add to queue / draft ----------
+  function dayLabelFor(dateStr){
+    var d=new Date(dateStr+"T00:00:00");
+    var today=new Date("2026-06-03T00:00:00");
+    var diff=Math.round((d-today)/86400000);
+    var date=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+    if(diff===0) return {day:"Today",date:date};
+    if(diff===1) return {day:"Tomorrow",date:date};
+    return {day:date, date:d.toLocaleDateString("en-US",{weekday:"long"})};
+  }
+  function fmtTime(t){
+    var parts=t.split(":"),h=+parts[0],m=parts[1];var ap=h>=12?"PM":"AM";h=h%12||12;return h+":"+m+" "+ap;
+  }
+
+  function addPost(status){
+    var txt=ta.value.trim();
+    if(!txt){ flash("Write something first"); return; }
+    var dl=dayLabelFor(document.getElementById("schedDate").value);
+    selected.forEach(function(p){
+      QUEUE.unshift({
+        day:dl.day,date:dl.date,p:p,handle:PLATFORMS[p].handle.split(" ·")[0].split("·")[0].split(" ")[0]||PLATFORMS[p].name,
+        time:fmtTime(document.getElementById("schedTime").value),
+        status:status,media:mediaCount>0,text:txt
+      });
+    });
+    renderQueue();
+    flash(status==="draft" ? "Saved as draft" : "Added to queue — "+selected.length+" post"+(selected.length>1?"s":""));
+  }
+  document.getElementById("addToQueue").onclick=function(){addPost("scheduled");};
+  document.getElementById("saveDraft").onclick=function(){addPost("draft");};
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  // ---------- init ----------
+  document.querySelectorAll(".pill").forEach(function(pl){ pl.classList.toggle("active", selected.indexOf(pl.dataset.p)>-1); });
+  renderPhoneTabs(); renderPreview(); updateCounter(); updateAudience(); renderQueue();
+})();
+</script>
+<!-- repro-foot:begin -->
+<details class="repro-foot">
+  <summary class="repro-foot__sum">📋 Reproduce in NocoBase</summary>
+  <div class="repro-foot__body">
+    <p class="repro-foot__hint">Send the prompt below (with the prototype link) to a Claude Code that has the <code>nocobase-prototype-repro</code> skill installed to reproduce this module in NocoBase.</p>
+    <button class="repro-foot__btn" type="button" data-prompt="Build a social-media posting system in NocoBase: accounts + posts, with a composer (pick platform, write copy, live phone preview on the right) + a scheduled-posts list.
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/04-social-media-calendar.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.">Copy</button>
+    <pre class="repro-foot__pre">Build a social-media posting system in NocoBase: accounts + posts, with a composer (pick platform, write copy, live phone preview on the right) + a scheduled-posts list.
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/04-social-media-calendar.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.</pre>
+  </div>
+</details>
+<style>
+.repro-foot{margin:40px 16px;padding:0;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#334155}
+.repro-foot__sum{cursor:pointer;list-style:none;padding:14px 18px;font-weight:600;color:#0f172a;user-select:none}
+.repro-foot__sum::-webkit-details-marker{display:none}
+.repro-foot__sum::before{content:"▸ ";color:#94a3b8}
+.repro-foot[open] .repro-foot__sum::before{content:"▾ "}
+.repro-foot__body{padding:0 18px 18px}
+.repro-foot__hint{margin:0 0 10px;color:#64748b;font-size:13px}
+.repro-foot__btn{appearance:none;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;margin-bottom:10px}
+.repro-foot__btn:hover{background:#f1f5f9}
+.repro-foot__btn.ok{border-color:#16a34a;color:#16a34a}
+.repro-foot__pre{margin:0;padding:12px 14px;background:#0f172a;color:#e2e8f0;border-radius:8px;white-space:pre-wrap;word-break:break-word;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+<script>
+(function(){
+  var b=document.currentScript.parentNode.querySelector('.repro-foot__btn');
+  if(!b)return;
+  b.addEventListener('click',function(){
+    var t=b.getAttribute('data-prompt');
+    function done(){var o=b.textContent;b.textContent='Copied \u2713';b.classList.add('ok');setTimeout(function(){b.textContent=o;b.classList.remove('ok')},1500)}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(done,fallback)
+    }else{fallback()}
+    function fallback(){
+      var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.focus();ta.select();
+      try{document.execCommand('copy')}catch(e){}
+      document.body.removeChild(ta);done()
+    }
+  })
+})();
+</script>
+<!-- repro-foot:end -->
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Social Media Calendar: a post composer with a live phone preview and a scheduling calendar. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/04-social-media-calendar.html
+</script>
+</body>
+</html>

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cadence · Content Calendar</title>
+<style>
+  :root{
+    --accent:#722ed1; --accent-hover:#9254de; --accent-soft:#f9f0ff; --accent-border:#d3adf7;
+    --text:rgba(0,0,0,0.88); --text-2:rgba(0,0,0,0.45); --text-3:rgba(0,0,0,0.25);
+    --border:#d9d9d9; --grid:#f0f0f0; --grid-strong:#e8e8e8;
+    --bg:#fafafa; --container:#fff;
+    /* channel colors */
+    --ch-blog:#1677ff;     --ch-blog-soft:#e6f4ff;
+    --ch-social:#13c2c2;   --ch-social-soft:#e6fffb;
+    --ch-email:#eb2f96;    --ch-email-soft:#fff0f6;
+    --ch-ads:#fa8c16;      --ch-ads-soft:#fff7e6;
+    --ch-video:#52c41a;    --ch-video-soft:#f6ffed;
+    --shadow:0 6px 16px -4px rgba(0,0,0,.10),0 3px 6px -2px rgba(0,0,0,.07),0 1px 2px -1px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:-apple-system,'Segoe UI',Roboto,system-ui,sans-serif;
+    color:var(--text); background:var(--container); font-size:13px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  .app{display:flex; flex-direction:column; height:100vh;}
+
+  /* ---------- slim top toolbar ---------- */
+  .toolbar{
+    height:52px; flex-shrink:0; display:flex; align-items:center; gap:14px;
+    padding:0 16px; border-bottom:1px solid var(--grid-strong); background:var(--container);
+    position:relative; z-index:30;
+  }
+  .brand{display:flex; align-items:center; gap:9px; font-weight:600; font-size:15px; letter-spacing:.2px;}
+  .brand .mark{
+    width:26px; height:26px; border-radius:7px; flex-shrink:0;
+    background:linear-gradient(135deg,#722ed1,#9254de); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700;
+  }
+  .tb-sep{width:1px; height:24px; background:var(--grid-strong);}
+
+  .monthnav{display:flex; align-items:center; gap:4px;}
+  .navbtn{
+    width:30px; height:30px; border:1px solid var(--border); background:var(--container);
+    border-radius:7px; cursor:pointer; color:var(--text-2); font-size:15px; line-height:1;
+    display:flex; align-items:center; justify-content:center; transition:.15s;
+  }
+  .navbtn:hover{border-color:var(--accent); color:var(--accent);}
+  .month-label{font-size:16px; font-weight:600; min-width:148px; text-align:center; user-select:none;}
+  .today-btn{
+    height:30px; padding:0 13px; border:1px solid var(--border); background:var(--container);
+    border-radius:7px; cursor:pointer; font-size:13px; font-weight:500; color:var(--text); transition:.15s;
+  }
+  .today-btn:hover{border-color:var(--accent); color:var(--accent);}
+
+  .chips{display:flex; align-items:center; gap:7px; flex:1; flex-wrap:nowrap; overflow:hidden;}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px;
+    border-radius:15px; border:1px solid var(--grid-strong); background:var(--container);
+    cursor:pointer; font-size:12px; font-weight:500; color:var(--text-2); user-select:none;
+    transition:.15s; white-space:nowrap;
+  }
+  .chip .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+  .chip:hover{border-color:var(--text-3);}
+  .chip.on{color:var(--text); border-color:transparent;}
+  .chip[data-ch="blog"].on{background:var(--ch-blog-soft); border-color:var(--ch-blog);}
+  .chip[data-ch="social"].on{background:var(--ch-social-soft); border-color:var(--ch-social);}
+  .chip[data-ch="email"].on{background:var(--ch-email-soft); border-color:var(--ch-email);}
+  .chip[data-ch="ads"].on{background:var(--ch-ads-soft); border-color:var(--ch-ads);}
+  .chip[data-ch="video"].on{background:var(--ch-video-soft); border-color:var(--ch-video);}
+  .chip.off{opacity:.5;}
+
+  .seg{display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden; height:30px;}
+  .seg button{
+    border:0; background:var(--container); padding:0 14px; cursor:pointer; font-size:13px;
+    color:var(--text-2); font-weight:500; transition:.15s;
+  }
+  .seg button + button{border-left:1px solid var(--border);}
+  .seg button.active{background:var(--accent); color:#fff;}
+
+  .new-btn{
+    height:30px; padding:0 14px; border:0; border-radius:7px; cursor:pointer;
+    background:var(--accent); color:#fff; font-size:13px; font-weight:600;
+    display:flex; align-items:center; gap:6px; transition:.15s; box-shadow:0 1px 2px rgba(114,46,209,.3);
+  }
+  .new-btn:hover{background:var(--accent-hover);}
+  .insp-toggle{
+    width:30px; height:30px; border:1px solid var(--border); background:var(--container);
+    border-radius:7px; cursor:pointer; color:var(--text-2); font-size:15px; transition:.15s;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .insp-toggle:hover{border-color:var(--accent); color:var(--accent);}
+  .insp-toggle.active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent);}
+
+  /* ---------- main: calendar fills viewport ---------- */
+  .stage{flex:1; display:flex; min-height:0; position:relative;}
+  .cal{flex:1; display:flex; flex-direction:column; min-width:0;}
+
+  .weekhead{
+    display:grid; grid-template-columns:repeat(7,1fr); flex-shrink:0;
+    border-bottom:1px solid var(--grid-strong); background:var(--container);
+  }
+  .weekhead div{
+    padding:8px 12px; font-size:11px; font-weight:600; letter-spacing:.5px; text-transform:uppercase;
+    color:var(--text-2); text-align:left;
+  }
+  .weekhead div + div{border-left:1px solid var(--grid);}
+  .weekhead .we{color:var(--text-3);}
+
+  .grid{
+    flex:1; display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr;
+    min-height:0; background:var(--grid);
+  }
+  .cell{
+    background:var(--container); border-right:1px solid var(--grid); border-bottom:1px solid var(--grid);
+    padding:5px 6px 6px; display:flex; flex-direction:column; min-height:0; overflow:hidden;
+    position:relative; cursor:default; transition:background .12s;
+  }
+  .cell:nth-child(7n){border-right:0;}
+  .cell:hover{background:#fcfbfe;}
+  .cell.out{background:#fbfbfb;}
+  .cell.out .daynum{color:var(--text-3);}
+  .cell.we{background:#fcfcfc;}
+  .cell.today{background:var(--accent-soft);}
+  .cell .addhint{
+    position:absolute; top:5px; right:6px; width:20px; height:20px; border-radius:5px;
+    border:1px dashed var(--accent-border); color:var(--accent); font-size:14px; line-height:1;
+    display:none; align-items:center; justify-content:center; cursor:pointer; background:var(--container);
+  }
+  .cell:hover .addhint{display:flex;}
+  .cell .addhint:hover{background:var(--accent-soft);}
+
+  .dayrow{display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-shrink:0;}
+  .daynum{
+    font-size:12px; font-weight:600; color:var(--text); width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center; border-radius:50%;
+  }
+  .today .daynum{background:var(--accent); color:#fff;}
+  .dow-tag{font-size:10px; color:var(--text-3);}
+
+  .events{display:flex; flex-direction:column; gap:3px; overflow:hidden; flex:1; min-height:0;}
+  .ev{
+    display:flex; align-items:center; gap:6px; padding:3px 7px; border-radius:5px;
+    font-size:11.5px; line-height:1.25; cursor:pointer; border:1px solid transparent;
+    transition:.12s; flex-shrink:0; position:relative;
+  }
+  .ev:hover{transform:translateX(1px); box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .ev .sdot{width:7px; height:7px; border-radius:50%; flex-shrink:0; border:1.5px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.08);}
+  .ev .etitle{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500;}
+  .ev[data-ch="blog"]{background:var(--ch-blog-soft); color:#0958d9; border-color:#bae0ff;}
+  .ev[data-ch="social"]{background:var(--ch-social-soft); color:#08979c; border-color:#87e8de;}
+  .ev[data-ch="email"]{background:var(--ch-email-soft); color:#c41d7f; border-color:#ffadd2;}
+  .ev[data-ch="ads"]{background:var(--ch-ads-soft); color:#d46b08; border-color:#ffd591;}
+  .ev[data-ch="video"]{background:var(--ch-video-soft); color:#389e0d; border-color:#b7eb8f;}
+  .ev.dim{opacity:.28; filter:grayscale(.5);}
+  .more{font-size:10.5px; color:var(--text-2); padding:1px 7px; cursor:pointer; font-weight:500;}
+  .more:hover{color:var(--accent);}
+
+  /* status dot colors */
+  .s-draft{background:#bfbfbf;} .s-review{background:#faad14;}
+  .s-scheduled{background:#1677ff;} .s-published{background:#52c41a;}
+
+  /* ---------- right inspector ---------- */
+  .inspector{
+    width:0; flex-shrink:0; border-left:1px solid var(--grid-strong); background:var(--container);
+    overflow:hidden; transition:width .22s ease; display:flex; flex-direction:column;
+  }
+  .inspector.open{width:300px;}
+  .insp-inner{width:300px; display:flex; flex-direction:column; height:100%;}
+  .insp-head{
+    padding:14px 16px 12px; border-bottom:1px solid var(--grid); display:flex; align-items:center; justify-content:space-between;
+  }
+  .insp-head h3{margin:0; font-size:14px; font-weight:600;}
+  .insp-body{padding:14px 16px; overflow:auto; flex:1;}
+  .insp-stat{display:flex; flex-direction:column; gap:14px;}
+  .stat-row{display:flex; align-items:center; justify-content:space-between;}
+  .stat-row .k{font-size:12px; color:var(--text-2);}
+  .stat-row .v{font-size:13px; font-weight:600;}
+  .legend{margin-top:6px; display:flex; flex-direction:column; gap:9px;}
+  .legend .li{display:flex; align-items:center; gap:9px; font-size:12px;}
+  .legend .li .sw{width:11px; height:11px; border-radius:3px; flex-shrink:0;}
+  .ch-bar{height:6px; border-radius:3px; background:var(--grid); overflow:hidden; margin-top:3px;}
+  .ch-bar i{display:block; height:100%; border-radius:3px;}
+  .insp-sec-title{font-size:11px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-3); margin:18px 0 10px;}
+  .up-item{display:flex; gap:9px; padding:8px 0; border-bottom:1px solid var(--grid); cursor:pointer;}
+  .up-item:hover{background:#fcfbfe;}
+  .up-date{width:38px; flex-shrink:0; text-align:center;}
+  .up-date .d{font-size:16px; font-weight:700; line-height:1;}
+  .up-date .m{font-size:10px; color:var(--text-2); text-transform:uppercase;}
+  .up-meta{min-width:0;}
+  .up-meta .t{font-size:12.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .up-meta .sub{font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:5px; margin-top:2px;}
+  .up-meta .sub .sdot{width:6px;height:6px;border-radius:50%;}
+
+  /* ---------- popover ---------- */
+  .pop-mask{position:fixed; inset:0; z-index:50; display:none;}
+  .pop-mask.show{display:block;}
+  .popover{
+    position:fixed; z-index:51; width:330px; background:var(--container); border-radius:12px;
+    box-shadow:var(--shadow); border:1px solid var(--grid-strong); display:none; overflow:hidden;
+  }
+  .popover.show{display:block;}
+  .pop-accent{height:5px;}
+  .pop-body{padding:16px 18px;}
+  .pop-row1{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .pop-ch{
+    display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:3px 9px;
+    border-radius:11px; text-transform:uppercase; letter-spacing:.4px;
+  }
+  .pop-ch .dot{width:7px;height:7px;border-radius:50%;}
+  .pop-status{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2);}
+  .pop-status .sdot{width:8px;height:8px;border-radius:50%;}
+  .pop-title{font-size:17px; font-weight:600; margin:2px 0 12px; line-height:1.35;}
+  .pop-desc{font-size:13px; color:var(--text-2); line-height:1.6; margin-bottom:14px;}
+  .pop-meta{display:flex; flex-direction:column; gap:9px; padding-top:12px; border-top:1px solid var(--grid);}
+  .pm-row{display:flex; align-items:center; gap:10px; font-size:12.5px;}
+  .pm-row .ico{width:16px; text-align:center; color:var(--text-3);}
+  .pm-row .lab{color:var(--text-2); width:64px; flex-shrink:0;}
+  .pm-row .val{color:var(--text); font-weight:500; display:flex; align-items:center;}
+  .avatar{
+    width:22px; height:22px; border-radius:50%; background:linear-gradient(135deg,#722ed1,#9254de);
+    color:#fff; font-size:10px; font-weight:600; display:inline-flex; align-items:center; justify-content:center;
+    margin-right:8px;
+  }
+  .pop-actions{display:flex; gap:8px; margin-top:16px;}
+  .pop-actions button{
+    flex:1; height:32px; border-radius:7px; font-size:13px; font-weight:500; cursor:pointer; transition:.15s;
+  }
+  .pa-primary{border:0; background:var(--accent); color:#fff;}
+  .pa-primary:hover{background:var(--accent-hover);}
+  .pa-ghost{border:1px solid var(--border); background:var(--container); color:var(--text);}
+  .pa-ghost:hover{border-color:var(--accent); color:var(--accent);}
+
+  .tag{display:inline-block; font-size:11px; padding:1px 8px; border-radius:9px; background:var(--grid); color:var(--text-2); margin-right:4px;}
+
+  @media (max-width:1100px){
+    .chips{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== slim top toolbar ===== -->
+  <div class="toolbar">
+    <div class="brand"><div class="mark">C</div>Cadence</div>
+    <div class="tb-sep"></div>
+    <div class="monthnav">
+      <button class="navbtn" id="prev" title="Previous">‹</button>
+      <div class="month-label" id="monthLabel">June 2026</div>
+      <button class="navbtn" id="next" title="Next">›</button>
+    </div>
+    <button class="today-btn" id="todayBtn">Today</button>
+    <div class="tb-sep"></div>
+
+    <div class="chips" id="chips">
+      <span class="chip on" data-ch="blog"><span class="dot" style="background:var(--ch-blog)"></span>Blog</span>
+      <span class="chip on" data-ch="social"><span class="dot" style="background:var(--ch-social)"></span>Social</span>
+      <span class="chip on" data-ch="email"><span class="dot" style="background:var(--ch-email)"></span>Email</span>
+      <span class="chip on" data-ch="ads"><span class="dot" style="background:var(--ch-ads)"></span>Ads</span>
+      <span class="chip on" data-ch="video"><span class="dot" style="background:var(--ch-video)"></span>Video</span>
+    </div>
+
+    <div class="seg" id="seg">
+      <button class="active" data-view="month">Month</button>
+      <button data-view="week">Week</button>
+    </div>
+    <button class="new-btn" id="newBtn">+ New</button>
+    <button class="insp-toggle active" id="inspToggle" title="Toggle inspector">▦</button>
+  </div>
+
+  <!-- ===== stage ===== -->
+  <div class="stage">
+    <div class="cal">
+      <div class="weekhead" id="weekhead"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <!-- thin collapsible inspector -->
+    <aside class="inspector open" id="inspector">
+      <div class="insp-inner">
+        <div class="insp-head">
+          <h3 id="inspTitle">June 2026</h3>
+        </div>
+        <div class="insp-body">
+          <div class="insp-stat">
+            <div class="stat-row"><span class="k">Total items</span><span class="v" id="stTotal">0</span></div>
+            <div class="stat-row"><span class="k">Published</span><span class="v" id="stPub">0</span></div>
+            <div class="stat-row"><span class="k">Scheduled</span><span class="v" id="stSched">0</span></div>
+            <div class="stat-row"><span class="k">In review</span><span class="v" id="stRev">0</span></div>
+            <div class="stat-row"><span class="k">Draft</span><span class="v" id="stDraft">0</span></div>
+          </div>
+
+          <div class="insp-sec-title">Channel mix</div>
+          <div class="legend" id="legend"></div>
+
+          <div class="insp-sec-title">Up next</div>
+          <div id="upnext"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- popover -->
+<div class="pop-mask" id="popMask"></div>
+<div class="popover" id="popover">
+  <div class="pop-accent" id="popAccent"></div>
+  <div class="pop-body">
+    <div class="pop-row1">
+      <span class="pop-ch" id="popCh"></span>
+      <span class="pop-status" id="popStatus"></span>
+    </div>
+    <div class="pop-title" id="popTitle"></div>
+    <div class="pop-desc" id="popDesc"></div>
+    <div class="pop-meta">
+      <div class="pm-row"><span class="ico">📅</span><span class="lab">Publish</span><span class="val" id="popDate"></span></div>
+      <div class="pm-row"><span class="ico">👤</span><span class="lab">Owner</span><span class="val" id="popOwner"></span></div>
+      <div class="pm-row"><span class="ico">🏷️</span><span class="lab">Tags</span><span class="val" id="popTags"></span></div>
+    </div>
+    <div class="pop-actions">
+      <button class="pa-primary">Open editor</button>
+      <button class="pa-ghost">Duplicate</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- channel + status meta ----------
+  var CH = {
+    blog:   {label:"Blog",   color:"#1677ff", soft:"#e6f4ff"},
+    social: {label:"Social", color:"#13c2c2", soft:"#e6fffb"},
+    email:  {label:"Email",  color:"#eb2f96", soft:"#fff0f6"},
+    ads:    {label:"Ads",    color:"#fa8c16", soft:"#fff7e6"},
+    video:  {label:"Video",  color:"#52c41a", soft:"#f6ffed"}
+  };
+  var ST = {
+    draft:     {label:"Draft",     dot:"s-draft",     color:"#bfbfbf"},
+    review:    {label:"In review", dot:"s-review",    color:"#faad14"},
+    scheduled: {label:"Scheduled", dot:"s-scheduled", color:"#1677ff"},
+    published: {label:"Published",  dot:"s-published", color:"#52c41a"}
+  };
+
+  // ---------- seed data: June 2026 (today = Jun 15). 30+ items. ----------
+  var ITEMS = [
+    {d:1,  ch:"blog",   st:"published", title:"June kickoff: product roadmap recap", owner:"Mara L.", tags:["roadmap","longform"], desc:"Quarterly recap blog summarizing shipped features and what's next for Q3."},
+    {d:1,  ch:"social", st:"published", title:"LinkedIn: roadmap teaser carousel", owner:"Devon K.", tags:["linkedin","carousel"], desc:"5-slide carousel teasing the roadmap blog. CTA to read the full post."},
+    {d:2,  ch:"email",  st:"published", title:"Newsletter #24 — What's new", owner:"Priya S.", tags:["newsletter"], desc:"Monthly newsletter highlighting June launches and a customer spotlight."},
+    {d:3,  ch:"social", st:"published", title:"Instagram reel: feature demo", owner:"Devon K.", tags:["reel","instagram"], desc:"15-second reel showing the new dashboard in action."},
+    {d:3,  ch:"ads",    st:"published", title:"Google Search — brand campaign refresh", owner:"Sam O.", tags:["ppc","search"], desc:"Updated ad copy and sitelinks for the branded search campaign."},
+    {d:4,  ch:"video",  st:"published", title:"YouTube: 'How we built it' ep.3", owner:"Lena F.", tags:["youtube","series"], desc:"Engineering deep-dive on the new sync engine."},
+    {d:5,  ch:"blog",   st:"published", title:"Customer story: Acme cuts churn 30%", owner:"Mara L.", tags:["case-study"], desc:"Full case study with metrics, quotes, and a downloadable PDF."},
+    {d:8,  ch:"social", st:"published", title:"X thread: 7 automation tips", owner:"Devon K.", tags:["twitter","thread"], desc:"Evergreen thread repurposed from the help center."},
+    {d:8,  ch:"email",  st:"published", title:"Lifecycle: trial day-3 nudge", owner:"Priya S.", tags:["lifecycle","automated"], desc:"Triggered email for trial users who haven't created a project yet."},
+    {d:9,  ch:"ads",    st:"published", title:"Meta retargeting — pricing page", owner:"Sam O.", tags:["meta","retargeting"], desc:"Carousel ad targeting pricing-page visitors who didn't convert."},
+    {d:10, ch:"blog",   st:"published", title:"Guide: building a content calendar", owner:"Mara L.", tags:["seo","guide"], desc:"Pillar SEO guide targeting the 'content calendar' keyword cluster."},
+    {d:11, ch:"video",  st:"published", title:"Webinar promo cut (30s)", owner:"Lena F.", tags:["webinar"], desc:"Short promo clip driving registrations for the June 24 webinar."},
+    {d:12, ch:"social", st:"published", title:"LinkedIn poll: biggest content pain", owner:"Devon K.", tags:["linkedin","poll"], desc:"Engagement poll to source future content topics."},
+    {d:12, ch:"email",  st:"published", title:"Webinar invite — wave 1", owner:"Priya S.", tags:["webinar","invite"], desc:"First invite send to the engaged segment."},
+
+    // today = 15
+    {d:15, ch:"blog",   st:"scheduled", title:"Feature launch: AI captions", owner:"Mara L.", tags:["launch","ai"], desc:"Announcement post for AI-generated social captions. Embargo lifts 9am ET."},
+    {d:15, ch:"social", st:"scheduled", title:"Launch-day social burst (all channels)", owner:"Devon K.", tags:["launch","coordinated"], desc:"Coordinated posts across LinkedIn, X, and Instagram timed to the blog."},
+    {d:15, ch:"ads",    st:"review",    title:"Launch ad set — AI captions", owner:"Sam O.", tags:["launch","ppc"], desc:"New ad creative pending compliance review before go-live."},
+
+    {d:16, ch:"email",  st:"scheduled", title:"Launch announcement broadcast", owner:"Priya S.", tags:["launch","broadcast"], desc:"Full-list broadcast announcing AI captions with a demo GIF."},
+    {d:16, ch:"video",  st:"review",    title:"AI captions 60s explainer", owner:"Lena F.", tags:["explainer"], desc:"Product explainer in final color grade, awaiting voiceover approval."},
+    {d:17, ch:"social", st:"scheduled", title:"User-generated content repost", owner:"Devon K.", tags:["ugc"], desc:"Reposting an early-access customer's reaction video."},
+    {d:18, ch:"blog",   st:"review",    title:"Tutorial: setting up AI captions", owner:"Mara L.", tags:["tutorial","howto"], desc:"Step-by-step with screenshots; awaiting product review for accuracy."},
+    {d:18, ch:"ads",    st:"scheduled", title:"YouTube pre-roll — explainer cut", owner:"Sam O.", tags:["youtube","video-ads"], desc:"6s bumper and 15s skippable variants for the explainer."},
+    {d:19, ch:"social", st:"draft",     title:"Behind-the-scenes: design process", owner:"Devon K.", tags:["bts"], desc:"Photo dump from the design team's caption UI sessions."},
+    {d:22, ch:"email",  st:"scheduled", title:"Webinar reminder — 48h", owner:"Priya S.", tags:["webinar","reminder"], desc:"Reminder to registrants with a calendar add and the agenda."},
+    {d:23, ch:"blog",   st:"draft",     title:"Opinion: the death of the spreadsheet calendar", owner:"Mara L.", tags:["thought-leadership"], desc:"Provocative POV piece; outline ready, drafting in progress."},
+    {d:24, ch:"video",  st:"scheduled", title:"LIVE Webinar: Plan a quarter in 30 min", owner:"Lena F.", tags:["webinar","live"], desc:"Live webinar with a demo and Q&A. Streaming to YouTube and LinkedIn."},
+    {d:24, ch:"social", st:"scheduled", title:"Live-tweet the webinar", owner:"Devon K.", tags:["live","twitter"], desc:"Real-time highlights and quote cards during the session."},
+    {d:25, ch:"email",  st:"draft",     title:"Webinar recap + recording", owner:"Priya S.", tags:["recap"], desc:"Follow-up with the recording link, slides, and a feedback survey."},
+    {d:26, ch:"ads",    st:"draft",     title:"Q3 prospecting campaign brief", owner:"Sam O.", tags:["q3","planning"], desc:"Creative brief for the next prospecting flight; channels TBD."},
+    {d:29, ch:"blog",   st:"draft",     title:"June metrics in review", owner:"Mara L.", tags:["recap","data"], desc:"Monthly performance recap; pulling analytics now."},
+    {d:29, ch:"social", st:"draft",     title:"Monthly highlights reel", owner:"Devon K.", tags:["recap","reel"], desc:"Compilation of June's best-performing clips."},
+    {d:30, ch:"email",  st:"draft",     title:"Newsletter #25 — outline", owner:"Priya S.", tags:["newsletter"], desc:"Drafting the July newsletter; collecting section contributions."}
+  ];
+
+  // ---------- state ----------
+  var cur = new Date(2026,5,1);            // June 2026
+  var TODAY = new Date(2026,5,15);
+  var active = {blog:true,social:true,email:true,ads:true,video:true};
+  var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  // ---------- helpers ----------
+  function sameDay(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();}
+  function el(tag,cls,html){var e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e;}
+
+  // items only exist in June 2026 for this prototype
+  function itemsForDate(date){
+    if(date.getMonth()!==5 || date.getFullYear()!==2026) return [];
+    var dn = date.getDate();
+    return ITEMS.filter(function(it){return it.d===dn;});
+  }
+
+  // ---------- render week header ----------
+  function renderWeekHead(){
+    var wh = document.getElementById("weekhead");
+    wh.innerHTML="";
+    DOW.forEach(function(d,i){
+      wh.appendChild(el("div", (i===0||i===6)?"we":"", d.toUpperCase()));
+    });
+  }
+
+  // ---------- render month grid ----------
+  function renderGrid(){
+    var grid = document.getElementById("grid");
+    grid.innerHTML="";
+    var y=cur.getFullYear(), m=cur.getMonth();
+    document.getElementById("monthLabel").textContent = MONTHS[m]+" "+y;
+
+    var first = new Date(y,m,1);
+    var start = new Date(y,m,1 - first.getDay());   // back to Sunday
+    var cells = 42;                                 // 6 weeks
+
+    for(var i=0;i<cells;i++){
+      var date = new Date(start.getFullYear(),start.getMonth(),start.getDate()+i);
+      var inMonth = date.getMonth()===m;
+      var isWE = date.getDay()===0||date.getDay()===6;
+      var isToday = sameDay(date,TODAY);
+
+      var cell = el("div","cell"+(inMonth?"":" out")+(isWE?" we":"")+(isToday?" today":""));
+
+      var row = el("div","dayrow");
+      row.appendChild(el("div","daynum",String(date.getDate())));
+      if(date.getDate()===1){ row.appendChild(el("span","dow-tag",MONTHS[date.getMonth()].slice(0,3))); }
+      cell.appendChild(row);
+
+      var add = el("div","addhint","+");
+      add.title="New content"; cell.appendChild(add);
+
+      var evWrap = el("div","events");
+      var dayItems = itemsForDate(date);
+      var visible = dayItems.filter(function(it){return active[it.ch];});
+      var MAX = 4;
+      var shown = visible.slice(0,MAX);
+
+      shown.forEach(function(it){
+        var ev = el("div","ev");
+        ev.setAttribute("data-ch",it.ch);
+        ev.appendChild(el("span","sdot "+ST[it.st].dot));
+        ev.appendChild(el("span","etitle",it.title));
+        ev.addEventListener("click",function(e){ e.stopPropagation(); openPop(it,ev); });
+        evWrap.appendChild(ev);
+      });
+      var hidden = visible.length - shown.length;
+      if(hidden>0){
+        var more = el("div","more","+"+hidden+" more");
+        more.addEventListener("click",function(e){e.stopPropagation();});
+        evWrap.appendChild(more);
+      }
+      cell.appendChild(evWrap);
+      grid.appendChild(cell);
+    }
+    renderInspector();
+  }
+
+  // ---------- popover ----------
+  var popEl = document.getElementById("popover");
+  var maskEl = document.getElementById("popMask");
+
+  function openPop(it,anchor){
+    var ch = CH[it.ch], st = ST[it.st];
+    document.getElementById("popAccent").style.background = ch.color;
+    var chEl = document.getElementById("popCh");
+    chEl.innerHTML = '<span class="dot" style="background:'+ch.color+'"></span>'+ch.label;
+    chEl.style.background = ch.soft; chEl.style.color = ch.color;
+    var stEl = document.getElementById("popStatus");
+    stEl.innerHTML = '<span class="sdot" style="background:'+st.color+'"></span>'+st.label;
+    document.getElementById("popTitle").textContent = it.title;
+    document.getElementById("popDesc").textContent = it.desc;
+    var dd = new Date(2026,5,it.d);
+    document.getElementById("popDate").textContent =
+      DOW[dd.getDay()]+", "+MONTHS[5]+" "+it.d+", 2026";
+    var initials = it.owner.split(" ").map(function(x){return x[0];}).join("").slice(0,2);
+    document.getElementById("popOwner").innerHTML =
+      '<span class="avatar">'+initials+'</span>'+it.owner;
+    document.getElementById("popTags").innerHTML =
+      it.tags.map(function(t){return '<span class="tag">'+t+'</span>';}).join("");
+
+    // position near anchor (measure first)
+    popEl.style.visibility="hidden"; popEl.style.display="block";
+    var r = anchor.getBoundingClientRect();
+    var pw=330, ph=popEl.offsetHeight;
+    var left = r.left;
+    if(left+pw > window.innerWidth-12) left = window.innerWidth-pw-12;
+    if(left<12) left=12;
+    var top = r.bottom+8;
+    if(top+ph > window.innerHeight-12) top = r.top - ph - 8;
+    if(top<12) top=12;
+    popEl.style.left = left+"px";
+    popEl.style.top = top+"px";
+    popEl.style.visibility=""; popEl.style.display="";
+
+    popEl.classList.add("show");
+    maskEl.classList.add("show");
+  }
+  function closePop(){ popEl.classList.remove("show"); maskEl.classList.remove("show"); }
+  maskEl.addEventListener("click",closePop);
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape") closePop(); });
+
+  // ---------- inspector ----------
+  function renderInspector(){
+    document.getElementById("inspTitle").textContent = MONTHS[cur.getMonth()]+" "+cur.getFullYear();
+
+    var monthItems = (cur.getMonth()===5 && cur.getFullYear()===2026)
+      ? ITEMS.filter(function(it){return active[it.ch];}) : [];
+
+    var counts={published:0,scheduled:0,review:0,draft:0};
+    monthItems.forEach(function(it){counts[it.st]++;});
+    document.getElementById("stTotal").textContent = monthItems.length;
+    document.getElementById("stPub").textContent = counts.published;
+    document.getElementById("stSched").textContent = counts.scheduled;
+    document.getElementById("stRev").textContent = counts.review;
+    document.getElementById("stDraft").textContent = counts.draft;
+
+    var byCh={blog:0,social:0,email:0,ads:0,video:0};
+    monthItems.forEach(function(it){byCh[it.ch]++;});
+    var total = monthItems.length||1;
+    var leg = document.getElementById("legend");
+    leg.innerHTML="";
+    Object.keys(CH).forEach(function(k){
+      var c=CH[k], n=byCh[k], pct=Math.round(n/total*100);
+      var li=el("div","li");
+      li.innerHTML =
+        '<span class="sw" style="background:'+c.color+'"></span>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;justify-content:space-between"><span>'+c.label+'</span>'+
+          '<span style="color:var(--text-2)">'+n+'</span></div>'+
+          '<div class="ch-bar"><i style="width:'+pct+'%;background:'+c.color+'"></i></div>'+
+        '</div>';
+      leg.appendChild(li);
+    });
+
+    var up = monthItems.filter(function(it){return it.d>=TODAY.getDate() && it.st!=="published";})
+                       .sort(function(a,b){return a.d-b.d;}).slice(0,6);
+    var upWrap = document.getElementById("upnext");
+    upWrap.innerHTML="";
+    if(up.length===0){ upWrap.innerHTML='<div style="font-size:12px;color:var(--text-3);padding:8px 0">Nothing upcoming.</div>'; }
+    up.forEach(function(it){
+      var item=el("div","up-item");
+      item.innerHTML =
+        '<div class="up-date"><div class="d">'+it.d+'</div><div class="m">'+MONTHS[5].slice(0,3)+'</div></div>'+
+        '<div class="up-meta"><div class="t">'+it.title+'</div>'+
+        '<div class="sub"><span class="sdot" style="background:'+ST[it.st].color+'"></span>'+ST[it.st].label+
+        ' · <span style="color:'+CH[it.ch].color+'">'+CH[it.ch].label+'</span></div></div>';
+      item.addEventListener("click",function(){ openPop(it,item); });
+      upWrap.appendChild(item);
+    });
+  }
+
+  // ---------- toolbar wiring ----------
+  document.getElementById("prev").addEventListener("click",function(){
+    cur=new Date(cur.getFullYear(),cur.getMonth()-1,1); renderGrid();
+  });
+  document.getElementById("next").addEventListener("click",function(){
+    cur=new Date(cur.getFullYear(),cur.getMonth()+1,1); renderGrid();
+  });
+  document.getElementById("todayBtn").addEventListener("click",function(){
+    cur=new Date(2026,5,1); renderGrid();
+  });
+
+  document.getElementById("chips").addEventListener("click",function(e){
+    var chip=e.target.closest(".chip"); if(!chip) return;
+    var ch=chip.getAttribute("data-ch");
+    active[ch]=!active[ch];
+    chip.classList.toggle("on",active[ch]);
+    chip.classList.toggle("off",!active[ch]);
+    renderGrid();
+  });
+
+  document.getElementById("seg").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    Array.prototype.forEach.call(this.querySelectorAll("button"),function(x){x.classList.remove("active");});
+    b.classList.add("active");
+    // Month grid is the canonical full-bleed view for this prototype.
+  });
+
+  var insp=document.getElementById("inspector"), inspBtn=document.getElementById("inspToggle");
+  inspBtn.addEventListener("click",function(){
+    insp.classList.toggle("open");
+    inspBtn.classList.toggle("active",insp.classList.contains("open"));
+  });
+
+  document.getElementById("newBtn").addEventListener("click",function(){
+    var sample={ch:"blog",st:"draft",title:"Untitled content item",owner:"You",tags:["draft"],
+      desc:"Pick a channel, set a publish date, and start writing. This is a demo new-item flow.",d:TODAY.getDate()};
+    openPop(sample,this);
+  });
+
+  // ---------- init ----------
+  renderWeekHead();
+  renderGrid();
+})();
+</script>
+<!-- repro-foot:begin -->
+<details class="repro-foot">
+  <summary class="repro-foot__sum">📋 Reproduce in NocoBase</summary>
+  <div class="repro-foot__body">
+    <p class="repro-foot__hint">Send the prompt below (with the prototype link) to a Claude Code that has the <code>nocobase-prototype-repro</code> skill installed to reproduce this module in NocoBase.</p>
+    <button class="repro-foot__btn" type="button" data-prompt="Build a content calendar in NocoBase: campaigns + content items scheduled on a calendar, filterable by status/channel, with a this-month summary beside the calendar.
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/03-content-calendar.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.">Copy</button>
+    <pre class="repro-foot__pre">Build a content calendar in NocoBase: campaigns + content items scheduled on a calendar, filterable by status/channel, with a this-month summary beside the calendar.
+Reference prototype: http://127.0.0.1:14220/storage/uploads/applib/03-content-calendar.html
+Use the nocobase-prototype-repro skill; the prototype HTML embeds an authoritative nb-spec — read it first.</pre>
+  </div>
+</details>
+<style>
+.repro-foot{margin:40px 16px;padding:0;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#334155}
+.repro-foot__sum{cursor:pointer;list-style:none;padding:14px 18px;font-weight:600;color:#0f172a;user-select:none}
+.repro-foot__sum::-webkit-details-marker{display:none}
+.repro-foot__sum::before{content:"▸ ";color:#94a3b8}
+.repro-foot[open] .repro-foot__sum::before{content:"▾ "}
+.repro-foot__body{padding:0 18px 18px}
+.repro-foot__hint{margin:0 0 10px;color:#64748b;font-size:13px}
+.repro-foot__btn{appearance:none;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;margin-bottom:10px}
+.repro-foot__btn:hover{background:#f1f5f9}
+.repro-foot__btn.ok{border-color:#16a34a;color:#16a34a}
+.repro-foot__pre{margin:0;padding:12px 14px;background:#0f172a;color:#e2e8f0;border-radius:8px;white-space:pre-wrap;word-break:break-word;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+<script>
+(function(){
+  var b=document.currentScript.parentNode.querySelector('.repro-foot__btn');
+  if(!b)return;
+  b.addEventListener('click',function(){
+    var t=b.getAttribute('data-prompt');
+    function done(){var o=b.textContent;b.textContent='Copied \u2713';b.classList.add('ok');setTimeout(function(){b.textContent=o;b.classList.remove('ok')},1500)}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(done,fallback)
+    }else{fallback()}
+    function fallback(){
+      var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.focus();ta.select();
+      try{document.execCommand('copy')}catch(e){}
+      document.body.removeChild(ta);done()
+    }
+  })
+})();
+</script>
+<!-- repro-foot:end -->
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Content Calendar: a calendar view with status pills and a right-side summary panel. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/03-content-calendar.html
+</script>
+</body>
+</html>

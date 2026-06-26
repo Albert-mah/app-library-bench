@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Quality Inspection System</title>
+<style>
+  :root {
+    --bg: #0e151c;
+    --bg-soft: #121b23;
+    --panel: #16212b;
+    --panel-2: #1d2a35;
+    --line: #2a3845;
+    --line-soft: #223039;
+    --txt: #e8eef3;
+    --txt-dim: #9fb0bd;
+    --txt-faint: #6b7d8c;
+    --accent: #34d399;
+    --accent-soft: rgba(52,211,153,0.14);
+    --pass: #34d399;
+    --pass-bg: rgba(52,211,153,0.12);
+    --fail: #f87171;
+    --fail-bg: rgba(248,113,113,0.12);
+    --warn: #fbbf24;
+    --warn-bg: rgba(251,191,36,0.12);
+    --info: #60a5fa;
+    --info-bg: rgba(96,165,250,0.12);
+    --shadow: 0 16px 40px rgba(0,0,0,0.45);
+    --radius: 14px;
+    font-synthesis: none;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--txt);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #33444f; border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- App shell ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: 60px 1fr;
+    height: 100vh;
+  }
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(18,27,35,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 20;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 218px; }
+  .logo {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #34d399, #0f8a64);
+    display: grid; place-items: center;
+  }
+  .logo svg { width: 20px; height: 20px; }
+  .brand h1 { font-size: 15px; margin: 0; letter-spacing: 0.2px; font-weight: 650; }
+  .brand small { display: block; color: var(--txt-faint); font-size: 11px; font-weight: 500; letter-spacing: 0.3px; }
+
+  .search {
+    flex: 1;
+    max-width: 460px;
+    display: flex; align-items: center; gap: 9px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 12px;
+    color: var(--txt-dim);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search input {
+    background: transparent; border: 0; outline: 0; color: var(--txt);
+    font-size: 13.5px; flex: 1;
+  }
+  .search input::placeholder { color: var(--txt-faint); }
+  .search kbd {
+    font-family: inherit; font-size: 11px; color: var(--txt-faint);
+    border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px;
+  }
+  .top-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+  .pill-live {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--pass); font-weight: 600;
+    background: var(--pass-bg); padding: 6px 11px; border-radius: 20px;
+  }
+  .pill-live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pass); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52,211,153,.55);} 70% { box-shadow: 0 0 0 7px rgba(52,211,153,0);} 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0);} }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, #34d399, #0f8a64);
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #06241a;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    border-right: 1px solid var(--line);
+    background: var(--bg-soft);
+    padding: 18px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    overflow-y: auto;
+  }
+  .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--txt-faint); margin: 14px 10px 6px; font-weight: 700; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 9px;
+    color: var(--txt-dim); cursor: pointer; font-weight: 500;
+    transition: background .14s, color .14s;
+    user-select: none;
+  }
+  .nav-item:hover { background: var(--panel); color: var(--txt); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; }
+  .nav-item .count { margin-left: auto; font-size: 11px; background: var(--panel-2); padding: 1px 8px; border-radius: 10px; color: var(--txt-dim); }
+  .nav-item.active .count { background: rgba(52,211,153,0.22); color: var(--accent); }
+
+  .side-card {
+    margin-top: auto;
+    background: linear-gradient(160deg, rgba(52,211,153,0.10), rgba(96,165,250,0.06));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 12px;
+  }
+  .side-card h4 { margin: 0 0 4px; font-size: 12.5px; color: var(--txt); }
+  .side-card p { margin: 0 0 10px; color: var(--txt-dim); line-height: 1.5; }
+  .mini-bar { height: 6px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+  .mini-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #10b981); }
+
+  /* ---------- Main ---------- */
+  .main { overflow-y: auto; padding: 22px 26px 40px; }
+
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .page-head h2 { margin: 0 0 4px; font-size: 22px; font-weight: 680; letter-spacing: 0.2px; }
+  .page-head p { margin: 0; color: var(--txt-dim); font-size: 13px; }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel); color: var(--txt);
+    padding: 9px 15px; border-radius: 9px; font-size: 13px; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    transition: background .14s, border-color .14s, transform .08s;
+  }
+  .btn:hover { background: var(--panel-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 16px; height: 16px; }
+  .btn.primary {
+    background: linear-gradient(135deg, #34d399, #10b981);
+    border-color: transparent; color: #06241a; font-weight: 700;
+  }
+  .btn.primary:hover { filter: brightness(1.06); }
+
+  /* ---------- KPI row ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+  .kpi {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 16px 14px; position: relative; overflow: hidden;
+  }
+  .kpi::after { content:""; position:absolute; inset:0 0 auto auto; width:90px; height:90px; background: radial-gradient(circle at 80% 0, var(--accent-soft), transparent 70%); }
+  .kpi .k-top { display: flex; align-items: center; justify-content: space-between; }
+  .kpi .k-label { font-size: 12px; color: var(--txt-dim); font-weight: 500; }
+  .kpi .k-ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; }
+  .kpi .k-ico svg { width: 16px; height: 16px; }
+  .kpi .k-val { font-size: 28px; font-weight: 720; margin: 8px 0 2px; letter-spacing: -0.5px; }
+  .kpi .k-sub { font-size: 11.5px; color: var(--txt-faint); display: flex; align-items: center; gap: 5px; }
+  .trend-up { color: var(--pass); font-weight: 600; }
+  .trend-down { color: var(--fail); font-weight: 600; }
+
+  /* spark */
+  .spark { position: absolute; bottom: 0; left: 0; width: 100%; height: 30px; opacity: .55; }
+
+  /* ---------- Workbench layout ---------- */
+  .workbench {
+    display: grid;
+    grid-template-columns: 1.05fr 1.35fr;
+    gap: 16px;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; border-bottom: 1px solid var(--line-soft);
+  }
+  .panel-head h3 { margin: 0; font-size: 14.5px; font-weight: 640; }
+  .panel-head .sub { color: var(--txt-faint); font-size: 12px; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    padding: 6px 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer;
+    color: var(--txt-dim); font-weight: 600; user-select: none; transition: all .14s;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .tab:hover { background: var(--panel-2); color: var(--txt); }
+  .tab.active { background: var(--accent-soft); color: var(--accent); }
+  .tab .tcount { font-size: 11px; opacity: .8; }
+
+  /* queue list */
+  .queue { overflow-y: auto; max-height: 560px; padding: 8px; }
+  .insp {
+    display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: center;
+    padding: 11px 12px; border-radius: 11px; cursor: pointer; border: 1px solid transparent;
+    transition: background .14s, border-color .14s;
+  }
+  .insp:hover { background: var(--panel-2); }
+  .insp.selected { background: var(--accent-soft); border-color: rgba(52,211,153,0.40); }
+  .thumb {
+    width: 52px; height: 52px; border-radius: 10px; position: relative; overflow: hidden;
+    background: #0d1820; border: 1px solid var(--line); display: grid; place-items: center;
+    font-size: 18px;
+  }
+  .thumb .scan { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); top: 0; animation: scan 2.4s linear infinite; opacity:.85; }
+  @keyframes scan { 0%{top:2px;} 50%{top:48px;} 100%{top:2px;} }
+  .insp-meta .id { font-size: 12px; color: var(--txt-faint); font-weight: 600; letter-spacing: .3px; }
+  .insp-meta .name { font-size: 13.5px; font-weight: 600; margin: 1px 0 3px; }
+  .insp-meta .line { font-size: 11.5px; color: var(--txt-dim); display: flex; gap: 9px; align-items: center; }
+  .insp-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .score-chip {
+    font-size: 13px; font-weight: 720; padding: 3px 9px; border-radius: 8px; letter-spacing: .3px;
+  }
+
+  .badge {
+    font-size: 11px; font-weight: 650; padding: 3px 9px; border-radius: 20px;
+    display: inline-flex; align-items: center; gap: 5px; letter-spacing: .2px;
+  }
+  .badge .bd { width: 6px; height: 6px; border-radius: 50%; }
+  .b-pass { background: var(--pass-bg); color: var(--pass); }
+  .b-pass .bd { background: var(--pass); }
+  .b-fail { background: var(--fail-bg); color: var(--fail); }
+  .b-fail .bd { background: var(--fail); }
+  .b-warn { background: var(--warn-bg); color: var(--warn); }
+  .b-warn .bd { background: var(--warn); }
+  .b-review { background: var(--info-bg); color: var(--info); }
+  .b-review .bd { background: var(--info); }
+  .b-queued { background: rgba(154,167,182,0.14); color: var(--txt-dim); }
+  .b-queued .bd { background: var(--txt-dim); }
+
+  /* ---------- Detail / review pane ---------- */
+  .detail { overflow-y: auto; max-height: 760px; }
+  .empty {
+    flex: 1; display: grid; place-items: center; text-align: center; color: var(--txt-faint);
+    padding: 60px 30px;
+  }
+  .empty svg { width: 54px; height: 54px; opacity: .4; margin-bottom: 14px; }
+  .empty h4 { margin: 0 0 5px; color: var(--txt-dim); }
+  .empty p { margin: 0; font-size: 12.5px; }
+
+  .review-top { padding: 18px; display: flex; gap: 18px; border-bottom: 1px solid var(--line-soft); }
+  .preview {
+    width: 200px; flex-shrink: 0; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--line); background: #0c151c; position: relative;
+  }
+  .preview .img {
+    height: 150px; display: grid; place-items: center; font-size: 56px;
+    background:
+      linear-gradient(135deg, rgba(52,211,153,0.08), rgba(96,165,250,0.06)),
+      repeating-linear-gradient(45deg, #14202a 0 12px, #0e1820 12px 24px);
+  }
+  /* annotation boxes */
+  .anno { position: absolute; border: 2px solid var(--fail); border-radius: 4px; }
+  .anno.warn { border-color: var(--warn); }
+  .anno .tag { position: absolute; top: -18px; left: -2px; font-size: 10px; font-weight: 700; background: var(--fail); color: #fff; padding: 1px 6px; border-radius: 4px 4px 4px 0; white-space: nowrap; }
+  .anno.warn .tag { background: var(--warn); color: #20140a; }
+  .preview .pv-foot { padding: 8px 10px; font-size: 11px; color: var(--txt-dim); display: flex; justify-content: space-between; border-top: 1px solid var(--line-soft); }
+
+  .review-info { flex: 1; min-width: 0; }
+  .review-info .rid { font-size: 12px; color: var(--txt-faint); font-weight: 600; letter-spacing: .4px; }
+  .review-info h3 { margin: 3px 0 8px; font-size: 18px; }
+  .kv { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px; margin: 12px 0; }
+  .kv .k { font-size: 11px; color: var(--txt-faint); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 2px; }
+  .kv .v { font-size: 13px; color: var(--txt); font-weight: 500; }
+
+  /* AI score gauge */
+  .ai-summary { padding: 18px; border-bottom: 1px solid var(--line-soft); }
+  .ai-summary .head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .ai-summary .head .glow {
+    width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+    background: linear-gradient(135deg, #34d399, #0f8a64);
+  }
+  .ai-summary .head .glow svg { width: 15px; height: 15px; }
+  .ai-summary .head h4 { margin: 0; font-size: 13.5px; }
+  .ai-summary .head .ts { margin-left: auto; font-size: 11px; color: var(--txt-faint); }
+
+  .score-block { display: flex; gap: 20px; align-items: center; }
+  .gauge { width: 120px; height: 120px; flex-shrink: 0; position: relative; }
+  .gauge .ring-val { position: absolute; inset: 0; display: grid; place-items: center; flex-direction: column; text-align: center; }
+  .gauge .ring-val b { font-size: 30px; font-weight: 760; line-height: 1; }
+  .gauge .ring-val span { font-size: 10px; color: var(--txt-faint); text-transform: uppercase; letter-spacing: 1px; display:block; margin-top:3px; }
+
+  .reason { flex: 1; }
+  .reason .verdict { font-size: 14px; font-weight: 650; margin-bottom: 6px; }
+  .reason p { margin: 0 0 10px; font-size: 12.8px; color: var(--txt-dim); line-height: 1.55; }
+  .conf-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--txt-dim); }
+  .conf-track { flex: 1; height: 6px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+  .conf-track i { display: block; height: 100%; background: linear-gradient(90deg, #10b981, var(--accent)); }
+
+  /* defect checklist */
+  .checks { padding: 16px 18px; }
+  .checks h5 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--txt-faint); }
+  .check {
+    display: grid; grid-template-columns: 26px 1fr auto; gap: 11px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  .check:last-child { border-bottom: 0; }
+  .ck-ico { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; }
+  .ck-ico svg { width: 15px; height: 15px; }
+  .ck-ico.ok { background: var(--pass-bg); color: var(--pass); }
+  .ck-ico.no { background: var(--fail-bg); color: var(--fail); }
+  .ck-ico.wn { background: var(--warn-bg); color: var(--warn); }
+  .ck-body .t { font-size: 13px; font-weight: 550; }
+  .ck-body .d { font-size: 11.5px; color: var(--txt-faint); margin-top: 1px; }
+  .ck-conf { font-size: 11px; color: var(--txt-dim); font-weight: 600; }
+
+  /* review actions */
+  .review-actions { padding: 16px 18px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; flex-wrap: wrap; align-items:center; }
+  .review-actions .spacer { flex: 1; }
+  .btn.ok { background: var(--pass-bg); color: var(--pass); border-color: rgba(52,211,153,0.32); }
+  .btn.ok:hover { background: rgba(52,211,153,0.2); }
+  .btn.danger { background: var(--fail-bg); color: var(--fail); border-color: rgba(248,113,113,0.32); }
+  .btn.danger:hover { background: rgba(248,113,113,0.2); }
+  .override-note { font-size: 11.5px; color: var(--warn); display: none; align-items: center; gap: 6px; }
+
+  /* right column second panel - feed */
+  .feed { padding: 8px 16px 16px; overflow-y: auto; max-height: 280px; }
+  .fitem { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); position: relative; }
+  .fitem:last-child { border-bottom: 0; }
+  .fdot { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center; }
+  .fdot svg { width: 15px; height: 15px; }
+  .ftxt { font-size: 12.5px; line-height: 1.45; }
+  .ftxt b { font-weight: 650; }
+  .ftxt .ft { color: var(--txt-faint); font-size: 11px; margin-top: 2px; }
+  .ftxt .hl { color: var(--accent); font-weight: 600; }
+
+  /* defect distribution bars */
+  .dist { padding: 6px 18px 18px; }
+  .dist-row { display: grid; grid-template-columns: 130px 1fr 40px; gap: 12px; align-items: center; margin: 9px 0; font-size: 12.5px; }
+  .dist-row .lab { color: var(--txt-dim); }
+  .dist-track { height: 9px; background: var(--panel-2); border-radius: 5px; overflow: hidden; }
+  .dist-track i { display: block; height: 100%; border-radius: 5px; }
+  .dist-row .num { text-align: right; font-weight: 650; font-size: 12px; }
+
+  /* fade transition */
+  .fade { animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
+
+  .hidden { display: none !important; }
+
+  /* filter chips */
+  .filters { display: flex; gap: 8px; align-items: center; padding: 0 8px 6px; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px; padding: 5px 11px; border-radius: 18px; cursor: pointer;
+    border: 1px solid var(--line); color: var(--txt-dim); background: var(--bg-soft); user-select: none;
+    transition: all .14s;
+  }
+  .chip:hover { color: var(--txt); border-color: #3a4d5a; }
+  .chip.on { background: var(--accent-soft); border-color: rgba(52,211,153,0.45); color: var(--accent); }
+
+  .no-results { text-align: center; color: var(--txt-faint); padding: 50px 20px; font-size: 13px; }
+  .no-results svg { width: 40px; height: 40px; opacity: .35; margin-bottom: 10px; }
+
+  @media (max-width: 1180px) {
+    .workbench { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4Z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <h1>AI Quality Inspection</h1>
+        <small>Vision &middot; Defect Intelligence</small>
+      </div>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchBox" type="text" placeholder="Search batch ID, product, defect type, line…" />
+      <kbd>/</kbd>
+    </div>
+    <div class="top-actions">
+      <div class="pill-live"><span class="dot"></span>Line 3 streaming</div>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9"/></svg>New batch</button>
+      <div class="avatar">EM</div>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="nav-label">Inspection</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Review Workbench <span class="count">9</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4"/></svg>Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Live Stream <span class="count">3</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>All Records</div>
+
+    <div class="nav-label">Configure</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="4"/></svg>Defect Models</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Acceptance Rules</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2l-.3-2.5H10.7l-.3 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 6 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.3 2.5h2.6l.3-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg>Settings</div>
+
+    <div class="side-card">
+      <h4>Model: VisionGrade v4.2</h4>
+      <p>Auto-inspected 1,284 units today. 96.1% agree with human review.</p>
+      <div class="mini-bar"><i style="width:96%"></i></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <h2>Review Workbench</h2>
+        <p>AI-graded inspections awaiting confirmation &middot; <span id="todayCount">9</span> open items today</p>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Export report</button>
+        <button class="btn primary" id="reRunBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Re-run AI grading</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="k-top">
+          <span class="k-label">Pass Rate (24h)</span>
+          <span class="k-ico" style="background:var(--pass-bg);color:var(--pass)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m5 13 4 4L19 7"/></svg></span>
+        </div>
+        <div class="k-val">94.3%</div>
+        <div class="k-sub"><span class="trend-up">▲ 1.8%</span> vs. yesterday</div>
+        <svg class="spark" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#34d399" stroke-width="2" points="0,22 25,18 50,20 75,14 100,16 125,10 150,12 175,7 200,9"/><polygon fill="rgba(52,211,153,0.12)" points="0,22 25,18 50,20 75,14 100,16 125,10 150,12 175,7 200,9 200,30 0,30"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="k-top">
+          <span class="k-label">Defects Detected</span>
+          <span class="k-ico" style="background:var(--fail-bg);color:var(--fail)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>
+        </div>
+        <div class="k-val">73</div>
+        <div class="k-sub"><span class="trend-up">▲ 12</span> across 4 lines</div>
+        <svg class="spark" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#f87171" stroke-width="2" points="0,18 25,16 50,20 75,12 100,15 125,9 150,14 175,6 200,8"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="k-top">
+          <span class="k-label">Pending Review</span>
+          <span class="k-ico" style="background:var(--info-bg);color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        </div>
+        <div class="k-val">9</div>
+        <div class="k-sub"><span class="trend-down">▼ 3</span> avg 2.1 min/item</div>
+        <svg class="spark" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#60a5fa" stroke-width="2" points="0,8 25,12 50,10 75,16 100,14 125,20 150,18 175,22 200,20"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="k-top">
+          <span class="k-label">Avg AI Confidence</span>
+          <span class="k-ico" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4Z"/></svg></span>
+        </div>
+        <div class="k-val">91.7%</div>
+        <div class="k-sub"><span class="trend-up">▲ 0.6%</span> 11 models active</div>
+        <svg class="spark" viewBox="0 0 200 30" preserveAspectRatio="none"><polyline fill="none" stroke="#34d399" stroke-width="2" points="0,16 25,14 50,15 75,11 100,13 125,9 150,11 175,8 200,9"/><polygon fill="rgba(52,211,153,0.12)" points="0,16 25,14 50,15 75,11 100,13 125,9 150,11 175,8 200,9 200,30 0,30"/></svg>
+      </div>
+    </div>
+
+    <!-- Workbench -->
+    <div class="workbench">
+      <!-- LEFT: inspection queue -->
+      <section class="panel">
+        <div class="panel-head">
+          <h3>Inspection Queue</h3>
+          <div class="tabs" id="statusTabs" style="margin-left:auto">
+            <div class="tab active" data-status="all">All <span class="tcount" id="t-all"></span></div>
+            <div class="tab" data-status="fail">Fail <span class="tcount" id="t-fail"></span></div>
+            <div class="tab" data-status="review">Review <span class="tcount" id="t-review"></span></div>
+            <div class="tab" data-status="pass">Pass <span class="tcount" id="t-pass"></span></div>
+          </div>
+        </div>
+        <div class="filters" id="lineFilters">
+          <span class="chip on" data-line="all">All lines</span>
+          <span class="chip" data-line="Line 1">Line 1</span>
+          <span class="chip" data-line="Line 2">Line 2</span>
+          <span class="chip" data-line="Line 3">Line 3</span>
+          <span class="chip" data-line="Line 4">Line 4</span>
+        </div>
+        <div class="queue" id="queue"></div>
+      </section>
+
+      <!-- RIGHT: review + AI output -->
+      <div style="display:flex; flex-direction:column; gap:16px; min-width:0;">
+        <section class="panel">
+          <div class="panel-head">
+            <h3>AI Inspection Review</h3>
+            <span class="sub" id="reviewSub" style="margin-left:auto"></span>
+          </div>
+          <div class="detail" id="detail">
+            <div class="empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m9 12 2 2 4-4"/></svg>
+              <h4>Select an inspection</h4>
+              <p>Pick an item from the queue to review the AI grade, defect map, and reasoning.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Defect Distribution</h3>
+            <span class="sub" style="margin-left:auto">Last 24h &middot; all lines</span>
+          </div>
+          <div class="dist" id="dist"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h3>AI Activity</h3>
+            <span class="sub" style="margin-left:auto">Live</span>
+          </div>
+          <div class="feed" id="feed"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ----------------------------- Seed data ----------------------------- */
+const RECORDS = [
+  { id:"INS-20481", product:"Aluminum Housing A2", line:"Line 3", batch:"BX-7741", sku:"AH-2204", op:"M. Okafor", time:"09:42",
+    score:38, status:"fail", confidence:97, units:240, defectUnits:11,
+    verdict:"Critical surface defects — reject batch",
+    reason:"Detected 3 deep scratches exceeding 0.4mm depth tolerance on the top face, plus an off-center mounting hole. Pattern matches die-wear signature seen in 4 prior batches from this mold.",
+    icon:"🔩",
+    anno:[{t:"Scratch 0.6mm",x:14,y:22,w:46,h:18,k:"fail"},{t:"Hole offset",x:60,y:54,w:30,h:30,k:"fail"}],
+    checks:[
+      {t:"Surface scratches", d:"3 found, max depth 0.6mm (limit 0.4mm)", s:"no", c:97},
+      {t:"Dimensional accuracy", d:"Mount hole offset +1.2mm", s:"no", c:94},
+      {t:"Edge finish", d:"Within tolerance", s:"ok", c:99},
+      {t:"Color / coating", d:"Uniform, no discoloration", s:"ok", c:98},
+    ] },
+  { id:"INS-20479", product:"PCB Controller R5", line:"Line 1", batch:"PC-3320", sku:"PCB-R5", op:"A. Lindqvist", time:"09:38",
+    score:71, status:"review", confidence:82, units:500, defectUnits:14,
+    verdict:"Borderline — solder bridge suspected",
+    reason:"Possible solder bridge between pins 7 and 8 on connector J3. Confidence is moderate due to glare in the capture. Component placement and orientation otherwise nominal. Recommend manual confirmation.",
+    icon:"🟩",
+    anno:[{t:"Solder bridge?",x:46,y:30,w:26,h:22,k:"warn"}],
+    checks:[
+      {t:"Solder joints", d:"Suspected bridge at J3 pins 7-8", s:"wn", c:82},
+      {t:"Component placement", d:"All 214 components seated", s:"ok", c:99},
+      {t:"Orientation marks", d:"Polarity correct", s:"ok", c:97},
+      {t:"Missing parts", d:"None detected", s:"ok", c:96},
+    ] },
+  { id:"INS-20478", product:"Glass Panel G9", line:"Line 2", batch:"GP-1180", sku:"GLS-9", op:"R. Haddad", time:"09:31",
+    score:96, status:"pass", confidence:98, units:180, defectUnits:0,
+    verdict:"Pass — no defects detected",
+    reason:"All 180 units inspected. Edge polish, transparency, and dimensional checks within spec. No chips, scratches, or inclusions found. Cleanest batch on Line 2 this week.",
+    icon:"🔲",
+    anno:[],
+    checks:[
+      {t:"Edge chips", d:"None detected", s:"ok", c:99},
+      {t:"Surface scratches", d:"None detected", s:"ok", c:98},
+      {t:"Transparency / inclusions", d:"Clear, no bubbles", s:"ok", c:99},
+      {t:"Dimensions", d:"All within ±0.1mm", s:"ok", c:97},
+    ] },
+  { id:"INS-20476", product:"Injection Cap C3", line:"Line 4", batch:"IC-9032", sku:"CAP-C3", op:"S. Moreau", time:"09:24",
+    score:54, status:"fail", confidence:90, units:1200, defectUnits:63,
+    verdict:"Flash & short-shot defects detected",
+    reason:"Molding flash on the rim of 63 units and 9 short-shot incompletes. Defect rate 5.3% exceeds the 2% acceptance threshold. Suggest checking mold clamp pressure and melt temperature.",
+    icon:"🧴",
+    anno:[{t:"Flash rim",x:20,y:18,w:54,h:14,k:"fail"},{t:"Short shot",x:30,y:60,w:24,h:24,k:"warn"}],
+    checks:[
+      {t:"Molding flash", d:"63 of 1200 units affected", s:"no", c:91},
+      {t:"Short shot / fill", d:"9 incomplete fills", s:"no", c:88},
+      {t:"Sink marks", d:"Minor, within tolerance", s:"wn", c:84},
+      {t:"Color consistency", d:"Uniform", s:"ok", c:97},
+    ] },
+  { id:"INS-20475", product:"Steel Bracket B7", line:"Line 3", batch:"SB-4410", sku:"BRK-7", op:"M. Okafor", time:"09:19",
+    score:88, status:"pass", confidence:95, units:320, defectUnits:2,
+    verdict:"Pass — minor cosmetic note",
+    reason:"2 units show light surface oxidation that is cosmetic only and within the acceptance grade. Weld integrity, hole alignment, and load-bearing geometry all nominal across the batch.",
+    icon:"🔧",
+    anno:[{t:"Light oxidation",x:55,y:40,w:22,h:18,k:"warn"}],
+    checks:[
+      {t:"Weld integrity", d:"All welds continuous", s:"ok", c:96},
+      {t:"Hole alignment", d:"Within tolerance", s:"ok", c:97},
+      {t:"Surface oxidation", d:"2 units, cosmetic grade", s:"wn", c:89},
+      {t:"Coating thickness", d:"Nominal 18µm", s:"ok", c:94},
+    ] },
+  { id:"INS-20473", product:"Rubber Seal S2", line:"Line 2", batch:"RS-2207", sku:"SEAL-2", op:"R. Haddad", time:"09:11",
+    score:62, status:"review", confidence:79, units:800, defectUnits:21,
+    verdict:"Inconsistent — texture anomalies",
+    reason:"Surface texture on 21 units differs from the reference grain. Could indicate curing variance or a contaminated mold. Diameter and durometer readings are within spec. Flagged for material engineer review.",
+    icon:"⭕",
+    anno:[{t:"Texture anomaly",x:34,y:28,w:34,h:34,k:"warn"}],
+    checks:[
+      {t:"Surface texture", d:"21 units off-reference grain", s:"wn", c:79},
+      {t:"Inner diameter", d:"Within ±0.05mm", s:"ok", c:96},
+      {t:"Durometer (hardness)", d:"Shore A 68, nominal", s:"ok", c:93},
+      {t:"Tears / splits", d:"None detected", s:"ok", c:98},
+    ] },
+  { id:"INS-20471", product:"Display Module D4", line:"Line 1", batch:"DM-6650", sku:"DSP-4", op:"A. Lindqvist", time:"09:03",
+    score:29, status:"fail", confidence:99, units:150, defectUnits:18,
+    verdict:"Dead pixels — reject",
+    reason:"18 panels exhibit clustered dead-pixel groups in the upper-right quadrant, plus 4 with backlight bleed. Defect cluster is spatially consistent, pointing to a handling or transport issue upstream.",
+    icon:"📺",
+    anno:[{t:"Dead pixel cluster",x:58,y:14,w:30,h:24,k:"fail"},{t:"Backlight bleed",x:10,y:60,w:30,h:22,k:"warn"}],
+    checks:[
+      {t:"Dead / stuck pixels", d:"18 panels, clustered", s:"no", c:99},
+      {t:"Backlight uniformity", d:"4 panels with bleed", s:"no", c:92},
+      {t:"Color calibration", d:"ΔE within target", s:"ok", c:95},
+      {t:"Bezel alignment", d:"Nominal", s:"ok", c:97},
+    ] },
+  { id:"INS-20469", product:"Aluminum Housing A2", line:"Line 3", batch:"BX-7738", sku:"AH-2204", op:"M. Okafor", time:"08:56",
+    score:93, status:"pass", confidence:96, units:240, defectUnits:1,
+    verdict:"Pass — clean batch",
+    reason:"Surface finish, machining tolerances, and anodization color all within spec. A single unit with a minor edge burr was auto-flagged and routed to rework, not a batch-level reject.",
+    icon:"🔩",
+    anno:[{t:"Edge burr",x:12,y:66,w:20,h:16,k:"warn"}],
+    checks:[
+      {t:"Surface scratches", d:"None above tolerance", s:"ok", c:97},
+      {t:"Dimensional accuracy", d:"All bores within ±0.05mm", s:"ok", c:98},
+      {t:"Edge finish", d:"1 unit burr → rework", s:"wn", c:90},
+      {t:"Anodization color", d:"Uniform matte black", s:"ok", c:96},
+    ] },
+  { id:"INS-20466", product:"Wire Harness W8", line:"Line 4", batch:"WH-5521", sku:"WH-8", op:"S. Moreau", time:"08:47",
+    score:81, status:"review", confidence:85, units:600, defectUnits:7,
+    verdict:"Minor — connector seating",
+    reason:"7 harnesses show a connector not fully seated on the C2 terminal. Continuity passes electrically but mechanical retention is below spec. Quick reseat resolves; flagged to confirm corrective action.",
+    icon:"🔌",
+    anno:[{t:"Unseated connector",x:40,y:48,w:30,h:20,k:"warn"}],
+    checks:[
+      {t:"Connector seating", d:"7 units not fully latched", s:"wn", c:85},
+      {t:"Continuity", d:"All circuits pass", s:"ok", c:99},
+      {t:"Wire routing", d:"Matches reference", s:"ok", c:94},
+      {t:"Crimp quality", d:"Within spec", s:"ok", c:92},
+    ] },
+];
+
+/* defect distribution */
+const DIST = [
+  { lab:"Surface scratch", n:24, color:"#f87171" },
+  { lab:"Molding flash", n:18, color:"#fbbf24" },
+  { lab:"Solder defect", n:12, color:"#60a5fa" },
+  { lab:"Dimensional", n:9, color:"#34d399" },
+  { lab:"Dead pixel", n:6, color:"#22d3ee" },
+  { lab:"Oxidation", n:4, color:"#8595a3" },
+];
+
+/* activity feed */
+const FEED = [
+  { type:"fail", t:"<b>VisionGrade v4.2</b> graded <span class='hl'>INS-20481</span> as <b>FAIL</b> — 2 critical defects", ts:"just now" },
+  { type:"pass", t:"Auto-approved <span class='hl'>INS-20478</span> (Glass Panel G9) at 98% confidence", ts:"3 min ago" },
+  { type:"review", t:"Routed <span class='hl'>INS-20479</span> to human review — confidence 82%", ts:"6 min ago" },
+  { type:"info", t:"Batch <b>IC-9032</b> defect rate 5.3% crossed the 2% alert threshold", ts:"11 min ago" },
+  { type:"pass", t:"Re-grading completed for 142 units on <b>Line 3</b>", ts:"18 min ago" },
+  { type:"fail", t:"Detected dead-pixel cluster on <span class='hl'>INS-20471</span> — 18 panels", ts:"24 min ago" },
+];
+
+/* ----------------------------- Helpers ----------------------------- */
+const $ = s => document.querySelector(s);
+const statusMeta = {
+  pass:   { label:"Pass",   cls:"b-pass" },
+  fail:   { label:"Fail",   cls:"b-fail" },
+  review: { label:"Review", cls:"b-review" },
+};
+function scoreColor(s){
+  if (s >= 85) return "#34d399";
+  if (s >= 60) return "#fbbf24";
+  return "#f87171";
+}
+function scoreBg(s){
+  if (s >= 85) return "var(--pass-bg)";
+  if (s >= 60) return "var(--warn-bg)";
+  return "var(--fail-bg)";
+}
+
+let state = { status:"all", line:"all", query:"", selected:null };
+
+/* ----------------------------- Render queue ----------------------------- */
+function filtered(){
+  return RECORDS.filter(r => {
+    if (state.status !== "all" && r.status !== state.status) return false;
+    if (state.line !== "all" && r.line !== state.line) return false;
+    if (state.query){
+      const q = state.query.toLowerCase();
+      const hay = (r.id+" "+r.product+" "+r.line+" "+r.batch+" "+r.sku+" "+r.op+" "+r.verdict).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderTabCounts(){
+  $("#t-all").textContent = RECORDS.length;
+  $("#t-fail").textContent = RECORDS.filter(r=>r.status==="fail").length;
+  $("#t-review").textContent = RECORDS.filter(r=>r.status==="review").length;
+  $("#t-pass").textContent = RECORDS.filter(r=>r.status==="pass").length;
+}
+
+function renderQueue(){
+  const list = filtered();
+  const q = $("#queue");
+  if (!list.length){
+    q.innerHTML = `<div class="no-results">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <div>No inspections match these filters.</div></div>`;
+    return;
+  }
+  q.innerHTML = list.map(r => {
+    const sm = statusMeta[r.status];
+    return `<div class="insp ${state.selected===r.id?'selected':''}" data-id="${r.id}">
+      <div class="thumb">${r.icon}<div class="scan"></div></div>
+      <div class="insp-meta">
+        <div class="id">${r.id} &middot; ${r.batch}</div>
+        <div class="name">${r.product}</div>
+        <div class="line">
+          <span>${r.line}</span><span>&middot;</span><span>${r.units} units</span>
+          ${r.defectUnits>0?`<span>&middot;</span><span style="color:var(--fail)">${r.defectUnits} flagged</span>`:''}
+        </div>
+      </div>
+      <div class="insp-right">
+        <span class="score-chip" style="color:${scoreColor(r.score)};background:${scoreBg(r.score)}">${r.score}</span>
+        <span class="badge ${sm.cls}"><span class="bd"></span>${sm.label}</span>
+      </div>
+    </div>`;
+  }).join("");
+  q.querySelectorAll(".insp").forEach(el => {
+    el.addEventListener("click", () => selectRecord(el.dataset.id));
+  });
+}
+
+/* ----------------------------- Render detail ----------------------------- */
+function gaugeSVG(score){
+  const r = 50, c = 2 * Math.PI * r;
+  const pct = score / 100;
+  const dash = c * pct;
+  const col = scoreColor(score);
+  return `<svg viewBox="0 0 120 120" width="120" height="120">
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="#243340" stroke-width="11"/>
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"
+      stroke-dasharray="${dash} ${c}" transform="rotate(-90 60 60)"/>
+  </svg>`;
+}
+
+function selectRecord(id){
+  state.selected = id;
+  const r = RECORDS.find(x => x.id === id);
+  document.querySelectorAll(".insp").forEach(e => e.classList.toggle("selected", e.dataset.id===id));
+  if (!r) return;
+  const sm = statusMeta[r.status];
+  $("#reviewSub").textContent = `${r.id} • graded ${r.time} • ${r.confidence}% confidence`;
+
+  const checksHTML = r.checks.map(c => {
+    const map = { ok:["ok","✓"], no:["no","✕"], wn:["wn","!"] };
+    const [cls,sym] = map[c.s];
+    const icoSVG = c.s==="ok"
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m5 13 4 4L19 7"/></svg>`
+      : c.s==="no"
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 6l12 12M18 6 6 18"/></svg>`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 8v5m0 3h.01"/></svg>`;
+    return `<div class="check">
+      <div class="ck-ico ${cls}">${icoSVG}</div>
+      <div class="ck-body"><div class="t">${c.t}</div><div class="d">${c.d}</div></div>
+      <div class="ck-conf">${c.c}%</div>
+    </div>`;
+  }).join("");
+
+  const annoHTML = r.anno.map(a =>
+    `<div class="anno ${a.k==='warn'?'warn':''}" style="left:${a.x}%;top:${a.y}%;width:${a.w}%;height:${a.h}%">
+      <span class="tag">${a.t}</span></div>`
+  ).join("");
+
+  const dom = `
+  <div class="fade">
+    <div class="review-top">
+      <div class="preview">
+        <div class="img">${r.icon}${annoHTML}</div>
+        <div class="pv-foot"><span>Capture #${r.batch}</span><span>${r.anno.length} region${r.anno.length!==1?'s':''}</span></div>
+      </div>
+      <div class="review-info">
+        <div class="rid">${r.id} &middot; ${r.batch}</div>
+        <h3>${r.product}</h3>
+        <span class="badge ${sm.cls}"><span class="bd"></span>AI verdict: ${sm.label}</span>
+        <div class="kv">
+          <div><div class="k">Line</div><div class="v">${r.line}</div></div>
+          <div><div class="k">SKU</div><div class="v">${r.sku}</div></div>
+          <div><div class="k">Units</div><div class="v">${r.units}</div></div>
+          <div><div class="k">Flagged</div><div class="v" style="color:${r.defectUnits>0?'var(--fail)':'var(--pass)'}">${r.defectUnits} units</div></div>
+          <div><div class="k">Operator</div><div class="v">${r.op}</div></div>
+          <div><div class="k">Captured</div><div class="v">${r.time} today</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ai-summary">
+      <div class="head">
+        <div class="glow"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6l-8-4Z"/></svg></div>
+        <h4>AI Quality Grade</h4>
+        <span class="ts">VisionGrade v4.2 &middot; ${r.time}</span>
+      </div>
+      <div class="score-block">
+        <div class="gauge">
+          ${gaugeSVG(r.score)}
+          <div class="ring-val"><div><b style="color:${scoreColor(r.score)}">${r.score}</b><span>quality score</span></div></div>
+        </div>
+        <div class="reason">
+          <div class="verdict" style="color:${scoreColor(r.score)}">${r.verdict}</div>
+          <p>${r.reason}</p>
+          <div class="conf-row">
+            <span>Model confidence</span>
+            <div class="conf-track"><i style="width:${r.confidence}%"></i></div>
+            <b>${r.confidence}%</b>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="checks">
+      <h5>Inspection Checklist &middot; ${r.checks.length} criteria</h5>
+      ${checksHTML}
+    </div>
+
+    <div class="review-actions">
+      <button class="btn ok" data-act="confirm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 13 4 4L19 7"/></svg>Confirm grade</button>
+      <button class="btn danger" data-act="reject"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg>Override → reject</button>
+      <button class="btn" data-act="rework"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Send to rework</button>
+      <span class="spacer"></span>
+      <span class="override-note" id="overrideNote"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 3h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><span id="overrideText"></span></span>
+    </div>
+  </div>`;
+
+  $("#detail").innerHTML = dom;
+
+  $("#detail").querySelectorAll("[data-act]").forEach(btn => {
+    btn.addEventListener("click", () => handleAction(btn.dataset.act, r));
+  });
+}
+
+function handleAction(act, r){
+  const note = $("#overrideNote");
+  const txt = $("#overrideText");
+  note.style.display = "inline-flex";
+  if (act === "confirm"){
+    note.style.color = "var(--pass)";
+    txt.textContent = `Grade confirmed — ${r.id} closed and logged to QA record`;
+    pushFeed("pass", `Reviewer <b>E. Mendoza</b> confirmed AI grade for <span class='hl'>${r.id}</span>`);
+  } else if (act === "reject"){
+    note.style.color = "var(--fail)";
+    txt.textContent = `Overridden to REJECT — batch ${r.batch} held for disposition`;
+    pushFeed("fail", `Reviewer <b>E. Mendoza</b> overrode <span class='hl'>${r.id}</span> to <b>REJECT</b>`);
+  } else {
+    note.style.color = "var(--warn)";
+    txt.textContent = `Routed ${r.defectUnits} flagged units to rework station 2`;
+    pushFeed("review", `<span class='hl'>${r.id}</span> sent to rework — ${r.defectUnits} units`);
+  }
+}
+
+/* ----------------------------- Distribution ----------------------------- */
+function renderDist(){
+  const max = Math.max(...DIST.map(d => d.n));
+  $("#dist").innerHTML = DIST.map(d => `
+    <div class="dist-row">
+      <span class="lab">${d.lab}</span>
+      <div class="dist-track"><i style="width:${(d.n/max*100).toFixed(0)}%;background:${d.color}"></i></div>
+      <span class="num">${d.n}</span>
+    </div>`).join("");
+}
+
+/* ----------------------------- Feed ----------------------------- */
+function feedIcon(type){
+  const colors = { fail:["var(--fail-bg)","var(--fail)"], pass:["var(--pass-bg)","var(--pass)"], review:["var(--info-bg)","var(--info)"], info:["var(--warn-bg)","var(--warn)"] };
+  const [bg,fg] = colors[type] || colors.info;
+  const svg = type==="fail"
+    ? `<path d="M6 6l12 12M18 6 6 18"/>`
+    : type==="pass"
+    ? `<path d="m5 13 4 4L19 7"/>`
+    : type==="review"
+    ? `<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>`
+    : `<path d="M12 9v4m0 3h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>`;
+  return `<div class="fdot" style="background:${bg};color:${fg}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">${svg}</svg></div>`;
+}
+function renderFeed(){
+  $("#feed").innerHTML = FEED.map(f => `
+    <div class="fitem">
+      ${feedIcon(f.type)}
+      <div class="ftxt">${f.t}<div class="ft">${f.ts}</div></div>
+    </div>`).join("");
+}
+function pushFeed(type, text){
+  FEED.unshift({ type, t:text, ts:"just now" });
+  if (FEED.length > 8) FEED.pop();
+  renderFeed();
+  const first = $("#feed").firstElementChild;
+  if (first) first.classList.add("fade");
+}
+
+/* ----------------------------- Events ----------------------------- */
+$("#statusTabs").addEventListener("click", e => {
+  const tab = e.target.closest(".tab");
+  if (!tab) return;
+  $("#statusTabs").querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  tab.classList.add("active");
+  state.status = tab.dataset.status;
+  renderQueue();
+});
+
+$("#lineFilters").addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  $("#lineFilters").querySelectorAll(".chip").forEach(c => c.classList.remove("on"));
+  chip.classList.add("on");
+  state.line = chip.dataset.line;
+  renderQueue();
+});
+
+$("#searchBox").addEventListener("input", e => {
+  state.query = e.target.value.trim();
+  renderQueue();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && document.activeElement !== $("#searchBox")){
+    e.preventDefault(); $("#searchBox").focus();
+  }
+});
+
+$("#reRunBtn").addEventListener("click", () => {
+  const btn = $("#reRunBtn");
+  const orig = btn.innerHTML;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Re-grading…`;
+  pushFeed("info", `<b>VisionGrade v4.2</b> re-grading queue — ${RECORDS.length} inspections`);
+  setTimeout(() => {
+    btn.innerHTML = orig;
+    pushFeed("pass", `Re-grading finished — 2 verdicts updated, avg confidence <b>+1.4%</b>`);
+  }, 1900);
+});
+
+// spin keyframe injected once
+const sk = document.createElement("style");
+sk.textContent = "@keyframes spin{to{transform:rotate(360deg)}}";
+document.head.appendChild(sk);
+
+/* nav highlight (cosmetic) */
+document.querySelector(".sidebar").addEventListener("click", e => {
+  const item = e.target.closest(".nav-item");
+  if (!item) return;
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  item.classList.add("active");
+});
+
+/* ----------------------------- Init ----------------------------- */
+renderTabCounts();
+renderQueue();
+renderDist();
+renderFeed();
+selectRecord("INS-20481");
+</script>
+</body>
+</html>

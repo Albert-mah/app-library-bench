@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expense Reporting — Raku Finance</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Ant Design neutral */
+    --gray-1: #ffffff;
+    --gray-2: #fafafa;
+    --gray-3: #f5f5f5;
+    --gray-4: #f0f0f0;
+    --gray-5: #d9d9d9;
+    --gray-6: #bfbfbf;
+    --gray-7: #8c8c8c;
+    --gray-8: #595959;
+    --gray-9: #434343;
+    --gray-10: #262626;
+    --gray-11: #1f1f1f;
+    --gray-12: #141414;
+
+    /* Primary — warm teal (finance / travel product feel) */
+    --primary-1: #e6fffb;
+    --primary-2: #b5f5ec;
+    --primary-3: #87e8de;
+    --primary-4: #5cdbd3;
+    --primary-5: #36cfc9;
+    --primary-6: #13c2c2;  /* main */
+    --primary-7: #08979c;
+    --primary-8: #006d75;
+
+    /* Status */
+    --draft-bg: #f5f5f5;
+    --draft-text: #8c8c8c;
+    --draft-border: #d9d9d9;
+    --pending-bg: #fffbe6;
+    --pending-text: #d48806;
+    --pending-border: #ffe58f;
+    --approved-bg: #f6ffed;
+    --approved-text: #389e0d;
+    --approved-border: #b7eb8f;
+    --rejected-bg: #fff2f0;
+    --rejected-text: #cf1322;
+    --rejected-border: #ffccc7;
+
+    --border-radius: 8px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.04), 0 1px 6px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+    --transition: 0.18s ease;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  body {
+    font-family: var(--font);
+    font-size: 14px;
+    color: var(--gray-10);
+    background: #f0f2f5;
+    min-height: 100vh;
+  }
+
+  /* ─── TOP BAR ─────────────────────────────────────────────── */
+  .topbar {
+    background: var(--gray-1);
+    border-bottom: 1px solid var(--gray-4);
+    padding: 0 28px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow-sm);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 30px; height: 30px;
+    background: linear-gradient(135deg, var(--primary-6), var(--primary-8));
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 15px; font-weight: 700; letter-spacing: -1px;
+  }
+  .app-name { font-size: 16px; font-weight: 600; color: var(--gray-10); }
+  .app-sub { font-size: 12px; color: var(--gray-7); margin-left: 4px; }
+  .topbar-nav { display: flex; gap: 2px; }
+  .nav-item {
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 13.5px; color: var(--gray-8); transition: var(--transition);
+  }
+  .nav-item:hover { background: var(--gray-3); color: var(--gray-10); }
+  .nav-item.active { background: var(--primary-1); color: var(--primary-7); font-weight: 500; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, #91d5ff, var(--primary-5));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; color: var(--gray-1); cursor: pointer;
+  }
+  .user-name { font-size: 13.5px; color: var(--gray-9); font-weight: 500; }
+
+  /* ─── PAGE LAYOUT ─────────────────────────────────────────── */
+  .page-wrap {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: auto 1fr;
+    gap: 20px;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 28px;
+  }
+
+  /* ─── CARD BASE ───────────────────────────────────────────── */
+  .card {
+    background: var(--gray-1);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--gray-4);
+    box-shadow: var(--shadow-sm);
+  }
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gray-4);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-title { font-size: 15px; font-weight: 600; color: var(--gray-10); }
+  .card-body { padding: 20px; }
+
+  /* ─── STATUS BADGE ────────────────────────────────────────── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500;
+    border: 1px solid;
+  }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .badge.draft { background: var(--draft-bg); color: var(--draft-text); border-color: var(--draft-border); }
+  .badge.draft .badge-dot { background: var(--draft-text); }
+  .badge.pending { background: var(--pending-bg); color: var(--pending-text); border-color: var(--pending-border); }
+  .badge.pending .badge-dot { background: var(--pending-text); }
+  .badge.approved { background: var(--approved-bg); color: var(--approved-text); border-color: var(--approved-border); }
+  .badge.approved .badge-dot { background: var(--approved-text); }
+  .badge.rejected { background: var(--rejected-bg); color: var(--rejected-text); border-color: var(--rejected-border); }
+  .badge.rejected .badge-dot { background: var(--rejected-text); }
+
+  /* ─── REPORT HEADER CARD ──────────────────────────────────── */
+  .report-header-card {
+    grid-column: 1 / -1;
+  }
+  .report-header-inner {
+    padding: 20px 24px;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+  }
+  .report-meta { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .report-title-row { display: flex; align-items: center; gap: 12px; }
+  .report-title {
+    font-size: 20px; font-weight: 700; color: var(--gray-10);
+    border: none; outline: none; background: transparent;
+    font-family: var(--font);
+    flex: 1;
+    border-bottom: 2px solid transparent;
+    transition: border-color var(--transition);
+    padding: 2px 4px;
+  }
+  .report-title:focus { border-bottom-color: var(--primary-5); }
+  .report-fields { display: flex; gap: 24px; flex-wrap: wrap; }
+  .field-group { display: flex; flex-direction: column; gap: 3px; }
+  .field-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-7); font-weight: 500; }
+  .field-value { font-size: 13.5px; color: var(--gray-9); font-weight: 500; }
+  .field-value.editable {
+    border: none; outline: none; background: transparent;
+    font-family: var(--font); font-size: 13.5px; color: var(--gray-9); font-weight: 500;
+    border-bottom: 1px dashed var(--gray-5); cursor: text; padding: 1px 0;
+    transition: border-color var(--transition);
+  }
+  .field-value.editable:focus { border-bottom-color: var(--primary-5); outline: none; }
+
+  .report-actions { display: flex; align-items: center; gap: 10px; }
+  .total-display {
+    text-align: right;
+  }
+  .total-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-7); font-weight: 500; }
+  .total-amount { font-size: 28px; font-weight: 700; color: var(--gray-10); line-height: 1.2; }
+  .total-currency { font-size: 14px; font-weight: 500; color: var(--gray-7); margin-right: 2px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 16px; border-radius: 6px; font-size: 13.5px; font-weight: 500;
+    border: 1px solid; cursor: pointer; transition: var(--transition);
+    font-family: var(--font); line-height: 1;
+  }
+  .btn-default {
+    background: var(--gray-1); color: var(--gray-9); border-color: var(--gray-5);
+  }
+  .btn-default:hover { border-color: var(--primary-5); color: var(--primary-6); }
+  .btn-primary {
+    background: var(--primary-6); color: #fff; border-color: var(--primary-6);
+  }
+  .btn-primary:hover { background: var(--primary-7); border-color: var(--primary-7); }
+  .btn-danger {
+    background: var(--gray-1); color: var(--rejected-text); border-color: var(--rejected-border);
+  }
+  .btn-danger:hover { background: var(--rejected-bg); }
+  .btn-sm { padding: 4px 10px; font-size: 12.5px; }
+  .btn:active { transform: scale(.98); }
+
+  /* ─── MAIN COLUMN (receipts + details) ───────────────────── */
+  .main-col { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ─── RECEIPTS PANEL ──────────────────────────────────────── */
+  .receipts-panel {}
+  .receipts-scroll {
+    display: flex; flex-direction: column; gap: 10px;
+    max-height: 320px; overflow-y: auto;
+    padding: 4px 2px;
+  }
+  .receipts-scroll::-webkit-scrollbar { width: 5px; }
+  .receipts-scroll::-webkit-scrollbar-thumb { background: var(--gray-5); border-radius: 3px; }
+
+  .receipt-item {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid var(--gray-4);
+    border-radius: 8px; padding: 10px 14px;
+    background: var(--gray-2);
+    cursor: pointer; transition: var(--transition);
+    position: relative;
+  }
+  .receipt-item:hover { border-color: var(--primary-4); background: var(--primary-1); }
+  .receipt-item.linked { border-color: var(--primary-5); background: var(--primary-1); }
+  .receipt-thumb {
+    width: 52px; height: 64px; border-radius: 5px;
+    background: var(--gray-4); overflow: hidden; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; position: relative;
+  }
+  .receipt-thumb-fill {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 6px 4px 5px;
+  }
+  .receipt-thumb-lines { display: flex; flex-direction: column; gap: 3px; width: 100%; }
+  .receipt-thumb-line { height: 3px; border-radius: 2px; background: var(--gray-6); }
+  .receipt-thumb-line.dark { background: var(--gray-9); }
+  .receipt-thumb-line.medium { background: var(--gray-7); }
+  .receipt-thumb-line.short { width: 60%; }
+  .receipt-thumb-amount { font-size: 8px; font-weight: 700; color: var(--gray-9); }
+
+  .receipt-info { flex: 1; min-width: 0; }
+  .receipt-name { font-size: 13px; font-weight: 600; color: var(--gray-10); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .receipt-meta-row { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+  .receipt-date { font-size: 11.5px; color: var(--gray-7); }
+  .receipt-category-tag {
+    font-size: 11px; padding: 1px 7px; border-radius: 10px;
+    background: var(--gray-4); color: var(--gray-8);
+    font-weight: 500;
+  }
+  .receipt-amount { font-size: 14px; font-weight: 700; color: var(--gray-10); flex-shrink: 0; }
+  .receipt-linked-badge {
+    position: absolute; top: 7px; right: 10px;
+    font-size: 10.5px; color: var(--primary-7); font-weight: 600;
+  }
+  .receipt-unlinked-badge {
+    position: absolute; top: 7px; right: 10px;
+    font-size: 10.5px; color: var(--gray-6); font-weight: 500;
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--gray-5); border-radius: 8px;
+    padding: 18px 20px; text-align: center; cursor: pointer;
+    transition: var(--transition); margin-top: 4px;
+    color: var(--gray-7); font-size: 13px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .upload-zone:hover { border-color: var(--primary-5); color: var(--primary-6); background: var(--primary-1); }
+  .upload-icon { font-size: 18px; }
+
+  /* ─── EXPENSE TABLE ───────────────────────────────────────── */
+  .expense-table-wrap { overflow-x: auto; }
+  .expense-table { width: 100%; border-collapse: collapse; }
+  .expense-table th {
+    text-align: left; padding: 8px 12px;
+    font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--gray-7); background: var(--gray-2);
+    border-bottom: 1px solid var(--gray-4);
+  }
+  .expense-table th:first-child { border-radius: 8px 0 0 0; }
+  .expense-table th:last-child { border-radius: 0 8px 0 0; text-align: right; }
+  .expense-table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--gray-4);
+    vertical-align: middle;
+  }
+  .expense-table tr:last-child td { border-bottom: none; }
+  .expense-table tr:hover td { background: var(--gray-2); }
+
+  .row-select {
+    border: none; outline: none; background: transparent;
+    font-family: var(--font); font-size: 13.5px; color: var(--gray-9);
+    cursor: pointer; padding: 3px 6px; border-radius: 5px;
+    transition: background var(--transition);
+    max-width: 110px;
+  }
+  .row-select:hover { background: var(--gray-3); }
+  .row-input {
+    border: none; outline: none; background: transparent;
+    font-family: var(--font); font-size: 13.5px; color: var(--gray-9);
+    width: 100%; padding: 3px 6px; border-radius: 5px;
+    transition: background var(--transition);
+  }
+  .row-input:hover { background: var(--gray-3); }
+  .row-input:focus, .row-select:focus { background: var(--gray-3); box-shadow: 0 0 0 2px var(--primary-2); }
+  .amount-cell { text-align: right; }
+  .amount-input {
+    border: none; outline: none; background: transparent;
+    font-family: var(--font); font-size: 13.5px; font-weight: 600; color: var(--gray-10);
+    text-align: right; width: 90px; padding: 3px 6px; border-radius: 5px;
+    transition: background var(--transition);
+  }
+  .amount-input:hover { background: var(--gray-3); }
+  .amount-input:focus { background: var(--gray-3); box-shadow: 0 0 0 2px var(--primary-2); }
+
+  .receipt-link-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--gray-5);
+    background: var(--gray-1); cursor: pointer; transition: var(--transition);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+    color: var(--gray-7);
+  }
+  .receipt-link-btn:hover { border-color: var(--primary-5); color: var(--primary-6); background: var(--primary-1); }
+  .receipt-link-btn.linked { border-color: var(--primary-5); color: var(--primary-6); background: var(--primary-1); }
+
+  .row-del-btn {
+    width: 26px; height: 26px; border-radius: 5px; border: none;
+    background: transparent; cursor: pointer; color: var(--gray-6);
+    font-size: 15px; display: flex; align-items: center; justify-content: center;
+    transition: var(--transition);
+  }
+  .row-del-btn:hover { color: var(--rejected-text); background: var(--rejected-bg); }
+
+  .category-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 12px; font-size: 12px; font-weight: 500;
+  }
+  .cat-flight { background: #e6f4ff; color: #0958d9; }
+  .cat-hotel  { background: #fff7e6; color: #d46b08; }
+  .cat-meals  { background: #f9f0ff; color: #7b2eb0; }
+  .cat-taxi   { background: #e6fffb; color: #087a78; }
+  .cat-other  { background: var(--gray-3); color: var(--gray-8); }
+
+  .table-footer {
+    padding: 12px 20px;
+    border-top: 2px solid var(--gray-4);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--gray-2); border-radius: 0 0 var(--border-radius) var(--border-radius);
+  }
+  .add-row-btn {
+    font-size: 13px; color: var(--primary-6); font-weight: 500;
+    background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border-radius: 6px; transition: background var(--transition);
+  }
+  .add-row-btn:hover { background: var(--primary-1); }
+  .footer-total { display: flex; align-items: baseline; gap: 6px; }
+  .footer-total-label { font-size: 13px; color: var(--gray-7); font-weight: 500; }
+  .footer-total-amount { font-size: 20px; font-weight: 700; color: var(--gray-10); }
+  .footer-total-currency { font-size: 13px; color: var(--gray-7); }
+
+  /* ─── RIGHT SIDEBAR ───────────────────────────────────────── */
+  .sidebar { display: flex; flex-direction: column; gap: 16px; align-self: start; }
+
+  /* Approval timeline */
+  .approval-timeline { padding: 20px; }
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .timeline-step { display: flex; gap: 12px; padding-bottom: 22px; position: relative; }
+  .timeline-step:last-child { padding-bottom: 0; }
+  .timeline-step:not(:last-child)::after {
+    content: ''; position: absolute; left: 11px; top: 26px;
+    width: 2px; bottom: 0; background: var(--gray-4);
+  }
+  .timeline-step.done::after { background: var(--primary-4); }
+  .step-dot {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; border: 2px solid;
+    margin-top: 1px; z-index: 1; background: var(--gray-1);
+  }
+  .step-dot.done { background: var(--primary-6); border-color: var(--primary-6); color: #fff; }
+  .step-dot.active { border-color: var(--pending-text); color: var(--pending-text); background: var(--pending-bg); }
+  .step-dot.waiting { border-color: var(--gray-5); color: var(--gray-6); }
+  .step-content { flex: 1; }
+  .step-title { font-size: 13px; font-weight: 600; color: var(--gray-10); }
+  .step-meta { font-size: 12px; color: var(--gray-7); margin-top: 2px; }
+  .step-time { font-size: 11.5px; color: var(--gray-6); margin-top: 3px; }
+  .step-comment {
+    font-size: 12px; color: var(--gray-8);
+    background: var(--gray-3); border-radius: 6px;
+    padding: 7px 10px; margin-top: 7px; line-height: 1.5;
+    border-left: 3px solid var(--primary-4);
+  }
+
+  /* My reports list */
+  .reports-list { display: flex; flex-direction: column; gap: 1px; }
+  .report-list-item {
+    padding: 13px 16px; cursor: pointer; transition: background var(--transition);
+    border-radius: 6px; display: flex; flex-direction: column; gap: 7px;
+  }
+  .report-list-item:hover { background: var(--gray-2); }
+  .report-list-item.active-report { background: var(--primary-1); }
+  .rli-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .rli-name { font-size: 13px; font-weight: 600; color: var(--gray-10); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rli-amount { font-size: 13px; font-weight: 700; color: var(--gray-10); flex-shrink: 0; }
+  .rli-meta { display: flex; align-items: center; gap: 8px; }
+  .rli-date { font-size: 11.5px; color: var(--gray-6); }
+
+  /* Progress bar for approval */
+  .progress-track {
+    height: 5px; background: var(--gray-4); border-radius: 3px; overflow: hidden;
+    flex: 1;
+  }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width .4s ease; }
+  .progress-fill.fill-draft    { background: var(--gray-6); }
+  .progress-fill.fill-pending  { background: var(--pending-text); }
+  .progress-fill.fill-approved { background: var(--approved-text); }
+  .progress-fill.fill-rejected { background: var(--rejected-text); }
+
+  /* ─── EMPTY STATE ─────────────────────────────────────────── */
+  .empty { text-align: center; padding: 32px 20px; color: var(--gray-6); }
+  .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-text { font-size: 13px; }
+
+  /* ─── MODAL ───────────────────────────────────────────────── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999; opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--gray-1); border-radius: 10px; width: 460px; max-width: 96vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
+    transform: scale(.95) translateY(10px); transition: transform .2s, opacity .2s;
+    padding: 28px;
+  }
+  .modal-overlay.open .modal { transform: scale(1) translateY(0); }
+  .modal-title { font-size: 16px; font-weight: 700; color: var(--gray-10); margin-bottom: 18px; }
+  .modal-body { font-size: 13.5px; color: var(--gray-8); line-height: 1.7; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+  .modal-receipt-preview {
+    border: 1px solid var(--gray-4); border-radius: 8px;
+    padding: 16px; background: var(--gray-2); margin-bottom: 16px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .receipt-preview-doc {
+    width: 72px; height: 90px; background: var(--gray-1);
+    border: 1px solid var(--gray-5); border-radius: 5px;
+    display: flex; flex-direction: column; padding: 8px; gap: 4px; flex-shrink: 0;
+  }
+  .preview-doc-line { height: 3px; border-radius: 2px; margin-bottom: 1px; }
+  .preview-doc-line.thick { height: 5px; }
+  .receipt-preview-detail { flex: 1; }
+  .rpd-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
+  .rpd-label { color: var(--gray-7); }
+  .rpd-val { font-weight: 600; color: var(--gray-10); }
+
+  /* ─── NOTIFICATION TOAST ──────────────────────────────────── */
+  .toast-container { position: fixed; top: 72px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--gray-10); color: #fff; padding: 10px 16px; border-radius: 8px;
+    font-size: 13px; display: flex; align-items: center; gap: 8px;
+    box-shadow: var(--shadow-md); min-width: 220px;
+    animation: toastIn .25s ease forwards;
+  }
+  .toast.success { background: #135200; border-left: 4px solid var(--approved-text); }
+  .toast.warning { background: #613400; border-left: 4px solid var(--pending-text); }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(30px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ─── UTILS ───────────────────────────────────────────────── */
+  .divider { height: 1px; background: var(--gray-4); margin: 0; }
+  .text-muted { color: var(--gray-7); }
+  .flex-center { display: flex; align-items: center; }
+  .gap-8 { gap: 8px; }
+  .fw-600 { font-weight: 600; }
+
+  @media (max-width: 960px) {
+    .page-wrap { grid-template-columns: 1fr; }
+    .report-header-card { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo-mark">R</div>
+    <span class="app-name">Raku Finance</span>
+    <span class="app-sub">/ Expense Reporting</span>
+  </div>
+  <nav class="topbar-nav">
+    <div class="nav-item active">My Expenses</div>
+    <div class="nav-item">Team Reports</div>
+    <div class="nav-item">Analytics</div>
+    <div class="nav-item">Settings</div>
+  </nav>
+  <div class="topbar-right">
+    <button class="btn btn-primary" onclick="handleSubmit()">
+      <span>⬆</span> Submit Report
+    </button>
+    <div class="avatar" title="Keiko Tanaka">KT</div>
+    <span class="user-name">Keiko Tanaka</span>
+  </div>
+</header>
+
+<div class="page-wrap">
+
+  <!-- ═══ REPORT HEADER CARD ═══ -->
+  <div class="card report-header-card">
+    <div class="report-header-inner">
+      <div class="report-meta">
+        <div class="report-title-row">
+          <input class="report-title" id="reportTitle" value="Tokyo Client Visit — Q2 Sales Trip" spellcheck="false" />
+          <span class="badge pending" id="statusBadge">
+            <span class="badge-dot"></span>
+            <span id="statusText">Draft</span>
+          </span>
+        </div>
+        <div class="report-fields">
+          <div class="field-group">
+            <span class="field-label">Trip / Purpose</span>
+            <input class="field-value editable" value="Tokyo · May 28–31, 2026" style="width:200px" />
+          </div>
+          <div class="field-group">
+            <span class="field-label">Cost Center</span>
+            <input class="field-value editable" value="Sales — APAC" style="width:130px" />
+          </div>
+          <div class="field-group">
+            <span class="field-label">Submission Date</span>
+            <span class="field-value">June 4, 2026</span>
+          </div>
+          <div class="field-group">
+            <span class="field-label">Currency</span>
+            <span class="field-value">USD</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:14px;">
+        <div class="total-display">
+          <div class="total-label">Total Claimed</div>
+          <div class="total-amount">
+            <span class="total-currency">$</span>
+            <span id="grandTotal">2,847.50</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-default btn-sm" onclick="showDeleteConfirm()">🗑 Discard</button>
+          <button class="btn btn-default btn-sm" onclick="saveDraft()">💾 Save Draft</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN COLUMN ═══ -->
+  <div class="main-col">
+
+    <!-- Receipts Panel -->
+    <div class="card receipts-panel">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="card-title">📎 Receipts &amp; Documents</span>
+          <span style="font-size:12px;color:var(--gray-7);background:var(--gray-3);padding:2px 8px;border-radius:10px;" id="receiptCount">5 attached</span>
+        </div>
+        <button class="btn btn-default btn-sm" onclick="showUploadModal()">+ Add Receipt</button>
+      </div>
+      <div class="card-body" style="padding:14px 16px;">
+        <div class="receipts-scroll" id="receiptsList">
+          <!-- Populated by JS -->
+        </div>
+        <div class="upload-zone" onclick="showUploadModal()">
+          <span class="upload-icon">📤</span>
+          <span>Drop receipts here or <strong>browse files</strong> — JPG, PDF, PNG supported</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Expense Lines -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📋 Expense Line Items</span>
+        <span style="font-size:12px;color:var(--gray-7);">Click any cell to edit</span>
+      </div>
+      <div class="expense-table-wrap">
+        <table class="expense-table" id="expenseTable">
+          <thead>
+            <tr>
+              <th style="width:110px">Date</th>
+              <th style="width:130px">Category</th>
+              <th style="width:180px">Merchant / Description</th>
+              <th>Notes</th>
+              <th style="width:44px">Rcpt</th>
+              <th style="width:100px;text-align:right">Amount (USD)</th>
+              <th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="expenseBody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        <button class="add-row-btn" onclick="addRow()">＋ Add Line Item</button>
+        <div class="footer-total">
+          <span class="footer-total-label">Total</span>
+          <span class="footer-total-currency">$</span>
+          <span class="footer-total-amount" id="footerTotal">2,847.50</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-col -->
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <div class="sidebar">
+
+    <!-- Approval Flow -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">✅ Approval Status</span>
+        <span class="badge draft" id="sidebarBadge"><span class="badge-dot"></span>Draft</span>
+      </div>
+      <div class="approval-timeline">
+        <div class="timeline">
+          <div class="timeline-step done">
+            <div class="step-dot done">✓</div>
+            <div class="step-content">
+              <div class="step-title">Report Created</div>
+              <div class="step-meta">Keiko Tanaka</div>
+              <div class="step-time">Jun 4, 2026 · 09:12</div>
+            </div>
+          </div>
+          <div class="timeline-step" id="step2">
+            <div class="step-dot waiting" id="step2dot">2</div>
+            <div class="step-content">
+              <div class="step-title">Manager Review</div>
+              <div class="step-meta" id="step2meta">Awaiting submission</div>
+              <div class="step-time" id="step2time" style="display:none"></div>
+              <div class="step-comment" id="step2comment" style="display:none"></div>
+            </div>
+          </div>
+          <div class="timeline-step" id="step3">
+            <div class="step-dot waiting" id="step3dot">3</div>
+            <div class="step-content">
+              <div class="step-title">Finance Approval</div>
+              <div class="step-meta" id="step3meta">Pending manager sign-off</div>
+              <div class="step-time" id="step3time" style="display:none"></div>
+            </div>
+          </div>
+          <div class="timeline-step">
+            <div class="step-dot waiting" id="step4dot">4</div>
+            <div class="step-content">
+              <div class="step-title">Reimbursement</div>
+              <div class="step-meta">Payroll cycle: Jun 25</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Reports List -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📁 My Reports</span>
+        <button class="btn btn-default btn-sm" onclick="newReport()">+ New</button>
+      </div>
+      <div style="padding:8px 6px;" id="myReportsList">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+</div><!-- /page-wrap -->
+
+<!-- ═══ RECEIPT PREVIEW MODAL ═══ -->
+<div class="modal-overlay" id="receiptModal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Receipt Details</div>
+    <div class="modal-receipt-preview" id="modalPreview"></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-default" onclick="closeModal('receiptModal')">Close</button>
+      <button class="btn btn-primary" id="modalPrimaryAction">Link to Line Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SUBMIT CONFIRM MODAL ═══ -->
+<div class="modal-overlay" id="submitModal">
+  <div class="modal">
+    <div class="modal-title">Submit Expense Report?</div>
+    <div class="modal-body">
+      <div style="background:var(--gray-2);border-radius:8px;padding:14px 16px;margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:var(--gray-7)">Report</span>
+          <strong id="confirmTitle">—</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:var(--gray-7)">Line Items</span>
+          <strong id="confirmLines">—</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="color:var(--gray-7)">Total Amount</span>
+          <strong id="confirmTotal" style="color:var(--gray-10);font-size:15px;">—</strong>
+        </div>
+      </div>
+      <p>Your report will be sent to <strong>Yuki Nakamura (Manager)</strong> for review. You won't be able to edit it after submission.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-default" onclick="closeModal('submitModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSubmit()">Submit for Approval</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DELETE CONFIRM MODAL ═══ -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">Discard Report?</div>
+    <div class="modal-body">This will permanently delete the current draft and all attached receipts. This action cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="btn btn-default" onclick="closeModal('deleteModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="closeModal('deleteModal');showToast('Draft discarded.','warning')">Discard</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ UPLOAD MODAL ═══ -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal">
+    <div class="modal-title">📤 Upload Receipt</div>
+    <div class="modal-body">
+      <div style="border:2px dashed var(--gray-5);border-radius:8px;padding:32px;text-align:center;cursor:pointer;margin-bottom:14px;transition:var(--transition);"
+           onmouseenter="this.style.borderColor='var(--primary-5)';this.style.background='var(--primary-1)'"
+           onmouseleave="this.style.borderColor='var(--gray-5)';this.style.background=''">
+        <div style="font-size:36px;margin-bottom:8px;">📷</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Drop your receipt here</div>
+        <div style="font-size:12.5px;color:var(--gray-6);">Supports JPG, PNG, PDF — AI will extract amount &amp; merchant</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+        <div style="flex:1;height:1px;background:var(--gray-4)"></div>
+        <span style="font-size:12px;color:var(--gray-6)">or add manually</span>
+        <div style="flex:1;height:1px;background:var(--gray-4)"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <div style="font-size:12px;color:var(--gray-7);margin-bottom:4px;">Merchant Name</div>
+          <input style="width:100%;padding:7px 10px;border:1px solid var(--gray-5);border-radius:6px;font-size:13px;outline:none;font-family:var(--font);" id="uploadMerchant" placeholder="e.g. Narita Airport Café" />
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--gray-7);margin-bottom:4px;">Amount (USD)</div>
+          <input type="number" style="width:100%;padding:7px 10px;border:1px solid var(--gray-5);border-radius:6px;font-size:13px;outline:none;font-family:var(--font);" id="uploadAmount" placeholder="0.00" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-default" onclick="closeModal('uploadModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addMockReceipt()">Add Receipt</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  DATA MODEL
+// ═══════════════════════════════════════════════════════════
+
+const CATEGORIES = ['Flight','Hotel','Meals','Taxi','Conference','Supplies','Other'];
+
+const CAT_CLASS = {
+  Flight: 'cat-flight', Hotel: 'cat-hotel', Meals: 'cat-meals',
+  Taxi: 'cat-taxi', Other: 'cat-other', Conference: 'cat-flight',
+  Supplies: 'cat-other'
+};
+
+const CAT_ICON = {
+  Flight:'✈️', Hotel:'🏨', Meals:'🍽️', Taxi:'🚕',
+  Conference:'🎤', Supplies:'📦', Other:'💼'
+};
+
+let receipts = [
+  { id: 'r1', name: 'JAL 724 — NRT→TYO', date: 'May 28', category: 'Flight', amount: 1240.00, merchant: 'Japan Airlines', linked: true },
+  { id: 'r2', name: 'Park Hotel Tokyo', date: 'May 28–31', category: 'Hotel', amount: 892.50, merchant: 'Park Hotel', linked: true },
+  { id: 'r3', name: 'Client dinner — Nobu', date: 'May 29', category: 'Meals', amount: 318.00, merchant: 'Nobu Tokyo', linked: true },
+  { id: 'r4', name: 'Airport taxi — Narita', date: 'May 28', category: 'Taxi', amount: 85.00, merchant: 'Tokyo Taxi', linked: true },
+  { id: 'r5', name: 'Team lunch — Ginza', date: 'May 30', category: 'Meals', amount: 124.00, merchant: 'Ginza Sushi', linked: false },
+];
+
+let rows = [
+  { id: 1, date: '2026-05-28', category: 'Flight',  merchant: 'Japan Airlines',  notes: 'Round-trip NRT ↔ TYO',     amount: 1240.00, receiptId: 'r1' },
+  { id: 2, date: '2026-05-28', category: 'Hotel',   merchant: 'Park Hotel Tokyo', notes: '3 nights, single room',    amount: 892.50,  receiptId: 'r2' },
+  { id: 3, date: '2026-05-29', category: 'Meals',   merchant: 'Nobu Tokyo',       notes: 'Client entertainment',     amount: 318.00,  receiptId: 'r3' },
+  { id: 4, date: '2026-05-28', category: 'Taxi',    merchant: 'Tokyo Taxi Co.',   notes: 'Narita → Hotel',           amount: 85.00,   receiptId: 'r4' },
+  { id: 5, date: '2026-05-30', category: 'Meals',   merchant: 'Ginza Sushi',      notes: 'Team lunch',               amount: 124.00,  receiptId: null },
+  { id: 6, date: '2026-05-31', category: 'Taxi',    merchant: 'Uber Japan',       notes: 'Hotel → Airport',          amount: 74.00,   receiptId: null },
+  { id: 7, date: '2026-05-29', category: 'Other',   merchant: 'Convenience Store','notes': 'Phone charger (lost)',   amount: 114.00,  receiptId: null },
+];
+
+const myReports = [
+  { id: 'e20', title: 'Tokyo Client Visit — Q2 Sales Trip', date: 'Jun 4, 2026', amount: 2847.50, status: 'draft', progress: 10 },
+  { id: 'e19', title: 'Singapore Conference 2026',          date: 'May 15, 2026', amount: 3120.00, status: 'approved', progress: 100 },
+  { id: 'e18', title: 'Seoul Partnership Meeting',          date: 'Apr 22, 2026', amount: 1895.00, status: 'approved', progress: 100 },
+  { id: 'e17', title: 'Q1 Client Visits — Osaka, Kyoto',    date: 'Mar 10, 2026', amount: 2410.50, status: 'rejected', progress: 60 },
+  { id: 'e16', title: 'Bangkok Sales Kickoff',              date: 'Feb 5, 2026',  amount: 980.00,  status: 'pending', progress: 55 },
+];
+
+let nextId = 8;
+let appState = 'draft'; // draft | pending | approved | rejected
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════════════
+
+function calcTotal() {
+  return rows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+}
+
+function fmtAmt(n) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderReceipts() {
+  const el = document.getElementById('receiptsList');
+  el.innerHTML = receipts.map(r => `
+    <div class="receipt-item ${r.linked ? 'linked' : ''}" onclick="openReceiptModal('${r.id}')">
+      <div class="receipt-thumb">
+        <div class="receipt-thumb-fill">
+          <div class="receipt-thumb-lines">
+            <div class="receipt-thumb-line dark thick"></div>
+            <div class="receipt-thumb-line medium"></div>
+            <div class="receipt-thumb-line"></div>
+            <div class="receipt-thumb-line short"></div>
+            <div class="receipt-thumb-line medium"></div>
+            <div class="receipt-thumb-line"></div>
+          </div>
+          <div class="receipt-thumb-amount">$${fmtAmt(r.amount)}</div>
+        </div>
+      </div>
+      <div class="receipt-info">
+        <div class="receipt-name">${r.name}</div>
+        <div class="receipt-meta-row">
+          <span class="receipt-date">${r.date}</span>
+          <span class="receipt-category-tag">${CAT_ICON[r.category] || ''} ${r.category}</span>
+        </div>
+      </div>
+      <div class="receipt-amount">$${fmtAmt(r.amount)}</div>
+      ${r.linked
+        ? '<span class="receipt-linked-badge">✓ Linked</span>'
+        : '<span class="receipt-unlinked-badge">Unlinked</span>'}
+    </div>
+  `).join('');
+
+  document.getElementById('receiptCount').textContent = receipts.length + ' attached';
+}
+
+function categoryChip(cat) {
+  const cls = CAT_CLASS[cat] || 'cat-other';
+  return `<span class="category-chip ${cls}">${CAT_ICON[cat] || ''} ${cat}</span>`;
+}
+
+function renderRows() {
+  const body = document.getElementById('expenseBody');
+  body.innerHTML = rows.map(r => {
+    const linked = receipts.find(rc => rc.id === r.receiptId);
+    const catOpts = CATEGORIES.map(c =>
+      `<option value="${c}" ${c === r.category ? 'selected' : ''}>${CAT_ICON[c]} ${c}</option>`
+    ).join('');
+    return `
+    <tr data-id="${r.id}">
+      <td><input class="row-input" type="date" value="${r.date}" onchange="updateRow(${r.id},'date',this.value)" /></td>
+      <td>
+        <select class="row-select" onchange="updateRow(${r.id},'category',this.value)">
+          ${catOpts}
+        </select>
+      </td>
+      <td><input class="row-input" value="${r.merchant}" placeholder="Merchant name" onchange="updateRow(${r.id},'merchant',this.value)" /></td>
+      <td><input class="row-input" value="${r.notes}" placeholder="Add notes…" onchange="updateRow(${r.id},'notes',this.value)" /></td>
+      <td style="text-align:center">
+        <button class="receipt-link-btn ${linked ? 'linked' : ''}"
+          title="${linked ? linked.name : 'Link a receipt'}"
+          onclick="linkReceiptToRow(${r.id})">
+          ${linked ? '📎' : '🔗'}
+        </button>
+      </td>
+      <td class="amount-cell">
+        <input class="amount-input" type="number" value="${r.amount.toFixed(2)}"
+          onchange="updateRow(${r.id},'amount',parseFloat(this.value)||0)"
+          step="0.01" min="0" />
+      </td>
+      <td>
+        <button class="row-del-btn" onclick="deleteRow(${r.id})" title="Remove">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  updateTotals();
+}
+
+function updateTotals() {
+  const total = calcTotal();
+  const fmt = fmtAmt(total);
+  document.getElementById('grandTotal').textContent = fmt;
+  document.getElementById('footerTotal').textContent = fmt;
+}
+
+function renderMyReports() {
+  const el = document.getElementById('myReportsList');
+  el.innerHTML = myReports.map(r => {
+    const progressClass = `fill-${r.status}`;
+    return `
+    <div class="report-list-item ${r.id === 'e20' ? 'active-report' : ''}" onclick="selectReport('${r.id}')">
+      <div class="rli-top">
+        <span class="rli-name">${r.title}</span>
+        <span class="rli-amount">$${fmtAmt(r.amount)}</span>
+      </div>
+      <div class="rli-meta">
+        <span class="rli-date">${r.date}</span>
+        <div class="progress-track">
+          <div class="progress-fill ${progressClass}" style="width:${r.progress}%"></div>
+        </div>
+        <span class="badge ${r.status}" style="white-space:nowrap;padding:1px 8px;font-size:11px;">
+          <span class="badge-dot"></span>
+          ${r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+        </span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INTERACTIONS
+// ═══════════════════════════════════════════════════════════
+
+function updateRow(id, field, value) {
+  const row = rows.find(r => r.id === id);
+  if (row) {
+    row[field] = value;
+    if (field === 'amount') updateTotals();
+    if (field === 'category') renderRows(); // refresh chip
+  }
+}
+
+function deleteRow(id) {
+  rows = rows.filter(r => r.id !== id);
+  renderRows();
+  showToast('Line item removed.', '');
+}
+
+function addRow() {
+  const today = new Date().toISOString().split('T')[0];
+  rows.push({ id: nextId++, date: today, category: 'Other', merchant: '', notes: '', amount: 0.00, receiptId: null });
+  renderRows();
+  // Focus last merchant input
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#expenseBody tr:last-child .row-input');
+    if (inputs[1]) inputs[1].focus();
+  }, 50);
+}
+
+function linkReceiptToRow(rowId) {
+  // Find first unlinked receipt or cycle
+  const row = rows.find(r => r.id === rowId);
+  if (!row) return;
+  const unlinked = receipts.find(rc => !rc.linked);
+  if (unlinked) {
+    row.receiptId = unlinked.id;
+    unlinked.linked = true;
+    renderReceipts();
+    renderRows();
+    showToast(`Linked "${unlinked.name}" to line item.`, 'success');
+  } else {
+    showToast('All receipts are already linked. Add a new receipt first.', '');
+  }
+}
+
+// ── Submit flow ─────────────────────────────────────────────
+function handleSubmit() {
+  if (appState !== 'draft') {
+    showToast('Report already submitted.', '');
+    return;
+  }
+  document.getElementById('confirmTitle').textContent = document.getElementById('reportTitle').value;
+  document.getElementById('confirmLines').textContent = rows.length + ' items';
+  document.getElementById('confirmTotal').textContent = '$' + fmtAmt(calcTotal());
+  openModal('submitModal');
+}
+
+function confirmSubmit() {
+  closeModal('submitModal');
+  appState = 'pending';
+
+  // Update badge
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'badge pending';
+  badge.innerHTML = '<span class="badge-dot"></span><span>Pending Review</span>';
+  document.getElementById('sidebarBadge').className = 'badge pending';
+  document.getElementById('sidebarBadge').innerHTML = '<span class="badge-dot"></span>Pending Review';
+
+  // Advance timeline step 2
+  const s2dot = document.getElementById('step2dot');
+  s2dot.className = 'step-dot active';
+  s2dot.textContent = '⏳';
+  document.getElementById('step2meta').textContent = 'Yuki Nakamura (Manager)';
+  document.getElementById('step2time').style.display = '';
+  document.getElementById('step2time').textContent = 'Sent Jun 4, 2026 · ' + new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
+
+  // Update my reports list
+  myReports[0].status = 'pending';
+  myReports[0].progress = 45;
+  renderMyReports();
+
+  showToast('Report submitted to Yuki Nakamura for review!', 'success');
+
+  // Simulate manager approval after 4s
+  setTimeout(simulateManagerApproval, 4000);
+}
+
+function simulateManagerApproval() {
+  // Step 2 done
+  const s2 = document.getElementById('step2');
+  s2.classList.add('done');
+  const s2dot = document.getElementById('step2dot');
+  s2dot.className = 'step-dot done';
+  s2dot.textContent = '✓';
+  document.getElementById('step2comment').style.display = '';
+  document.getElementById('step2comment').textContent = '"Looks good — all receipts attached and amounts match. Forwarding to Finance."';
+
+  // Step 3 active
+  const s3dot = document.getElementById('step3dot');
+  s3dot.className = 'step-dot active';
+  s3dot.textContent = '⏳';
+  document.getElementById('step3meta').textContent = 'Hana Yoshida (Finance)';
+  document.getElementById('step3time').style.display = '';
+  document.getElementById('step3time').textContent = 'Jun 4, 2026 · just now';
+
+  myReports[0].progress = 70;
+  renderMyReports();
+  showToast('Manager approved! Sent to Finance.', 'success');
+
+  // Simulate finance approval 4s later
+  setTimeout(simulateFinanceApproval, 4000);
+}
+
+function simulateFinanceApproval() {
+  appState = 'approved';
+
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'badge approved';
+  badge.innerHTML = '<span class="badge-dot"></span><span>Approved</span>';
+  document.getElementById('sidebarBadge').className = 'badge approved';
+  document.getElementById('sidebarBadge').innerHTML = '<span class="badge-dot"></span>Approved';
+
+  const s3 = document.getElementById('step3');
+  s3.classList.add('done');
+  const s3dot = document.getElementById('step3dot');
+  s3dot.className = 'step-dot done';
+  s3dot.textContent = '✓';
+  document.getElementById('step3meta').textContent = 'Hana Yoshida (Finance)';
+  document.getElementById('step3time').textContent = 'Jun 4, 2026 · just now';
+
+  const s4dot = document.getElementById('step4dot');
+  s4dot.className = 'step-dot active';
+  s4dot.textContent = '💰';
+
+  myReports[0].status = 'approved';
+  myReports[0].progress = 100;
+  renderMyReports();
+  showToast('🎉 Fully approved! Reimbursement scheduled for Jun 25.', 'success');
+}
+
+// ── Receipt modal ────────────────────────────────────────────
+function openReceiptModal(id) {
+  const r = receipts.find(rc => rc.id === id);
+  if (!r) return;
+
+  document.getElementById('modalTitle').textContent = r.name;
+
+  // Fake doc preview
+  const preview = document.getElementById('modalPreview');
+  const docColors = ['#e6f4ff','#fff7e6','#f9f0ff','#e6fffb','#fff1f0'];
+  const docColor = docColors[receipts.indexOf(r) % docColors.length];
+  preview.innerHTML = `
+    <div class="receipt-preview-doc" style="background:${docColor};">
+      <div class="preview-doc-line thick" style="background:var(--gray-9);"></div>
+      <div class="preview-doc-line" style="background:var(--gray-7);"></div>
+      <div class="preview-doc-line short" style="background:var(--gray-6);"></div>
+      <div style="flex:1"></div>
+      <div class="preview-doc-line" style="background:var(--gray-6);"></div>
+      <div class="preview-doc-line short" style="background:var(--gray-6);"></div>
+      <div style="height:10px;border-top:1px solid var(--gray-5);margin-top:4px;display:flex;align-items:center;justify-content:flex-end;font-size:8px;font-weight:700;color:var(--gray-9);">$${fmtAmt(r.amount)}</div>
+    </div>
+    <div class="receipt-preview-detail">
+      <div class="rpd-row"><span class="rpd-label">Merchant</span><span class="rpd-val">${r.merchant}</span></div>
+      <div class="rpd-row"><span class="rpd-label">Category</span><span class="rpd-val">${CAT_ICON[r.category]} ${r.category}</span></div>
+      <div class="rpd-row"><span class="rpd-label">Date</span><span class="rpd-val">${r.date}, 2026</span></div>
+      <div class="rpd-row"><span class="rpd-label">Amount</span><span class="rpd-val" style="font-size:16px;color:var(--primary-7)">$${fmtAmt(r.amount)}</span></div>
+      <div class="rpd-row"><span class="rpd-label">Status</span><span class="rpd-val">${r.linked ? '✅ Linked to line item' : '⚠️ Not linked yet'}</span></div>
+    </div>`;
+
+  document.getElementById('modalBody').innerHTML = r.linked
+    ? `<p style="color:var(--approved-text);"><strong>✓ This receipt is linked</strong> to a line item in your report.</p>`
+    : `<p style="color:var(--pending-text);"><strong>⚠️ Not yet linked.</strong> Attach this receipt to a matching expense line for faster approval.</p>`;
+
+  const btn = document.getElementById('modalPrimaryAction');
+  if (r.linked) {
+    btn.textContent = 'Unlink Receipt';
+    btn.onclick = () => { unlinkReceipt(r.id); closeModal('receiptModal'); };
+  } else {
+    btn.textContent = 'Auto-link to Line Item';
+    btn.onclick = () => { autoLinkReceipt(r.id); closeModal('receiptModal'); };
+  }
+
+  openModal('receiptModal');
+}
+
+function unlinkReceipt(id) {
+  const r = receipts.find(rc => rc.id === id);
+  if (r) {
+    r.linked = false;
+    const row = rows.find(row => row.receiptId === id);
+    if (row) row.receiptId = null;
+    renderReceipts(); renderRows();
+    showToast('Receipt unlinked.', '');
+  }
+}
+
+function autoLinkReceipt(id) {
+  const r = receipts.find(rc => rc.id === id);
+  if (!r) return;
+  // Find matching unlinked row by category
+  const row = rows.find(row => row.category === r.category && !row.receiptId);
+  if (row) {
+    row.receiptId = id;
+    r.linked = true;
+    renderReceipts(); renderRows();
+    showToast(`Auto-linked to "${row.merchant || 'line item'}" row.`, 'success');
+  } else {
+    showToast('No matching unlinked row found. Link manually.', '');
+  }
+}
+
+// ── Upload ───────────────────────────────────────────────────
+function showUploadModal() { openModal('uploadModal'); }
+
+function addMockReceipt() {
+  const merchant = document.getElementById('uploadMerchant').value || 'New Receipt';
+  const amount = parseFloat(document.getElementById('uploadAmount').value) || 0;
+  const newId = 'r' + (receipts.length + 10);
+  receipts.push({ id: newId, name: merchant, date: 'Jun 4', category: 'Other', amount, merchant, linked: false });
+  closeModal('uploadModal');
+  document.getElementById('uploadMerchant').value = '';
+  document.getElementById('uploadAmount').value = '';
+  renderReceipts();
+  showToast(`Receipt "${merchant}" added — $${fmtAmt(amount)}.`, 'success');
+}
+
+// ── My reports ───────────────────────────────────────────────
+function selectReport(id) {
+  const r = myReports.find(rep => rep.id === id);
+  if (!r || id === 'e20') return;
+  showToast(`Opening "${r.title}"…`, '');
+}
+
+function newReport() {
+  showToast('New report template opened.', 'success');
+}
+
+// ── Modal helpers ─────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Close modal on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ── Save draft ───────────────────────────────────────────────
+function saveDraft() {
+  showToast('Draft saved successfully.', 'success');
+}
+
+function showDeleteConfirm() { openModal('deleteModal'); }
+
+// ── Toast ─────────────────────────────────────────────────────
+function showToast(msg, type) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type || '');
+  t.innerHTML = (type === 'success' ? '✅ ' : type === 'warning' ? '⚠️ ' : 'ℹ️ ') + msg;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0'; t.style.transform = 'translateX(30px)'; t.style.transition = '.25s';
+    setTimeout(() => c.removeChild(t), 300);
+  }, 3000);
+}
+
+// ─── Init ──────────────────────────────────────────────────────
+renderReceipts();
+renderRows();
+renderMyReports();
+
+// Fix status badge to show Draft correctly on load
+document.getElementById('statusBadge').className = 'badge draft';
+document.getElementById('statusBadge').innerHTML = '<span class="badge-dot"></span><span>Draft</span>';
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Expense Reporting: an expense-report header card, receipts, and an approval timeline. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/20-expense-reporting.html
+</script>
+</body>
+</html>

@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Equipment Maintenance System</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-panel: #131a24;
+    --bg-elevated: #1a2330;
+    --bg-hover: #202c3d;
+    --border: #243044;
+    --border-soft: #1c2636;
+    --text: #e6edf3;
+    --text-dim: #9aa7b8;
+    --text-faint: #5e6c7e;
+    --accent: #22d3ee;
+    --accent-soft: rgba(34,211,238,0.15);
+    --teal: #2dd4bf;
+    --teal-soft: rgba(45,212,191,0.13);
+    --amber: #f5a623;
+    --amber-soft: rgba(245,166,35,0.14);
+    --red: #f87171;
+    --red-soft: rgba(248,113,113,0.14);
+    --green: #3fb950;
+    --green-soft: rgba(63,185,80,0.14);
+    --violet: #a78bfa;
+    --violet-soft: rgba(167,139,250,0.14);
+    --shadow: 0 16px 48px rgba(0,0,0,0.5);
+    font-synthesis: none;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #2a3850; border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+  }
+
+  /* ===== Rail ===== */
+  .rail {
+    grid-row: 1 / 3;
+    background: linear-gradient(180deg, #0f1620, #0b1018);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    gap: 6px;
+  }
+  .rail .logo {
+    width: 38px; height: 38px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    display: grid; place-items: center;
+    margin-bottom: 14px;
+    box-shadow: 0 6px 18px rgba(34,211,238,0.3);
+  }
+  .rail .logo svg { width: 22px; height: 22px; }
+  .rail .ico {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: grid; place-items: center;
+    color: var(--text-faint);
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+  }
+  .rail .ico:hover { background: var(--bg-hover); color: var(--text-dim); }
+  .rail .ico.active { background: var(--accent-soft); color: var(--accent); }
+  .rail .ico.active::before {
+    content: ""; position: absolute; left: -14px; top: 9px; bottom: 9px;
+    width: 3px; border-radius: 0 3px 3px 0; background: var(--accent);
+  }
+  .rail .ico svg { width: 20px; height: 20px; }
+  .rail .spacer { flex: 1; }
+  .rail .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, #f5a623, #f87171);
+    display: grid; place-items: center;
+    font-weight: 700; font-size: 12px; color: #14181f;
+  }
+
+  /* ===== Topbar ===== */
+  .topbar {
+    grid-column: 2;
+    display: flex; align-items: center;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+    gap: 18px;
+  }
+  .topbar h1 {
+    font-size: 15px; font-weight: 650; letter-spacing: .2px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .topbar h1 .sub { font-size: 11.5px; color: var(--text-faint); font-weight: 500; }
+  .search {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 7px 12px;
+    width: 280px;
+    transition: border-color .15s;
+  }
+  .search:focus-within { border-color: var(--accent); }
+  .search svg { width: 15px; height: 15px; color: var(--text-faint); flex: none; }
+  .search input {
+    background: none; border: none; outline: none;
+    color: var(--text); font-size: 13px; width: 100%;
+  }
+  .search input::placeholder { color: var(--text-faint); }
+  .topbtn {
+    display: flex; align-items: center; gap: 7px;
+    background: linear-gradient(135deg, var(--accent), #0e9bb5);
+    color: #06222a; border: none; border-radius: 9px;
+    padding: 8px 14px; font-size: 13px; font-weight: 700;
+    cursor: pointer; box-shadow: 0 4px 14px rgba(34,211,238,0.28);
+    transition: transform .12s;
+  }
+  .topbtn:hover { transform: translateY(-1px); }
+  .topbtn svg { width: 15px; height: 15px; }
+  .bell {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    display: grid; place-items: center; cursor: pointer; position: relative;
+    color: var(--text-dim);
+  }
+  .bell svg { width: 17px; height: 17px; }
+  .bell .dot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg-panel); }
+
+  /* ===== Main ===== */
+  .main {
+    grid-column: 2; grid-row: 2;
+    overflow-y: auto;
+    padding: 20px 22px 40px;
+  }
+
+  /* KPI strip */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 15px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi .label { font-size: 11.5px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .kpi .label svg { width: 14px; height: 14px; }
+  .kpi .val { font-size: 26px; font-weight: 700; margin-top: 7px; letter-spacing: -.5px; }
+  .kpi .delta { font-size: 11px; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+  .kpi .delta.up { color: var(--green); }
+  .kpi .delta.down { color: var(--red); }
+  .kpi .delta.warn { color: var(--amber); }
+  .kpi .spark { position: absolute; right: 12px; bottom: 12px; opacity: .85; }
+  .kpi.accent::after { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background: var(--accent); }
+
+  /* Layout: triage list + review pane */
+  .workspace {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-head h2 { font-size: 14px; font-weight: 650; }
+  .panel-head .count {
+    font-size: 11px; color: var(--text-dim);
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 20px;
+  }
+
+  /* tabs */
+  .tabs { display: flex; gap: 4px; margin-left: auto; }
+  .tab {
+    font-size: 12.5px; color: var(--text-dim);
+    padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent; transition: all .12s;
+  }
+  .tab:hover { background: var(--bg-hover); }
+  .tab.active { background: var(--accent-soft); color: var(--accent); border-color: rgba(34,211,238,0.35); }
+
+  /* filter chips */
+  .filters {
+    display: flex; gap: 8px; padding: 12px 18px 4px; flex-wrap: wrap;
+  }
+  .chip {
+    font-size: 11.5px; color: var(--text-dim);
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    padding: 5px 11px; border-radius: 20px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: all .12s;
+  }
+  .chip:hover { border-color: #34465f; color: var(--text); }
+  .chip.active { background: var(--accent-soft); color: var(--accent); border-color: rgba(34,211,238,0.45); }
+  .chip .pdot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ticket list */
+  .ticket-list { padding: 8px 10px 14px; max-height: 560px; overflow-y: auto; }
+  .ticket {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    padding: 12px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background .12s, border-color .12s;
+    align-items: start;
+  }
+  .ticket:hover { background: var(--bg-elevated); }
+  .ticket.selected { background: var(--bg-elevated); border-color: rgba(34,211,238,0.45); }
+  .ticket .prio {
+    width: 4px; align-self: stretch; border-radius: 4px; min-height: 44px;
+  }
+  .ticket .body { min-width: 0; }
+  .ticket .ttop { display: flex; align-items: center; gap: 8px; }
+  .ticket .tid { font-size: 11px; color: var(--text-faint); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ticket .ttitle { font-size: 13.5px; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ticket .tmeta { display: flex; align-items: center; gap: 12px; margin-top: 6px; font-size: 11.5px; color: var(--text-dim); flex-wrap: wrap; }
+  .ticket .tmeta .m { display: flex; align-items: center; gap: 4px; }
+  .ticket .tmeta svg { width: 13px; height: 13px; opacity: .8; }
+  .ticket .right { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
+
+  .badge {
+    font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+  }
+  .badge svg { width: 11px; height: 11px; }
+  .b-red { background: var(--red-soft); color: var(--red); }
+  .b-amber { background: var(--amber-soft); color: var(--amber); }
+  .b-green { background: var(--green-soft); color: var(--green); }
+  .b-blue { background: var(--accent-soft); color: var(--accent); }
+  .b-teal { background: var(--teal-soft); color: var(--teal); }
+  .b-violet { background: var(--violet-soft); color: var(--violet); }
+  .b-gray { background: var(--bg-elevated); color: var(--text-dim); border:1px solid var(--border); }
+
+  .ai-tag {
+    font-size: 10px; font-weight: 700; letter-spacing: .3px;
+    background: linear-gradient(135deg, var(--violet-soft), var(--teal-soft));
+    color: var(--violet); padding: 2px 7px; border-radius: 5px;
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid rgba(167,139,250,0.3);
+  }
+  .ai-tag svg { width: 11px; height: 11px; }
+
+  .conf {
+    display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-dim);
+  }
+  .conf .bar { width: 38px; height: 5px; border-radius: 3px; background: var(--bg-hover); overflow: hidden; }
+  .conf .bar i { display: block; height: 100%; border-radius: 3px; }
+
+  /* ===== Review pane ===== */
+  .review { position: sticky; top: 0; }
+  .rv-head {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, rgba(34,211,238,0.07), transparent);
+  }
+  .rv-head .rv-id { font-size: 11px; color: var(--text-faint); font-weight: 600; }
+  .rv-head h2 { font-size: 16px; font-weight: 650; margin: 4px 0 9px; }
+  .rv-head .rv-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .rv-body { padding: 0 18px 18px; max-height: 560px; overflow-y: auto; }
+
+  .section-t {
+    font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 10px; display: flex; align-items: center; gap: 7px;
+  }
+  .section-t svg { width: 14px; height: 14px; }
+
+  /* AI diagnosis card */
+  .ai-card {
+    background: linear-gradient(150deg, rgba(167,139,250,0.08), rgba(45,212,191,0.05));
+    border: 1px solid rgba(167,139,250,0.28);
+    border-radius: 14px;
+    padding: 15px 16px;
+    margin-top: 12px;
+    position: relative;
+  }
+  .ai-card .ai-h {
+    display: flex; align-items: center; gap: 9px; margin-bottom: 12px;
+  }
+  .ai-card .ai-h .ai-ico {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--violet), var(--teal));
+    display: grid; place-items: center;
+  }
+  .ai-card .ai-h .ai-ico svg { width: 17px; height: 17px; color: #fff; }
+  .ai-card .ai-h .ai-title { font-size: 13px; font-weight: 650; }
+  .ai-card .ai-h .ai-sub { font-size: 10.5px; color: var(--text-dim); }
+  .ai-card .ai-h .conf { margin-left: auto; }
+
+  .ai-diag {
+    font-size: 13px; line-height: 1.6; color: var(--text);
+    background: rgba(0,0,0,0.18); border-radius: 10px; padding: 11px 13px;
+    border-left: 3px solid var(--violet);
+  }
+  .ai-diag b { color: var(--violet); }
+
+  .fields-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;
+  }
+  .field {
+    background: rgba(0,0,0,0.18); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 11px;
+  }
+  .field .fl { font-size: 10.5px; color: var(--text-faint); display: flex; align-items: center; justify-content: space-between; }
+  .field .fv { font-size: 13px; font-weight: 600; margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+  .field .miniconf { width: 30px; height: 4px; border-radius: 2px; background: var(--bg-hover); overflow: hidden; }
+  .field .miniconf i { display: block; height: 100%; }
+
+  .parts {
+    display: flex; flex-direction: column; gap: 8px; margin-top: 10px;
+  }
+  .part {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(0,0,0,0.16); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 11px;
+  }
+  .part .pn { font-size: 12.5px; font-weight: 600; }
+  .part .pmeta { font-size: 10.5px; color: var(--text-dim); }
+  .part .stock { margin-left: auto; }
+
+  .rv-actions {
+    display: flex; gap: 9px; margin-top: 16px;
+  }
+  .btn {
+    flex: 1; padding: 10px; border-radius: 10px; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); background: var(--bg-elevated);
+    color: var(--text); display: flex; align-items: center; justify-content: center; gap: 7px;
+    transition: all .12s;
+  }
+  .btn:hover { background: var(--bg-hover); }
+  .btn svg { width: 15px; height: 15px; }
+  .btn.primary { background: linear-gradient(135deg, var(--green), #2f9e42); border: none; color: #fff; box-shadow: 0 4px 12px rgba(63,185,80,0.25); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost-v { background: var(--violet-soft); border-color: rgba(167,139,250,0.3); color: var(--violet); }
+
+  /* timeline */
+  .timeline { margin-top: 12px; position: relative; padding-left: 6px; }
+  .tl-item { display: grid; grid-template-columns: 22px 1fr; gap: 6px; padding-bottom: 14px; position: relative; }
+  .tl-item:not(:last-child)::before {
+    content:""; position: absolute; left: 10px; top: 20px; bottom: 0; width: 2px; background: var(--border);
+  }
+  .tl-dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; z-index: 1; }
+  .tl-dot svg { width: 11px; height: 11px; }
+  .tl-c .tl-h { font-size: 12.5px; font-weight: 600; }
+  .tl-c .tl-h .tl-ai { font-size: 9.5px; }
+  .tl-c .tl-t { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+  .tl-c .tl-time { font-size: 10.5px; color: var(--text-faint); }
+
+  /* gauge row in machine vitals */
+  .vitals { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 12px; }
+  .vital {
+    background: rgba(0,0,0,0.16); border: 1px solid var(--border);
+    border-radius: 11px; padding: 11px; text-align: center;
+  }
+  .vital .vlabel { font-size: 10.5px; color: var(--text-dim); }
+  .vital .vval { font-size: 17px; font-weight: 700; margin-top: 2px; }
+  .vital svg { display: block; margin: 4px auto 0; }
+
+  .empty { padding: 60px 20px; text-align: center; color: var(--text-faint); }
+  .empty svg { width: 46px; height: 46px; opacity: .4; margin-bottom: 12px; }
+
+  /* toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 18px; box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+    opacity: 0; pointer-events: none; transition: all .3s; z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 18px; height: 18px; color: var(--green); }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 1180px) {
+    .kpis { grid-template-columns: repeat(3,1fr); }
+    .workspace { grid-template-columns: 1fr; }
+    .review { position: static; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- RAIL -->
+  <nav class="rail">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+    </div>
+    <div class="ico active" title="Work Orders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg></div>
+    <div class="ico" title="Assets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-7L9 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg></div>
+    <div class="ico" title="Schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+    <div class="ico" title="Inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg></div>
+    <div class="ico" title="Analytics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+    <div class="spacer"></div>
+    <div class="ico" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+    <div class="avatar">RM</div>
+  </nav>
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <h1>
+      Work Order Triage
+      <span class="sub">Maintenance Operations · Plant North</span>
+    </h1>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="text" placeholder="Search ID, asset, fault..." />
+    </div>
+    <div class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="dot"></span></div>
+    <button class="topbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New Work Order</button>
+  </header>
+
+  <!-- MAIN -->
+  <main class="main">
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi accent">
+        <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Open Work Orders</div>
+        <div class="val">18</div>
+        <div class="delta down"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>4 fewer than yesterday</div>
+        <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline points="0,18 9,14 18,16 27,8 36,12 45,6 56,9" fill="none" stroke="#22d3ee" stroke-width="2"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4M12 17h.01"/></svg>Critical / Down</div>
+        <div class="val" style="color:var(--red)">3</div>
+        <div class="delta warn"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>2 lines impacted</div>
+        <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline points="0,12 9,14 18,10 27,16 36,8 45,11 56,5" fill="none" stroke="#f87171" stroke-width="2"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Avg. Response</div>
+        <div class="val">42<span style="font-size:14px;color:var(--text-dim)">m</span></div>
+        <div class="delta up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m18 15-6-6-6 6"/></svg>11m faster this week</div>
+        <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline points="0,8 9,11 18,9 27,14 36,12 45,17 56,15" fill="none" stroke="#3fb950" stroke-width="2"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>AI Auto-Triaged</div>
+        <div class="val" style="color:var(--violet)">91%</div>
+        <div class="delta up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m18 15-6-6-6 6"/></svg>16 of 18 routed</div>
+        <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline points="0,18 9,15 18,13 27,10 36,11 45,7 56,4" fill="none" stroke="#a78bfa" stroke-width="2"/></svg>
+      </div>
+      <div class="kpi">
+        <div class="label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>MTTR (7d)</div>
+        <div class="val">3.4<span style="font-size:14px;color:var(--text-dim)">h</span></div>
+        <div class="delta up"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m18 15-6-6-6 6"/></svg>Target 4.0h met</div>
+        <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline points="0,6 9,9 18,8 27,12 36,10 45,15 56,17" fill="none" stroke="#2dd4bf" stroke-width="2"/></svg>
+      </div>
+    </div>
+
+    <!-- WORKSPACE -->
+    <div class="workspace">
+      <!-- LEFT: triage list -->
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Incoming Work Orders</h2>
+          <span class="count" id="listCount">18 active</span>
+          <div class="tabs">
+            <div class="tab active" data-tab="all">All</div>
+            <div class="tab" data-tab="unassigned">Unassigned</div>
+            <div class="tab" data-tab="mine">My Queue</div>
+          </div>
+        </div>
+        <div class="filters">
+          <div class="chip active" data-filter="all">All Priorities</div>
+          <div class="chip" data-filter="critical"><span class="pdot" style="background:var(--red)"></span>Critical</div>
+          <div class="chip" data-filter="high"><span class="pdot" style="background:var(--amber)"></span>High</div>
+          <div class="chip" data-filter="medium"><span class="pdot" style="background:var(--accent)"></span>Medium</div>
+          <div class="chip" data-filter="low"><span class="pdot" style="background:var(--text-faint)"></span>Low</div>
+        </div>
+        <div class="ticket-list" id="ticketList"></div>
+      </section>
+
+      <!-- RIGHT: review pane -->
+      <section class="panel review">
+        <div id="reviewContent"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+// ---------- ICONS ----------
+const ICO = {
+  asset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-7L9 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>',
+  loc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M3 12h3m12 0h3M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"/></svg>',
+  ai: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  route: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>',
+  wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+  part: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>',
+  pulse: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>'
+};
+
+// ---------- SEED DATA ----------
+const PRIO = {
+  critical: { c:'var(--red)', cls:'b-red', label:'Critical' },
+  high:     { c:'var(--amber)', cls:'b-amber', label:'High' },
+  medium:   { c:'var(--accent)', cls:'b-blue', label:'Medium' },
+  low:      { c:'var(--text-faint)', cls:'b-gray', label:'Low' },
+};
+
+const TICKETS = [
+  {
+    id:'WO-4821', title:'Conveyor belt motor overheating — Line 3', asset:'Conveyor Drive #3 (SEW K77)',
+    assetId:'CNV-L3-077', loc:'Assembly Hall · Bay 12', priority:'critical', status:'Down',
+    reportedBy:'Line Operator · Maria Vega', age:'14 min ago', confidence:96, assigned:false, mine:false,
+    category:'Mechanical / Drivetrain', sla:'Breach in 46m',
+    report:'Motor casing too hot to touch, smell of burning insulation, belt stopped mid-cycle. Thermal alarm tripped twice.',
+    diag:'Bearing failure on the <b>drive-end shaft</b> is the most probable cause — vibration telemetry shows a 4.2× spike at 1× RPM consistent with outer-race spalling. Combined with the thermal alarm pattern, this points to imminent seizure rather than a winding fault. Recommend immediate lockout and bearing replacement.',
+    aiCategory:'Mechanical · Bearing', catConf:94,
+    aiTech:'Daniel Okafor', techConf:88, aiPriority:'Critical', prioConf:97,
+    parts:[ {n:'Drive-end Bearing 6308-2RS', sku:'BRG-6308', stock:'4 in stock', stockCls:'b-green'}, {n:'High-temp Grease (400g)', sku:'LUB-HT40', stock:'12 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'118°C', vib:'4.2×', runtime:'6,140h' },
+    timeline:[
+      {t:'AI flagged Critical priority & locked the line', sub:'Routed to Drivetrain crew automatically', time:'14 min ago', ai:true, color:'var(--violet)'},
+      {t:'Thermal alarm triggered (2nd)', sub:'Sensor THR-L3-12 · 118°C', time:'16 min ago', ai:false, color:'var(--red)'},
+      {t:'Vibration anomaly detected', sub:'Predictive model raised early warning', time:'2 days ago', ai:true, color:'var(--amber)'},
+    ]
+  },
+  {
+    id:'WO-4819', title:'Hydraulic press losing pressure intermittently', asset:'Hydraulic Press HP-220',
+    assetId:'PRS-A2-220', loc:'Stamping · Bay 4', priority:'critical', status:'Down',
+    reportedBy:'Shift Lead · Tom Becker', age:'38 min ago', confidence:89, assigned:true, mine:true,
+    category:'Hydraulics', sla:'Breach in 1h 22m',
+    report:'Press cannot hold 180 bar, drops to ~120 under load. Cycle time inconsistent. No visible leaks at manifold.',
+    diag:'Internal leakage across the <b>main directional valve</b> spool is the leading hypothesis (78%) — pressure decay curve is gradual, not a sudden drop, which rules out a burst hose or pump cavitation. A worn pump could match too, but the cycle-time signature favours the valve. Suggest swapping the DCV cartridge first.',
+    aiCategory:'Hydraulics · Valve', catConf:78,
+    aiTech:'Priya Nair', techConf:81, aiPriority:'Critical', prioConf:90,
+    parts:[ {n:'Directional Control Valve Cartridge', sku:'HYD-DCV4', stock:'1 in stock', stockCls:'b-amber'}, {n:'Seal Kit — HP-220', sku:'SEAL-HP22', stock:'Backorder', stockCls:'b-red'} ],
+    vitals:{ temp:'52°C', vib:'1.1×', runtime:'11,920h' },
+    timeline:[
+      {t:'Assigned to you', sub:'Accepted AI routing suggestion', time:'30 min ago', ai:false, color:'var(--accent)'},
+      {t:'AI classified as Hydraulics · Valve', sub:'Confidence 78% · 2 parts pre-reserved', time:'37 min ago', ai:true, color:'var(--violet)'},
+      {t:'Work order created', sub:'Reported by Tom Becker', time:'38 min ago', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4818', title:'CNC spindle vibration above threshold', asset:'CNC Mill DMG-65',
+    assetId:'CNC-B1-065', loc:'Machine Shop · Cell 2', priority:'high', status:'Degraded',
+    reportedBy:'Predictive Monitor', age:'1 hr ago', confidence:92, assigned:false, mine:false,
+    category:'Mechanical / Spindle', sla:'Due in 5h',
+    report:'Automated condition monitor reports spindle vibration trending up over 36 hours. Surface finish defects reported on last batch.',
+    diag:'Early-stage <b>spindle bearing wear</b> detected by the predictive model before failure — the trend is slow and surface defects correlate with vibration peaks. No need to stop the line yet; schedule a bearing inspection within the next two shifts to avoid an unplanned outage.',
+    aiCategory:'Mechanical · Spindle', catConf:91,
+    aiTech:'Daniel Okafor', techConf:85, aiPriority:'High', prioConf:88,
+    parts:[ {n:'Spindle Bearing Set 7014C', sku:'BRG-7014', stock:'2 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'61°C', vib:'2.8×', runtime:'4,210h' },
+    timeline:[
+      {t:'AI scheduled inspection window', sub:'Suggested Thu 14:00, low-load slot', time:'58 min ago', ai:true, color:'var(--violet)'},
+      {t:'Predictive alert raised', sub:'Vibration trend +34% over 36h', time:'1 hr ago', ai:true, color:'var(--amber)'},
+    ]
+  },
+  {
+    id:'WO-4815', title:'Coolant pump leaking at seal', asset:'Coolant Pump CP-09',
+    assetId:'PMP-C3-009', loc:'Machine Shop · Cell 5', priority:'high', status:'Open',
+    reportedBy:'Technician · Sara Lindqvist', age:'2 hr ago', confidence:84, assigned:false, mine:false,
+    category:'Fluids / Pump', sla:'Due in 6h',
+    report:'Steady drip from the mechanical seal, coolant pooling under unit. Pump still running but level dropping fast.',
+    diag:'Worn <b>mechanical seal</b> on the pump shaft — classic age-related wear at 8,900 running hours. Photo shows coolant tracking from the seal face, not the casing joint, so a gasket swap won\'t fix it. Replace the seal cartridge; check shaft sleeve for scoring while open.',
+    aiCategory:'Fluids · Seal', catConf:86,
+    aiTech:'Priya Nair', techConf:79, aiPriority:'High', prioConf:82,
+    parts:[ {n:'Mechanical Seal Cartridge 28mm', sku:'SEAL-28C', stock:'5 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'44°C', vib:'0.9×', runtime:'8,900h' },
+    timeline:[
+      {t:'AI extracted fault from photo + note', sub:'Identified seal-face leak path', time:'2 hr ago', ai:true, color:'var(--violet)'},
+      {t:'Work order created with photo', sub:'Reported by Sara Lindqvist', time:'2 hr ago', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4811', title:'Robot arm Axis-4 fault code E-731', asset:'Welding Robot FANUC R-2000',
+    assetId:'ROB-W1-200', loc:'Weld Cell · Station 1', priority:'high', status:'Degraded',
+    reportedBy:'Line Operator · Kenji Sato', age:'3 hr ago', confidence:90, assigned:true, mine:false,
+    category:'Robotics / Servo', sla:'Due in 4h',
+    report:'Recurring fault E-731 on Axis-4, robot pauses and recovers. Welds passing QC but downtime adding up.',
+    diag:'Fault E-731 maps to an <b>Axis-4 servo overcurrent</b> — the recovery pattern and clean welds suggest an intermittent encoder cable connection rather than a failed servo amp. Inspect the cable harness at the J4 dress-out first; full amp replacement is a costly last resort.',
+    aiCategory:'Robotics · Servo', catConf:88,
+    aiTech:'Aiden Walsh', techConf:84, aiPriority:'High', prioConf:86,
+    parts:[ {n:'Encoder Cable Harness J4', sku:'CBL-J4H', stock:'3 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'39°C', vib:'1.4×', runtime:'15,300h' },
+    timeline:[
+      {t:'Assigned to Aiden Walsh', sub:'AI matched fault-code history', time:'2 hr ago', ai:true, color:'var(--violet)'},
+      {t:'Fault E-731 logged 4th time today', sub:'Controller event ROB-W1-200', time:'3 hr ago', ai:false, color:'var(--amber)'},
+    ]
+  },
+  {
+    id:'WO-4809', title:'Air compressor short-cycling', asset:'Air Compressor AC-450',
+    assetId:'CMP-U0-450', loc:'Utilities · Compressor Room', priority:'medium', status:'Open',
+    reportedBy:'Facilities · Omar Haddad', age:'5 hr ago', confidence:81, assigned:false, mine:false,
+    category:'Utilities / Pneumatics', sla:'Due tomorrow',
+    report:'Compressor cycling on/off every ~90 seconds, never reaching full load. Receiver pressure unstable.',
+    diag:'Short-cycling points to a <b>failing pressure switch or a leak in the receiver line</b> — most likely the switch hysteresis has drifted. Quick check: isolate the receiver and watch for pressure bleed-down. If it holds, swap the pressure switch; if it drops, hunt the leak first.',
+    aiCategory:'Pneumatics · Control', catConf:74,
+    aiTech:'Omar Haddad', techConf:70, aiPriority:'Medium', prioConf:80,
+    parts:[ {n:'Pressure Switch 4-11 bar', sku:'PSW-411', stock:'6 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'48°C', vib:'1.0×', runtime:'22,100h' },
+    timeline:[
+      {t:'AI classified · Pneumatics · Control', sub:'Confidence 74% · flagged for review', time:'4 hr ago', ai:true, color:'var(--violet)'},
+      {t:'Work order created', sub:'Reported by Omar Haddad', time:'5 hr ago', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4806', title:'Forklift battery not holding charge', asset:'Forklift Toyota 8FBE20',
+    assetId:'FLT-Y2-820', loc:'Warehouse · Dock 3', priority:'medium', status:'Open',
+    reportedBy:'Warehouse · Grace Mbeki', age:'7 hr ago', confidence:77, assigned:false, mine:false,
+    category:'Electrical / Battery', sla:'Due tomorrow',
+    report:'Battery drains within 3 hours of a full charge, was lasting a full shift last month. Charger reports normal.',
+    diag:'Likely <b>cell degradation</b> in the traction battery — capacity loss over time, accelerated by deep-discharge cycles in the usage logs. Run a capacity test to confirm. If a single cell is the culprit it may be rebalanced; widespread loss means a replacement pack.',
+    aiCategory:'Electrical · Battery', catConf:76,
+    aiTech:'Grace Mbeki', techConf:72, aiPriority:'Medium', prioConf:79,
+    parts:[ {n:'Battery Capacity Tester (tool)', sku:'TOOL-BCT', stock:'Tool crib', stockCls:'b-blue'} ],
+    vitals:{ temp:'31°C', vib:'0.4×', runtime:'3,640h' },
+    timeline:[
+      {t:'AI suggested capacity test', sub:'Cross-referenced charge logs', time:'6 hr ago', ai:true, color:'var(--violet)'},
+      {t:'Work order created', sub:'Reported by Grace Mbeki', time:'7 hr ago', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4802', title:'HVAC unit fan making grinding noise', asset:'Rooftop HVAC RTU-7',
+    assetId:'HVC-R0-007', loc:'Facility · Roof North', priority:'low', status:'Open',
+    reportedBy:'Facilities · Omar Haddad', age:'Yesterday', confidence:73, assigned:false, mine:false,
+    category:'HVAC / Fan', sla:'Due in 3d',
+    report:'Intermittent grinding from the supply fan, slightly louder over the past week. Airflow and temperature still nominal.',
+    diag:'A <b>worn fan bearing or a loose blade</b> is the usual source of grinding here. Airflow is still nominal, so this is non-urgent — schedule during the next planned facility maintenance. Inspect the bearing and blade balance; greasing may buy time if replacement parts lag.',
+    aiCategory:'HVAC · Fan', catConf:71,
+    aiTech:'Unassigned', techConf:0, aiPriority:'Low', prioConf:76,
+    parts:[ {n:'Fan Bearing Pillow Block', sku:'BRG-PB52', stock:'2 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'29°C', vib:'1.7×', runtime:'18,400h' },
+    timeline:[
+      {t:'AI deferred to planned maintenance', sub:'Low impact · batched with PM-week', time:'Yesterday', ai:true, color:'var(--violet)'},
+      {t:'Work order created', sub:'Reported by Omar Haddad', time:'Yesterday', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4798', title:'Packaging sealer temperature drift', asset:'Heat Sealer PS-30',
+    assetId:'SEL-P4-030', loc:'Packaging · Line 6', priority:'medium', status:'Open',
+    reportedBy:'Line Operator · Maria Vega', age:'Yesterday', confidence:80, assigned:false, mine:false,
+    category:'Thermal / Control', sla:'Due in 2d',
+    report:'Seal temperature drifts ±15°C during runs, causing weak seals on ~5% of packs. Setpoint unchanged.',
+    diag:'Temperature drift of this magnitude usually means a <b>degraded thermocouple or PID tuning drift</b>. The setpoint is fixed, so the controller is misreading actual temperature — check the thermocouple junction first, then re-tune the PID loop if the sensor reads true.',
+    aiCategory:'Thermal · Control', catConf:79,
+    aiTech:'Aiden Walsh', techConf:74, aiPriority:'Medium', prioConf:81,
+    parts:[ {n:'Type-K Thermocouple Probe', sku:'TC-K150', stock:'8 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'± drift', vib:'0.3×', runtime:'9,750h' },
+    timeline:[
+      {t:'AI classified · Thermal · Control', sub:'Recommended thermocouple check', time:'Yesterday', ai:true, color:'var(--violet)'},
+      {t:'Work order created', sub:'Reported by Maria Vega', time:'Yesterday', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4795', title:'Pallet wrapper turntable jam', asset:'Stretch Wrapper SW-12',
+    assetId:'WRP-P4-012', loc:'Packaging · Dispatch', priority:'low', status:'Open',
+    reportedBy:'Warehouse · Grace Mbeki', age:'2 days ago', confidence:68, assigned:false, mine:false,
+    category:'Mechanical / Drive', sla:'Due in 4d',
+    report:'Turntable occasionally jams at start of cycle, operator clears it by hand. Happening ~once per 20 pallets.',
+    diag:'Intermittent jamming at cycle start suggests a <b>worn drive chain or debris in the ring gear</b>. Low confidence without inspection — recommend a manual check of the chain tension and a clean-out of the track. Likely a quick fix during the next idle window.',
+    aiCategory:'Mechanical · Drive', catConf:68,
+    aiTech:'Unassigned', techConf:0, aiPriority:'Low', prioConf:72,
+    parts:[ {n:'Drive Chain #50 (per ft)', sku:'CHN-50', stock:'Bulk', stockCls:'b-green'} ],
+    vitals:{ temp:'27°C', vib:'0.6×', runtime:'7,200h' },
+    timeline:[
+      {t:'AI requested operator photo', sub:'Low confidence · needs inspection', time:'2 days ago', ai:true, color:'var(--amber)'},
+      {t:'Work order created', sub:'Reported by Grace Mbeki', time:'2 days ago', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4790', title:'Boiler feedwater pump cavitation', asset:'Feedwater Pump FW-3',
+    assetId:'PMP-U0-003', loc:'Utilities · Boiler House', priority:'high', status:'Open',
+    reportedBy:'Facilities · Omar Haddad', age:'2 days ago', confidence:85, assigned:true, mine:true,
+    category:'Fluids / Pump', sla:'Due in 8h',
+    report:'Rattling noise and pressure fluctuation at the feedwater pump, suspected cavitation. Boiler still online.',
+    diag:'The noise and pressure swings strongly indicate <b>cavitation from low suction head</b> — most often a clogged suction strainer or low deaerator level. Check the strainer differential pressure and deaerator level before assuming pump damage; cavitation erodes impellers fast, so act soon.',
+    aiCategory:'Fluids · Pump', catConf:83,
+    aiTech:'Priya Nair', techConf:80, aiPriority:'High', prioConf:84,
+    parts:[ {n:'Suction Strainer Element', sku:'STR-SE6', stock:'4 in stock', stockCls:'b-green'} ],
+    vitals:{ temp:'66°C', vib:'2.1×', runtime:'31,500h' },
+    timeline:[
+      {t:'Assigned to you', sub:'AI matched cavitation signature', time:'1 day ago', ai:true, color:'var(--violet)'},
+      {t:'Work order created', sub:'Reported by Omar Haddad', time:'2 days ago', ai:false, color:'var(--text-dim)'},
+    ]
+  },
+  {
+    id:'WO-4787', title:'Label printer misfeeding', asset:'Label Printer LP-22',
+    assetId:'PRN-P4-022', loc:'Packaging · Line 6', priority:'low', status:'Open',
+    reportedBy:'Line Operator · Kenji Sato', age:'3 days ago', confidence:64, assigned:false, mine:false,
+    category:'Peripheral / Print', sla:'Due in 5d',
+    report:'Printer skips labels intermittently, jams roughly every 200 labels. Cleaned print head, no change.',
+    diag:'Misfeeds after head cleaning point to a <b>worn platen roller or a failing media sensor</b>. This is low-priority and the unit is non-critical. Recommend replacing the platen roller and recalibrating the gap sensor; keep a spare printer staged to avoid line stoppage.',
+    aiCategory:'Peripheral · Print', catConf:66,
+    aiTech:'Unassigned', techConf:0, aiPriority:'Low', prioConf:70,
+    parts:[ {n:'Platen Roller LP-22', sku:'ROL-LP22', stock:'1 in stock', stockCls:'b-amber'} ],
+    vitals:{ temp:'30°C', vib:'0.2×', runtime:'12,800h' },
+    timeline:[
+      {t:'AI classified · Peripheral · Print', sub:'Confidence 66% · flagged for review', time:'3 days ago', ai:true, color:'var(--violet)'},
+      {t:'Work order created', sub:'Reported by Kenji Sato', time:'3 days ago', ai:false, color:'var(--text-dim)'},
+    ]
+  }
+];
+
+// ---------- STATE ----------
+let state = { tab:'all', filter:'all', search:'', selectedId: TICKETS[0].id };
+
+function confColor(v){ return v>=85?'var(--green)': v>=70?'var(--amber)':'var(--red)'; }
+
+// ---------- RENDER LIST ----------
+function renderList(){
+  const list = document.getElementById('ticketList');
+  const q = state.search.toLowerCase();
+  let items = TICKETS.filter(t=>{
+    if(state.tab==='unassigned' && t.assigned) return false;
+    if(state.tab==='mine' && !t.mine) return false;
+    if(state.filter!=='all' && t.priority!==state.filter) return false;
+    if(q){
+      const hay = (t.id+' '+t.title+' '+t.asset+' '+t.category+' '+t.loc).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('listCount').textContent = items.length + ' active';
+
+  if(items.length===0){
+    list.innerHTML = `<div class="empty">${ICO.doc}<div style="font-weight:600;color:var(--text-dim)">No work orders match</div><div style="font-size:12px;margin-top:4px">Try clearing filters or search.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = items.map(t=>{
+    const p = PRIO[t.priority];
+    const statusCls = t.status==='Down'?'b-red': t.status==='Degraded'?'b-amber': 'b-gray';
+    const sel = t.id===state.selectedId ? 'selected':'';
+    return `
+    <div class="ticket ${sel}" data-id="${t.id}">
+      <div class="prio" style="background:${p.c}"></div>
+      <div class="body">
+        <div class="ttop">
+          <span class="tid">${t.id}</span>
+          <span class="badge ${statusCls}">${t.status}</span>
+          ${t.assigned?'':'<span class="badge b-violet">'+ICO.ai+'Auto-routed</span>'}
+        </div>
+        <div class="ttitle">${t.title}</div>
+        <div class="tmeta">
+          <span class="m">${ICO.asset}${t.asset}</span>
+          <span class="m">${ICO.loc}${t.loc}</span>
+          <span class="m">${ICO.clock}${t.age}</span>
+        </div>
+      </div>
+      <div class="right">
+        <span class="badge ${p.cls}">${p.label}</span>
+        <div class="conf" title="AI diagnosis confidence">
+          ${ICO.spark.replace('width="20"','')}
+          <div class="bar"><i style="width:${t.confidence}%;background:${confColor(t.confidence)}"></i></div>
+          ${t.confidence}%
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.ticket').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.selectedId = el.dataset.id; renderList(); renderReview(); });
+  });
+}
+
+// ---------- RENDER REVIEW ----------
+function renderReview(){
+  const t = TICKETS.find(x=>x.id===state.selectedId);
+  const box = document.getElementById('reviewContent');
+  if(!t){
+    box.innerHTML = `<div class="empty" style="padding:90px 20px">${ICO.wrench}<div style="font-weight:600;color:var(--text-dim)">Select a work order</div><div style="font-size:12px;margin-top:4px">AI diagnosis appears here.</div></div>`;
+    return;
+  }
+  const p = PRIO[t.priority];
+  const statusCls = t.status==='Down'?'b-red': t.status==='Degraded'?'b-amber': 'b-gray';
+
+  const vit = `
+    <div class="vitals">
+      ${vitalGauge('Temp', t.vitals.temp, t.priority==='critical'?92: t.priority==='high'?64:38)}
+      ${vitalGauge('Vibration', t.vitals.vib, Math.min(95, parseFloat(t.vitals.vib)*22 || 30))}
+      ${vitalGauge('Runtime', t.vitals.runtime, 70)}
+    </div>`;
+
+  const parts = t.parts.map(pt=>`
+    <div class="part">
+      <div>${ICO.part.replace('width="20"','')}</div>
+      <div>
+        <div class="pn">${pt.n}</div>
+        <div class="pmeta">SKU ${pt.sku}</div>
+      </div>
+      <span class="badge ${pt.stockCls} stock">${pt.stock}</span>
+    </div>`).join('');
+
+  const tl = t.timeline.map(e=>`
+    <div class="tl-item">
+      <div class="tl-dot" style="background:${e.ai?'var(--violet-soft)':'var(--bg-elevated)'};border:1px solid ${e.color}">
+        <span style="color:${e.color}">${e.ai?ICO.spark.replace('width="20"',''):ICO.check}</span>
+      </div>
+      <div class="tl-c">
+        <div class="tl-h">${e.t} ${e.ai?'<span class="ai-tag tl-ai">'+ICO.ai+'AI</span>':''}</div>
+        <div class="tl-t">${e.sub}</div>
+        <div class="tl-time">${e.time}</div>
+      </div>
+    </div>`).join('');
+
+  box.innerHTML = `
+    <div class="rv-head">
+      <div class="rv-id">${t.id} · ${t.assetId}</div>
+      <h2>${t.title}</h2>
+      <div class="rv-meta">
+        <span class="badge ${p.cls}">${ICO.flag.replace('width="20"','')}${p.label}</span>
+        <span class="badge ${statusCls}">${t.status}</span>
+        <span class="badge b-gray">${ICO.loc.replace('width="20"','')}${t.loc}</span>
+        <span class="badge b-gray">${ICO.user.replace('width="20"','')}${t.reportedBy}</span>
+      </div>
+    </div>
+    <div class="rv-body">
+
+      <div class="section-t">${ICO.doc}Operator Report</div>
+      <div style="background:rgba(0,0,0,0.16);border:1px solid var(--border);border-radius:11px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--text-dim)">
+        "${t.report}"
+      </div>
+
+      <div class="section-t">${ICO.spark}AI Diagnosis</div>
+      <div class="ai-card">
+        <div class="ai-h">
+          <div class="ai-ico">${ICO.ai}</div>
+          <div>
+            <div class="ai-title">Probable Root Cause</div>
+            <div class="ai-sub">Generated from report, telemetry &amp; fault history</div>
+          </div>
+          <div class="conf">
+            <div class="bar" style="width:46px"><i style="width:${t.confidence}%;background:${confColor(t.confidence)}"></i></div>
+            <b style="color:${confColor(t.confidence)}">${t.confidence}%</b>
+          </div>
+        </div>
+        <div class="ai-diag">${t.diag}</div>
+
+        <div class="fields-grid">
+          ${aiField('Category', t.aiCategory, t.catConf)}
+          ${aiField('Priority', t.aiPriority, t.prioConf)}
+          ${aiField('Suggested Tech', t.aiTech, t.techConf)}
+          ${aiField('Asset', t.asset.split(' (')[0], 100)}
+        </div>
+      </div>
+
+      <div class="section-t">${ICO.part}Suggested Parts &amp; Stock</div>
+      <div class="parts">${parts}</div>
+
+      <div class="section-t">${ICO.pulse}Machine Vitals</div>
+      ${vit}
+
+      <div class="rv-actions">
+        <button class="btn primary" data-act="approve">${ICO.check}Approve &amp; Dispatch</button>
+        <button class="btn ghost-v" data-act="rerun">${ICO.spark.replace('width="20"','')}Re-run AI</button>
+        <button class="btn" data-act="reassign">${ICO.route}Reassign</button>
+      </div>
+
+      <div class="section-t">${ICO.clock}Activity</div>
+      <div class="timeline">${tl}</div>
+    </div>
+  `;
+
+  box.querySelectorAll('[data-act]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const a = b.dataset.act;
+      if(a==='approve') showToast('Work order '+t.id+' dispatched to '+t.aiTech+'.');
+      else if(a==='rerun') showToast('Re-running AI diagnosis on '+t.id+'…');
+      else showToast('Opening reassignment for '+t.id+'.');
+    });
+  });
+}
+
+function aiField(label, val, conf){
+  const showConf = conf>0 && conf<100;
+  return `
+  <div class="field">
+    <div class="fl"><span>${label}</span>${showConf?'<span style="color:'+confColor(conf)+'">'+conf+'%</span>':''}</div>
+    <div class="fv">
+      ${val}
+    </div>
+    ${showConf?'<div class="miniconf" style="margin-top:7px"><i style="width:'+conf+'%;background:'+confColor(conf)+'"></i></div>':''}
+  </div>`;
+}
+
+function vitalGauge(label, val, pct){
+  pct = Math.max(6, Math.min(100, pct));
+  const ang = -90 + (pct/100)*180;
+  const col = pct>80?'var(--red)': pct>55?'var(--amber)':'var(--teal)';
+  const r=24, cx=30, cy=30;
+  const x1 = cx + r*Math.cos(Math.PI), y1 = cy + r*Math.sin(Math.PI);
+  // semicircle gauge
+  const startAng = Math.PI; // 180deg
+  const endAng = Math.PI + (pct/100)*Math.PI;
+  const ex = cx + r*Math.cos(endAng), ey = cy + r*Math.sin(endAng);
+  const large = 0;
+  const bgPath = `M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}`;
+  const fgPath = `M ${cx-r} ${cy} A ${r} ${r} 0 ${large} 1 ${ex.toFixed(2)} ${ey.toFixed(2)}`;
+  return `
+  <div class="vital">
+    <div class="vlabel">${label}</div>
+    <div class="vval" style="color:${col}">${val}</div>
+    <svg width="60" height="36" viewBox="0 0 60 36">
+      <path d="${bgPath}" fill="none" stroke="var(--bg-hover)" stroke-width="5" stroke-linecap="round"/>
+      <path d="${fgPath}" fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+  </div>`;
+}
+
+// ---------- TOAST ----------
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+// ---------- EVENTS ----------
+document.querySelectorAll('.tab').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    state.tab = el.dataset.tab;
+    renderList();
+  });
+});
+document.querySelectorAll('.chip').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    state.filter = el.dataset.filter;
+    renderList();
+  });
+});
+document.getElementById('search').addEventListener('input', e=>{
+  state.search = e.target.value;
+  renderList();
+});
+
+// ---------- INIT ----------
+renderList();
+renderReview();
+</script>
+</body>
+</html>

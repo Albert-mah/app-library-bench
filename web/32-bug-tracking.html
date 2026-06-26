@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bugtrace — Bug Tracking System</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Bug Tracking System (Bugtrace)",
+  "prefix": "bug_",
+  "collections": {
+    "bug_milestones": {"titleField":"version","fields":{"version":"input","label":"input","status":"select:planned|in_progress|released","release_date":"date","open_count":"integer","fixed_count":"integer"}},
+    "bug_components": {"titleField":"name","fields":{"name":"input","area":"select:frontend|backend|api|infra|mobile|data","owner":"input"}},
+    "bug_users": {"titleField":"name","fields":{"name":"input","handle":"input","role":"select:dev|qa|lead|pm"}},
+    "bug_issues": {"titleField":"title","fields":{"key":"input","title":"input","description":"textarea","severity":"select:blocker|critical|major|minor|trivial","priority":"select:p0|p1|p2|p3","status":"select:open|in_progress|in_review|reopened|resolved|closed","environment":"select:production|staging|dev","steps_to_reproduce":"textarea","expected":"textarea","actual":"textarea","stack_trace":"textarea","reproducibility":"select:always|often|sometimes|rare|unable","created_at":"datetime","updated_at":"datetime","comment_count":"integer"},"relations":{"component":"m2o bug_components (fk component_id)","assignee":"m2o bug_users (fk assignee_id)","reporter":"m2o bug_users (fk reporter_id)","affects_version":"m2o bug_milestones (fk affects_version_id)","fix_version":"m2o bug_milestones (fk fix_version_id)"}}
+  },
+  "page": {
+    "name": "Bug Board",
+    "layout": "dark developer console. top = KPI strip (4 cards) | left main = native Table of bug_issues with severity color-bar JSColumn + toolbar filter pills | right rail = native List of bug_milestones (version progress) + reproduction detail panel (JS item bound to selected row)",
+    "regions": [
+      {"id":"kpi","block":"4x event-flow summary cards (count by severity / open / breach)","intent":"top-line bug health","content":["Open bugs","Blockers + Critical","Avg resolution time","Reopen rate"]},
+      {"id":"issues","block":"native Table block (bug_issues) — NOT a freestanding JSBlock","intent":"severity-ranked bug list","sort":"severity desc, updated_at desc","columns":["severity = JSColumn rendering a left color-bar + severity chip","key + title (lead cell)","status pill","priority badge","component tag","assignee avatar","affects/fix version","updated_at"],"toolbar":["JSAction severity filter pills (blocker|critical|major|minor)","JSAction status filter pills","text search push addFilterGroup + refresh"],"rowClick":"open reproduction detail (ctx.openView detail / fill right panel)"},
+      {"id":"milestones","block":"List + JSField card","collection":"bug_milestones","intent":"version milestone progress rail","card":["version + label","status pill","fixed/open progress bar","release date"]},
+      {"id":"repro","block":"JS item — reproduction detail panel bound to the selected bug row","intent":"developer repro view: steps / expected vs actual / stack trace / env / reproducibility","binds":"selected row from the issues Table","shows":["severity + key header","steps to reproduce (ordered)","expected vs actual diff","collapsible stack trace (monospace)","environment + reproducibility + browser/os meta","activity / comment count"]}
+    ]
+  },
+  "interactions": ["severity & status filter pills push addFilterGroup to the issues Table resource + refresh","clicking a table row loads its reproduction detail into the right panel","milestone progress bars derive fixed/open from bug_issues grouped by fix_version","KPI cards are event-flow aggregates over bug_issues"],
+  "jsKernels": ["severity color-bar table cell (JSColumn)","reproduction detail panel (JS item bound to selected row, with stack-trace block)","milestone progress JSField card"],
+  "notes": "Developer dark theme. Container/content rule: the bug list is a NATIVE Table of bug_issues (the severity color-bar + chip is a JSColumn, the filter pills are toolbar JSActions); the milestone rail is a NATIVE List of bug_milestones with a JSField card. The reproduction detail panel is the only data-less custom visual region and is a JS item bound to the currently selected row — do NOT rebuild the whole board as one freestanding JSBlock."
+}
+</script>
+<style>
+  :root{
+    --bg-base:    #0a0e16;
+    --bg-panel:   #0f1622;
+    --bg-card:    #121b2a;
+    --bg-card-h:  #18233500;
+    --bg-row-h:   #16203140;
+    --bg-inset:   #0b111c;
+    --border:     #1d2c40;
+    --border-b:   #26384e;
+    --accent:     #7c5cff;
+    --accent-dim: rgba(124,92,255,.14);
+    --accent-glow:0 0 12px rgba(124,92,255,.35), 0 0 24px rgba(124,92,255,.12);
+    /* severity scale */
+    --blocker:    #ff3860;
+    --blocker-dim:rgba(255,56,96,.14);
+    --critical:   #ff7849;
+    --critical-dim:rgba(255,120,73,.14);
+    --major:      #f5b133;
+    --major-dim:  rgba(245,177,51,.14);
+    --minor:      #3ea6ff;
+    --minor-dim:  rgba(62,166,255,.14);
+    --trivial:    #6b7a90;
+    --trivial-dim:rgba(107,122,144,.14);
+    --ok:         #2fd3a5;
+    --ok-dim:     rgba(47,211,165,.15);
+    --text-hi:    #e6eefb;
+    --text-md:    #8298b5;
+    --text-lo:    #4a607a;
+    --mono:       'SFMono-Regular', ui-monospace, Menlo, Consolas, 'Liberation Mono', monospace;
+    --font:       'Segoe UI', system-ui, -apple-system, sans-serif;
+    --radius:     9px;
+    --radius-s:   6px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 500px at 80% -10%, rgba(124,92,255,.08), transparent 60%),
+      var(--bg-base);
+    color:var(--text-hi); font-family:var(--font); font-size:13px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  .app{max-width:1440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+
+  /* ── Header ── */
+  .header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:13px 26px;background:var(--bg-panel);border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:60;
+  }
+  .h-left{display:flex;align-items:center;gap:14px}
+  .h-logo{
+    width:32px;height:32px;border-radius:9px;background:var(--accent-dim);
+    border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;
+    box-shadow:var(--accent-glow);color:var(--accent);font-weight:800;font-size:15px;
+  }
+  .h-title{font-size:15px;font-weight:700;letter-spacing:.3px}
+  .h-sub{font-size:10.5px;color:var(--text-md);margin-top:1px;text-transform:uppercase;letter-spacing:.6px}
+  .h-mid{display:flex;align-items:center;gap:4px;margin-left:14px}
+  .h-mid a{padding:6px 12px;border-radius:7px;color:var(--text-md);text-decoration:none;font-size:12.5px;font-weight:500}
+  .h-mid a.on{background:var(--accent-dim);color:#cbbcff}
+  .h-mid a:not(.on):hover{background:#16203180;color:var(--text-hi)}
+  .h-right{display:flex;align-items:center;gap:16px;margin-left:auto}
+  .search{
+    display:flex;align-items:center;gap:8px;background:var(--bg-inset);border:1px solid var(--border);
+    border-radius:8px;padding:7px 11px;width:240px;color:var(--text-md);
+  }
+  .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+  .search input{background:none;border:none;outline:none;color:var(--text-hi);font-family:inherit;font-size:12.5px;width:100%}
+  .search input::placeholder{color:var(--text-lo)}
+  .branch{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-md);font-family:var(--mono);
+    background:var(--bg-inset);border:1px solid var(--border);padding:5px 10px;border-radius:7px}
+  .branch b{color:#cbbcff}
+  .who{display:flex;align-items:center;gap:8px}
+  .who .ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#b37feb);
+    display:grid;place-items:center;color:#fff;font-weight:700;font-size:11px}
+  .who .name{line-height:1.15}
+  .who .name b{font-size:12.5px}
+  .who .name span{font-size:10.5px;color:var(--text-md)}
+
+  /* ── KPI strip ── */
+  .kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+  .kpi{background:var(--bg-panel);padding:16px 22px;display:flex;align-items:center;gap:16px;position:relative;overflow:hidden}
+  .kpi::before{content:'';position:absolute;bottom:0;left:0;width:100%;height:2px}
+  .kpi.blk::before{background:linear-gradient(90deg,transparent,var(--blocker),transparent)}
+  .kpi.crt::before{background:linear-gradient(90deg,transparent,var(--critical),transparent)}
+  .kpi.ok::before{background:linear-gradient(90deg,transparent,var(--ok),transparent)}
+  .kpi.acc::before{background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+  .kpi-ic{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;flex:none;font-size:18px}
+  .kpi.blk .kpi-ic{background:var(--blocker-dim);border:1px solid rgba(255,56,96,.3)}
+  .kpi.crt .kpi-ic{background:var(--critical-dim);border:1px solid rgba(255,120,73,.3)}
+  .kpi.ok .kpi-ic{background:var(--ok-dim);border:1px solid rgba(47,211,165,.3)}
+  .kpi.acc .kpi-ic{background:var(--accent-dim);border:1px solid rgba(124,92,255,.3)}
+  .kpi-v{font-size:30px;font-weight:700;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+  .kpi.blk .kpi-v{color:var(--blocker)} .kpi.crt .kpi-v{color:var(--critical)}
+  .kpi.ok .kpi-v{color:var(--ok)} .kpi.acc .kpi-v{color:#cbbcff}
+  .kpi-l{font-size:10.5px;color:var(--text-md);margin-top:5px;text-transform:uppercase;letter-spacing:.5px;font-weight:500}
+  .kpi-t{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;margin-top:5px}
+  .t-bad{color:var(--blocker)} .t-good{color:var(--ok)} .t-neu{color:var(--text-md)}
+
+  /* ── Body layout ── */
+  .body-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;flex:1;min-height:0}
+  .main-col{padding:18px 20px 22px;overflow:auto;border-right:1px solid var(--border)}
+  .rail{background:var(--bg-panel);overflow:auto}
+
+  /* ── Section header ── */
+  .sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-md);font-weight:700;display:flex;align-items:center;gap:8px}
+  .sec-title .dot{width:6px;height:6px;border-radius:50%}
+  .sec-count{font-size:11px;color:var(--text-md);background:var(--bg-inset);border:1px solid var(--border);padding:2px 9px;border-radius:20px;font-variant-numeric:tabular-nums}
+
+  /* ── Filter toolbar ── */
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .pill-group{display:flex;gap:5px;flex-wrap:wrap}
+  .pill{font-size:11.5px;font-weight:600;color:var(--text-md);cursor:pointer;padding:5px 11px;border-radius:7px;
+    border:1px solid var(--border);background:var(--bg-inset);user-select:none;transition:.12s;display:flex;align-items:center;gap:6px}
+  .pill:hover{border-color:var(--border-b);color:var(--text-hi)}
+  .pill .sw{width:7px;height:7px;border-radius:2px}
+  .pill.on{color:#fff;border-color:transparent}
+  .pill.on[data-sev="blocker"]{background:var(--blocker-dim);color:var(--blocker);border-color:rgba(255,56,96,.4)}
+  .pill.on[data-sev="critical"]{background:var(--critical-dim);color:var(--critical);border-color:rgba(255,120,73,.4)}
+  .pill.on[data-sev="major"]{background:var(--major-dim);color:var(--major);border-color:rgba(245,177,51,.4)}
+  .pill.on[data-sev="minor"]{background:var(--minor-dim);color:var(--minor);border-color:rgba(62,166,255,.4)}
+  .pill.on[data-st]{background:var(--accent-dim);color:#cbbcff;border-color:rgba(124,92,255,.4)}
+  .pill.on[data-sev="all"],.pill.on[data-st="all"]{background:#1c2840;color:var(--text-hi);border-color:var(--border-b)}
+  .tb-spacer{margin-left:auto;font-size:11px;color:var(--text-lo);display:flex;align-items:center;gap:8px}
+  .tb-spacer .seg{font-family:var(--mono)}
+
+  /* ── Bug table ── */
+  .tbl-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg-card)}
+  table.bugs{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.bugs thead th{
+    text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-md);font-weight:600;
+    padding:10px 12px;background:var(--bg-panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:3;white-space:nowrap;
+  }
+  table.bugs tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+  table.bugs tbody tr:last-child{border-bottom:none}
+  table.bugs tbody tr:hover{background:var(--bg-row-h)}
+  table.bugs tbody tr.sel{background:var(--accent-dim)}
+  table.bugs tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  table.bugs td{padding:11px 12px;vertical-align:middle}
+  /* severity color-bar cell */
+  .sev-cell{position:relative;padding-left:18px !important;white-space:nowrap}
+  .sev-cell::before{content:'';position:absolute;left:0;top:0;width:4px;height:100%}
+  tr.sev-blocker .sev-cell::before{background:var(--blocker)}
+  tr.sev-critical .sev-cell::before{background:var(--critical)}
+  tr.sev-major .sev-cell::before{background:var(--major)}
+  tr.sev-minor .sev-cell::before{background:var(--minor)}
+  tr.sev-trivial .sev-cell::before{background:var(--trivial)}
+  .sev-chip{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:5px;display:inline-flex;align-items:center;gap:5px}
+  .sev-chip .gd{width:6px;height:6px;border-radius:50%}
+  .sev-chip.blocker{background:var(--blocker-dim);color:var(--blocker)}
+  .sev-chip.critical{background:var(--critical-dim);color:var(--critical)}
+  .sev-chip.major{background:var(--major-dim);color:var(--major)}
+  .sev-chip.minor{background:var(--minor-dim);color:var(--minor)}
+  .sev-chip.trivial{background:var(--trivial-dim);color:var(--trivial)}
+  .bug-key{font-family:var(--mono);font-size:11px;color:var(--text-lo);letter-spacing:.2px}
+  .bug-title{font-size:12.5px;color:var(--text-hi);font-weight:500;line-height:1.35;margin-top:2px;
+    max-width:340px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .bug-tags{display:flex;gap:6px;margin-top:5px;align-items:center;flex-wrap:wrap}
+  .mini-tag{font-size:9.5px;font-family:var(--mono);color:var(--text-md);background:var(--bg-inset);border:1px solid var(--border);padding:1px 6px;border-radius:4px}
+  .mini-tag.env-prod{color:var(--blocker);border-color:rgba(255,56,96,.3)}
+  .mini-tag.env-staging{color:var(--major);border-color:rgba(245,177,51,.3)}
+  .mini-tag.env-dev{color:var(--minor);border-color:rgba(62,166,255,.3)}
+  .pri{font-size:10px;font-weight:700;font-family:var(--mono);padding:2px 6px;border-radius:4px;letter-spacing:.3px}
+  .pri.p0{background:var(--blocker-dim);color:var(--blocker);border:1px solid rgba(255,56,96,.35)}
+  .pri.p1{background:var(--critical-dim);color:var(--critical);border:1px solid rgba(255,120,73,.35)}
+  .pri.p2{background:var(--major-dim);color:var(--major);border:1px solid rgba(245,177,51,.35)}
+  .pri.p3{background:var(--trivial-dim);color:var(--text-md);border:1px solid var(--border)}
+  .stat{font-size:10px;font-weight:700;padding:3px 8px;border-radius:11px;letter-spacing:.3px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .stat .gd{width:6px;height:6px;border-radius:50%}
+  .stat.open{background:rgba(255,56,96,.1);color:#ff6b87} .stat.open .gd{background:#ff6b87}
+  .stat.in_progress{background:var(--accent-dim);color:#b8a6ff} .stat.in_progress .gd{background:#b8a6ff}
+  .stat.in_review{background:var(--minor-dim);color:var(--minor)} .stat.in_review .gd{background:var(--minor)}
+  .stat.reopened{background:var(--major-dim);color:var(--major)} .stat.reopened .gd{background:var(--major)}
+  .stat.resolved{background:var(--ok-dim);color:var(--ok)} .stat.resolved .gd{background:var(--ok)}
+  .stat.closed{background:#1a2738;color:var(--text-md)} .stat.closed .gd{background:var(--text-lo)}
+  .comp-tag{font-size:11px;color:var(--text-md);display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .comp-tag .cd{width:7px;height:7px;border-radius:2px}
+  .assignee{display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .assignee .av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:9.5px;font-weight:700;flex:none}
+  .assignee .nm{font-size:11.5px;color:var(--text-md)}
+  .ver{font-family:var(--mono);font-size:11px;color:var(--text-md)}
+  .ver .fix{color:var(--ok)}
+  .ver .aff{color:var(--text-lo)}
+  .upd{font-size:11px;color:var(--text-lo);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cmt{font-size:11px;color:var(--text-lo);display:flex;align-items:center;gap:4px}
+
+  /* ── Right rail ── */
+  .rail-sec{padding:16px 18px;border-bottom:1px solid var(--border)}
+  .rail-sec h3{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--text-md);font-weight:700;margin-bottom:13px;display:flex;align-items:center;gap:8px}
+  .rail-sec h3 .badge{margin-left:auto;font-size:10px;color:var(--text-lo);background:var(--bg-inset);border:1px solid var(--border);padding:1px 8px;border-radius:10px}
+
+  /* milestone cards */
+  .ms-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px}
+  .ms-card:last-child{margin-bottom:0}
+  .ms-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .ms-ver{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text-hi)}
+  .ms-label{font-size:11px;color:var(--text-md)}
+  .ms-st{margin-left:auto;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:5px}
+  .ms-st.released{background:var(--ok-dim);color:var(--ok)}
+  .ms-st.in_progress{background:var(--accent-dim);color:#b8a6ff}
+  .ms-st.planned{background:#1a2738;color:var(--text-md)}
+  .ms-bar{height:6px;background:var(--bg-inset);border-radius:3px;overflow:hidden;display:flex;border:1px solid var(--border)}
+  .ms-bar .seg-fix{background:var(--ok);height:100%}
+  .ms-bar .seg-open{background:var(--blocker);height:100%;opacity:.8}
+  .ms-meta{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:10.5px}
+  .ms-meta .fixed{color:var(--ok)} .ms-meta .open{color:#ff6b87} .ms-meta .date{color:var(--text-lo);font-variant-numeric:tabular-nums}
+
+  /* reproduction detail */
+  .repro{padding:16px 18px}
+  .repro-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+  .repro-head .rk{font-family:var(--mono);font-size:11px;color:var(--text-lo)}
+  .repro-head .rt{font-size:13.5px;font-weight:600;color:var(--text-hi);line-height:1.4;margin-top:3px}
+  .repro-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+  .rm-cell{background:var(--bg-inset);border:1px solid var(--border);border-radius:var(--radius-s);padding:8px 10px}
+  .rm-cell .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-lo)}
+  .rm-cell .v{font-size:12px;font-weight:600;color:var(--text-hi);margin-top:3px;display:flex;align-items:center;gap:6px}
+  .rm-cell .v .gd{width:7px;height:7px;border-radius:50%}
+  .repro-block{margin-bottom:16px}
+  .rb-title{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-md);font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .rb-title .ic{width:16px;height:16px;border-radius:4px;display:grid;place-items:center;font-size:9px;background:var(--accent-dim);color:#b8a6ff}
+  .steps{list-style:none;counter-reset:step;display:flex;flex-direction:column;gap:7px}
+  .steps li{position:relative;padding-left:28px;font-size:12px;color:var(--text-hi);line-height:1.45;counter-increment:step}
+  .steps li::before{content:counter(step);position:absolute;left:0;top:0;width:19px;height:19px;border-radius:50%;
+    background:var(--accent-dim);color:#b8a6ff;font-size:10px;font-weight:700;display:grid;place-items:center;font-family:var(--mono)}
+  .diff{display:flex;flex-direction:column;gap:7px}
+  .diff-row{display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.4;padding:8px 10px;border-radius:var(--radius-s)}
+  .diff-row.exp{background:var(--ok-dim);border:1px solid rgba(47,211,165,.25)}
+  .diff-row.act{background:var(--blocker-dim);border:1px solid rgba(255,56,96,.25)}
+  .diff-row .sign{font-family:var(--mono);font-weight:800;flex:none;width:14px;text-align:center}
+  .diff-row.exp .sign{color:var(--ok)} .diff-row.act .sign{color:var(--blocker)}
+  .diff-row .lbl{flex:none;width:62px;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-md);padding-top:1px}
+  .diff-row .txt{color:var(--text-hi)}
+  .stack{background:var(--bg-inset);border:1px solid var(--border);border-radius:var(--radius-s);overflow:hidden}
+  .stack-hdr{display:flex;align-items:center;gap:8px;padding:8px 11px;background:var(--bg-panel);border-bottom:1px solid var(--border);
+    font-size:10.5px;color:var(--text-md);cursor:pointer;user-select:none;font-family:var(--mono)}
+  .stack-hdr .chev{transition:.15s;color:var(--text-lo)}
+  .stack.collapsed .chev{transform:rotate(-90deg)}
+  .stack.collapsed pre{display:none}
+  .stack pre{margin:0;padding:11px 13px;font-family:var(--mono);font-size:11px;line-height:1.6;color:#9fb4d4;overflow-x:auto;white-space:pre}
+  .stack pre .err{color:#ff6b87}
+  .stack pre .file{color:#7ec9ff}
+  .stack pre .fn{color:#c9b6ff}
+  .activity{display:flex;flex-direction:column;gap:0}
+  .act-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:11.5px}
+  .act-item:last-child{border-bottom:none}
+  .act-item .av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:8.5px;font-weight:700;flex:none}
+  .act-item .body b{color:var(--text-hi);font-weight:600}
+  .act-item .body{color:var(--text-md);line-height:1.45}
+  .act-item .body .t{font-size:10px;color:var(--text-lo);margin-top:1px}
+  .repro-empty{text-align:center;color:var(--text-lo);font-size:12px;padding:50px 20px}
+  .repro-empty .big{font-size:34px;margin-bottom:10px;opacity:.5}
+
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border-b);border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#33485f}
+
+  @media(max-width:1380px){ .body-grid{grid-template-columns:1fr} .rail{border-top:1px solid var(--border)} .main-col{border-right:none} }
+  @media(max-width:760px){ .kpi-strip{grid-template-columns:repeat(2,1fr)} .search{display:none} }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ════════ HEADER ════════ -->
+  <header class="header">
+    <div class="h-left">
+      <div class="h-logo">⌗</div>
+      <div>
+        <div class="h-title">Bugtrace</div>
+        <div class="h-sub">Bug Tracking System</div>
+      </div>
+      <nav class="h-mid">
+        <a href="#" class="on">Issues</a>
+        <a href="#">Board</a>
+        <a href="#">Milestones</a>
+        <a href="#">Reports</a>
+      </nav>
+    </div>
+    <div class="h-right">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="#8298b5" stroke-width="1.3"/><path d="M9.5 9.5L12 12" stroke="#8298b5" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <input id="search" placeholder="Search by key, title, stack…" />
+      </div>
+      <div class="branch">⎇ <b>release/2.7</b></div>
+      <div class="who">
+        <div class="ava">DK</div>
+        <div class="name"><b>Devon Kané</b><br><span>Platform · Lead</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ════════ KPI STRIP ════════ -->
+  <div class="kpi-strip">
+    <div class="kpi blk">
+      <div class="kpi-ic">🐞</div>
+      <div>
+        <div class="kpi-v" id="kpi-open">—</div>
+        <div class="kpi-l">Open Bugs</div>
+        <div class="kpi-t t-bad"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 7l3-4 3 4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg> +6 this week</div>
+      </div>
+    </div>
+    <div class="kpi crt">
+      <div class="kpi-ic">🚨</div>
+      <div>
+        <div class="kpi-v" id="kpi-sev">—</div>
+        <div class="kpi-l">Blocker + Critical</div>
+        <div class="kpi-t t-bad"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 7l3-4 3 4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg> 2 breaching SLA</div>
+      </div>
+    </div>
+    <div class="kpi ok">
+      <div class="kpi-ic">⏱️</div>
+      <div>
+        <div class="kpi-v" id="kpi-mttr">3.2d</div>
+        <div class="kpi-l">Avg. Resolution Time</div>
+        <div class="kpi-t t-good"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 3l3 4 3-4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg> −0.6d vs last sprint</div>
+      </div>
+    </div>
+    <div class="kpi acc">
+      <div class="kpi-ic">↩️</div>
+      <div>
+        <div class="kpi-v" id="kpi-reopen">8.4%</div>
+        <div class="kpi-l">Reopen Rate (30d)</div>
+        <div class="kpi-t t-neu"><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 5h6" stroke="currentColor" stroke-width="1.6"/></svg> flat vs target 8%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ BODY ════════ -->
+  <div class="body-grid">
+
+    <!-- ───── MAIN: bug table ───── -->
+    <section class="main-col">
+      <div class="sec-hdr">
+        <span class="sec-title"><span class="dot" style="background:var(--blocker);box-shadow:0 0 6px var(--blocker)"></span> Issue Tracker</span>
+        <span class="sec-count" id="row-count">—</span>
+      </div>
+
+      <div class="toolbar">
+        <div class="pill-group" id="sevFilters">
+          <span class="pill on" data-sev="all">All severities</span>
+          <span class="pill" data-sev="blocker"><span class="sw" style="background:var(--blocker)"></span>Blocker</span>
+          <span class="pill" data-sev="critical"><span class="sw" style="background:var(--critical)"></span>Critical</span>
+          <span class="pill" data-sev="major"><span class="sw" style="background:var(--major)"></span>Major</span>
+          <span class="pill" data-sev="minor"><span class="sw" style="background:var(--minor)"></span>Minor</span>
+        </div>
+        <div class="pill-group" id="stFilters">
+          <span class="pill on" data-st="all">All status</span>
+          <span class="pill" data-st="open">Open</span>
+          <span class="pill" data-st="in_progress">In progress</span>
+          <span class="pill" data-st="in_review">In review</span>
+          <span class="pill" data-st="reopened">Reopened</span>
+        </div>
+        <div class="tb-spacer">sort: <span class="seg">severity ↓ · updated ↓</span></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="bugs">
+          <thead>
+            <tr>
+              <th>Severity</th>
+              <th>Bug</th>
+              <th>Status</th>
+              <th>Pri</th>
+              <th>Component</th>
+              <th>Assignee</th>
+              <th>Affects → Fix</th>
+              <th>Updated</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="bugRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ───── RIGHT RAIL ───── -->
+    <aside class="rail">
+      <!-- milestones -->
+      <div class="rail-sec">
+        <h3>Version Milestones <span class="badge" id="ms-count">—</span></h3>
+        <div id="milestones"></div>
+      </div>
+      <!-- reproduction detail -->
+      <div class="repro" id="repro">
+        <div class="repro-empty"><div class="big">🔬</div>Select a bug to inspect<br>reproduction steps and stack trace.</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ───────── lookups ─────────
+  var SEV = {
+    blocker:  {label:"Blocker",  color:"var(--blocker)",  rank:5},
+    critical: {label:"Critical", color:"var(--critical)", rank:4},
+    major:    {label:"Major",    color:"var(--major)",    rank:3},
+    minor:    {label:"Minor",    color:"var(--minor)",    rank:2},
+    trivial:  {label:"Trivial",  color:"var(--trivial)",  rank:1}
+  };
+  var STATUS = {
+    open:"Open", in_progress:"In progress", in_review:"In review",
+    reopened:"Reopened", resolved:"Resolved", closed:"Closed"
+  };
+  var COMP = {
+    "checkout":   {area:"frontend", color:"#3ea6ff"},
+    "payments":   {area:"backend",  color:"#7c5cff"},
+    "auth":       {area:"backend",  color:"#ff7849"},
+    "search-api": {area:"api",      color:"#2fd3a5"},
+    "ingest":     {area:"data",     color:"#f5b133"},
+    "ios-app":    {area:"mobile",   color:"#ff3860"},
+    "scheduler":  {area:"infra",    color:"#8298b5"},
+    "dashboard":  {area:"frontend", color:"#3ea6ff"}
+  };
+  function avaColor(name){
+    var c=["#7c5cff","#3ea6ff","#2fd3a5","#ff7849","#f5b133","#ff3860","#b37feb","#5cdbd3"];
+    var s=0; for(var i=0;i<name.length;i++) s=(s+name.charCodeAt(i))%c.length; return c[s];
+  }
+  function initials(n){ return n.split(/\s+/).map(function(w){return w[0];}).slice(0,2).join("").toUpperCase(); }
+
+  // ───────── milestone data ─────────
+  var MILESTONES = [
+    {ver:"v2.6.2", label:"Hotfix", status:"released",    fixed:23, open:0,  date:"May 28"},
+    {ver:"v2.7.0", label:"Quantum",status:"in_progress", fixed:41, open:14, date:"Jun 21 (RC)"},
+    {ver:"v2.8.0", label:"Nimbus", status:"planned",     fixed:3,  open:9,  date:"Aug 04"}
+  ];
+
+  // ───────── bug data ─────────
+  var BUGS = [
+    {
+      key:"BUG-4821", title:"Checkout total shows $0.00 when discount code exceeds cart subtotal",
+      sev:"blocker", status:"in_progress", pri:"p0", env:"production", comp:"checkout",
+      assignee:"Priya Nair", reporter:"QA Bot", affects:"v2.6.2", fix:"v2.7.0", repro:"always", updated:"4m ago", comments:12,
+      steps:[
+        "Add a single item priced at $19.99 to the cart",
+        "Apply promo code SAVE30 (a flat $30 discount)",
+        "Proceed to the order summary step"
+      ],
+      expected:"Order total clamps to $0.00 and a credit note of $10.01 is issued",
+      actual:"Total renders as $0.00 but the payment intent is created for -$10.01, Stripe rejects with amount_too_small",
+      stack:[
+        ['err',"TypeError: Cannot read properties of undefined (reading 'amount')"],
+        ['plain',"    at "],['fn',"computeOrderTotal"],['plain'," ("],['file',"checkout/total.ts:142"],['plain',")"],
+        ['plain',"\n    at "],['fn',"PaymentIntent.create"],['plain'," ("],['file',"payments/stripe.ts:88"],['plain',")"],
+        ['plain',"\n    at "],['fn',"async CheckoutController.submit"],['plain'," ("],['file',"checkout/controller.ts:51"],['plain',")"]
+      ],
+      browser:"Chrome 124 · macOS 14.4",
+      activity:[
+        {who:"Priya Nair", txt:"Reproduced locally — clamp logic skips the floor() guard.", t:"4m ago"},
+        {who:"QA Bot",     txt:"Auto-filed from regression suite checkout-e2e #318.", t:"2h ago"}
+      ]
+    },
+    {
+      key:"BUG-4815", title:"Session cookie not invalidated after password reset — old token still authorizes",
+      sev:"blocker", status:"open", pri:"p0", env:"production", comp:"auth",
+      assignee:"Marcus Feld", reporter:"Sec Team", affects:"v2.6.2", fix:"v2.7.0", repro:"always", updated:"22m ago", comments:9,
+      steps:[
+        "Log in on Device A and capture the session cookie",
+        "From Device B, complete the 'forgot password' flow and set a new password",
+        "Replay the captured cookie from Device A against /api/me"
+      ],
+      expected:"Device A session is revoked; request returns 401 Unauthorized",
+      actual:"Device A request returns 200 with full user payload — old session survives the reset",
+      stack:[
+        ['err',"SecurityAssertionError: stale_session_accepted"],
+        ['plain',"    at "],['fn',"verifySession"],['plain'," ("],['file',"auth/session.ts:204"],['plain',")"],
+        ['plain',"\n    at "],['fn',"authGuard"],['plain'," ("],['file',"auth/middleware.ts:33"],['plain',")"]
+      ],
+      browser:"All clients · server-side",
+      activity:[
+        {who:"Sec Team", txt:"Escalated to P0 — token rotation table not flushed on reset.", t:"22m ago"},
+        {who:"Marcus Feld", txt:"Confirmed: resetPassword() never calls revokeSessionsForUser().", t:"15m ago"}
+      ]
+    },
+    {
+      key:"BUG-4803", title:"Search API returns 500 for queries containing emoji or surrogate pairs",
+      sev:"critical", status:"in_review", pri:"p1", env:"production", comp:"search-api",
+      assignee:"Lena Osei", reporter:"Hiro Tanaka", affects:"v2.6.2", fix:"v2.7.0", repro:"often", updated:"1h ago", comments:6,
+      steps:[
+        "Send GET /api/search?q=☕ pour over",
+        "Observe the response status"
+      ],
+      expected:"Results array (possibly empty) with HTTP 200",
+      actual:"HTTP 500 — tokenizer throws on the 4-byte UTF-8 sequence before it reaches Elastic",
+      stack:[
+        ['err',"RangeError: invalid surrogate in tokenizer input"],
+        ['plain',"    at "],['fn',"normalizeQuery"],['plain'," ("],['file',"search/tokenize.ts:77"],['plain',")"],
+        ['plain',"\n    at "],['fn',"SearchService.query"],['plain'," ("],['file',"search/service.ts:120"],['plain',")"]
+      ],
+      browser:"Any client · API",
+      activity:[
+        {who:"Lena Osei", txt:"Fix up for review — switched to grapheme-safe splitter. PR #2291.", t:"1h ago"},
+        {who:"Hiro Tanaka", txt:"Reported from JP locale dashboard search.", t:"5h ago"}
+      ]
+    },
+    {
+      key:"BUG-4799", title:"iOS app crashes on cold start when offline cache is older than 30 days",
+      sev:"critical", status:"open", pri:"p1", env:"production", comp:"ios-app",
+      assignee:"Tomás Vidal", reporter:"App Store", affects:"v2.6.2", fix:"v2.7.0", repro:"sometimes", updated:"2h ago", comments:18,
+      steps:[
+        "Install build 2.6.2 and use the app online to seed the cache",
+        "Set device to airplane mode and skip 30+ days (or expire cache)",
+        "Cold-launch the app"
+      ],
+      expected:"App opens to last-known state with a 'stale data' banner",
+      actual:"App crashes during cache migration — SIGABRT in CoreData lightweight migration",
+      stack:[
+        ['err',"Fatal: NSPersistentStoreCoordinator migration failed (code 134110)"],
+        ['plain',"    at "],['fn',"CacheStore.migrate"],['plain'," ("],['file',"ios/CacheStore.swift:212"],['plain',")"],
+        ['plain',"\n    at "],['fn',"AppDelegate.didFinishLaunching"],['plain'," ("],['file',"ios/AppDelegate.swift:44"],['plain',")"]
+      ],
+      browser:"iOS 17.4 · iPhone 13/15",
+      activity:[
+        {who:"App Store", txt:"23 crash reports aggregated from TestFlight + production.", t:"2h ago"},
+        {who:"Tomás Vidal", txt:"Can repro ~1 in 4 cold starts with expired store.", t:"90m ago"}
+      ]
+    },
+    {
+      key:"BUG-4788", title:"Nightly ingest job double-counts rows when re-run within the same hour",
+      sev:"major", status:"in_progress", pri:"p1", env:"staging", comp:"ingest",
+      assignee:"Sara Lindqvist", reporter:"Data Eng", affects:"v2.7.0", fix:"v2.7.0", repro:"always", updated:"3h ago", comments:5,
+      steps:[
+        "Trigger the ingest DAG manually",
+        "Re-trigger the same DAG within 60 minutes",
+        "Compare fact_events row count vs source"
+      ],
+      expected:"Idempotent upsert — row count matches source exactly",
+      actual:"Rows inserted twice; the dedup key uses hour-bucket instead of event UUID",
+      stack:[
+        ['err',"DataIntegrityWarning: duplicate fact rows detected (delta=+8,214)"],
+        ['plain',"    at "],['fn',"upsertFacts"],['plain'," ("],['file',"ingest/loader.py:301"],['plain',")"]
+      ],
+      browser:"Airflow worker · staging",
+      activity:[
+        {who:"Sara Lindqvist", txt:"Switching dedup key to event_uuid + source_ts.", t:"3h ago"}
+      ]
+    },
+    {
+      key:"BUG-4776", title:"Dashboard date picker resets to today when switching browser tabs",
+      sev:"major", status:"reopened", pri:"p2", env:"production", comp:"dashboard",
+      assignee:"Ana Beltrán", reporter:"Support", affects:"v2.6.2", fix:"v2.8.0", repro:"often", updated:"5h ago", comments:7,
+      steps:[
+        "Set the dashboard range to 'Last 30 days'",
+        "Switch to another browser tab for >15 seconds",
+        "Return to the dashboard tab"
+      ],
+      expected:"Selected range persists across tab visibility changes",
+      actual:"visibilitychange handler re-inits the picker and snaps it back to today",
+      stack:[
+        ['err',"StateResetWarning: dateRange reverted on visibilitychange"],
+        ['plain',"    at "],['fn',"onVisibility"],['plain'," ("],['file',"dashboard/DateFilter.tsx:96"],['plain',")"]
+      ],
+      browser:"Firefox 125 · Windows 11",
+      activity:[
+        {who:"Ana Beltrán", txt:"Reopened — the v2.6 patch only covered the desktop layout.", t:"5h ago"},
+        {who:"Support", txt:"4 customer tickets this week reference this.", t:"yesterday"}
+      ]
+    },
+    {
+      key:"BUG-4765", title:"Scheduler skips a run when DST 'spring forward' lands inside the cron window",
+      sev:"major", status:"open", pri:"p2", env:"production", comp:"scheduler",
+      assignee:"Devon Kané", reporter:"Ops", affects:"v2.6.2", fix:"v2.8.0", repro:"rare", updated:"yesterday", comments:4,
+      steps:[
+        "Configure a job for 02:30 daily in a DST timezone",
+        "Wait for the spring-forward transition (02:00 → 03:00)"
+      ],
+      expected:"Job runs at the next valid wall-clock time (03:30)",
+      actual:"Job is silently skipped because 02:30 does not exist that day",
+      stack:[
+        ['err',"ScheduleSkip: non_existent_local_time 02:30"],
+        ['plain',"    at "],['fn',"nextFireTime"],['plain'," ("],['file',"scheduler/cron.ts:188"],['plain',")"]
+      ],
+      browser:"Server · cron worker",
+      activity:[
+        {who:"Devon Kané", txt:"Needs a DST-aware fold check before scheduling.", t:"yesterday"}
+      ]
+    },
+    {
+      key:"BUG-4751", title:"Payments webhook signature check uses == instead of constant-time compare",
+      sev:"critical", status:"resolved", pri:"p1", env:"production", comp:"payments",
+      assignee:"Marcus Feld", reporter:"Sec Team", affects:"v2.6.2", fix:"v2.6.2", repro:"always", updated:"2d ago", comments:11,
+      steps:[
+        "Inspect the webhook verification path",
+        "Time-measure responses across crafted signatures"
+      ],
+      expected:"Constant-time HMAC comparison resistant to timing attacks",
+      actual:"String == short-circuits, leaking byte-by-byte timing on the signature",
+      stack:[
+        ['err',"SecurityFinding: non_constant_time_compare (CWE-208)"],
+        ['plain',"    at "],['fn',"verifyWebhook"],['plain'," ("],['file',"payments/webhook.ts:64"],['plain',")"]
+      ],
+      browser:"Server-side",
+      activity:[
+        {who:"Marcus Feld", txt:"Fixed with crypto.timingSafeEqual + hotfixed in v2.6.2.", t:"2d ago"},
+        {who:"Sec Team", txt:"Verified — closing after re-scan passes.", t:"2d ago"}
+      ]
+    },
+    {
+      key:"BUG-4740", title:"Empty-state illustration overflows container on 4K displays",
+      sev:"minor", status:"in_review", pri:"p3", env:"dev", comp:"dashboard",
+      assignee:"Ana Beltrán", reporter:"Design", affects:"v2.7.0", fix:"v2.7.0", repro:"always", updated:"2d ago", comments:2,
+      steps:[
+        "Open any list with zero results on a 3840px-wide viewport"
+      ],
+      expected:"Illustration max-width caps at 420px and stays centered",
+      actual:"SVG scales to 100% width and clips the helper text below it",
+      stack:[
+        ['err',"LayoutWarning: empty_state svg exceeds container at >2560px"],
+        ['plain',"    at "],['fn',"EmptyState.render"],['plain'," ("],['file',"ui/EmptyState.tsx:28"],['plain',")"]
+      ],
+      browser:"Chrome 124 · 4K monitor",
+      activity:[
+        {who:"Design", txt:"Low impact, cosmetic — batched into the v2.7 polish PR.", t:"2d ago"}
+      ]
+    },
+    {
+      key:"BUG-4722", title:"Tooltip text truncated with ellipsis at exactly 1 character short",
+      sev:"trivial", status:"closed", pri:"p3", env:"dev", comp:"dashboard",
+      assignee:"Ana Beltrán", reporter:"QA Bot", affects:"v2.6.2", fix:"v2.6.2", repro:"always", updated:"3d ago", comments:1,
+      steps:[
+        "Hover a metric label whose tooltip is exactly 32 chars"
+      ],
+      expected:"Full 32-char tooltip is shown",
+      actual:"Last character is replaced with an ellipsis (off-by-one in max-width calc)",
+      stack:[
+        ['err',"VisualDiff: tooltip off_by_one_ellipsis"],
+        ['plain',"    at "],['fn',"clampLabel"],['plain'," ("],['file',"ui/Tooltip.tsx:51"],['plain',")"]
+      ],
+      browser:"Safari 17 · macOS",
+      activity:[
+        {who:"QA Bot", txt:"Fixed and verified in pixel regression run #904.", t:"3d ago"}
+      ]
+    }
+  ];
+
+  // ───────── KPI / milestones ─────────
+  var openStatuses = {open:1, in_progress:1, in_review:1, reopened:1};
+  document.getElementById("kpi-open").textContent = BUGS.filter(function(b){return openStatuses[b.status];}).length;
+  document.getElementById("kpi-sev").textContent = BUGS.filter(function(b){return (b.sev==="blocker"||b.sev==="critical") && openStatuses[b.status];}).length;
+  document.getElementById("ms-count").textContent = MILESTONES.length;
+
+  (function renderMilestones(){
+    var host=document.getElementById("milestones"), html="";
+    MILESTONES.forEach(function(m){
+      var total=m.fixed+m.open, fixPct=total? Math.round(m.fixed/total*100):0, openPct=100-fixPct;
+      html+=
+      '<div class="ms-card">'+
+        '<div class="ms-top">'+
+          '<span class="ms-ver">'+m.ver+'</span>'+
+          '<span class="ms-label">'+m.label+'</span>'+
+          '<span class="ms-st '+m.status+'">'+m.status.replace("_"," ")+'</span>'+
+        '</div>'+
+        '<div class="ms-bar">'+
+          '<div class="seg-fix" style="width:'+(total?fixPct:0)+'%"></div>'+
+          '<div class="seg-open" style="width:'+(total?openPct:0)+'%"></div>'+
+        '</div>'+
+        '<div class="ms-meta">'+
+          '<span><span class="fixed">'+m.fixed+' fixed</span> · <span class="open">'+m.open+' open</span></span>'+
+          '<span class="date">'+m.date+'</span>'+
+        '</div>'+
+      '</div>';
+    });
+    host.innerHTML=html;
+  })();
+
+  // ───────── table render ─────────
+  var sevFilter="all", stFilter="all", searchTerm="", selectedKey=null;
+  var tbody=document.getElementById("bugRows");
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+  function filtered(){
+    return BUGS.filter(function(b){
+      if(sevFilter!=="all" && b.sev!==sevFilter) return false;
+      if(stFilter!=="all" && b.status!==stFilter) return false;
+      if(searchTerm){
+        var hay=(b.key+" "+b.title+" "+b.comp+" "+b.actual).toLowerCase();
+        if(hay.indexOf(searchTerm)===-1) return false;
+      }
+      return true;
+    }).sort(function(a,b){
+      return SEV[b.sev].rank - SEV[a.sev].rank;
+    });
+  }
+
+  function renderTable(){
+    var rows=filtered();
+    document.getElementById("row-count").textContent = rows.length+" of "+BUGS.length+" issues";
+    if(rows.length===0){
+      tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text-lo);padding:40px">No bugs match these filters.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function(b){
+      var c=COMP[b.comp]||{color:"#8298b5"};
+      var sameVer = b.affects===b.fix;
+      return ''+
+      '<tr class="sev-'+b.sev+(b.key===selectedKey?' sel':'')+'" data-key="'+b.key+'">'+
+        '<td class="sev-cell"><span class="sev-chip '+b.sev+'"><span class="gd" style="background:'+SEV[b.sev].color+'"></span>'+SEV[b.sev].label+'</span></td>'+
+        '<td>'+
+          '<div class="bug-key">'+b.key+'</div>'+
+          '<div class="bug-title">'+esc(b.title)+'</div>'+
+          '<div class="bug-tags"><span class="mini-tag env-'+b.env+'">'+b.env+'</span><span class="mini-tag">repro: '+b.repro+'</span></div>'+
+        '</td>'+
+        '<td><span class="stat '+b.status+'"><span class="gd"></span>'+STATUS[b.status]+'</span></td>'+
+        '<td><span class="pri '+b.pri+'">'+b.pri.toUpperCase()+'</span></td>'+
+        '<td><span class="comp-tag"><span class="cd" style="background:'+c.color+'"></span>'+b.comp+'</span></td>'+
+        '<td><span class="assignee"><span class="av" style="background:'+avaColor(b.assignee)+'">'+initials(b.assignee)+'</span><span class="nm">'+b.assignee.split(" ")[0]+'</span></span></td>'+
+        '<td><span class="ver"><span class="aff">'+b.affects+'</span> → <span class="fix">'+b.fix+'</span></span></td>'+
+        '<td><span class="upd">'+b.updated+'</span></td>'+
+        '<td><span class="cmt">💬 '+b.comments+'</span></td>'+
+      '</tr>';
+    }).join("");
+  }
+
+  // ───────── reproduction detail ─────────
+  function renderRepro(b){
+    var host=document.getElementById("repro");
+    if(!b){ host.innerHTML='<div class="repro-empty"><div class="big">🔬</div>Select a bug to inspect<br>reproduction steps and stack trace.</div>'; return; }
+    var stackHtml = b.stack.map(function(p){
+      if(p[0]==="plain") return esc(p[1]);
+      return '<span class="'+p[0]+'">'+esc(p[1])+'</span>';
+    }).join("");
+    var reproColor = {always:"var(--blocker)",often:"var(--critical)",sometimes:"var(--major)",rare:"var(--minor)",unable:"var(--text-md)"}[b.repro];
+
+    host.innerHTML =
+      '<div class="repro-head">'+
+        '<span class="sev-chip '+b.sev+'" style="flex:none"><span class="gd" style="background:'+SEV[b.sev].color+'"></span>'+SEV[b.sev].label+'</span>'+
+        '<div><div class="rk">'+b.key+' · '+b.comp+'</div><div class="rt">'+esc(b.title)+'</div></div>'+
+      '</div>'+
+
+      '<div class="repro-meta">'+
+        '<div class="rm-cell"><div class="k">Environment</div><div class="v"><span class="gd" style="background:'+({production:"var(--blocker)",staging:"var(--major)",dev:"var(--minor)"}[b.env])+'"></span>'+b.env+'</div></div>'+
+        '<div class="rm-cell"><div class="k">Reproducibility</div><div class="v"><span class="gd" style="background:'+reproColor+'"></span>'+b.repro+'</div></div>'+
+        '<div class="rm-cell"><div class="k">Status</div><div class="v"><span class="stat '+b.status+'" style="padding:2px 7px"><span class="gd"></span>'+STATUS[b.status]+'</span></div></div>'+
+        '<div class="rm-cell"><div class="k">Browser / OS</div><div class="v" style="font-weight:500;font-size:11px">'+esc(b.browser)+'</div></div>'+
+      '</div>'+
+
+      '<div class="repro-block">'+
+        '<div class="rb-title"><span class="ic">▣</span>Steps to reproduce</div>'+
+        '<ol class="steps">'+b.steps.map(function(s){return '<li>'+esc(s)+'</li>';}).join("")+'</ol>'+
+      '</div>'+
+
+      '<div class="repro-block">'+
+        '<div class="rb-title"><span class="ic">⇄</span>Expected vs actual</div>'+
+        '<div class="diff">'+
+          '<div class="diff-row exp"><span class="sign">+</span><span class="lbl">Expected</span><span class="txt">'+esc(b.expected)+'</span></div>'+
+          '<div class="diff-row act"><span class="sign">−</span><span class="lbl">Actual</span><span class="txt">'+esc(b.actual)+'</span></div>'+
+        '</div>'+
+      '</div>'+
+
+      '<div class="repro-block">'+
+        '<div class="rb-title"><span class="ic">{}</span>Stack trace</div>'+
+        '<div class="stack" id="stackBox">'+
+          '<div class="stack-hdr" id="stackToggle"><span class="chev">▾</span> '+b.comp+' · '+b.key.toLowerCase()+'.log</div>'+
+          '<pre>'+stackHtml+'</pre>'+
+        '</div>'+
+      '</div>'+
+
+      '<div class="repro-block" style="margin-bottom:0">'+
+        '<div class="rb-title"><span class="ic">⌁</span>Activity · '+b.comments+' comments</div>'+
+        '<div class="activity">'+b.activity.map(function(a){
+          return '<div class="act-item"><span class="av" style="background:'+avaColor(a.who)+'">'+initials(a.who)+'</span>'+
+            '<div class="body"><b>'+esc(a.who)+'</b> '+esc(a.txt)+'<div class="t">'+a.t+'</div></div></div>';
+        }).join("")+'</div>'+
+      '</div>';
+
+    var box=document.getElementById("stackBox"), tog=document.getElementById("stackToggle");
+    tog.addEventListener("click",function(){ box.classList.toggle("collapsed"); });
+  }
+
+  // ───────── interactions ─────────
+  document.getElementById("sevFilters").addEventListener("click",function(e){
+    var p=e.target.closest(".pill"); if(!p) return;
+    this.querySelectorAll(".pill").forEach(function(x){x.classList.remove("on");});
+    p.classList.add("on"); sevFilter=p.dataset.sev; renderTable();
+  });
+  document.getElementById("stFilters").addEventListener("click",function(e){
+    var p=e.target.closest(".pill"); if(!p) return;
+    this.querySelectorAll(".pill").forEach(function(x){x.classList.remove("on");});
+    p.classList.add("on"); stFilter=p.dataset.st; renderTable();
+  });
+  document.getElementById("search").addEventListener("input",function(){
+    searchTerm=this.value.trim().toLowerCase(); renderTable();
+  });
+  tbody.addEventListener("click",function(e){
+    var tr=e.target.closest("tr[data-key]"); if(!tr) return;
+    selectedKey=tr.dataset.key;
+    tbody.querySelectorAll("tr").forEach(function(r){r.classList.toggle("sel", r.dataset.key===selectedKey);});
+    var b=BUGS.filter(function(x){return x.key===selectedKey;})[0];
+    renderRepro(b);
+    document.getElementById("repro").scrollIntoView({behavior:"smooth",block:"nearest"});
+  });
+
+  // ───────── init ─────────
+  renderTable();
+  selectedKey="BUG-4821";
+  renderTable();
+  renderRepro(BUGS[0]);
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Bug Tracking: a severity-colored table, milestones, and reproduction details. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/32-bug-tracking.html
+</script>
+</body>
+</html>

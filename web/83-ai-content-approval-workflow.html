@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Content Approval Workflow</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-2: #f9fafb;
+    --panel: #ffffff;
+    --panel-2: #eef0f4;
+    --line: #dfe3ea;
+    --line-soft: #e8ebf0;
+    --txt: #1f2937;
+    --txt-2: #5b6577;
+    --txt-3: #8b93a4;
+    --accent: #6366f1;
+    --accent-2: #8b5cf6;
+    --cyan: #0891b2;
+    --green: #10b981;
+    --amber: #d97706;
+    --red: #e11d48;
+    --pink: #db2777;
+    --track: #e9ecf2;
+    --shadow: 0 14px 40px -16px rgba(31,41,55,.22);
+    --shadow-sm: 0 1px 2px rgba(31,41,55,.05), 0 4px 12px -6px rgba(31,41,55,.10);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--txt);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #c9cfdb; border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ===== Layout shell ===== */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* Sidebar */
+  .side {
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    padding: 20px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; margin-bottom: 22px; padding: 0 6px; }
+  .brand .logo {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; box-shadow: 0 6px 16px -6px rgba(99,102,241,.5);
+    flex: none;
+  }
+  .brand .logo svg { width: 20px; height: 20px; }
+  .brand h1 { font-size: 14.5px; margin: 0; letter-spacing: .2px; line-height: 1.15; }
+  .brand p { margin: 1px 0 0; font-size: 10.5px; color: var(--txt-3); letter-spacing: .4px; text-transform: uppercase; }
+
+  .nav-label { font-size: 10px; color: var(--txt-3); text-transform: uppercase; letter-spacing: .8px; margin: 16px 8px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 10px;
+    color: var(--txt-2); font-size: 13px; cursor: pointer; user-select: none;
+    transition: background .15s, color .15s; position: relative;
+  }
+  .nav-item svg { width: 17px; height: 17px; opacity: .85; flex: none; }
+  .nav-item:hover { background: var(--panel-2); color: var(--txt); }
+  .nav-item.active { background: rgba(99,102,241,.10); color: var(--accent); }
+  .nav-item.active::before { content: ""; position: absolute; left: -16px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+  .nav-item .badge { margin-left: auto; background: #eceef3; color: var(--txt-2); font-size: 10.5px; padding: 1px 7px; border-radius: 10px; font-weight: 600; }
+  .nav-item.active .badge { background: var(--accent); color: #fff; }
+
+  .side-foot { margin-top: auto; }
+  .me { display: flex; align-items: center; gap: 10px; padding: 9px; border-radius: 11px; background: var(--panel); border: 1px solid var(--line-soft); }
+  .me .av { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg,#f472b6,#fbbf24); display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #1a1320; flex: none; }
+  .me b { font-size: 12.5px; display: block; }
+  .me span { font-size: 11px; color: var(--txt-3); }
+
+  /* Main */
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px; padding: 16px 26px;
+    border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20;
+    background: rgba(255,255,255,.82); backdrop-filter: blur(12px);
+  }
+  .topbar h2 { margin: 0; font-size: 17px; letter-spacing: .2px; }
+  .topbar .sub { color: var(--txt-3); font-size: 12px; margin-top: 2px; }
+  .search { margin-left: auto; position: relative; }
+  .search input {
+    background: var(--panel); border: 1px solid var(--line); color: var(--txt);
+    border-radius: 10px; padding: 9px 13px 9px 36px; width: 260px; font-size: 13px; outline: none;
+    transition: border .15s, box-shadow .15s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,.16); }
+  .search input::placeholder { color: var(--txt-3); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--txt-3); }
+  .icon-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--txt-2); display: grid; place-items: center; cursor: pointer; transition: .15s; }
+  .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none;
+    padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px -8px rgba(99,102,241,.55);
+    transition: transform .12s, box-shadow .15s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -8px rgba(99,102,241,.65); }
+  .btn-primary svg { width: 16px; height: 16px; }
+
+  .content { padding: 22px 26px 60px; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .kpi {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px 18px; position: relative; overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .kpi .label { font-size: 11.5px; color: var(--txt-3); text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; gap: 7px; }
+  .kpi .label .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .kpi .val { font-size: 30px; font-weight: 700; margin: 9px 0 2px; letter-spacing: -.5px; }
+  .kpi .delta { font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px; }
+  .kpi .delta.up { color: var(--green); }
+  .kpi .delta.down { color: var(--red); }
+  .kpi .spark { position: absolute; right: 14px; bottom: 12px; opacity: .8; }
+  .kpi .ring { position: absolute; right: 16px; top: 16px; }
+
+  /* Main grid: queue + side rail */
+  .grid { display: grid; grid-template-columns: 1fr 332px; gap: 18px; align-items: start; }
+  @media (max-width: 1180px){ .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  .panel-head { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--line-soft); }
+  .panel-head h3 { margin: 0; font-size: 14.5px; }
+  .panel-head .count { color: var(--txt-3); font-size: 12px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; background: #eef0f4; padding: 4px; border-radius: 11px; border: 1px solid var(--line-soft); }
+  .tab { padding: 7px 13px; border-radius: 8px; font-size: 12.5px; color: var(--txt-2); cursor: pointer; user-select: none; transition: .15s; white-space: nowrap; display:flex; align-items:center; gap:7px; }
+  .tab:hover { color: var(--txt); }
+  .tab.active { background: var(--panel); color: var(--accent); box-shadow: 0 1px 3px rgba(31,41,55,.12); }
+  .tab .n { font-size: 11px; background: #dde1e9; padding: 0 6px; border-radius: 8px; color: var(--txt-2); }
+  .tab.active .n { background: var(--accent); color: #fff; }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 18px; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px; padding: 6px 11px; border-radius: 20px; border: 1px solid var(--line);
+    color: var(--txt-2); background: #ffffff; cursor: pointer; user-select: none; transition: .15s;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.on { background: rgba(99,102,241,.12); border-color: var(--accent); color: var(--accent); }
+  .toolbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* Review queue list */
+  .queue { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card {
+    background: #ffffff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+    cursor: pointer; transition: border .15s, transform .12s, box-shadow .15s; position: relative;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow); }
+  .card .top { display: flex; align-items: flex-start; gap: 12px; }
+  .ctype {
+    width: 38px; height: 38px; border-radius: 10px; flex: none; display: grid; place-items: center;
+    font-size: 15px; background: #eef0f4; border: 1px solid var(--line-soft);
+  }
+  .card .ttl { font-size: 14px; font-weight: 600; line-height: 1.3; margin: 0 0 4px; }
+  .card .meta { font-size: 11.5px; color: var(--txt-3); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .card .meta .au { display: inline-flex; align-items: center; gap: 6px; }
+  .mini-av { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: #1a1320; }
+  .card .excerpt { color: var(--txt-2); font-size: 12.5px; margin: 10px 0 0; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .card .ai-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .score-pill {
+    display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 6px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 600; border: 1px solid transparent;
+  }
+  .score-pill .num { font-size: 13px; }
+  .score-pill svg { width: 14px; height: 14px; }
+  .sp-green { background: rgba(16,185,129,.12); color: #047857; border-color: rgba(16,185,129,.28); }
+  .sp-amber { background: rgba(217,119,6,.12); color: #b45309; border-color: rgba(217,119,6,.28); }
+  .sp-red   { background: rgba(225,29,72,.10); color: #be123c; border-color: rgba(225,29,72,.26); }
+
+  .tag { font-size: 10.5px; padding: 3px 9px; border-radius: 7px; font-weight: 600; letter-spacing: .2px; }
+  .t-pub   { background: rgba(16,185,129,.12); color: #047857; }
+  .t-rev   { background: rgba(217,119,6,.13); color: #b45309; }
+  .t-esc   { background: rgba(225,29,72,.10); color: #be123c; }
+  .t-draft { background: rgba(91,101,119,.12); color: var(--txt-2); }
+  .t-sched { background: rgba(8,145,178,.12); color: #0e7490; }
+
+  .route {
+    margin-left: auto; font-size: 11px; color: var(--txt-2); display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel); border: 1px solid var(--line); padding: 4px 9px; border-radius: 8px;
+  }
+  .route svg { width: 12px; height: 12px; color: var(--accent); }
+
+  .flags { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .flag { font-size: 10.5px; padding: 2px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); color: var(--txt-2); display:inline-flex; align-items:center; gap:5px; }
+  .flag.warn { border-color: rgba(251,191,36,.4); color: var(--amber); }
+  .flag.bad { border-color: rgba(248,113,113,.4); color: var(--red); }
+
+  .empty { padding: 50px 20px; text-align: center; color: var(--txt-3); }
+  .empty svg { width: 46px; height: 46px; opacity: .4; margin-bottom: 12px; }
+
+  /* Right rail */
+  .rail { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 92px; }
+  .gauge-wrap { display: flex; align-items: center; gap: 18px; padding: 18px; }
+  .gauge-wrap .legend { font-size: 12px; color: var(--txt-2); display: flex; flex-direction: column; gap: 9px; }
+  .gauge-wrap .legend .li { display: flex; align-items: center; gap: 8px; }
+  .gauge-wrap .legend .sw { width: 11px; height: 11px; border-radius: 3px; }
+  .gauge-wrap .legend b { color: var(--txt); }
+
+  .feed { padding: 6px 18px 18px; }
+  .fitem { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+  .fitem:last-child { border-bottom: none; }
+  .ficon { width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center; background: rgba(109,124,255,.14); }
+  .ficon svg { width: 15px; height: 15px; color: var(--accent); }
+  .ficon.g { background: rgba(52,211,153,.14); } .ficon.g svg { color: var(--green); }
+  .ficon.a { background: rgba(251,191,36,.14); } .ficon.a svg { color: var(--amber); }
+  .ficon.r { background: rgba(248,113,113,.14); } .ficon.r svg { color: var(--red); }
+  .fitem .ftxt { font-size: 12.5px; color: var(--txt-2); line-height: 1.45; }
+  .fitem .ftxt b { color: var(--txt); font-weight: 600; }
+  .fitem .ftime { font-size: 11px; color: var(--txt-3); margin-top: 3px; }
+
+  .bars { padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 13px; }
+  .bar-row .bl { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; color: var(--txt-2); }
+  .bar-row .bl b { color: var(--txt); }
+  .bar-track { height: 8px; border-radius: 6px; background: var(--track); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 6px; }
+
+  /* Drawer */
+  .scrim { position: fixed; inset: 0; background: rgba(31,41,55,.34); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 50; }
+  .scrim.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 560px; max-width: 94vw; z-index: 60;
+    background: #ffffff; border-left: 1px solid var(--line);
+    box-shadow: -30px 0 60px -28px rgba(31,41,55,.30); transform: translateX(102%); transition: transform .32s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+  }
+  .drawer.show { transform: translateX(0); }
+  .dr-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--line-soft); }
+  .dr-head .closex { position: absolute; right: 18px; top: 18px; width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--txt-2); cursor: pointer; display: grid; place-items: center; }
+  .dr-head .closex:hover { color: var(--accent); border-color: var(--accent); }
+  .dr-kicker { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .7px; font-weight: 700; display:flex; align-items:center; gap:7px; }
+  .dr-head h2 { font-size: 19px; margin: 9px 0 8px; line-height: 1.3; padding-right: 36px; }
+  .dr-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--txt-3); align-items: center; }
+  .dr-body { padding: 20px 24px 30px; overflow-y: auto; flex: 1; }
+
+  .verdict {
+    border-radius: 13px; padding: 16px 18px; margin-bottom: 18px;
+    border: 1px solid rgba(99,102,241,.22); background: linear-gradient(135deg, rgba(99,102,241,.09), rgba(139,92,246,.05));
+    position: relative; overflow:hidden;
+  }
+  .verdict .vh { display: flex; align-items: center; gap: 12px; }
+  .verdict .big-score { font-size: 38px; font-weight: 800; letter-spacing: -1px; }
+  .verdict .vmeta b { display: block; font-size: 13.5px; }
+  .verdict .vmeta span { font-size: 12px; color: var(--txt-3); }
+  .verdict .reason { font-size: 12.5px; color: var(--txt-2); line-height: 1.6; margin: 13px 0 0; }
+  .verdict .reason b { color: var(--txt); }
+
+  .sec-title { font-size: 11px; text-transform: uppercase; letter-spacing: .7px; color: var(--txt-3); margin: 22px 0 11px; display: flex; align-items: center; gap: 8px; }
+  .sec-title::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { background: #f6f7f9; border: 1px solid var(--line-soft); border-radius: 11px; padding: 11px 13px; }
+  .field .k { font-size: 11px; color: var(--txt-3); display:flex; align-items:center; justify-content:space-between; }
+  .field .v { font-size: 13px; font-weight: 600; margin-top: 5px; }
+  .conf { font-size: 9.5px; padding: 1px 6px; border-radius: 6px; font-weight: 700; }
+  .conf.hi { background: rgba(52,211,153,.16); color: var(--green); }
+  .conf.md { background: rgba(251,191,36,.16); color: var(--amber); }
+  .conf.lo { background: rgba(248,113,113,.16); color: var(--red); }
+
+  .check-list { display: flex; flex-direction: column; gap: 9px; }
+  .check {
+    display: flex; align-items: center; gap: 12px; padding: 11px 13px; border-radius: 11px;
+    background: #f6f7f9; border: 1px solid var(--line-soft);
+  }
+  .check .ci { width: 26px; height: 26px; border-radius: 8px; flex: none; display: grid; place-items: center; }
+  .check .ci svg { width: 15px; height: 15px; }
+  .check .cn { font-size: 13px; font-weight: 600; }
+  .check .cd { font-size: 11.5px; color: var(--txt-3); margin-top: 1px; }
+  .check .cscore { margin-left: auto; font-size: 12.5px; font-weight: 700; }
+  .ci.ok { background: rgba(52,211,153,.15); color: var(--green); }
+  .ci.warn { background: rgba(251,191,36,.15); color: var(--amber); }
+  .ci.bad { background: rgba(248,113,113,.15); color: var(--red); }
+
+  .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ba .col { background: #f6f7f9; border: 1px solid var(--line-soft); border-radius: 11px; padding: 13px; }
+  .ba .col .lab { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; display:flex; align-items:center; gap:6px; }
+  .ba .col.before .lab { color: var(--txt-3); }
+  .ba .col.after .lab { color: var(--accent); }
+  .ba .col p { font-size: 12px; line-height: 1.6; margin: 0; color: var(--txt-2); }
+  .ba .col.after { border-color: rgba(99,102,241,.32); background: linear-gradient(180deg, rgba(99,102,241,.07), #f6f7f9); }
+  .ba mark { background: rgba(16,185,129,.18); color: #047857; border-radius: 3px; padding: 0 2px; font-weight: 600; }
+  .ba del { color: var(--txt-3); }
+
+  .sugg { display: flex; flex-direction: column; gap: 8px; }
+  .sugg .s { display: flex; gap: 11px; align-items: flex-start; padding: 11px 13px; border-radius: 11px; background: #f6f7f9; border: 1px solid var(--line-soft); }
+  .sugg .s .rank { width: 22px; height: 22px; border-radius: 7px; background: rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.25); display: grid; place-items: center; font-size: 11px; font-weight: 700; flex: none; color: var(--accent); }
+  .sugg .s .stx { font-size: 12.5px; line-height: 1.5; color: var(--txt-2); }
+  .sugg .s .stx b { color: var(--txt); }
+
+  .dr-foot { padding: 15px 24px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; background: #fbfbfd; }
+  .dr-foot button { flex: 1; padding: 11px; border-radius: 11px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); transition: .15s; display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+  .dr-foot button svg { width: 16px; height: 16px; }
+  .bt-approve { background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; border-color: transparent; box-shadow: 0 6px 14px -8px rgba(16,185,129,.6); }
+  .bt-approve:hover { filter: brightness(1.05); }
+  .bt-reject { background: var(--panel); color: var(--red); border-color: rgba(225,29,72,.32); }
+  .bt-reject:hover { background: rgba(225,29,72,.07); }
+  .bt-edit { background: var(--panel); color: var(--txt); flex: 0 0 auto; padding-left:16px; padding-right:16px; }
+  .bt-edit:hover { border-color: var(--accent); }
+
+  /* Composer modal */
+  .modal { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px; opacity: 0; pointer-events: none; transition: opacity .22s; }
+  .modal.show { opacity: 1; pointer-events: auto; }
+  .modal-card { width: 620px; max-width: 96vw; background: #ffffff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 30px 70px -24px rgba(31,41,55,.4); transform: translateY(12px) scale(.98); transition: transform .25s; overflow: hidden; }
+  .modal.show .modal-card { transform: none; }
+  .mc-head { padding: 20px 24px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 12px; }
+  .mc-head .mi { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; }
+  .mc-head .mi svg { width: 19px; height: 19px; }
+  .mc-head h3 { margin: 0; font-size: 16px; } .mc-head p { margin: 2px 0 0; font-size: 12px; color: var(--txt-3); }
+  .mc-body { padding: 20px 24px; }
+  .mc-body label { font-size: 12px; color: var(--txt-2); display: block; margin-bottom: 7px; }
+  .mc-body textarea, .mc-body select, .mc-body input {
+    width: 100%; background: #f6f7f9; border: 1px solid var(--line); border-radius: 11px; color: var(--txt);
+    padding: 12px; font-size: 13px; font-family: inherit; outline: none; resize: vertical;
+  }
+  .mc-body textarea::placeholder, .mc-body input::placeholder { color: var(--txt-3); }
+  .mc-body textarea:focus, .mc-body select:focus, .mc-body input:focus { border-color: var(--accent); background: #ffffff; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+  .mc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  .mc-foot { padding: 16px 24px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; justify-content: flex-end; }
+  .ghost { background: var(--panel); border: 1px solid var(--line); color: var(--txt-2); padding: 10px 16px; border-radius: 10px; font-size: 13px; cursor: pointer; }
+  .ghost:hover { color: var(--txt); border-color: var(--txt-3); }
+
+  /* AI analyzing animation */
+  .analyzing { display: none; padding: 26px 24px; }
+  .analyzing.show { display: block; }
+  .ascan { height: 6px; border-radius: 6px; background: var(--track); overflow: hidden; position: relative; margin-bottom: 16px; }
+  .ascan::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 6px; background: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent); animation: scan 1.1s ease-in-out infinite; }
+  @keyframes scan { 0% { left: -42%; } 100% { left: 102%; } }
+  .astep { display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--txt-2); padding: 7px 0; opacity: .35; transition: opacity .3s; }
+  .astep.done { opacity: 1; color: var(--txt); }
+  .astep .dotwrap { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; flex:none; }
+  .astep.done .dotwrap { border-color: var(--green); background: rgba(52,211,153,.15); }
+  .astep.done .dotwrap svg { width: 11px; height: 11px; color: var(--green); }
+  .astep .dotwrap svg { display: none; }
+  .astep.done .dotwrap svg { display: block; }
+
+  .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%{ box-shadow: 0 0 0 0 rgba(52,211,153,.55);} 70%{ box-shadow: 0 0 0 7px rgba(52,211,153,0);} 100%{ box-shadow: 0 0 0 0 rgba(52,211,153,0);} }
+
+  .toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px); background: #ffffff; color: var(--txt); border: 1px solid var(--line); padding: 13px 18px; border-radius: 12px; font-size: 13px; box-shadow: 0 18px 40px -16px rgba(31,41,55,.32); display: flex; align-items: center; gap: 11px; z-index: 90; opacity: 0; pointer-events: none; transition: .28s; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 18px; height: 18px; color: var(--green); }
+
+  .fade { animation: fade .3s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 5.6L20 9l-5.6 2.4L12 17l-2.4-5.6L4 9l5.6-1.4z"/><circle cx="18" cy="18" r="3"/></svg>
+      </div>
+      <div>
+        <h1>Aperture</h1>
+        <p>Content Trust</p>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7h18M3 12h18M3 17h12"/></svg>Review Queue<span class="badge">14</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Published</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>Scheduled<span class="badge">3</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>Escalations<span class="badge">2</span></div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 4-5"/></svg>Trust Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Policy Rules</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 6.6 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 13.4H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 3.6V3a2 2 0 1 1 4 0v.1A1.6 1.6 0 0 0 17.4 5l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 21 10.6"/></svg>Settings</div>
+
+    <div class="side-foot">
+      <div class="me">
+        <div class="av">DK</div>
+        <div>
+          <b>Dana Klein</b>
+          <span>Content Lead</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h2>Review Queue</h2>
+        <div class="sub">AI-screened content awaiting your decision</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="text" placeholder="Search titles, authors, topics…" />
+      </div>
+      <button class="icon-btn" title="Filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg></button>
+      <button class="btn-primary" id="composeBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l2.4 5.6L20 9l-5.6 2.4L12 17l-2.4-5.6L4 9l5.6-1.4z"/></svg>
+        New Submission
+      </button>
+    </header>
+
+    <div class="content">
+      <!-- KPIs -->
+      <section class="kpis">
+        <div class="kpi">
+          <div class="label"><span class="dot" style="background:var(--accent)"></span>In Queue</div>
+          <div class="val">14</div>
+          <div class="delta up">▲ 4 since 9 AM</div>
+          <svg class="spark" width="78" height="34" viewBox="0 0 78 34"><polyline points="0,26 11,22 22,24 33,15 44,18 55,9 66,12 77,4" fill="none" stroke="var(--accent)" stroke-width="2.2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="label"><span class="dot" style="background:var(--green)"></span>Auto-Approved</div>
+          <div class="val">68<span style="font-size:16px;color:var(--txt-3)">%</span></div>
+          <div class="delta up">▲ 6% vs last wk</div>
+          <svg class="ring" width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="18" fill="none" stroke="#e9ecf2" stroke-width="6"/><circle cx="23" cy="23" r="18" fill="none" stroke="var(--green)" stroke-width="6" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="36" transform="rotate(-90 23 23)"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="label"><span class="dot" style="background:var(--amber)"></span>Avg AI Score</div>
+          <div class="val">81.4</div>
+          <div class="delta up">▲ 2.1 pts</div>
+          <svg class="spark" width="78" height="34" viewBox="0 0 78 34"><polyline points="0,18 11,20 22,12 33,16 44,10 55,14 66,7 77,9" fill="none" stroke="var(--amber)" stroke-width="2.2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="label"><span class="dot" style="background:var(--red)"></span>Flagged Today</div>
+          <div class="val">5</div>
+          <div class="delta down">▲ 2 vs avg</div>
+          <svg class="spark" width="78" height="34" viewBox="0 0 78 34"><polyline points="0,8 11,12 22,10 33,18 44,14 55,22 66,20 77,26" fill="none" stroke="var(--red)" stroke-width="2.2"/></svg>
+        </div>
+      </section>
+
+      <div class="grid">
+        <!-- Queue panel -->
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Submissions</h3>
+            <span class="count" id="resultCount">14 items</span>
+            <div style="margin-left:auto" class="tabs" id="tabs">
+              <div class="tab active" data-tab="all">All <span class="n" id="n-all">14</span></div>
+              <div class="tab" data-tab="review">Needs Review <span class="n" id="n-review">6</span></div>
+              <div class="tab" data-tab="escalated">Escalated <span class="n" id="n-escalated">2</span></div>
+              <div class="tab" data-tab="auto">Auto-OK <span class="n" id="n-auto">6</span></div>
+            </div>
+          </div>
+          <div class="toolbar">
+            <span style="font-size:12px;color:var(--txt-3)">Type:</span>
+            <div class="chip on" data-filter="type" data-val="all">All</div>
+            <div class="chip" data-filter="type" data-val="Blog">Blog</div>
+            <div class="chip" data-filter="type" data-val="Social">Social</div>
+            <div class="chip" data-filter="type" data-val="Email">Email</div>
+            <div class="chip" data-filter="type" data-val="Ad">Ad</div>
+            <div class="chip" data-filter="type" data-val="Press">Press</div>
+            <div class="right">
+              <span style="font-size:12px;color:var(--txt-3)">Sort:</span>
+              <div class="chip on" data-sort="score">Risk first</div>
+              <div class="chip" data-sort="date">Newest</div>
+            </div>
+          </div>
+          <div class="queue" id="queue"></div>
+        </section>
+
+        <!-- Right rail -->
+        <aside class="rail">
+          <div class="panel">
+            <div class="panel-head"><h3>Routing Mix</h3><span class="count">last 24h</span></div>
+            <div class="gauge-wrap">
+              <svg width="124" height="124" viewBox="0 0 124 124">
+                <circle cx="62" cy="62" r="48" fill="none" stroke="#e9ecf2" stroke-width="16"/>
+                <circle cx="62" cy="62" r="48" fill="none" stroke="var(--green)" stroke-width="16" stroke-dasharray="205 301" stroke-dashoffset="0" transform="rotate(-90 62 62)" stroke-linecap="round"/>
+                <circle cx="62" cy="62" r="48" fill="none" stroke="var(--amber)" stroke-width="16" stroke-dasharray="60 301" stroke-dashoffset="-205" transform="rotate(-90 62 62)" stroke-linecap="round"/>
+                <circle cx="62" cy="62" r="48" fill="none" stroke="var(--red)" stroke-width="16" stroke-dasharray="22 301" stroke-dashoffset="-268" transform="rotate(-90 62 62)" stroke-linecap="round"/>
+                <text x="62" y="58" text-anchor="middle" fill="#1f2937" font-size="22" font-weight="700">301</text>
+                <text x="62" y="76" text-anchor="middle" fill="var(--txt-3)" font-size="10">total</text>
+              </svg>
+              <div class="legend">
+                <div class="li"><span class="sw" style="background:var(--green)"></span>Auto-publish <b>&nbsp;205</b></div>
+                <div class="li"><span class="sw" style="background:var(--amber)"></span>Human review <b>&nbsp;60</b></div>
+                <div class="li"><span class="sw" style="background:var(--red)"></span>Escalated <b>&nbsp;22</b></div>
+                <div class="li"><span class="sw" style="background:#c2c8d4"></span>Rejected <b>&nbsp;14</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h3>Score Breakdown</h3><span class="count">queue avg</span></div>
+            <div class="bars">
+              <div class="bar-row"><div class="bl"><span>Brand voice</span><b>88</b></div><div class="bar-track"><div class="bar-fill" style="width:88%;background:linear-gradient(90deg,var(--accent),var(--accent-2))"></div></div></div>
+              <div class="bar-row"><div class="bl"><span>Factual accuracy</span><b>79</b></div><div class="bar-track"><div class="bar-fill" style="width:79%;background:linear-gradient(90deg,var(--cyan),var(--accent))"></div></div></div>
+              <div class="bar-row"><div class="bl"><span>Compliance</span><b>72</b></div><div class="bar-track"><div class="bar-fill" style="width:72%;background:linear-gradient(90deg,var(--amber),#f59e0b)"></div></div></div>
+              <div class="bar-row"><div class="bl"><span>Tone & safety</span><b>91</b></div><div class="bar-track"><div class="bar-fill" style="width:91%;background:linear-gradient(90deg,var(--green),#10b981)"></div></div></div>
+              <div class="bar-row"><div class="bl"><span>SEO readiness</span><b>67</b></div><div class="bar-track"><div class="bar-fill" style="width:67%;background:linear-gradient(90deg,var(--pink),var(--accent-2))"></div></div></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h3>AI Activity</h3><span class="count" style="display:flex;align-items:center;gap:6px"><span class="pulse"></span>live</span></div>
+            <div class="feed" id="feed"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== Drawer ===== -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <button class="closex" id="closeDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="dr-kicker"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 5.6L20 9l-5.6 2.4L12 17l-2.4-5.6L4 9l5.6-1.4z"/></svg> AI Review Report</div>
+    <h2 id="drTitle">—</h2>
+    <div class="dr-meta" id="drMeta"></div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot">
+    <button class="bt-edit" id="drEdit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Edit</button>
+    <button class="bt-reject" id="drReject"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>Reject</button>
+    <button class="bt-approve" id="drApprove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Approve & Publish</button>
+  </div>
+</aside>
+
+<!-- ===== Composer modal ===== -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <div class="mc-head">
+      <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2l2.4 5.6L20 9l-5.6 2.4L12 17l-2.4-5.6L4 9l5.6-1.4z"/></svg></div>
+      <div>
+        <h3>New Content Submission</h3>
+        <p>Paste your draft — the AI screens it before it reaches a human reviewer</p>
+      </div>
+    </div>
+    <div class="mc-body" id="mcForm">
+      <label>Content type</label>
+      <select id="mType">
+        <option>Blog Post</option><option>Social Post</option><option>Email Campaign</option><option>Display Ad</option><option>Press Release</option>
+      </select>
+      <div class="mc-row">
+        <div>
+          <label>Title</label>
+          <input id="mTitle" type="text" value="Q3 Product Launch: Meet Aperture 4.0" />
+        </div>
+        <div>
+          <label>Target channel</label>
+          <select id="mChannel"><option>Company Blog</option><option>LinkedIn</option><option>Newsletter</option><option>Google Ads</option></select>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <label>Draft body</label>
+        <textarea id="mBody" rows="5">Today we're thrilled to unveil Aperture 4.0 — the fastest, most accurate content trust engine we've ever shipped. Early customers report a 3x reduction in manual review time and zero compliance misses across 40,000 screened assets.</textarea>
+      </div>
+    </div>
+    <div class="analyzing" id="analyzing">
+      <div class="ascan"></div>
+      <div style="font-size:13px;color:var(--txt-2);margin-bottom:14px;font-weight:600">Aperture AI is screening your draft…</div>
+      <div class="astep" data-i="0"><span class="dotwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Extracting topics, claims & entities</div>
+      <div class="astep" data-i="1"><span class="dotwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Checking brand voice & tone alignment</div>
+      <div class="astep" data-i="2"><span class="dotwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Verifying claims against policy rules</div>
+      <div class="astep" data-i="3"><span class="dotwrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Scoring & routing decision</div>
+    </div>
+    <div class="mc-foot" id="mcFoot">
+      <button class="ghost" id="mCancel">Cancel</button>
+      <button class="btn-primary" id="mRun"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="m5 12 5 5L20 7"/></svg>Run AI Screen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+// ============ Seed data ============
+const AVS = {
+  "Maya Chen":["MC","#6d7cff,#8b5cf6"], "Liam Patel":["LP","#22d3ee,#6d7cff"],
+  "Sofia Reyes":["SR","#f472b6,#fbbf24"], "Noah Brooks":["NB","#34d399,#22d3ee"],
+  "Aria Volkov":["AV","#fbbf24,#f87171"], "Ethan Wu":["EW","#8b5cf6,#f472b6"],
+  "Olivia Marsh":["OM","#34d399,#6d7cff"], "Jonas Berg":["JB","#22d3ee,#34d399"],
+  "Priya Nair":["PN","#f472b6,#8b5cf6"], "Caleb Stone":["CS","#fbbf24,#f59e0b"]
+};
+const TYPE_ICON = { Blog:"📝", Social:"💬", Email:"✉️", Ad:"📢", Press:"📰" };
+
+const DATA = [
+  { id:1, type:"Press", title:"Aperture 4.0 cuts compliance misses to zero, company claims", author:"Aria Volkov", date:"2 min ago", ts:99,
+    excerpt:"Today we're thrilled to unveil Aperture 4.0 — early customers report a 3x reduction in manual review time and zero compliance misses across 40,000 screened assets.",
+    score:54, verdict:"Escalate", route:"Legal review", status:"esc",
+    reason:"The phrase <b>\"zero compliance misses\"</b> is an unverifiable absolute claim and the <b>\"3x\"</b> performance figure lacks a cited source. Both trigger the substantiation policy and require Legal sign-off before any external press release.",
+    fields:[["Primary topic","Product Launch","hi"],["Named entity","Aperture 4.0","hi"],["Risk claims","2 detected","hi"],["Sentiment","Promotional","md"],["Reading level","Grade 11","hi"],["Word count","312","hi"]],
+    checks:[["Brand voice","On-message, energetic","ok",92],["Factual accuracy","Unsourced 3x metric","bad",41],["Compliance","Absolute claim risk","bad",38],["Tone & safety","Clean","ok",95],["SEO readiness","Missing meta desc","warn",64]],
+    flags:["unsourced-metric","absolute-claim"],
+    before:"...the fastest, most accurate engine, with <del>zero compliance misses</del> across all assets.",
+    after:"...the fastest, most accurate engine, with a <mark>98.7% compliance pass rate</mark> across 40,000 audited assets.",
+    sugg:["Replace <b>\"zero compliance misses\"</b> with the audited 98.7% figure from the QA report.","Add a citation for the <b>3x review-time</b> claim or soften to \"up to 3x.\"","Route to <b>Legal</b> for absolute-claim sign-off before external release."] },
+
+  { id:2, type:"Blog", title:"7 ways teams ship trustworthy content faster", author:"Maya Chen", date:"18 min ago", ts:95,
+    excerpt:"A practical playbook for content teams adopting AI-assisted review without losing the human judgment that builds reader trust.",
+    score:91, verdict:"Auto-approve", route:"Auto-publish", status:"auto",
+    reason:"Strong brand-voice alignment, no risky claims, and all factual statements trace to internal sources. Score exceeds the <b>88</b> auto-publish threshold — no human review required, queued for publish.",
+    fields:[["Primary topic","Workflow / Productivity","hi"],["Named entity","—","hi"],["Risk claims","0 detected","hi"],["Sentiment","Educational","hi"],["Reading level","Grade 9","hi"],["Word count","1,240","hi"]],
+    checks:[["Brand voice","Excellent fit","ok",96],["Factual accuracy","All sourced","ok",93],["Compliance","No issues","ok",98],["Tone & safety","Clean","ok",97],["SEO readiness","Strong keywords","ok",90]],
+    flags:[],
+    before:"Teams that adopt AI review see <del>massive, instant</del> gains.",
+    after:"Teams that adopt AI review see <mark>measurable</mark> gains within the first quarter.",
+    sugg:["No blocking issues — safe to auto-publish.","Optional: add an internal link to the Trust Analytics guide.","Consider a pull-quote for social distribution."] },
+
+  { id:3, type:"Social", title:"Behind the scenes of our customer summit 🎉", author:"Liam Patel", date:"34 min ago", ts:92,
+    excerpt:"Quick recap thread from this year's summit — three takeaways, two surprises, and one big announcement coming next week.",
+    score:84, verdict:"Review", route:"Human review", status:"review",
+    reason:"Tone and safety are clean, but the post teases an <b>\"unannounced product\"</b> which may conflict with the embargo policy. Flagged for a quick human check before posting.",
+    fields:[["Primary topic","Event / Community","hi"],["Named entity","Customer Summit","hi"],["Risk claims","1 teaser","md"],["Sentiment","Enthusiastic","hi"],["Reading level","Grade 7","hi"],["Word count","86","hi"]],
+    checks:[["Brand voice","Casual, on-tone","ok",90],["Factual accuracy","Verified","ok",88],["Compliance","Possible embargo","warn",70],["Tone & safety","Clean","ok",96],["SEO readiness","N/A social","ok",80]],
+    flags:["embargo-teaser"],
+    before:"…and one <del>huge unreleased feature</del> dropping next week!",
+    after:"…and one <mark>big announcement</mark> coming next week — stay tuned!",
+    sugg:["Confirm the teased announcement is cleared for pre-launch hints.","Soften \"unreleased feature\" to \"announcement\" to avoid embargo risk.","Add the official event hashtag for reach."] },
+
+  { id:4, type:"Email", title:"Your monthly trust report is ready", author:"Sofia Reyes", date:"51 min ago", ts:88,
+    excerpt:"Newsletter shell summarizing each account's content health, review throughput, and top flagged categories this month.",
+    score:96, verdict:"Auto-approve", route:"Auto-publish", status:"auto",
+    reason:"Templated transactional email with personalized merge fields. No free-form risk surface; all dynamic values validated. Comfortably above threshold.",
+    fields:[["Primary topic","Account Digest","hi"],["Named entity","Trust Report","hi"],["Risk claims","0 detected","hi"],["Sentiment","Neutral","hi"],["Reading level","Grade 8","hi"],["Word count","430","hi"]],
+    checks:[["Brand voice","Template match","ok",98],["Factual accuracy","Auto-generated","ok",99],["Compliance","CAN-SPAM ok","ok",97],["Tone & safety","Clean","ok",99],["SEO readiness","N/A email","ok",85]],
+    flags:[],
+    before:"Open rates are <del>guaranteed</del> to improve.",
+    after:"Open rates <mark>tend to</mark> improve with consistent sending.",
+    sugg:["Ready to send — no action required.","Verify unsubscribe footer renders on mobile.","A/B test the subject line for the next cycle."] },
+
+  { id:5, type:"Ad", title:"Switch to Aperture — review content 3x faster", author:"Noah Brooks", date:"1 hr ago", ts:85,
+    excerpt:"Paid search ad copy for the 'content review' keyword cluster targeting mid-market content teams.",
+    score:61, verdict:"Review", route:"Human review", status:"review",
+    reason:"Competitive claim <b>\"3x faster\"</b> needs substantiation for paid placement, and the ad copy exceeds the recommended character budget for the headline slot.",
+    fields:[["Primary topic","Paid Acquisition","hi"],["Named entity","Aperture","hi"],["Risk claims","1 comparative","md"],["Sentiment","Persuasive","hi"],["Reading level","Grade 6","hi"],["Char count","41 / 30","lo"]],
+    checks:[["Brand voice","On-message","ok",86],["Factual accuracy","Claim unsourced","warn",58],["Compliance","Comparative claim","warn",62],["Tone & safety","Clean","ok",94],["SEO readiness","Keyword match","ok",83]],
+    flags:["comparative-claim","over-char-limit"],
+    before:"Review content <del>3x faster</del> — guaranteed.",
+    after:"Review content <mark>up to 3x faster</mark>* (*based on 2026 customer benchmark).",
+    sugg:["Add the benchmark disclaimer to the comparative claim.","Trim the headline to ≤30 characters for the ad slot.","Drop the word \"guaranteed\" — flagged by ad-policy rule."] },
+
+  { id:6, type:"Blog", title:"What the EU AI Act means for content teams", author:"Priya Nair", date:"1 hr ago", ts:82,
+    excerpt:"An explainer on upcoming transparency obligations and how content review workflows should adapt before the deadline.",
+    score:73, verdict:"Review", route:"Human review", status:"review",
+    reason:"Regulatory subject matter with two legal-interpretation statements. Tone is balanced, but compliance recommends a subject-matter expert verifies the cited obligations.",
+    fields:[["Primary topic","Regulation / AI Act","hi"],["Named entity","EU AI Act","hi"],["Risk claims","2 legal","md"],["Sentiment","Informative","hi"],["Reading level","Grade 12","hi"],["Word count","1,610","hi"]],
+    checks:[["Brand voice","Authoritative","ok",88],["Factual accuracy","Needs SME check","warn",68],["Compliance","Legal interpretation","warn",66],["Tone & safety","Clean","ok",93],["SEO readiness","Strong","ok",87]],
+    flags:["legal-interpretation"],
+    before:"The Act <del>will definitely require</del> all AI content to be labeled.",
+    after:"The Act <mark>is expected to require</mark> certain AI-generated content to be labeled.",
+    sugg:["Have a compliance SME verify the two cited obligations.","Soften definitive legal phrasing to \"is expected to.\"","Link to the official regulation text for credibility."] },
+
+  { id:7, type:"Social", title:"Customer spotlight: how Northwind scaled review", author:"Ethan Wu", date:"2 hr ago", ts:78,
+    excerpt:"Carousel post featuring a customer quote and three before/after metrics from the Northwind content team.",
+    score:89, verdict:"Auto-approve", route:"Auto-publish", status:"auto",
+    reason:"Customer-approved quote on file, metrics match the signed case study. No new claims introduced. Clears the auto-publish bar.",
+    fields:[["Primary topic","Customer Story","hi"],["Named entity","Northwind","hi"],["Risk claims","0 detected","hi"],["Sentiment","Positive","hi"],["Reading level","Grade 8","hi"],["Word count","102","hi"]],
+    checks:[["Brand voice","On-tone","ok",91],["Factual accuracy","Matches case study","ok",94],["Compliance","Quote approved","ok",96],["Tone & safety","Clean","ok",97],["SEO readiness","N/A social","ok",82]],
+    flags:[],
+    before:"Northwind saw <del>unbelievable</del> results.",
+    after:"Northwind saw <mark>a 47% drop</mark> in review time.",
+    sugg:["Cleared — schedule for peak engagement window.","Tag the customer's handle (with their permission).","Reuse the metric card in the next newsletter."] },
+
+  { id:8, type:"Email", title:"Re-engage: we miss you at Aperture", author:"Olivia Marsh", date:"3 hr ago", ts:70,
+    excerpt:"Win-back email for dormant trial accounts with a limited-time offer and a one-click reactivation link.",
+    score:66, verdict:"Review", route:"Human review", status:"review",
+    reason:"The offer mentions <b>\"limited time\"</b> without a concrete end date, which violates the promotions-clarity rule. Otherwise tone and deliverability look healthy.",
+    fields:[["Primary topic","Lifecycle / Win-back","hi"],["Named entity","—","md"],["Risk claims","1 offer","md"],["Sentiment","Warm","hi"],["Reading level","Grade 7","hi"],["Word count","220","hi"]],
+    checks:[["Brand voice","Friendly","ok",87],["Factual accuracy","Offer vague","warn",60],["Compliance","Missing end date","warn",58],["Tone & safety","Clean","ok",95],["SEO readiness","N/A email","ok",80]],
+    flags:["vague-offer"],
+    before:"Reactivate now — <del>limited time only!</del>",
+    after:"Reactivate before <mark>June 30</mark> to keep your premium features.",
+    sugg:["Add a concrete expiry date to the offer.","State exactly which features are restored.","Confirm the reactivation link routes to the right plan."] },
+
+  { id:9, type:"Press", title:"Aperture appoints new VP of Trust & Safety", author:"Jonas Berg", date:"4 hr ago", ts:62,
+    excerpt:"Executive appointment release with a bio, a leadership quote, and standard boilerplate for the press kit.",
+    score:94, verdict:"Auto-approve", route:"Auto-publish", status:"auto",
+    reason:"Standard appointment announcement. Bio and quote approved by the comms team, boilerplate matches the current template. No risk claims present.",
+    fields:[["Primary topic","Personnel / Comms","hi"],["Named entity","VP Trust & Safety","hi"],["Risk claims","0 detected","hi"],["Sentiment","Neutral-positive","hi"],["Reading level","Grade 11","hi"],["Word count","540","hi"]],
+    checks:[["Brand voice","Formal, correct","ok",93],["Factual accuracy","Comms-approved","ok",97],["Compliance","Boilerplate ok","ok",96],["Tone & safety","Clean","ok",98],["SEO readiness","Headline strong","ok",88]],
+    flags:[],
+    before:"…joining <del>the world's best</del> trust team.",
+    after:"…joining <mark>a fast-growing</mark> trust & safety team.",
+    sugg:["Approved — distribute on the newswire as scheduled.","Cross-post the quote to LinkedIn.","Add to the leadership page within 24h."] },
+
+  { id:10, type:"Blog", title:"Hidden costs of skipping content review", author:"Caleb Stone", date:"5 hr ago", ts:55,
+    excerpt:"Opinion piece arguing that unreviewed content carries reputational and legal risk that outweighs the speed gains.",
+    score:48, verdict:"Escalate", route:"Editorial lead", status:"esc",
+    reason:"Contains an <b>unattributed statistic</b> (\"73% of brand crises\") and a passage that closely paraphrases a competitor's published report. Both plagiarism-similarity and sourcing checks failed.",
+    fields:[["Primary topic","Opinion / Risk","hi"],["Named entity","—","md"],["Risk claims","1 stat + 1 source","hi"],["Sentiment","Cautionary","hi"],["Reading level","Grade 10","hi"],["Word count","980","hi"]],
+    checks:[["Brand voice","Slightly off-tone","warn",69],["Factual accuracy","Unattributed stat","bad",36],["Compliance","Similarity 41%","bad",42],["Tone & safety","Clean","ok",90],["SEO readiness","Decent","ok",75]],
+    flags:["plagiarism-risk","unsourced-stat"],
+    before:"<del>73% of brand crises stem from unreviewed content.</del>",
+    after:"<mark>Industry surveys link many brand crises to poor content governance</mark> [source needed].",
+    sugg:["Attribute or remove the 73% statistic before publishing.","Rewrite the flagged passage to drop competitor-report similarity.","Route to the Editorial lead for an originality pass."] },
+
+  { id:11, type:"Social", title:"Poll: what slows your content team most?", author:"Maya Chen", date:"6 hr ago", ts:50,
+    excerpt:"Engagement poll with four answer options designed to spark discussion and gather light research signal.",
+    score:90, verdict:"Auto-approve", route:"Auto-publish", status:"auto",
+    reason:"Simple interactive poll, no claims, neutral and inclusive options. Nothing to review — cleared for publish.",
+    fields:[["Primary topic","Engagement / Poll","hi"],["Named entity","—","hi"],["Risk claims","0 detected","hi"],["Sentiment","Curious","hi"],["Reading level","Grade 6","hi"],["Word count","44","hi"]],
+    checks:[["Brand voice","Conversational","ok",92],["Factual accuracy","N/A","ok",95],["Compliance","No issues","ok",97],["Tone & safety","Inclusive","ok",98],["SEO readiness","N/A social","ok",80]],
+    flags:[],
+    before:"What's your <del>biggest pain</del>?",
+    after:"What slows your content team <mark>the most</mark>?",
+    sugg:["Cleared — post during weekday peak.","Pin the poll for 24h to boost responses.","Summarize results in next week's blog."] },
+
+  { id:12, type:"Email", title:"Onboarding step 2: connect your sources", author:"Sofia Reyes", date:"7 hr ago", ts:44,
+    excerpt:"Transactional onboarding email guiding new admins through connecting their first content channel.",
+    score:93, verdict:"Auto-approve", route:"Auto-publish", status:"auto",
+    reason:"Functional onboarding email with verified deep links and a single clear CTA. No promotional or risk content.",
+    fields:[["Primary topic","Onboarding","hi"],["Named entity","—","hi"],["Risk claims","0 detected","hi"],["Sentiment","Helpful","hi"],["Reading level","Grade 7","hi"],["Word count","180","hi"]],
+    checks:[["Brand voice","Clear, helpful","ok",94],["Factual accuracy","Links verified","ok",96],["Compliance","Transactional","ok",98],["Tone & safety","Clean","ok",98],["SEO readiness","N/A email","ok",80]],
+    flags:[],
+    before:"This takes <del>literally seconds</del>.",
+    after:"Most teams finish this step in <mark>under two minutes</mark>.",
+    sugg:["Ready to send in the onboarding sequence.","Verify the deep link opens the correct settings tab.","Add a fallback for users without admin rights."] },
+
+  { id:13, type:"Ad", title:"Free trial: AI content review that learns your brand", author:"Noah Brooks", date:"8 hr ago", ts:38,
+    excerpt:"Display ad headline + description for a retargeting campaign aimed at trial-eligible visitors.",
+    score:80, verdict:"Review", route:"Human review", status:"review",
+    reason:"Copy is on-brand and within limits, but \"<b>free trial</b>\" terms must link to the offer page per ad policy. One soft compliance check needs a human confirm.",
+    fields:[["Primary topic","Retargeting","hi"],["Named entity","Aperture","hi"],["Risk claims","1 offer-link","md"],["Sentiment","Inviting","hi"],["Reading level","Grade 6","hi"],["Char count","28 / 30","hi"]],
+    checks:[["Brand voice","On-message","ok",88],["Factual accuracy","Accurate","ok",90],["Compliance","Needs offer link","warn",71],["Tone & safety","Clean","ok",95],["SEO readiness","Keyword fit","ok",84]],
+    flags:["offer-link-required"],
+    before:"Start your <del>free trial</del> today.",
+    after:"Start your <mark>14-day free trial</mark> — see terms.",
+    sugg:["Append the offer-terms link to satisfy ad policy.","Specify the trial length (14 days) for clarity.","Confirm landing page matches ad messaging."] },
+
+  { id:14, type:"Blog", title:"A field guide to content confidence scores", author:"Priya Nair", date:"Yesterday", ts:20,
+    excerpt:"Reference article explaining how each scoring dimension is computed and how teams should interpret the numbers.",
+    score:87, verdict:"Auto-approve", route:"Auto-publish", status:"auto",
+    reason:"Educational reference with clear sourcing and no risk claims. Just below manual threshold but clears auto-publish after the readability adjustment.",
+    fields:[["Primary topic","Product Education","hi"],["Named entity","Confidence Score","hi"],["Risk claims","0 detected","hi"],["Sentiment","Explanatory","hi"],["Reading level","Grade 9","hi"],["Word count","1,420","hi"]],
+    checks:[["Brand voice","Clear","ok",90],["Factual accuracy","Well sourced","ok",91],["Compliance","No issues","ok",96],["Tone & safety","Clean","ok",96],["SEO readiness","Strong","ok",86]],
+    flags:[],
+    before:"Scores are <del>always perfectly accurate</del>.",
+    after:"Scores are <mark>a strong signal</mark>, best paired with human judgment.",
+    sugg:["Cleared for publish after the readability tweak.","Add an anchor-linked table of contents.","Embed the scoring diagram from the design system."] },
+];
+
+// ============ Helpers ============
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+function avEl(name){ const [ini,grad]=AVS[name]||["?","#666,#999"]; return `<span class="mini-av" style="background:linear-gradient(135deg,${grad})">${ini}</span>`; }
+function scoreClass(s){ return s>=85?"sp-green":s>=65?"sp-amber":"sp-red"; }
+function tagFor(st){ return st==="auto"?["t-pub","Auto-OK"]:st==="review"?["t-rev","Needs Review"]:st==="esc"?["t-esc","Escalated"]:["t-draft","Draft"]; }
+function ciFor(t){ return t==="ok"?"ok":t==="warn"?"warn":"bad"; }
+
+const COUNTS = { all:DATA.length, review:DATA.filter(d=>d.status==="review").length, escalated:DATA.filter(d=>d.status==="esc").length, auto:DATA.filter(d=>d.status==="auto").length };
+$("#n-all").textContent=COUNTS.all; $("#n-review").textContent=COUNTS.review; $("#n-escalated").textContent=COUNTS.escalated; $("#n-auto").textContent=COUNTS.auto;
+
+// ============ State ============
+let state = { tab:"all", type:"all", sort:"score", q:"" };
+
+function visible(){
+  let arr = DATA.filter(d=>{
+    if(state.tab==="review" && d.status!=="review") return false;
+    if(state.tab==="escalated" && d.status!=="esc") return false;
+    if(state.tab==="auto" && d.status!=="auto") return false;
+    if(state.type!=="all" && d.type!==state.type) return false;
+    if(state.q){
+      const hay=(d.title+" "+d.author+" "+d.excerpt+" "+d.type).toLowerCase();
+      if(!hay.includes(state.q.toLowerCase())) return false;
+    }
+    return true;
+  });
+  arr.sort((a,b)=> state.sort==="score" ? a.score-b.score : b.ts-a.ts );
+  return arr;
+}
+
+function render(){
+  const arr = visible();
+  $("#resultCount").textContent = arr.length+" item"+(arr.length===1?"":"s");
+  const q = $("#queue");
+  if(!arr.length){
+    q.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><div>No submissions match these filters.</div></div>`;
+    return;
+  }
+  q.innerHTML = arr.map(d=>{
+    const [tc,tl]=tagFor(d.status);
+    const flagsHtml = d.flags.length ? `<div class="flags">${d.flags.map(f=>{
+      const bad = /plagiar|absolute|unsourced|over-char/.test(f);
+      return `<span class="flag ${bad?'bad':'warn'}"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg>${f}</span>`;
+    }).join("")}</div>` : "";
+    return `<div class="card fade" data-id="${d.id}">
+      <div class="top">
+        <div class="ctype">${TYPE_ICON[d.type]}</div>
+        <div style="min-width:0;flex:1">
+          <p class="ttl">${d.title}</p>
+          <div class="meta">
+            <span class="au">${avEl(d.author)} ${d.author}</span>
+            <span>•</span><span>${d.type}</span>
+            <span>•</span><span>${d.date}</span>
+            <span class="tag ${tc}">${tl}</span>
+          </div>
+        </div>
+      </div>
+      <p class="excerpt">${d.excerpt}</p>
+      <div class="ai-row">
+        <span class="score-pill ${scoreClass(d.score)}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 5.6L20 9l-5.6 2.4L12 17l-2.4-5.6L4 9l5.6-1.4z"/></svg>
+          <span class="num">${d.score}</span> AI score
+        </span>
+        <span class="route"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>${d.route}</span>
+      </div>
+      ${flagsHtml}
+    </div>`;
+  }).join("");
+  $$(".card", q).forEach(c=> c.addEventListener("click", ()=> openDrawer(+c.dataset.id)) );
+}
+
+// ============ Drawer ============
+function openDrawer(id){
+  const d = DATA.find(x=>x.id===id); if(!d) return;
+  $("#drTitle").textContent = d.title;
+  const [tc,tl]=tagFor(d.status);
+  $("#drMeta").innerHTML = `${avEl(d.author)} <span style="color:var(--txt-2)">${d.author}</span> <span>•</span> ${d.type} <span>•</span> ${d.date} <span class="tag ${tc}">${tl}</span>`;
+
+  const vClass = scoreClass(d.score);
+  const vColor = d.score>=85?"var(--green)":d.score>=65?"var(--amber)":"var(--red)";
+  const fieldsHtml = d.fields.map(([k,v,c])=>`<div class="field"><div class="k"><span>${k}</span><span class="conf ${c}">${c==="hi"?"high":c==="md"?"med":"low"}</span></div><div class="v">${v}</div></div>`).join("");
+  const checksHtml = d.checks.map(([n,desc,t,sc])=>`<div class="check"><div class="ci ${ciFor(t)}">${t==="ok"?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>':t==="warn"?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18M6 6l12 12"/></svg>'}</div><div><div class="cn">${n}</div><div class="cd">${desc}</div></div><div class="cscore" style="color:${sc>=85?'var(--green)':sc>=60?'var(--amber)':'var(--red)'}">${sc}</div></div>`).join("");
+  const suggHtml = d.sugg.map((s,i)=>`<div class="s"><span class="rank">${i+1}</span><span class="stx">${s}</span></div>`).join("");
+
+  $("#drBody").innerHTML = `
+    <div class="verdict">
+      <div class="vh">
+        <div class="big-score" style="color:${vColor}">${d.score}</div>
+        <div class="vmeta">
+          <b style="color:${vColor}">AI verdict: ${d.verdict}</b>
+          <span>Routed to <strong style="color:var(--txt-2)">${d.route}</strong> · confidence ${Math.min(99,d.score+8)}%</span>
+        </div>
+        <span class="route" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>${d.route}</span>
+      </div>
+      <p class="reason">${d.reason}</p>
+    </div>
+
+    <div class="sec-title">Extracted Fields</div>
+    <div class="fields">${fieldsHtml}</div>
+
+    <div class="sec-title">Quality Checks</div>
+    <div class="check-list">${checksHtml}</div>
+
+    <div class="sec-title">AI Rewrite · Before / After</div>
+    <div class="ba">
+      <div class="col before"><div class="lab"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/></svg>Original</div><p>${d.before}</p></div>
+      <div class="col after"><div class="lab"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 5.6L20 9l-5.6 2.4L12 17l-2.4-5.6L4 9l5.6-1.4z"/></svg>AI suggestion</div><p>${d.after}</p></div>
+    </div>
+
+    <div class="sec-title">Ranked Recommendations</div>
+    <div class="sugg">${suggHtml}</div>
+  `;
+
+  // tune footer
+  $("#drApprove").innerHTML = d.status==="auto"
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Confirm Publish'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>Approve & Publish';
+
+  $("#scrim").classList.add("show");
+  $("#drawer").classList.add("show");
+}
+function closeDrawer(){ $("#scrim").classList.remove("show"); $("#drawer").classList.remove("show"); }
+
+// ============ Events ============
+$("#tabs").addEventListener("click", e=>{
+  const t=e.target.closest(".tab"); if(!t) return;
+  $$("#tabs .tab").forEach(x=>x.classList.remove("active")); t.classList.add("active");
+  state.tab=t.dataset.tab; render();
+});
+$$(".chip[data-filter='type']").forEach(c=> c.addEventListener("click", ()=>{
+  $$(".chip[data-filter='type']").forEach(x=>x.classList.remove("on")); c.classList.add("on");
+  state.type=c.dataset.val; render();
+}));
+$$(".chip[data-sort]").forEach(c=> c.addEventListener("click", ()=>{
+  $$(".chip[data-sort]").forEach(x=>x.classList.remove("on")); c.classList.add("on");
+  state.sort=c.dataset.sort; render();
+}));
+$("#search").addEventListener("input", e=>{ state.q=e.target.value; render(); });
+$("#closeDrawer").addEventListener("click", closeDrawer);
+$("#scrim").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeDrawer(); closeModal(); } });
+
+// drawer actions
+function toast(msg){ const t=$("#toast"); $("#toastMsg").textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), 2400); }
+$("#drApprove").addEventListener("click", ()=>{ toast("Content approved & queued to publish ✓"); closeDrawer(); });
+$("#drReject").addEventListener("click", ()=>{ toast("Sent back to author with AI notes"); closeDrawer(); });
+$("#drEdit").addEventListener("click", ()=>{ toast("Opening editor with AI suggestions applied…"); });
+
+// ============ Composer modal ============
+const modal=$("#modal");
+function openModal(){ modal.classList.add("show"); $("#mcForm").style.display="block"; $("#analyzing").classList.remove("show"); $("#mcFoot").style.display="flex"; }
+function closeModal(){ modal.classList.remove("show"); }
+$("#composeBtn").addEventListener("click", openModal);
+$("#mCancel").addEventListener("click", closeModal);
+modal.addEventListener("click", e=>{ if(e.target===modal) closeModal(); });
+
+$("#mRun").addEventListener("click", ()=>{
+  $("#mcForm").style.display="none";
+  $("#mcFoot").style.display="none";
+  const an=$("#analyzing"); an.classList.add("show");
+  $$(".astep", an).forEach(s=>s.classList.remove("done"));
+  const steps=$$(".astep", an);
+  let i=0;
+  const iv=setInterval(()=>{
+    if(i<steps.length){ steps[i].classList.add("done"); i++; }
+    else {
+      clearInterval(iv);
+      setTimeout(()=>{ closeModal(); toast("AI screen complete — escalated to Legal review (score 54)"); openDrawer(1); }, 420);
+    }
+  }, 620);
+});
+
+// ============ AI activity feed ============
+const FEED = [
+  ["g","check","Auto-published <b>“Poll: what slows your content team most?”</b>","just now"],
+  ["r","flag","Escalated <b>“Hidden costs of skipping content review”</b> — plagiarism similarity 41%","3 min ago"],
+  ["","spark","Re-scored <b>“Switch to Aperture”</b> after edit · 61 → 78","11 min ago"],
+  ["a","flag","Flagged unsourced metric in <b>Aria Volkov</b>’s press release","17 min ago"],
+  ["g","check","Cleared <b>“Customer spotlight: Northwind”</b> for auto-publish","26 min ago"],
+  ["","spark","Extracted 6 fields from <b>“EU AI Act”</b> explainer","34 min ago"],
+];
+$("#feed").innerHTML = FEED.map(([cls,ic,txt,time])=>{
+  const icon = ic==="check"?'<path d="M20 6 9 17l-5-5"/>':ic==="flag"?'<path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>':'<path d="M12 2l2.4 5.6L20 9l-5.6 2.4L12 17l-2.4-5.6L4 9l5.6-1.4z"/>';
+  return `<div class="fitem"><div class="ficon ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon}</svg></div><div><div class="ftxt">${txt}</div><div class="ftime">${time}</div></div></div>`;
+}).join("");
+
+// ============ Init ============
+render();
+</script>
+</body>
+</html>

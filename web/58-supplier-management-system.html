@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Supplier Management System</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-2: #f1f3f6;
+    --panel: #ffffff;
+    --panel-2: #f1f3f6;
+    --line: #e2e6ec;
+    --line-soft: #eceef2;
+    --txt: #1f2937;
+    --txt-2: #5b6675;
+    --txt-3: #9098a5;
+    --accent: #e11d48;
+    --accent-soft: rgba(225, 29, 72, 0.10);
+    --green: #15a36e;
+    --green-soft: rgba(21, 163, 110, 0.12);
+    --amber: #c4810a;
+    --amber-soft: rgba(196, 129, 10, 0.13);
+    --red: #dc2626;
+    --red-soft: rgba(220, 38, 38, 0.11);
+    --purple: #7c5cff;
+    --purple-soft: rgba(124, 92, 255, 0.11);
+    --cyan: #0e9bb0;
+    --shadow: 0 16px 40px rgba(31, 41, 55, 0.16);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--txt);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #cdd3dc; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 20px 20px 18px; }
+  .brand .logo {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), #f43f5e);
+    display: grid; place-items: center; flex: none;
+    box-shadow: 0 6px 16px rgba(225, 29, 72, 0.28);
+  }
+  .brand .logo svg { width: 21px; height: 21px; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: 0.2px; }
+  .brand .sub { font-size: 11px; color: var(--txt-3); margin-top: 1px; }
+
+  .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+  .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--txt-3); padding: 16px 10px 7px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 9px; color: var(--txt-2);
+    cursor: pointer; font-size: 13.5px; font-weight: 500; position: relative;
+    transition: background 0.14s, color 0.14s;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; }
+  .nav-item:hover { background: var(--panel); color: var(--txt); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px;
+    background: var(--accent); border-radius: 0 3px 3px 0;
+  }
+  .nav-item .badge {
+    margin-left: auto; background: var(--red); color: #fff; font-size: 10.5px;
+    font-weight: 700; padding: 1px 7px; border-radius: 9px;
+  }
+  .nav-item .badge.muted { background: var(--panel-2); color: var(--txt-2); }
+
+  .sidebar-foot { padding: 14px 16px; border-top: 1px solid var(--line); }
+  .user-chip { display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 33px; height: 33px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, #44d6a5, #2f9bcf);
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #06140f;
+  }
+  .user-chip .u-name { font-size: 13px; font-weight: 600; }
+  .user-chip .u-role { font-size: 11px; color: var(--txt-3); }
+
+  /* ---------- Main ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 28px; border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .page-title h1 { font-size: 19px; font-weight: 700; letter-spacing: 0.2px; }
+  .page-title p { font-size: 12.5px; color: var(--txt-3); margin-top: 2px; }
+
+  .search {
+    margin-left: auto; position: relative; width: 280px;
+  }
+  .search input {
+    width: 100%; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 12px 9px 36px; color: var(--txt);
+    font-size: 13px; outline: none; transition: border 0.15s, box-shadow 0.15s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--txt-3); }
+
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--txt-2); display: grid; place-items: center; cursor: pointer;
+    position: relative; transition: background 0.14s, color 0.14s;
+  }
+  .icon-btn:hover { background: var(--panel-2); color: var(--txt); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .icon-btn .dot { position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); border: 2px solid var(--panel); }
+
+  .content { padding: 24px 28px 48px; }
+
+  /* ---------- KPI cards ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 16px 17px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(31, 41, 55, 0.05);
+  }
+  .kpi .k-top { display: flex; align-items: center; justify-content: space-between; }
+  .kpi .k-ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+  .kpi .k-ico svg { width: 18px; height: 18px; }
+  .kpi .k-val { font-size: 27px; font-weight: 750; margin-top: 12px; letter-spacing: -0.5px; }
+  .kpi .k-lbl { font-size: 12.5px; color: var(--txt-2); margin-top: 2px; }
+  .kpi .k-trend { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 8px; }
+  .trend-up { color: var(--green); background: var(--green-soft); }
+  .trend-dn { color: var(--red); background: var(--red-soft); }
+  .trend-flat { color: var(--amber); background: var(--amber-soft); }
+
+  /* ---------- Layout grid ---------- */
+  .grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; }
+  @media (max-width: 1280px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line-soft);
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 1px 3px rgba(31, 41, 55, 0.05);
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px; padding: 15px 18px 14px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .panel-head h2 { font-size: 14.5px; font-weight: 700; }
+  .panel-head .ph-sub { font-size: 11.5px; color: var(--txt-3); }
+  .panel-head .spacer { margin-left: auto; }
+
+  /* ---------- Tabs / filters ---------- */
+  .tabs { display: flex; gap: 4px; background: var(--bg-2); padding: 4px; border-radius: 10px; }
+  .tab {
+    padding: 6px 13px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+    color: var(--txt-2); cursor: pointer; transition: 0.14s; white-space: nowrap;
+  }
+  .tab:hover { color: var(--txt); }
+  .tab.active { background: #ffffff; color: var(--txt); box-shadow: 0 1px 2px rgba(31,41,55,0.12); }
+  .tab .t-count { color: var(--txt-3); font-weight: 600; margin-left: 5px; }
+  .tab.active .t-count { color: var(--accent); }
+
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip-filter {
+    padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--line); background: var(--bg-2); color: var(--txt-2); cursor: pointer; transition: 0.14s;
+  }
+  .chip-filter:hover { border-color: #c3cad4; color: var(--txt); }
+  .chip-filter.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Table ---------- */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px;
+    color: var(--txt-3); font-weight: 700; padding: 11px 16px; border-bottom: 1px solid var(--line-soft);
+    background: var(--bg-2); position: sticky; top: 0; white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--txt-2); }
+  thead th .sort-ar { opacity: 0.5; font-size: 9px; margin-left: 3px; }
+  tbody tr { border-bottom: 1px solid var(--line-soft); cursor: pointer; transition: background 0.12s; }
+  tbody tr:hover { background: var(--panel-2); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
+
+  .sup-cell { display: flex; align-items: center; gap: 11px; }
+  .sup-logo {
+    width: 36px; height: 36px; border-radius: 9px; flex: none; display: grid; place-items: center;
+    font-weight: 800; font-size: 13px; color: #ffffff;
+  }
+  .sup-name { font-weight: 650; font-size: 13.5px; }
+  .sup-meta { font-size: 11.5px; color: var(--txt-3); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 650;
+    padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .pill .pd { width: 6px; height: 6px; border-radius: 50%; }
+  .pill.approved { background: var(--green-soft); color: var(--green); }
+  .pill.approved .pd { background: var(--green); }
+  .pill.review { background: var(--amber-soft); color: var(--amber); }
+  .pill.review .pd { background: var(--amber); }
+  .pill.risk { background: var(--red-soft); color: var(--red); }
+  .pill.risk .pd { background: var(--red); }
+  .pill.onboarding { background: var(--purple-soft); color: var(--purple); }
+  .pill.onboarding .pd { background: var(--purple); }
+  .pill.suspended { background: rgba(120,130,145,0.16); color: #8995a6; }
+  .pill.suspended .pd { background: #8995a6; }
+
+  /* Score gauge mini */
+  .score-cell { display: flex; align-items: center; gap: 10px; }
+  .gauge { position: relative; width: 38px; height: 38px; flex: none; }
+  .gauge svg { transform: rotate(-90deg); }
+  .gauge .g-txt { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; }
+  .score-grade { font-size: 11px; color: var(--txt-3); font-weight: 600; }
+
+  .spend-bar { width: 92px; height: 6px; border-radius: 4px; background: var(--bg-2); overflow: hidden; margin-top: 5px; }
+  .spend-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--cyan)); }
+
+  .empty-row td { text-align: center; padding: 48px 16px; color: var(--txt-3); }
+  .empty-row svg { width: 42px; height: 42px; opacity: 0.4; margin-bottom: 10px; }
+
+  /* ---------- AI panel (right) ---------- */
+  .ai-panel { display: flex; flex-direction: column; gap: 18px; }
+  .ai-card {
+    background: var(--panel);
+    border: 1px solid var(--line-soft); border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 1px 3px rgba(31, 41, 55, 0.05);
+  }
+  .ai-head {
+    display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .ai-spark {
+    width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--purple), var(--accent));
+    box-shadow: 0 4px 12px rgba(124, 92, 255, 0.28);
+  }
+  .ai-spark svg { width: 17px; height: 17px; }
+  .ai-head h3 { font-size: 13.5px; font-weight: 700; }
+  .ai-head .ai-tag { font-size: 10.5px; color: var(--purple); background: var(--purple-soft); padding: 2px 7px; border-radius: 7px; font-weight: 700; margin-left: auto; }
+
+  .ai-body { padding: 14px 16px 16px; }
+  .upload-zone {
+    border: 1.5px dashed #cfd5de; border-radius: 11px; padding: 18px 14px; text-align: center;
+    background: var(--bg-2); cursor: pointer; transition: 0.15s;
+  }
+  .upload-zone:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .upload-zone svg { width: 26px; height: 26px; color: var(--accent); margin-bottom: 7px; }
+  .upload-zone .uz-t { font-size: 12.5px; font-weight: 650; }
+  .upload-zone .uz-s { font-size: 11px; color: var(--txt-3); margin-top: 3px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 650;
+    border: 1px solid transparent; cursor: pointer; transition: 0.14s; width: 100%;
+  }
+  .btn svg { width: 15px; height: 15px; }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #f43f5e); color: #fff; box-shadow: 0 6px 16px rgba(225,29,72,0.26); }
+  .btn-primary:hover { filter: brightness(1.05); }
+  .btn-primary:active { transform: translateY(1px); }
+  .btn-ghost { background: var(--panel-2); color: var(--txt); border-color: var(--line); width: auto; }
+  .btn-ghost:hover { background: #e6e9ee; }
+  .btn-sm { padding: 7px 12px; font-size: 12px; }
+
+  .ai-extract { margin-top: 6px; }
+  .ai-extract.hidden { display: none; }
+  .ai-row {
+    display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  .ai-row:last-child { border-bottom: none; }
+  .ai-row .ar-lbl { font-size: 11px; color: var(--txt-3); width: 92px; flex: none; }
+  .ai-row .ar-val { font-size: 12.5px; font-weight: 600; flex: 1; }
+  .conf { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 7px; flex: none; }
+  .conf.high { background: var(--green-soft); color: var(--green); }
+  .conf.mid { background: var(--amber-soft); color: var(--amber); }
+  .conf.low { background: var(--red-soft); color: var(--red); }
+
+  .ai-reason {
+    margin-top: 12px; background: rgba(124,92,255,0.07); border: 1px solid rgba(124,92,255,0.22);
+    border-radius: 10px; padding: 11px 12px; font-size: 12px; color: #4a3f8a; line-height: 1.5;
+  }
+  .ai-reason b { color: #352a73; }
+
+  /* risk radar / score breakdown */
+  .score-ring-wrap { display: flex; align-items: center; gap: 16px; }
+  .big-gauge { position: relative; width: 92px; height: 92px; flex: none; }
+  .big-gauge .bg-txt { position: absolute; inset: 0; display: grid; place-items: center; flex-direction: column; }
+  .big-gauge .bg-num { font-size: 26px; font-weight: 800; line-height: 1; }
+  .big-gauge .bg-lbl { font-size: 9.5px; color: var(--txt-3); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 2px; }
+
+  .bars { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+  .bar-row { font-size: 11.5px; }
+  .bar-row .br-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .bar-row .br-name { color: var(--txt-2); }
+  .bar-row .br-val { font-weight: 700; }
+  .bar-track { height: 6px; border-radius: 4px; background: var(--bg-2); overflow: hidden; }
+  .bar-track i { display: block; height: 100%; border-radius: 4px; }
+
+  /* activity feed */
+  .feed { display: flex; flex-direction: column; }
+  .feed-item { display: flex; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-ico { width: 28px; height: 28px; border-radius: 8px; flex: none; display: grid; place-items: center; }
+  .feed-ico svg { width: 14px; height: 14px; }
+  .feed-txt { font-size: 12.5px; line-height: 1.4; }
+  .feed-txt b { font-weight: 700; }
+  .feed-txt .ai-by { color: var(--purple); font-weight: 700; }
+  .feed-time { font-size: 10.5px; color: var(--txt-3); margin-top: 2px; }
+
+  /* ---------- Drawer ---------- */
+  .drawer-overlay {
+    position: fixed; inset: 0; background: rgba(31,41,55,0.32); backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none; transition: opacity 0.22s; z-index: 50;
+  }
+  .drawer-overlay.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 520px; max-width: 94vw;
+    background: var(--bg-2); border-left: 1px solid var(--line); box-shadow: var(--shadow);
+    transform: translateX(100%); transition: transform 0.28s cubic-bezier(.4,.0,.2,1);
+    z-index: 51; display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head {
+    padding: 20px 22px 18px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg-2) 100%);
+  }
+  .drawer-top { display: flex; align-items: flex-start; gap: 14px; }
+  .drawer-logo { width: 52px; height: 52px; border-radius: 13px; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 19px; color: #ffffff; }
+  .drawer-title h2 { font-size: 18px; font-weight: 750; }
+  .drawer-title .dt-sub { font-size: 12.5px; color: var(--txt-3); margin-top: 3px; }
+  .drawer-close {
+    margin-left: auto; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--txt-2); cursor: pointer; display: grid; place-items: center; flex: none;
+  }
+  .drawer-close:hover { background: var(--panel-2); color: var(--txt); }
+  .drawer-close svg { width: 16px; height: 16px; }
+
+  .drawer-body { padding: 20px 22px 40px; overflow-y: auto; flex: 1; }
+
+  .dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .dstat { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 11px; padding: 13px 14px; }
+  .dstat .ds-lbl { font-size: 11px; color: var(--txt-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .dstat .ds-val { font-size: 18px; font-weight: 750; margin-top: 4px; }
+  .dstat .ds-sub { font-size: 11px; color: var(--txt-2); margin-top: 2px; }
+
+  .sec-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--txt-3); font-weight: 700; margin: 22px 0 12px; }
+
+  .ai-summary-box {
+    background: linear-gradient(135deg, rgba(124,92,255,0.07), rgba(225,29,72,0.05));
+    border: 1px solid rgba(124,92,255,0.20); border-radius: 12px; padding: 15px 16px;
+  }
+  .asb-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+  .asb-head .ai-spark { width: 26px; height: 26px; border-radius: 8px; }
+  .asb-head .ai-spark svg { width: 15px; height: 15px; }
+  .asb-head h4 { font-size: 13px; font-weight: 700; }
+  .asb-head .rec { margin-left: auto; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 8px; }
+  .asb-text { font-size: 12.5px; color: var(--txt-2); line-height: 1.6; }
+  .asb-text b { color: var(--txt); }
+
+  .detail-list { display: flex; flex-direction: column; gap: 1px; }
+  .dl-row { display: flex; align-items: center; padding: 11px 2px; border-bottom: 1px solid var(--line-soft); }
+  .dl-row .dl-k { font-size: 12.5px; color: var(--txt-3); width: 160px; flex: none; }
+  .dl-row .dl-v { font-size: 13px; font-weight: 600; }
+
+  .doc-list { display: flex; flex-direction: column; gap: 9px; }
+  .doc {
+    display: flex; align-items: center; gap: 11px; padding: 11px 13px;
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 11px;
+  }
+  .doc-ico { width: 32px; height: 32px; border-radius: 8px; flex: none; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+  .doc-ico svg { width: 16px; height: 16px; }
+  .doc .doc-name { font-size: 12.5px; font-weight: 650; }
+  .doc .doc-meta { font-size: 11px; color: var(--txt-3); }
+  .doc .doc-stat { margin-left: auto; }
+
+  .drawer-foot {
+    padding: 15px 22px; border-top: 1px solid var(--line); display: flex; gap: 10px;
+    background: var(--panel);
+  }
+
+  .timeline { position: relative; padding-left: 22px; }
+  .timeline::before { content: ""; position: absolute; left: 6px; top: 4px; bottom: 4px; width: 2px; background: var(--line); }
+  .tl-item { position: relative; padding-bottom: 16px; }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-dot { position: absolute; left: -22px; top: 3px; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid var(--bg-2); }
+  .tl-item .tl-t { font-size: 12.5px; font-weight: 650; }
+  .tl-item .tl-d { font-size: 11px; color: var(--txt-3); margin-top: 1px; }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px;
+    padding: 12px 18px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 10px; opacity: 0; pointer-events: none;
+    transition: 0.25s; z-index: 80;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 17px; height: 17px; color: var(--green); }
+
+  .hidden { display: none !important; }
+  .spinner {
+    width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.35);
+    border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .fade-in { animation: fade 0.4s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21V12h6v9"/></svg>
+      </div>
+      <div>
+        <div class="name">Vendora</div>
+        <div class="sub">Supplier Management</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <div class="nav-label">Workspace</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Suppliers
+        <span class="badge muted">24</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+        Onboarding
+        <span class="badge">5</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Risk Monitor
+        <span class="badge">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Contracts
+      </div>
+      <div class="nav-label">Insights</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>
+        Spend Analytics
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Performance
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        Audit Log
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="user-chip">
+        <div class="avatar">MR</div>
+        <div>
+          <div class="u-name">Maya Reyes</div>
+          <div class="u-role">Procurement Lead</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <header class="topbar">
+      <div class="page-title">
+        <h1>Supplier Management System</h1>
+        <p>24 active suppliers · $48.2M annual spend · Q3 review cycle</p>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search suppliers, categories, regions…" />
+      </div>
+      <button class="icon-btn" title="Notifications"><span class="dot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </button>
+      <button class="btn btn-primary" style="width:auto" onclick="openAddPanel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add Supplier
+      </button>
+    </header>
+
+    <div class="content">
+      <!-- KPIs -->
+      <section class="kpis">
+        <div class="kpi">
+          <div class="k-top">
+            <div class="k-ico" style="background:var(--accent-soft);color:var(--accent)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+            </div>
+            <span class="k-trend trend-up">+3</span>
+          </div>
+          <div class="k-val">24</div>
+          <div class="k-lbl">Active Suppliers</div>
+        </div>
+        <div class="kpi">
+          <div class="k-top">
+            <div class="k-ico" style="background:var(--green-soft);color:var(--green)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <span class="k-trend trend-up">+8.4%</span>
+          </div>
+          <div class="k-val">$48.2M</div>
+          <div class="k-lbl">Annual Spend</div>
+        </div>
+        <div class="kpi">
+          <div class="k-top">
+            <div class="k-ico" style="background:var(--purple-soft);color:var(--purple)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V5z"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
+            <span class="k-trend trend-up">+2.1</span>
+          </div>
+          <div class="k-val">86<span style="font-size:16px;color:var(--txt-3)">/100</span></div>
+          <div class="k-lbl">Avg. Compliance Score</div>
+        </div>
+        <div class="kpi">
+          <div class="k-top">
+            <div class="k-ico" style="background:var(--red-soft);color:var(--red)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            </div>
+            <span class="k-trend trend-flat">Watch</span>
+          </div>
+          <div class="k-val">3</div>
+          <div class="k-lbl">High-Risk Flags</div>
+        </div>
+      </section>
+
+      <!-- Main grid -->
+      <div class="grid">
+        <!-- LEFT: supplier directory -->
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Supplier Directory</h2>
+              <span class="ph-sub" id="resultCount">24 suppliers</span>
+            </div>
+            <div class="spacer"></div>
+            <div class="tabs" id="statusTabs">
+              <div class="tab active" data-status="all">All <span class="t-count">24</span></div>
+              <div class="tab" data-status="approved">Approved <span class="t-count">15</span></div>
+              <div class="tab" data-status="review">In Review <span class="t-count">4</span></div>
+              <div class="tab" data-status="onboarding">Onboarding <span class="t-count">3</span></div>
+              <div class="tab" data-status="risk">At Risk <span class="t-count">2</span></div>
+            </div>
+          </div>
+          <div style="padding:13px 18px 0">
+            <div class="seg" id="catFilters">
+              <div class="chip-filter active" data-cat="all">All Categories</div>
+              <div class="chip-filter" data-cat="Raw Materials">Raw Materials</div>
+              <div class="chip-filter" data-cat="Electronics">Electronics</div>
+              <div class="chip-filter" data-cat="Logistics">Logistics</div>
+              <div class="chip-filter" data-cat="Packaging">Packaging</div>
+              <div class="chip-filter" data-cat="IT Services">IT Services</div>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="name">Supplier <span class="sort-ar">▾</span></th>
+                  <th data-sort="category">Category</th>
+                  <th data-sort="status">Status</th>
+                  <th data-sort="score">Risk Score</th>
+                  <th data-sort="spend">Annual Spend</th>
+                  <th data-sort="region">Region</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- RIGHT: AI column -->
+        <aside class="ai-panel">
+          <!-- AI document intake -->
+          <div class="ai-card">
+            <div class="ai-head">
+              <div class="ai-spark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
+              </div>
+              <h3>AI Document Intake</h3>
+              <span class="ai-tag">AUTO</span>
+            </div>
+            <div class="ai-body">
+              <div class="upload-zone" id="uploadZone" onclick="runExtraction()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+                <div class="uz-t">Drop a vendor profile or W-9 / ISO cert</div>
+                <div class="uz-s">PDF, DOCX, or scanned image — AI extracts the fields</div>
+              </div>
+              <button class="btn btn-primary" id="extractBtn" style="margin-top:12px" onclick="runExtraction()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg>
+                Extract & Analyze
+              </button>
+
+              <div class="ai-extract hidden" id="extractResult">
+                <div class="sec-title" style="margin:16px 0 4px">Extracted Fields</div>
+                <div class="ai-row"><span class="ar-lbl">Legal name</span><span class="ar-val">NordPeak Components AB</span><span class="conf high">98%</span></div>
+                <div class="ai-row"><span class="ar-lbl">Tax ID</span><span class="ar-val">SE-556021-4789</span><span class="conf high">96%</span></div>
+                <div class="ai-row"><span class="ar-lbl">Category</span><span class="ar-val">Electronics</span><span class="conf high">94%</span></div>
+                <div class="ai-row"><span class="ar-lbl">ISO 9001</span><span class="ar-val">Valid → 2027-04</span><span class="conf mid">81%</span></div>
+                <div class="ai-row"><span class="ar-lbl">Bank IBAN</span><span class="ar-val">SE45 5000 0000 …4321</span><span class="conf low">63%</span></div>
+                <div class="ai-reason">
+                  <b>AI note:</b> Bank IBAN confidence is low — the scan is faint on the last block. Flagged for manual confirmation before payment setup. All certificates are within validity.
+                </div>
+                <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:11px" onclick="reviewExtraction()">Review & create supplier</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI risk score -->
+          <div class="ai-card">
+            <div class="ai-head">
+              <div class="ai-spark" style="background:linear-gradient(135deg,#2fcf8f,#45c8d8)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#06140f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V5z"/></svg>
+              </div>
+              <h3>Portfolio Risk Score</h3>
+              <span class="ai-tag" style="color:var(--green);background:var(--green-soft)">LIVE</span>
+            </div>
+            <div class="ai-body">
+              <div class="score-ring-wrap">
+                <div class="big-gauge">
+                  <svg width="92" height="92" viewBox="0 0 92 92">
+                    <circle cx="46" cy="46" r="40" fill="none" stroke="#e7eaef" stroke-width="9"/>
+                    <circle cx="46" cy="46" r="40" fill="none" stroke="url(#gg)" stroke-width="9" stroke-linecap="round"
+                      stroke-dasharray="251.3" stroke-dashoffset="35" transform="rotate(-90 46 46)"/>
+                    <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#15a36e"/><stop offset="1" stop-color="#0e9bb0"/></linearGradient></defs>
+                  </svg>
+                  <div class="bg-txt"><div class="bg-num">86</div><div class="bg-lbl">Healthy</div></div>
+                </div>
+                <div class="bars">
+                  <div class="bar-row"><div class="br-top"><span class="br-name">Financial stability</span><span class="br-val" style="color:var(--green)">91</span></div><div class="bar-track"><i style="width:91%;background:var(--green)"></i></div></div>
+                  <div class="bar-row"><div class="br-top"><span class="br-name">Delivery reliability</span><span class="br-val" style="color:var(--green)">88</span></div><div class="bar-track"><i style="width:88%;background:var(--green)"></i></div></div>
+                  <div class="bar-row"><div class="br-top"><span class="br-name">Compliance</span><span class="br-val" style="color:var(--amber)">74</span></div><div class="bar-track"><i style="width:74%;background:var(--amber)"></i></div></div>
+                  <div class="bar-row"><div class="br-top"><span class="br-name">Geopolitical exposure</span><span class="br-val" style="color:var(--red)">61</span></div><div class="bar-track"><i style="width:61%;background:var(--red)"></i></div></div>
+                </div>
+              </div>
+              <div class="ai-reason" style="background:rgba(196,129,10,0.08);border-color:rgba(196,129,10,0.28);color:#7a5306;margin-top:14px">
+                <b>AI signal:</b> Geopolitical exposure dropped 9 pts this quarter — 2 suppliers concentrated in a single high-tariff region. Consider dual-sourcing for <b>Cedar &amp; Pine Logistics</b>.
+              </div>
+            </div>
+          </div>
+
+          <!-- AI activity feed -->
+          <div class="ai-card">
+            <div class="ai-head">
+              <div class="ai-spark" style="background:linear-gradient(135deg,#7c5cff,#e11d48)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </div>
+              <h3>AI Activity</h3>
+              <span class="ai-tag">TODAY</span>
+            </div>
+            <div class="ai-body" style="padding-top:6px">
+              <div class="feed">
+                <div class="feed-item">
+                  <div class="feed-ico" style="background:var(--green-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+                  <div><div class="feed-txt"><span class="ai-by">AI</span> auto-approved <b>Helix Polymers</b> — all 6 compliance docs verified.</div><div class="feed-time">12 min ago</div></div>
+                </div>
+                <div class="feed-item">
+                  <div class="feed-ico" style="background:var(--red-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.6 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0z"/></svg></div>
+                  <div><div class="feed-txt"><span class="ai-by">AI</span> raised a risk flag on <b>Atlas Freight Co.</b> — credit rating downgraded.</div><div class="feed-time">1 hr ago</div></div>
+                </div>
+                <div class="feed-item">
+                  <div class="feed-ico" style="background:var(--amber-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+                  <div><div class="feed-txt"><span class="ai-by">AI</span> flagged ISO cert for <b>Brightline Mfg.</b> expiring in 21 days.</div><div class="feed-time">3 hrs ago</div></div>
+                </div>
+                <div class="feed-item">
+                  <div class="feed-ico" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-3-3-4 4"/></svg></div>
+                  <div><div class="feed-txt"><span class="ai-by">AI</span> scored <b>NordPeak Components</b> at <b>82/100</b> from intake docs.</div><div class="feed-time">Today, 09:14</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== Detail Drawer ===== -->
+<div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="drawer-top">
+      <div class="drawer-logo" id="dLogo">NP</div>
+      <div class="drawer-title">
+        <h2 id="dName">Supplier</h2>
+        <div class="dt-sub" id="dSub">—</div>
+      </div>
+      <button class="drawer-close" onclick="closeDrawer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" style="flex:1" onclick="showToast('Review request sent to compliance')">Request Review</button>
+    <button class="btn btn-primary" style="flex:1" onclick="showToast('Supplier approved')">Approve</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+  // ---------- Seed data ----------
+  const palette = ['#e11d48','#15a36e','#c4810a','#7c5cff','#0e9bb0','#ea6a3a','#5a9e2f','#d4458f'];
+  function logoColor(i){ return palette[i % palette.length]; }
+
+  const suppliers = [
+    { id:1, name:'NordPeak Components AB', cat:'Electronics', status:'review', score:82, grade:'Low risk', spend:3.8, region:'Sweden', contact:'Elin Sørensen', email:'procurement@nordpeak.se', since:'2021-06', terms:'Net 45', otd:96, defect:0.4, lead:18, certs:['ISO 9001','RoHS','REACH'], tier:'Strategic' },
+    { id:2, name:'Helix Polymers', cat:'Raw Materials', status:'approved', score:91, grade:'Low risk', spend:6.1, region:'Germany', contact:'Lars Brandt', email:'sales@helixpoly.de', since:'2019-02', terms:'Net 60', otd:98, defect:0.2, lead:12, certs:['ISO 9001','ISO 14001','REACH'], tier:'Strategic' },
+    { id:3, name:'Atlas Freight Co.', cat:'Logistics', status:'risk', score:54, grade:'High risk', spend:2.3, region:'United States', contact:'Dana Whitfield', email:'ops@atlasfreight.com', since:'2020-09', terms:'Net 30', otd:81, defect:1.9, lead:9, certs:['C-TPAT'], tier:'Operational' },
+    { id:4, name:'Cedar & Pine Logistics', cat:'Logistics', status:'review', score:68, grade:'Medium risk', spend:1.7, region:'Vietnam', contact:'Tran Minh', email:'export@cedarpine.vn', since:'2022-01', terms:'Net 45', otd:88, defect:1.1, lead:22, certs:['ISO 28000'], tier:'Operational' },
+    { id:5, name:'Brightline Mfg.', cat:'Electronics', status:'approved', score:79, grade:'Low risk', spend:4.4, region:'Taiwan', contact:'Wei-Lin Chu', email:'wlchu@brightline.tw', since:'2018-11', terms:'Net 45', otd:94, defect:0.6, lead:15, certs:['ISO 9001','IATF 16949'], tier:'Strategic' },
+    { id:6, name:'Verdant Packaging', cat:'Packaging', status:'approved', score:88, grade:'Low risk', spend:2.0, region:'Netherlands', contact:'Saskia de Vries', email:'orders@verdantpack.nl', since:'2020-04', terms:'Net 30', otd:97, defect:0.3, lead:8, certs:['FSC','ISO 14001'], tier:'Operational' },
+    { id:7, name:'Quanta Microsystems', cat:'Electronics', status:'approved', score:84, grade:'Low risk', spend:5.2, region:'South Korea', contact:'Ji-ho Park', email:'b2b@quantams.kr', since:'2017-08', terms:'Net 60', otd:95, defect:0.5, lead:20, certs:['ISO 9001','RoHS'], tier:'Strategic' },
+    { id:8, name:'Ironwood Metals', cat:'Raw Materials', status:'approved', score:90, grade:'Low risk', spend:7.3, region:'Australia', contact:'Owen Marsh', email:'supply@ironwoodm.au', since:'2016-03', terms:'Net 60', otd:96, defect:0.4, lead:25, certs:['ISO 9001','ISO 45001'], tier:'Strategic' },
+    { id:9, name:'Sable Textiles', cat:'Raw Materials', status:'onboarding', score:71, grade:'Medium risk', spend:0.0, region:'India', contact:'Priya Nair', email:'export@sabletex.in', since:'2026-05', terms:'Net 30', otd:0, defect:0, lead:30, certs:['OEKO-TEX'], tier:'Operational' },
+    { id:10, name:'Northgate IT Partners', cat:'IT Services', status:'approved', score:87, grade:'Low risk', spend:1.9, region:'United Kingdom', contact:'Hugh Bennett', email:'accounts@northgateit.co.uk', since:'2019-10', terms:'Net 30', otd:99, defect:0.1, lead:5, certs:['ISO 27001','SOC 2'], tier:'Operational' },
+    { id:11, name:'Solara Energy Supply', cat:'Raw Materials', status:'review', score:66, grade:'Medium risk', spend:3.1, region:'Spain', contact:'Marta Ruiz', email:'comercial@solara.es', since:'2021-11', terms:'Net 45', otd:90, defect:0.9, lead:16, certs:['ISO 50001'], tier:'Operational' },
+    { id:12, name:'Pacific Rim Shipping', cat:'Logistics', status:'approved', score:83, grade:'Low risk', spend:4.8, region:'Singapore', contact:'Chen Wei', email:'bookings@pacrim.sg', since:'2018-05', terms:'Net 45', otd:93, defect:0.7, lead:14, certs:['ISO 28000','C-TPAT'], tier:'Strategic' },
+    { id:13, name:'Auric Fasteners', cat:'Raw Materials', status:'approved', score:85, grade:'Low risk', spend:1.4, region:'Italy', contact:'Giulia Fontana', email:'vendite@auric.it', since:'2020-07', terms:'Net 30', otd:95, defect:0.5, lead:11, certs:['ISO 9001'], tier:'Operational' },
+    { id:14, name:'BlueOrbit Cloud', cat:'IT Services', status:'approved', score:92, grade:'Low risk', spend:2.6, region:'United States', contact:'Renee Castillo', email:'enterprise@blueorbit.io', since:'2021-03', terms:'Net 30', otd:100, defect:0.0, lead:3, certs:['ISO 27001','SOC 2','GDPR'], tier:'Strategic' },
+    { id:15, name:'Meridian Glassworks', cat:'Packaging', status:'risk', score:58, grade:'High risk', spend:1.2, region:'Mexico', contact:'Carlos Vega', email:'ventas@meridianglass.mx', since:'2022-08', terms:'Net 45', otd:79, defect:2.4, lead:19, certs:['ISO 9001'], tier:'Operational' },
+    { id:16, name:'Thornwell Adhesives', cat:'Raw Materials', status:'approved', score:80, grade:'Low risk', spend:0.9, region:'United States', contact:'Grace Holloway', email:'sales@thornwell.com', since:'2019-12', terms:'Net 30', otd:92, defect:0.8, lead:10, certs:['REACH','ISO 9001'], tier:'Operational' },
+    { id:17, name:'Kestrel Sensors', cat:'Electronics', status:'onboarding', score:74, grade:'Medium risk', spend:0.0, region:'Japan', contact:'Aiko Tanaka', email:'global@kestrelsensors.jp', since:'2026-04', terms:'Net 45', otd:0, defect:0, lead:21, certs:['ISO 9001','RoHS'], tier:'Operational' },
+    { id:18, name:'Granite Crate Co.', cat:'Packaging', status:'approved', score:81, grade:'Low risk', spend:0.7, region:'Canada', contact:'Liam Foster', email:'orders@granitecrate.ca', since:'2020-01', terms:'Net 30', otd:94, defect:0.6, lead:9, certs:['FSC'], tier:'Operational' },
+    { id:19, name:'Vortex Robotics', cat:'Electronics', status:'review', score:70, grade:'Medium risk', spend:2.9, region:'Germany', contact:'Nina Albrecht', email:'b2b@vortexrobotics.de', since:'2021-09', terms:'Net 60', otd:89, defect:1.0, lead:24, certs:['CE','ISO 9001'], tier:'Strategic' },
+    { id:20, name:'Lumen Display Systems', cat:'Electronics', status:'approved', score:86, grade:'Low risk', spend:3.5, region:'Taiwan', contact:'Hsu Mei-ling', email:'sales@lumendisplay.tw', since:'2018-02', terms:'Net 45', otd:96, defect:0.4, lead:17, certs:['ISO 9001','RoHS'], tier:'Strategic' },
+    { id:21, name:'Cobalt Logistics Group', cat:'Logistics', status:'approved', score:78, grade:'Low risk', spend:2.2, region:'United Arab Emirates', contact:'Yusuf Rahman', email:'freight@cobaltlog.ae', since:'2020-06', terms:'Net 45', otd:91, defect:0.9, lead:13, certs:['ISO 28000'], tier:'Operational' },
+    { id:22, name:'Evergreen Pulp & Paper', cat:'Packaging', status:'approved', score:89, grade:'Low risk', spend:1.6, region:'Finland', contact:'Mikael Laine', email:'sales@evergreenpp.fi', since:'2017-05', terms:'Net 30', otd:98, defect:0.2, lead:7, certs:['FSC','PEFC','ISO 14001'], tier:'Operational' },
+    { id:23, name:'Sentinel Cyber Services', cat:'IT Services', status:'onboarding', score:76, grade:'Medium risk', spend:0.0, region:'Ireland', contact:'Aoife Murphy', email:'contracts@sentinelcyber.ie', since:'2026-06', terms:'Net 30', otd:0, defect:0, lead:6, certs:['ISO 27001','SOC 2'], tier:'Operational' },
+    { id:24, name:'Harborline Steel', cat:'Raw Materials', status:'approved', score:84, grade:'Low risk', spend:5.7, region:'United States', contact:'Marcus Lowell', email:'supply@harborlinesteel.com', since:'2016-11', terms:'Net 60', otd:95, defect:0.5, lead:23, certs:['ISO 9001','ISO 45001'], tier:'Strategic' }
+  ];
+
+  let activeStatus = 'all';
+  let activeCat = 'all';
+  let searchQuery = '';
+  let sortKey = 'spend';
+  let sortDir = -1;
+
+  const statusMeta = {
+    approved: { cls:'approved', label:'Approved' },
+    review: { cls:'review', label:'In Review' },
+    onboarding: { cls:'onboarding', label:'Onboarding' },
+    risk: { cls:'risk', label:'At Risk' },
+    suspended: { cls:'suspended', label:'Suspended' }
+  };
+
+  function initials(name){
+    const w = name.replace(/[^A-Za-z &]/g,'').split(' ').filter(Boolean);
+    return ((w[0]?.[0]||'')+(w[1]?.[0]||w[0]?.[1]||'')).toUpperCase();
+  }
+  function scoreColor(s){ return s>=80 ? 'var(--green)' : s>=65 ? 'var(--amber)' : 'var(--red)'; }
+
+  function miniGauge(score){
+    const r=15, c=2*Math.PI*r, off=c*(1-score/100);
+    const col = scoreColor(score);
+    return `<div class="gauge"><svg width="38" height="38" viewBox="0 0 38 38">
+      <circle cx="19" cy="19" r="${r}" fill="none" stroke="#e7eaef" stroke-width="4"/>
+      <circle cx="19" cy="19" r="${r}" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round"
+        stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg>
+      <div class="g-txt" style="color:${col}">${score}</div></div>`;
+  }
+
+  function render(){
+    const body = document.getElementById('tableBody');
+    let rows = suppliers.filter(s => {
+      const okStatus = activeStatus==='all' || s.status===activeStatus;
+      const okCat = activeCat==='all' || s.cat===activeCat;
+      const q = searchQuery.toLowerCase();
+      const okSearch = !q || s.name.toLowerCase().includes(q) || s.cat.toLowerCase().includes(q) || s.region.toLowerCase().includes(q) || s.contact.toLowerCase().includes(q);
+      return okStatus && okCat && okSearch;
+    });
+
+    rows.sort((a,b)=>{
+      let va=a[sortKey], vb=b[sortKey];
+      if(typeof va==='string'){ va=va.toLowerCase(); vb=vb.toLowerCase(); return va<vb?-1*sortDir:va>vb?1*sortDir:0; }
+      return (va-vb)*sortDir;
+    });
+
+    document.getElementById('resultCount').textContent = rows.length + (rows.length===1?' supplier':' suppliers');
+
+    if(rows.length===0){
+      body.innerHTML = `<tr class="empty-row"><td colspan="6">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <div style="font-size:14px;font-weight:600;color:var(--txt-2)">No suppliers match your filters</div>
+        <div style="font-size:12.5px;margin-top:4px">Try clearing the search or switching categories.</div>
+      </td></tr>`;
+      return;
+    }
+
+    body.innerHTML = rows.map((s,i)=>{
+      const col = logoColor(s.id);
+      const sm = statusMeta[s.status];
+      const spendW = Math.min(100, Math.round(s.spend/7.5*100));
+      const spendTxt = s.spend===0 ? '<span style="color:var(--txt-3)">Pending</span>' : '$'+s.spend.toFixed(1)+'M';
+      return `<tr class="fade-in" onclick="openDrawer(${s.id})">
+        <td><div class="sup-cell">
+          <div class="sup-logo" style="background:${col}">${initials(s.name)}</div>
+          <div><div class="sup-name">${s.name}</div><div class="sup-meta">${s.contact} · since ${s.since}</div></div>
+        </div></td>
+        <td><span style="color:var(--txt-2)">${s.cat}</span></td>
+        <td><span class="pill ${sm.cls}"><span class="pd"></span>${sm.label}</span></td>
+        <td><div class="score-cell">${miniGauge(s.score)}<div class="score-grade">${s.grade}</div></div></td>
+        <td>${spendTxt}<div class="spend-bar"><i style="width:${spendW}%"></i></div></td>
+        <td><span style="color:var(--txt-2)">${s.region}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ---------- Filters ----------
+  document.getElementById('statusTabs').addEventListener('click', e=>{
+    const t = e.target.closest('.tab'); if(!t) return;
+    document.querySelectorAll('#statusTabs .tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); activeStatus = t.dataset.status; render();
+  });
+  document.getElementById('catFilters').addEventListener('click', e=>{
+    const c = e.target.closest('.chip-filter'); if(!c) return;
+    document.querySelectorAll('#catFilters .chip-filter').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active'); activeCat = c.dataset.cat; render();
+  });
+  document.getElementById('searchInput').addEventListener('input', e=>{ searchQuery = e.target.value; render(); });
+  document.querySelectorAll('thead th[data-sort]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const k = th.dataset.sort;
+      if(sortKey===k){ sortDir*=-1; } else { sortKey=k; sortDir = (k==='spend'||k==='score') ? -1 : 1; }
+      document.querySelectorAll('thead th .sort-ar').forEach(a=>a.remove());
+      const ar = document.createElement('span'); ar.className='sort-ar'; ar.textContent = sortDir===1?'▴':'▾';
+      th.appendChild(ar);
+      render();
+    });
+  });
+
+  // ---------- Drawer ----------
+  function openDrawer(id){
+    const s = suppliers.find(x=>x.id===id); if(!s) return;
+    const col = logoColor(s.id);
+    const sm = statusMeta[s.status];
+    document.getElementById('dLogo').style.background = col;
+    document.getElementById('dLogo').textContent = initials(s.name);
+    document.getElementById('dName').textContent = s.name;
+    document.getElementById('dSub').innerHTML = `${s.cat} · ${s.region} · <span class="pill ${sm.cls}" style="padding:1px 8px"><span class="pd"></span>${sm.label}</span>`;
+
+    // AI recommendation logic
+    let rec, recCol, aiText;
+    if(s.score>=80){ rec='APPROVE'; recCol='var(--green-soft);color:var(--green)';
+      aiText=`<b>${s.name}</b> scores in the top quartile of your portfolio. On-time delivery sits at <b>${s.otd}%</b> with a ${s.defect}% defect rate — both ahead of category benchmarks. Certifications are current and financial signals are stable. <b>Recommended action:</b> renew under existing terms.`;
+    } else if(s.score>=65){ rec='MONITOR'; recCol='var(--amber-soft);color:var(--amber)';
+      aiText=`<b>${s.name}</b> performs adequately but shows softening signals. ${s.status==='onboarding'?'Onboarding documents are still being verified.':'Lead time of '+s.lead+' days runs above the category median, and the '+s.defect+'% defect rate is trending up.'} <b>Recommended action:</b> place on quarterly watch and confirm contingency sourcing.`;
+    } else { rec='REVIEW'; recCol='var(--red-soft);color:var(--red)';
+      aiText=`<b>${s.name}</b> falls below the risk threshold. On-time delivery dropped to <b>${s.otd}%</b> and the defect rate of ${s.defect}% is the highest in its category. A recent credit-rating change adds financial uncertainty. <b>Recommended action:</b> escalate to compliance and prepare a backup supplier.`;
+    }
+
+    const spendShown = s.spend===0 ? 'Pending first PO' : '$'+s.spend.toFixed(1)+'M';
+    const otdShown = s.otd===0 ? '—' : s.otd+'%';
+
+    document.getElementById('drawerBody').innerHTML = `
+      <div class="dgrid">
+        <div class="dstat"><div class="ds-lbl">Risk Score</div><div class="ds-val" style="color:${scoreColor(s.score)}">${s.score}<span style="font-size:12px;color:var(--txt-3)">/100</span></div><div class="ds-sub">${s.grade}</div></div>
+        <div class="dstat"><div class="ds-lbl">Annual Spend</div><div class="ds-val">${spendShown}</div><div class="ds-sub">${s.tier} tier</div></div>
+        <div class="dstat"><div class="ds-lbl">On-time Delivery</div><div class="ds-val" style="color:${s.otd>=95?'var(--green)':s.otd>=85?'var(--amber)':s.otd===0?'var(--txt-2)':'var(--red)'}">${otdShown}</div><div class="ds-sub">Last 12 months</div></div>
+        <div class="dstat"><div class="ds-lbl">Avg. Lead Time</div><div class="ds-val">${s.lead} <span style="font-size:12px;color:var(--txt-3)">days</span></div><div class="ds-sub">Defect rate ${s.defect}%</div></div>
+      </div>
+
+      <div class="ai-summary-box">
+        <div class="asb-head">
+          <div class="ai-spark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg></div>
+          <h4>AI Vendor Assessment</h4>
+          <span class="rec" style="background:${recCol}">${rec}</span>
+        </div>
+        <div class="asb-text">${aiText}</div>
+      </div>
+
+      <div class="sec-title">Company Details</div>
+      <div class="detail-list">
+        <div class="dl-row"><span class="dl-k">Primary contact</span><span class="dl-v">${s.contact}</span></div>
+        <div class="dl-row"><span class="dl-k">Email</span><span class="dl-v" style="color:var(--accent)">${s.email}</span></div>
+        <div class="dl-row"><span class="dl-k">Category</span><span class="dl-v">${s.cat}</span></div>
+        <div class="dl-row"><span class="dl-k">Region</span><span class="dl-v">${s.region}</span></div>
+        <div class="dl-row"><span class="dl-k">Payment terms</span><span class="dl-v">${s.terms}</span></div>
+        <div class="dl-row"><span class="dl-k">Supplier since</span><span class="dl-v">${s.since}</span></div>
+      </div>
+
+      <div class="sec-title">Compliance Documents</div>
+      <div class="doc-list">
+        ${s.certs.map(c=>`<div class="doc">
+          <div class="doc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+          <div><div class="doc-name">${c} Certificate</div><div class="doc-meta">Verified by AI · ${['98','96','94','91','89'][Math.floor(Math.random()*5)]}% match</div></div>
+          <div class="doc-stat"><span class="pill approved"><span class="pd"></span>Valid</span></div>
+        </div>`).join('')}
+      </div>
+
+      <div class="sec-title">Recent Activity</div>
+      <div class="timeline">
+        <div class="tl-item"><span class="tl-dot" style="background:var(--green)"></span><div class="tl-t">AI risk re-scored to ${s.score}/100</div><div class="tl-d">Today · automated quarterly review</div></div>
+        <div class="tl-item"><span class="tl-dot" style="background:var(--accent)"></span><div class="tl-t">PO #${4800+s.id} acknowledged</div><div class="tl-d">3 days ago · ${s.contact}</div></div>
+        <div class="tl-item"><span class="tl-dot" style="background:var(--purple)"></span><div class="tl-t">Compliance docs synced from intake</div><div class="tl-d">2 weeks ago · AI extraction</div></div>
+        <div class="tl-item"><span class="tl-dot" style="background:var(--amber)"></span><div class="tl-t">Annual contract renewed</div><div class="tl-d">${s.since.split('-')[0]} · ${s.terms}</div></div>
+      </div>
+    `;
+    document.getElementById('overlay').classList.add('open');
+    document.getElementById('drawer').classList.add('open');
+  }
+  function closeDrawer(){
+    document.getElementById('overlay').classList.remove('open');
+    document.getElementById('drawer').classList.remove('open');
+  }
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+  // ---------- AI extraction sim ----------
+  function runExtraction(){
+    const btn = document.getElementById('extractBtn');
+    const res = document.getElementById('extractResult');
+    if(btn.dataset.busy) return;
+    btn.dataset.busy = '1';
+    btn.innerHTML = '<span class="spinner"></span> Analyzing document…';
+    res.classList.add('hidden');
+    setTimeout(()=>{
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/></svg> Re-run Extraction';
+      btn.dataset.busy = '';
+      res.classList.remove('hidden');
+      res.classList.add('fade-in');
+      showToast('AI extracted 5 fields from the document');
+    }, 1600);
+  }
+  function reviewExtraction(){ showToast('Draft supplier created from extracted fields'); }
+  function openAddPanel(){ document.getElementById('uploadZone').scrollIntoView({behavior:'smooth'}); runExtraction(); }
+
+  // ---------- Toast ----------
+  let toastTimer;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+  }
+
+  render();
+</script>
+</body>
+</html>

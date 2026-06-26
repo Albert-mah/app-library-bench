@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Renewly — Renewal Pipeline &amp; Customer Health</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Renewal Management (Renewly)",
+  "prefix": "rnw_",
+  "collections": {
+    "rnw_customers": {"titleField":"name","fields":{"name":"input","segment":"select:enterprise|mid_market|smb|startup","industry":"input","owner_name":"input","health_score":"integer","mrr":"integer","logo_seed":"input"}},
+    "rnw_products": {"titleField":"name","fields":{"name":"input","plan_tier":"select:starter|growth|business|enterprise","term":"select:monthly|annual|multi_year"}},
+    "rnw_renewals": {"titleField":"title","fields":{"title":"input","stage":"select:upcoming|outreach|negotiation|at_risk|won|lost","arr":"integer","uplift_pct":"integer","probability":"integer","auto_renew":"boolean","expiry_date":"date","last_touch":"date","note":"textarea"},"relations":{"customer":"m2o rnw_customers (fk customer_id)","product":"m2o rnw_products (fk product_id)","owner":"m2o rnw_users (fk owner_id)"}},
+    "rnw_users": {"titleField":"name","fields":{"name":"input","role":"select:csm|am|manager","initials":"input"}}
+  },
+  "page": {
+    "name": "Renewal Cockpit",
+    "layout": "KPI strip (JSBlock) | LEFT main = pipeline Kanban (rnw_renewals by stage, JS card) | RIGHT rail = expiry calendar (native Calendar, colorField=stage) over health-score leaderboard (List + JSField)",
+    "regions": [
+      {"id":"kpis","block":"JSBlock — KPI tiles row (data-less aggregate summary)","intent":"top-line renewal health","tiles":["ARR up for renewal (90d)","Renewal rate","Net retention","At-risk ARR","Avg health score"]},
+      {"id":"pipeline","block":"Kanban (rnw_renewals) grouped by stage — one JS card field","intent":"renewal deals by stage","columns":["upcoming","outreach","negotiation","at_risk","won","lost"],"card":["customer logo + name + segment","product / plan + term","ARR + uplift %","expiry date countdown chip","probability bar","owner avatar + health dot"],"behaviors":["native drag between stage columns","click card → ctx.openView(detail, {filterByTk})"]},
+      {"id":"calendar","block":"native Calendar (rnw_renewals)","intent":"expiry calendar — when contracts come due","dateField":"expiry_date","colorField":"stage","title":"title","behaviors":["click day cell → cross-block filter pipeline by that date"]},
+      {"id":"health","block":"List + JSField card","collection":"rnw_customers","intent":"customer health-score leaderboard","sort":"health_score asc (lowest = most at risk first)","card":["logo + name + segment","health gauge ring (0-100 colored green/amber/red)","MRR + open renewal ARR","trend sparkline + CSM owner"]}
+    ]
+  },
+  "interactions": ["drag renewal card across stage columns (status transition)","click calendar day → filters pipeline to that expiry date","health leaderboard sorted worst-first","stage filter pills cross-filter pipeline + calendar","clicking a card opens the renewal detail popup"],
+  "jsKernels": ["KPI tiles JSBlock","kanban renewal JS card (logo/countdown/probability bar/health dot)","customer health-score JS card with gauge ring"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (Kanban for the pipeline grouped by stage, Calendar for expiry, List for the health leaderboard); reproduce the custom look with one JS card field per block. The KPI strip is the only freestanding JSBlock (no single data container). The countdown chip, probability bar and health gauge ring are rendered inside the Kanban/List JS card — they are NOT native fields. Stage is the kanban group field AND the calendar colorField. Do not rebuild the pipeline as a freestanding JSBlock."
+}
+</script>
+<style>
+  :root{
+    --teal:#0ca5a5; --teal-2:#0e8a8a; --teal-soft:#e6fbfb; --teal-line:#9be3e3;
+    --ink:#10211f; --ink-2:#566461; --ink-3:#8a9794; --ink-4:#aab4b1;
+    --line:#eef2f1; --line-2:#e0e7e5; --bg:#f3f6f5; --card:#fff;
+    --green:#13c08a; --green-soft:#e6f9f1; --amber:#f5a524; --amber-soft:#fff6e6;
+    --red:#f04f5a; --red-soft:#ffecee; --blue:#2f7df6; --blue-soft:#e9f1ff;
+    --violet:#7c5cff; --violet-soft:#f0ecff;
+    --r:11px;
+    --shadow:0 1px 2px rgba(16,33,31,.05), 0 8px 22px rgba(16,33,31,.06);
+    --shadow-sm:0 1px 2px rgba(16,33,31,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{min-width:1440px}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:20px; padding:0 24px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:750; font-size:16.5px; letter-spacing:-.3px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--teal),#3fd6c4);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 3px 10px rgba(12,165,165,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:1px}
+  .topnav{display:flex;gap:3px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:550;
+  }
+  .topnav a.on{background:var(--teal-soft);color:var(--teal-2)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .search{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;width:240px;color:var(--ink-3);font-size:13px}
+  .search input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
+  .icon-btn{width:36px;height:36px;border-radius:9px;border:1px solid var(--line-2);background:#fff;cursor:pointer;
+    display:grid;place-items:center;font-size:15px;color:var(--ink-2);position:relative}
+  .icon-btn:hover{background:var(--line)}
+  .icon-btn .dot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0ca5a5,#3fd6c4);
+    color:#fff;display:grid;place-items:center;font-weight:650;font-size:12.5px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- page chrome ---------- */
+  .pagehead{display:flex;align-items:flex-end;gap:16px;padding:20px 24px 0}
+  .pagehead h1{font-size:21px;font-weight:750;letter-spacing:-.4px}
+  .pagehead p{color:var(--ink-3);font-size:13px;margin-top:3px}
+  .ph-actions{margin-left:auto;display:flex;align-items:center;gap:9px}
+  .seg{display:flex;background:#fff;border:1px solid var(--line-2);border-radius:9px;padding:3px;gap:2px}
+  .seg button{border:none;background:none;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;
+    color:var(--ink-3);padding:6px 12px;border-radius:7px}
+  .seg button.on{background:var(--teal-soft);color:var(--teal-2)}
+  .btn{border:none;border-radius:9px;padding:9px 15px;font-family:inherit;font-size:13px;font-weight:650;cursor:pointer;transition:.13s;display:flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--teal);color:#fff;box-shadow:0 3px 10px rgba(12,165,165,.3)}
+  .btn-primary:hover{background:var(--teal-2)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#cfd9d6}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;padding:18px 24px 6px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:15px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+  .kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal)}
+  .kpi.k-green::after{background:var(--green)} .kpi.k-amber::after{background:var(--amber)} .kpi.k-red::after{background:var(--red)} .kpi.k-blue::after{background:var(--blue)}
+  .kpi .lbl{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px}
+  .kpi .val{font-size:25px;font-weight:780;letter-spacing:-.6px;margin-top:7px;font-variant-numeric:tabular-nums}
+  .kpi .val small{font-size:14px;font-weight:650;color:var(--ink-3)}
+  .kpi .delta{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:650;margin-top:8px;padding:2px 8px;border-radius:20px}
+  .delta.up{color:var(--green);background:var(--green-soft)}
+  .delta.down{color:var(--red);background:var(--red-soft)}
+  .delta.flat{color:var(--ink-2);background:var(--line)}
+  .kpi .spark{position:absolute;right:14px;bottom:14px;width:74px;height:30px;opacity:.9}
+
+  /* ---------- main layout ---------- */
+  .cockpit{display:grid;grid-template-columns:minmax(0,1fr) 396px;gap:16px;padding:8px 24px 28px;align-items:start}
+
+  /* ---------- pipeline ---------- */
+  .panel{background:transparent}
+  .panel-head{display:flex;align-items:center;gap:12px;margin:10px 2px 12px}
+  .panel-head h2{font-size:15px;font-weight:720}
+  .panel-head .sub{font-size:12px;color:var(--ink-3)}
+  .stage-pills{margin-left:auto;display:flex;gap:6px}
+  .sp{font-size:12px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:5px 11px;border-radius:16px;border:1px solid var(--line-2);background:#fff}
+  .sp.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .board{display:flex;gap:13px;overflow-x:auto;padding-bottom:8px}
+  .col{flex:0 0 264px;background:#fafcfc;border:1px solid var(--line-2);border-radius:var(--r);display:flex;flex-direction:column;max-height:760px}
+  .col-head{display:flex;align-items:center;gap:8px;padding:12px 13px 10px;position:sticky;top:0;background:#fafcfc;border-radius:var(--r) var(--r) 0 0;z-index:2}
+  .col-dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .col-head .nm{font-size:12.5px;font-weight:700;letter-spacing:.1px}
+  .col-head .ct{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink-3);background:#fff;border:1px solid var(--line-2);border-radius:20px;padding:1px 8px;min-width:22px;text-align:center}
+  .col-sum{padding:0 13px 9px;font-size:11.5px;color:var(--ink-3);font-weight:600;border-bottom:1px dashed var(--line-2);margin-bottom:8px}
+  .col-sum b{color:var(--ink);font-weight:750}
+  .col-body{overflow-y:auto;padding:0 9px 10px;display:flex;flex-direction:column;gap:9px}
+
+  .card{background:#fff;border:1px solid var(--line-2);border-radius:10px;padding:11px 11px 10px;box-shadow:var(--shadow-sm);
+    cursor:grab;transition:.13s;position:relative}
+  .card:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-color:var(--teal-line)}
+  .card.dragging{opacity:.45;border-style:dashed}
+  .card.atrisk{border-left:3px solid var(--red)}
+  .c-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .logo{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;color:#fff;font-weight:750;font-size:12px;letter-spacing:-.3px}
+  .c-id{min-width:0;flex:1}
+  .c-id b{font-size:13px;font-weight:680;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c-id .seg-tag{font-size:10.5px;color:var(--ink-3);font-weight:600}
+  .auto{font-size:9.5px;font-weight:700;color:var(--teal-2);background:var(--teal-soft);border-radius:5px;padding:2px 5px;letter-spacing:.2px}
+  .c-prod{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);margin-bottom:9px}
+  .c-prod .pill-plan{background:var(--line);border-radius:5px;padding:1px 7px;font-weight:650;font-size:10.5px;color:var(--ink-2)}
+  .c-prod .term{color:var(--ink-3);font-size:10.5px}
+  .c-arr{display:flex;align-items:baseline;gap:7px;margin-bottom:9px}
+  .c-arr .amt{font-size:17px;font-weight:780;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+  .c-arr .uplift{font-size:11px;font-weight:700;color:var(--green);background:var(--green-soft);border-radius:6px;padding:1px 6px}
+  .c-arr .uplift.neg{color:var(--red);background:var(--red-soft)}
+  .prob{margin-bottom:10px}
+  .prob-row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);font-weight:600;margin-bottom:4px}
+  .prob-row .pv{color:var(--ink);font-weight:750}
+  .bar{height:5px;background:var(--line);border-radius:4px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal),#3fd6c4)}
+  .c-foot{display:flex;align-items:center;gap:8px;padding-top:9px;border-top:1px solid var(--line)}
+  .due{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:650;border-radius:7px;padding:3px 8px}
+  .due.soon{color:var(--red);background:var(--red-soft)}
+  .due.near{color:#b9760a;background:var(--amber-soft)}
+  .due.ok{color:var(--ink-2);background:var(--line)}
+  .due.done{color:var(--green);background:var(--green-soft)}
+  .c-owner{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .health-dot{width:8px;height:8px;border-radius:50%}
+  .o-ava{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:9.5px;font-weight:700}
+
+  /* ---------- right rail ---------- */
+  .rail{display:flex;flex-direction:column;gap:16px}
+  .rcard{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow-sm);overflow:hidden}
+  .rcard-head{display:flex;align-items:center;gap:9px;padding:14px 15px 11px;border-bottom:1px solid var(--line)}
+  .rcard-head h3{font-size:14px;font-weight:720}
+  .rcard-head .sub{font-size:11px;color:var(--ink-3);margin-left:auto;font-weight:600}
+
+  /* calendar */
+  .cal-nav{display:flex;align-items:center;gap:8px;padding:11px 15px 5px}
+  .cal-nav .mo{font-size:13px;font-weight:700}
+  .cal-nav .nav{margin-left:auto;display:flex;gap:4px}
+  .cal-nav .nav button{width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);background:#fff;cursor:pointer;color:var(--ink-2);font-size:12px}
+  .cal-nav .nav button:hover{background:var(--line)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:6px 13px 14px}
+  .cal-dow{font-size:10px;font-weight:700;color:var(--ink-4);text-align:center;padding:4px 0;text-transform:uppercase;letter-spacing:.3px}
+  .cal-cell{aspect-ratio:1;border-radius:8px;border:1px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    padding-top:5px;font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;position:relative}
+  .cal-cell.muted{color:var(--ink-4)}
+  .cal-cell:hover{background:var(--line)}
+  .cal-cell.today{border-color:var(--teal);color:var(--teal-2);font-weight:750}
+  .cal-cell.sel{background:var(--teal-soft);border-color:var(--teal-line)}
+  .cal-cell.has{background:#fff;border-color:var(--line-2)}
+  .cal-dots{display:flex;gap:2px;margin-top:3px;flex-wrap:wrap;justify-content:center;max-width:30px}
+  .cal-dots i{width:5px;height:5px;border-radius:50%}
+  .cal-amt{font-size:8.5px;font-weight:750;margin-top:2px;color:var(--ink-2)}
+  .cal-legend{display:flex;flex-wrap:wrap;gap:9px;padding:0 15px 14px;font-size:10.5px;color:var(--ink-3);font-weight:600}
+  .cal-legend span{display:flex;align-items:center;gap:5px}
+  .cal-legend i{width:8px;height:8px;border-radius:50%}
+
+  /* health leaderboard */
+  .h-list{display:flex;flex-direction:column}
+  .h-row{display:flex;align-items:center;gap:11px;padding:12px 15px;border-bottom:1px solid var(--line);cursor:pointer;transition:.12s}
+  .h-row:last-child{border-bottom:none}
+  .h-row:hover{background:#fafcfc}
+  .h-ring{width:44px;height:44px;flex:none;position:relative}
+  .h-ring svg{transform:rotate(-90deg)}
+  .h-ring .rt{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px;font-weight:780;font-variant-numeric:tabular-nums}
+  .h-mid{flex:1;min-width:0}
+  .h-mid .nm{font-size:13px;font-weight:680;display:flex;align-items:center;gap:6px}
+  .h-mid .nm .badge{font-size:9.5px;font-weight:700;color:var(--ink-3);background:var(--line);border-radius:5px;padding:1px 6px}
+  .h-mid .meta{font-size:11px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:8px;font-weight:550}
+  .h-mid .meta b{color:var(--ink-2);font-weight:700}
+  .h-right{text-align:right;flex:none}
+  .h-right .trend{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:14px}
+  .h-right .csm{font-size:10.5px;color:var(--ink-3);margin-top:5px;display:flex;align-items:center;gap:5px;justify-content:flex-end;font-weight:600}
+  .h-right .csm .ca{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:8.5px;font-weight:700}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:550;
+    box-shadow:0 10px 28px rgba(0,0,0,.28);transition:.25s;z-index:80;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">R</span>Renewly <small>cockpit</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Pipeline</a>
+    <a href="#">Renewals</a>
+    <a href="#">Customers</a>
+    <a href="#">Playbooks</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="search">🔎<input placeholder="Search accounts, renewals…"></div>
+    <div class="icon-btn">🔔<span class="dot"></span></div>
+    <div class="acct">
+      <div class="ava">DM</div>
+      <div class="who"><b>Dana Mercer</b><br><span>Retention Lead</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="pagehead">
+  <div>
+    <h1>Renewal cockpit</h1>
+    <p>Q3 book of business · 38 renewals due in the next 90 days</p>
+  </div>
+  <div class="ph-actions">
+    <div class="seg">
+      <button class="on">Pipeline</button>
+      <button>Calendar</button>
+      <button>Forecast</button>
+    </div>
+    <button class="btn btn-ghost">⤓ Export</button>
+    <button class="btn btn-primary">＋ New renewal</button>
+  </div>
+</div>
+
+<!-- ===== KPI STRIP ===== -->
+<div class="kpis">
+  <div class="kpi k-blue">
+    <div class="lbl">ARR up for renewal · 90d</div>
+    <div class="val">$2.84<small>M</small></div>
+    <div class="delta up">▲ 12% vs prior Q</div>
+    <svg class="spark" viewBox="0 0 74 30"><polyline fill="none" stroke="#2f7df6" stroke-width="2" points="0,22 12,18 24,20 36,12 48,14 60,7 74,9"/></svg>
+  </div>
+  <div class="kpi k-green">
+    <div class="lbl">Gross renewal rate</div>
+    <div class="val">91.4<small>%</small></div>
+    <div class="delta up">▲ 2.1 pts</div>
+    <svg class="spark" viewBox="0 0 74 30"><polyline fill="none" stroke="#13c08a" stroke-width="2" points="0,20 12,21 24,16 36,17 48,11 60,12 74,6"/></svg>
+  </div>
+  <div class="kpi">
+    <div class="lbl">Net revenue retention</div>
+    <div class="val">108<small>%</small></div>
+    <div class="delta up">▲ 4 pts</div>
+    <svg class="spark" viewBox="0 0 74 30"><polyline fill="none" stroke="#0ca5a5" stroke-width="2" points="0,24 12,19 24,21 36,13 48,15 60,9 74,7"/></svg>
+  </div>
+  <div class="kpi k-red">
+    <div class="lbl">At-risk ARR</div>
+    <div class="val">$412<small>K</small></div>
+    <div class="delta down">▲ 6 accounts</div>
+    <svg class="spark" viewBox="0 0 74 30"><polyline fill="none" stroke="#f04f5a" stroke-width="2" points="0,12 12,15 24,11 36,16 48,13 60,18 74,21"/></svg>
+  </div>
+  <div class="kpi k-amber">
+    <div class="lbl">Avg health score</div>
+    <div class="val">72<small>/100</small></div>
+    <div class="delta flat">— flat MoM</div>
+    <svg class="spark" viewBox="0 0 74 30"><polyline fill="none" stroke="#f5a524" stroke-width="2" points="0,16 12,14 24,17 36,15 48,16 60,14 74,15"/></svg>
+  </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div class="cockpit">
+
+  <!-- LEFT: PIPELINE KANBAN -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Renewal pipeline</h2>
+      <span class="sub">drag a deal across stages to update it</span>
+      <div class="stage-pills" id="ownerPills">
+        <span class="sp on" data-o="all">All owners</span>
+        <span class="sp" data-o="DM">Dana</span>
+        <span class="sp" data-o="LR">Leo</span>
+        <span class="sp" data-o="PK">Priya</span>
+        <span class="sp" data-o="TS">Theo</span>
+      </div>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <!-- RIGHT RAIL -->
+  <aside class="rail">
+
+    <!-- expiry calendar -->
+    <div class="rcard">
+      <div class="rcard-head">
+        <span>📅</span><h3>Expiry calendar</h3>
+        <span class="sub" id="calCount">— due this month</span>
+      </div>
+      <div class="cal-nav">
+        <span class="mo">July 2026</span>
+        <div class="nav"><button id="calPrev">‹</button><button id="calNext">›</button></div>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-legend">
+        <span><i style="background:#2f7df6"></i>Upcoming</span>
+        <span><i style="background:#7c5cff"></i>Outreach</span>
+        <span><i style="background:#f5a524"></i>Negotiation</span>
+        <span><i style="background:#f04f5a"></i>At risk</span>
+        <span><i style="background:#13c08a"></i>Won</span>
+      </div>
+    </div>
+
+    <!-- customer health leaderboard -->
+    <div class="rcard">
+      <div class="rcard-head">
+        <span>❤️</span><h3>Customer health</h3>
+        <span class="sub">most at risk first</span>
+      </div>
+      <div class="h-list" id="healthList"></div>
+    </div>
+
+  </aside>
+</div>
+
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- reference "today" ---------- */
+  var TODAY = new Date("2026-07-08T00:00:00");
+
+  /* ---------- stage config ---------- */
+  var STAGES = [
+    {key:"upcoming",   name:"Upcoming",    color:"#2f7df6"},
+    {key:"outreach",   name:"Outreach",    color:"#7c5cff"},
+    {key:"negotiation",name:"Negotiation", color:"#f5a524"},
+    {key:"at_risk",    name:"At risk",     color:"#f04f5a"},
+    {key:"won",        name:"Won",         color:"#13c08a"},
+    {key:"lost",       name:"Lost",        color:"#8a9794"}
+  ];
+  var STAGE_MAP = {}; STAGES.forEach(function(s){STAGE_MAP[s.key]=s;});
+
+  /* ---------- owners ---------- */
+  var OWNERS = {
+    DM:{name:"Dana Mercer",  initials:"DM", color:"#0ca5a5"},
+    LR:{name:"Leo Ramos",    initials:"LR", color:"#2f7df6"},
+    PK:{name:"Priya Kapoor", initials:"PK", color:"#7c5cff"},
+    TS:{name:"Theo Saito",   initials:"TS", color:"#f5a524"}
+  };
+
+  /* ---------- logo palette ---------- */
+  var LOGO_COLORS = ["#0ca5a5","#2f7df6","#7c5cff","#f5a524","#13c08a","#f04f5a","#e8528c","#5b6b7a","#0e8a8a","#c2410c"];
+  function logoColor(seed){ var h=0; for(var i=0;i<seed.length;i++){h=(h*31+seed.charCodeAt(i))%LOGO_COLORS.length;} return LOGO_COLORS[h]; }
+  function initials(name){ return name.split(/\s+/).slice(0,2).map(function(w){return w[0];}).join("").toUpperCase(); }
+
+  /* ---------- renewals (deal cards) ---------- */
+  var RENEWALS = [
+    {id:1,  cust:"Northwind Logistics", seg:"Enterprise", plan:"Enterprise", term:"Annual",     arr:480000, uplift:8,  prob:62, stage:"negotiation", expiry:"2026-07-31", auto:false, owner:"DM", health:64},
+    {id:2,  cust:"Meadowlane Co.",      seg:"Mid-Market", plan:"Business",   term:"Annual",     arr:96000,  uplift:12, prob:78, stage:"outreach",    expiry:"2026-07-22", auto:false, owner:"LR", health:81},
+    {id:3,  cust:"Brightpath Health",   seg:"Enterprise", plan:"Enterprise", term:"Multi-year", arr:620000, uplift:5,  prob:40, stage:"at_risk",     expiry:"2026-07-15", auto:false, owner:"DM", health:38},
+    {id:4,  cust:"Tideform Studios",    seg:"SMB",         plan:"Growth",     term:"Annual",     arr:42000,  uplift:15, prob:88, stage:"upcoming",    expiry:"2026-08-12", auto:true,  owner:"PK", health:90},
+    {id:5,  cust:"Granite Peak Mfg.",   seg:"Mid-Market", plan:"Business",   term:"Annual",     arr:128000, uplift:0,  prob:35, stage:"at_risk",     expiry:"2026-07-19", auto:false, owner:"TS", health:44},
+    {id:6,  cust:"Lumen Analytics",     seg:"Enterprise", plan:"Enterprise", term:"Annual",     arr:355000, uplift:18, prob:55, stage:"negotiation", expiry:"2026-08-04", auto:false, owner:"LR", health:69},
+    {id:7,  cust:"Cedarworks Retail",   seg:"Mid-Market", plan:"Growth",     term:"Annual",     arr:74000,  uplift:10, prob:72, stage:"outreach",    expiry:"2026-07-28", auto:false, owner:"PK", health:76},
+    {id:8,  cust:"Pinecrest Schools",   seg:"SMB",         plan:"Starter",    term:"Annual",     arr:18000,  uplift:6,  prob:95, stage:"upcoming",    expiry:"2026-08-20", auto:true,  owner:"TS", health:88},
+    {id:9,  cust:"Harborview Bank",     seg:"Enterprise", plan:"Enterprise", term:"Multi-year", arr:540000, uplift:9,  prob:0,  stage:"won",         expiry:"2026-07-10", auto:false, owner:"DM", health:84},
+    {id:10, cust:"Sablefield Energy",   seg:"Enterprise", plan:"Business",   term:"Annual",     arr:210000, uplift:14, prob:0,  stage:"won",         expiry:"2026-07-06", auto:false, owner:"LR", health:79},
+    {id:11, cust:"Quillon Media",       seg:"SMB",         plan:"Growth",     term:"Monthly",    arr:28000,  uplift:-5, prob:0,  stage:"lost",        expiry:"2026-07-02", auto:false, owner:"PK", health:31},
+    {id:12, cust:"Vantage Freight",     seg:"Mid-Market", plan:"Business",   term:"Annual",     arr:112000, uplift:7,  prob:60, stage:"upcoming",    expiry:"2026-08-26", auto:false, owner:"TS", health:73},
+    {id:13, cust:"Solace Hospitality",  seg:"Mid-Market", plan:"Growth",     term:"Annual",     arr:88000,  uplift:11, prob:67, stage:"outreach",    expiry:"2026-07-24", auto:false, owner:"DM", health:71},
+    {id:14, cust:"Driftwood Apparel",   seg:"SMB",         plan:"Starter",    term:"Annual",     arr:22000,  uplift:20, prob:50, stage:"negotiation", expiry:"2026-07-30", auto:false, owner:"PK", health:58},
+    {id:15, cust:"Ironclad Security",   seg:"Enterprise", plan:"Enterprise", term:"Annual",     arr:298000, uplift:0,  prob:28, stage:"at_risk",     expiry:"2026-07-13", auto:false, owner:"DM", health:41}
+  ];
+
+  /* ---------- helpers ---------- */
+  function fmtMoney(n){
+    if(n>=1000000) return "$"+(n/1000000).toFixed(2)+"M";
+    if(n>=1000) return "$"+Math.round(n/1000)+"K";
+    return "$"+n;
+  }
+  function parseDate(s){ return new Date(s+"T00:00:00"); }
+  function daysTo(s){ return Math.round((parseDate(s)-TODAY)/86400000); }
+  function dueClass(stage,s){
+    if(stage==="won") return "done";
+    if(stage==="lost") return "ok";
+    var d=daysTo(s);
+    if(d<=10) return "soon";
+    if(d<=25) return "near";
+    return "ok";
+  }
+  function dueText(stage,s){
+    var d=parseDate(s).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    if(stage==="won") return "✓ Renewed "+d;
+    if(stage==="lost") return "Churned "+d;
+    var n=daysTo(s);
+    if(n<0) return "Overdue · "+d;
+    if(n===0) return "Today · "+d;
+    return n+"d · "+d;
+  }
+  function healthColor(h){ return h>=75?"#13c08a":h>=55?"#f5a524":"#f04f5a"; }
+
+  /* ---------- pipeline render ---------- */
+  var ownerFilter="all";
+  var board=document.getElementById("board");
+
+  function renderBoard(){
+    board.innerHTML="";
+    STAGES.forEach(function(st){
+      var items=RENEWALS.filter(function(r){
+        return r.stage===st.key && (ownerFilter==="all"||r.owner===ownerFilter);
+      });
+      var sum=items.reduce(function(a,b){return a+b.arr;},0);
+      var col=document.createElement("div"); col.className="col"; col.dataset.stage=st.key;
+      col.innerHTML=
+        '<div class="col-head">'+
+          '<span class="col-dot" style="background:'+st.color+'"></span>'+
+          '<span class="nm">'+st.name+'</span>'+
+          '<span class="ct">'+items.length+'</span>'+
+        '</div>'+
+        '<div class="col-sum"><b>'+fmtMoney(sum)+'</b> total ARR</div>'+
+        '<div class="col-body"></div>';
+      var body=col.querySelector(".col-body");
+      items.forEach(function(r){ body.appendChild(buildCard(r)); });
+      wireDrop(col,body,st.key);
+      board.appendChild(col);
+    });
+  }
+
+  function buildCard(r){
+    var ow=OWNERS[r.owner];
+    var card=document.createElement("div");
+    card.className="card"+(r.stage==="at_risk"?" atrisk":"");
+    card.draggable=true; card.dataset.id=r.id;
+    var upClass = r.uplift<0?"uplift neg":"uplift";
+    var upTxt = (r.uplift>0?"+":"")+r.uplift+"%";
+    card.innerHTML=
+      '<div class="c-top">'+
+        '<div class="logo" style="background:'+logoColor(r.cust)+'">'+initials(r.cust)+'</div>'+
+        '<div class="c-id"><b>'+r.cust+'</b><span class="seg-tag">'+r.seg+'</span></div>'+
+        (r.auto?'<span class="auto">AUTO</span>':'')+
+      '</div>'+
+      '<div class="c-prod"><span class="pill-plan">'+r.plan+'</span><span class="term">· '+r.term+'</span></div>'+
+      '<div class="c-arr"><span class="amt">'+fmtMoney(r.arr)+'</span><span class="'+upClass+'">'+upTxt+'</span></div>'+
+      ( (r.stage!=="won"&&r.stage!=="lost") ?
+        '<div class="prob">'+
+          '<div class="prob-row"><span>Win probability</span><span class="pv">'+r.prob+'%</span></div>'+
+          '<div class="bar"><i style="width:'+r.prob+'%"></i></div>'+
+        '</div>' : '' )+
+      '<div class="c-foot">'+
+        '<span class="due '+dueClass(r.stage,r.expiry)+'">'+dueText(r.stage,r.expiry)+'</span>'+
+        '<div class="c-owner">'+
+          '<span class="health-dot" style="background:'+healthColor(r.health)+'" title="Health '+r.health+'"></span>'+
+          '<span class="o-ava" style="background:'+ow.color+'" title="'+ow.name+'">'+ow.initials+'</span>'+
+        '</div>'+
+      '</div>';
+    card.addEventListener("click",function(e){
+      if(card.classList.contains("just-dragged")) return;
+      flash("Open renewal · "+r.cust+" ("+fmtMoney(r.arr)+")");
+    });
+    return card;
+  }
+
+  /* ---------- drag & drop between stages ---------- */
+  var draggingId=null;
+  document.addEventListener("dragstart",function(e){
+    var c=e.target.closest(".card"); if(!c) return;
+    draggingId=+c.dataset.id; c.classList.add("dragging");
+  });
+  document.addEventListener("dragend",function(e){
+    var c=e.target.closest(".card"); if(c){c.classList.remove("dragging");}
+    draggingId=null;
+  });
+  function wireDrop(col,body,stageKey){
+    col.addEventListener("dragover",function(e){ e.preventDefault(); col.style.background="#f0f9f9"; });
+    col.addEventListener("dragleave",function(e){ col.style.background=""; });
+    col.addEventListener("drop",function(e){
+      e.preventDefault(); col.style.background="";
+      if(draggingId==null) return;
+      var r=RENEWALS.find(function(x){return x.id===draggingId;});
+      if(!r||r.stage===stageKey) return;
+      var from=STAGE_MAP[r.stage].name;
+      r.stage=stageKey;
+      if(stageKey==="won"){r.prob=100;} else if(stageKey==="lost"){r.prob=0;}
+      renderBoard(); renderCalendar(); renderHealth();
+      flash(r.cust+": "+from+" → "+STAGE_MAP[stageKey].name);
+    });
+  }
+
+  /* ---------- calendar ---------- */
+  var calSel=null;
+  function renderCalendar(){
+    var grid=document.getElementById("calGrid"); grid.innerHTML="";
+    ["S","M","T","W","T","F","S"].forEach(function(d){
+      var h=document.createElement("div"); h.className="cal-dow"; h.textContent=d; grid.appendChild(h);
+    });
+    // July 2026: starts Wed (index 3), 31 days
+    var firstDow=3, days=31, year=2026, mon=7;
+    // group renewals by day-of-month for July
+    var byDay={};
+    RENEWALS.forEach(function(r){
+      var d=parseDate(r.expiry);
+      if(d.getFullYear()===year && (d.getMonth()+1)===mon){
+        var k=d.getDate(); (byDay[k]=byDay[k]||[]).push(r);
+      }
+    });
+    var monthCount=0, monthARR=0;
+    for(var i=0;i<firstDow;i++){ var pad=document.createElement("div"); pad.className="cal-cell muted"; grid.appendChild(pad); }
+    for(var day=1;day<=days;day++){
+      var cell=document.createElement("div"); cell.className="cal-cell";
+      cell.dataset.day=day;
+      if(day===TODAY.getDate()) cell.classList.add("today");
+      var items=byDay[day];
+      var head='<span>'+day+'</span>';
+      if(items&&items.length){
+        cell.classList.add("has");
+        monthCount+=items.length;
+        var dayARR=items.reduce(function(a,b){return a+b.arr;},0); monthARR+=dayARR;
+        var dots='<span class="cal-dots">';
+        items.slice(0,4).forEach(function(r){ dots+='<i style="background:'+STAGE_MAP[r.stage].color+'"></i>'; });
+        dots+='</span>';
+        head+=dots+'<span class="cal-amt">'+fmtMoney(dayARR)+'</span>';
+        cell.title=items.length+" renewal"+(items.length>1?"s":"")+" · "+fmtMoney(dayARR);
+        (function(d,its){
+          cell.addEventListener("click",function(){
+            document.querySelectorAll(".cal-cell.sel").forEach(function(x){x.classList.remove("sel");});
+            if(calSel===d){ calSel=null; flash("Calendar filter cleared"); }
+            else{ calSel=d; cell.classList.add("sel"); flash(its.length+" renewal"+(its.length>1?"s":"")+" due Jul "+d+" · "+fmtMoney(its.reduce(function(a,b){return a+b.arr;},0))); }
+          });
+        })(day,items);
+      } else {
+        cell.addEventListener("click",function(){ flash("No renewals on this day"); });
+      }
+      cell.innerHTML=head;
+      grid.appendChild(cell);
+    }
+    document.getElementById("calCount").textContent=monthCount+" due · "+fmtMoney(monthARR);
+  }
+
+  /* ---------- health leaderboard ---------- */
+  // aggregate one row per customer (use the renewal record's health/seg/owner)
+  function renderHealth(){
+    var host=document.getElementById("healthList"); host.innerHTML="";
+    var rows=RENEWALS.slice()
+      .filter(function(r){return r.stage!=="lost";})
+      .sort(function(a,b){return a.health-b.health;})
+      .slice(0,7);
+    rows.forEach(function(r){
+      var ow=OWNERS[r.owner];
+      var col=healthColor(r.health);
+      var C=2*Math.PI*18, off=C*(1-r.health/100);
+      var trend = r.health>=75? {t:"▲ +"+(3+r.id%4),cls:"up",bg:"var(--green-soft)",fg:"var(--green)"} :
+                  r.health>=55? {t:"▼ -"+(1+r.id%3),cls:"down",bg:"var(--amber-soft)",fg:"#b9760a"} :
+                                {t:"▼ -"+(5+r.id%5),cls:"down",bg:"var(--red-soft)",fg:"var(--red)"};
+      var row=document.createElement("div"); row.className="h-row";
+      row.innerHTML=
+        '<div class="h-ring">'+
+          '<svg width="44" height="44">'+
+            '<circle cx="22" cy="22" r="18" fill="none" stroke="#eef2f1" stroke-width="4"/>'+
+            '<circle cx="22" cy="22" r="18" fill="none" stroke="'+col+'" stroke-width="4" stroke-linecap="round" '+
+              'stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/>'+
+          '</svg>'+
+          '<div class="rt" style="color:'+col+'">'+r.health+'</div>'+
+        '</div>'+
+        '<div class="h-mid">'+
+          '<div class="nm">'+r.cust+'<span class="badge">'+r.seg+'</span></div>'+
+          '<div class="meta"><b>'+fmtMoney(r.mrr||Math.round(r.arr/12))+'</b>/mo · <b>'+fmtMoney(r.arr)+'</b> renewal</div>'+
+        '</div>'+
+        '<div class="h-right">'+
+          '<span class="trend" style="background:'+trend.bg+';color:'+trend.fg+'">'+trend.t+'</span>'+
+          '<div class="csm"><span class="ca" style="background:'+ow.color+'">'+ow.initials+'</span>'+ow.name.split(" ")[0]+'</div>'+
+        '</div>';
+      row.addEventListener("click",function(){ flash("Open health profile · "+r.cust+" (score "+r.health+")"); });
+      host.appendChild(row);
+    });
+  }
+
+  /* ---------- owner filter pills ---------- */
+  document.getElementById("ownerPills").addEventListener("click",function(e){
+    var p=e.target.closest(".sp"); if(!p) return;
+    document.querySelectorAll(".sp").forEach(function(x){x.classList.remove("on");});
+    p.classList.add("on"); ownerFilter=p.dataset.o; renderBoard();
+    flash(ownerFilter==="all"?"Showing all owners":"Filtered to "+OWNERS[ownerFilter].name);
+  });
+
+  /* ---------- calendar nav (decorative) ---------- */
+  document.getElementById("calPrev").onclick=function(){ flash("June 2026 · 9 renewals due"); };
+  document.getElementById("calNext").onclick=function(){ flash("August 2026 · 14 renewals due"); };
+
+  /* ---------- toast ---------- */
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  /* ---------- init ---------- */
+  renderBoard(); renderCalendar(); renderHealth();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Renewal Management: a renewal pipeline, an expiry calendar, and customer health scores. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/40-renewal-management.html
+</script>
+</body>
+</html>

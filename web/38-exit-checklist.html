@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Offboard — Exit Journey &amp; Asset Recovery</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Employee Exit Checklist (Offboard)",
+  "prefix": "ext_",
+  "collections": {
+    "ext_departures": {"titleField":"employee_name","fields":{"employee_name":"input","role":"input","department":"select:engineering|design|sales|finance|people_ops|it|marketing","manager":"input","exit_type":"select:resignation|end_of_contract|retirement|involuntary|mutual","last_working_day":"datetime","exit_interview_at":"datetime","status":"select:notice|in_progress|clearing|completed","reason_note":"textarea"}},
+    "ext_stages": {"titleField":"name","fields":{"name":"input","key":"select:notice|access|knowledge|assets|final","sub":"input","when_label":"input","sort":"integer","icon":"input"},"relations":{"departure":"m2o ext_departures (fk departure_id)"}},
+    "ext_tasks": {"titleField":"name","fields":{"name":"input","group":"select:hr|it|admin|finance|manager","owner_name":"input","owner_role":"input","due_label":"input","due_state":"select:ok|soon|over|done","done":"boolean","note":"input"},"relations":{"stage":"m2o ext_stages (fk stage_id)","departure":"m2o ext_departures (fk departure_id)"}},
+    "ext_assets": {"titleField":"name","fields":{"name":"input","category":"select:laptop|phone|monitor|badge|peripheral|software|card|key","asset_tag":"input","issued_on":"input","condition":"select:pending|received|damaged|missing|wiped","return_state":"select:returned|in_transit|outstanding|na","value_usd":"integer","holder_role":"input"},"relations":{"departure":"m2o ext_departures (fk departure_id)"}}
+  },
+  "page": {
+    "name": "Offboard",
+    "layout": "1440px workspace: left rail = departing-employee switcher list (ext_departures) | center = exit timeline (ext_stages each hosting grouped ext_tasks checklist) | right = asset recovery panel (ext_assets) + completion ring + exit summary",
+    "regions": [
+      {"id":"departure_rail","block":"List + JS item card","collection":"ext_departures","intent":"pick which departing employee to view","sort":"last_working_day asc","card":["avatar + name","role · department","exit_type chip","last working day","offboarding % ring-mini","status pill"]},
+      {"id":"hero","block":"Details (single ext_departures record) + JS items","intent":"departing-employee header","shows":["avatar","name + role + department","exit_type / last working day / manager tags","big completion ring (done tasks / total)"]},
+      {"id":"exit_timeline","block":"List (ext_stages, filtered by departure) + JS item per stage","collection":"ext_stages","intent":"offboarding journey, mirror of onboarding but reversed (wind-down)","sort":"sort asc","stage_card":["node icon + complete check","stage title + sub + when label","per-stage progress meter","collapsible"],"nested":{"block":"List (ext_tasks, filtered by stage) + JS item checklist row","group":"by ext_tasks.group (HR/IT/Admin/Finance/Manager)","row":["checkbox toggles done","task name (strike when done)","note","owner avatar + name","due pill (ok/soon/over/done)"]}},
+      {"id":"asset_recovery","block":"List + JS item card","collection":"ext_assets","intent":"asset recovery checklist — every issued item must come back","sort":"return_state asc","card":["category icon","asset name + tag","value chip","return_state pill (returned/in_transit/outstanding)","condition badge (received/wiped/damaged/missing)","mark-returned toggle"],"summary":"returned count / total + outstanding value"}
+    ]
+  },
+  "interactions": ["left rail switches active departure → rehydrates hero + timeline + assets","checkbox toggles ext_tasks.done → recomputes stage meter + hero ring","stage card collapse/expand","mark-returned toggles ext_assets.return_state → recomputes recovery summary","completed stages auto-collapse","100% tasks + all assets returned → clearance banner"],
+  "jsKernels": ["completion ring (SVG, done/total)","stage checklist JS item with grouped tasks","asset recovery card JS item with return toggle","departure switcher rail JS item"],
+  "notes": "Mirror of the onboarding checklist (08) but the OFFBOARD direction: stages wind DOWN access/knowledge/assets instead of ramping up. Data containers are NATIVE blocks (List for rail/timeline/assets, Details for hero); the bespoke look (rings, meters, checklist rows, asset cards) is reproduced with JS items nested INSIDE them. Asset recovery is a real native List of ext_assets with a return-state toggle, NOT a static card. Color scheme is amber/clay sunset (independent from onboarding green) to read as a sibling-but-distinct app. Do not rebuild any region as a freestanding full-page JSBlock."
+}
+</script>
+<style>
+  :root {
+    /* sunset / clay palette — independent from onboarding's green */
+    --accent: #c2683a;
+    --accent-dark: #9e5128;
+    --accent-soft: #fbeee3;
+    --accent-softer: #fdf7f1;
+    --amber: #d99a2b;
+    --amber-soft: #fdf3df;
+    --ink: #211d1a;
+    --ink-2: #5c544d;
+    --ink-3: #938a82;
+    --line: #f1ece7;
+    --line-2: #e7ded6;
+    --bg: #f7f4f1;
+    --card: #ffffff;
+    --tint-hr:    #fbeef0; --tint-hr-ink:    #b0466a;
+    --tint-it:    #ecf1f7; --tint-it-ink:    #436fa0;
+    --tint-admin: #fdf4e6; --tint-admin-ink: #a87a23;
+    --tint-finance:#ecf5ef; --tint-finance-ink:#3f8f63;
+    --tint-manager:#f2eefb; --tint-manager-ink:#6a57ac;
+    --ok:   #3f8f63; --ok-soft:   #eaf5ee;
+    --soon: #b66a17; --soon-soft: #fdf0e1;
+    --over: #c0392b; --over-soft: #fdeceb;
+    --radius: 18px;
+    --radius-sm: 12px;
+    --shadow: 0 1px 2px rgba(33,29,26,.05), 0 10px 28px rgba(33,29,26,.06);
+    --shadow-soft: 0 1px 2px rgba(33,29,26,.04), 0 4px 16px rgba(33,29,26,.05);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif;
+    background:
+      radial-gradient(1400px 520px at 70% -200px, #f6e3d2 0%, rgba(246,227,210,0) 70%),
+      var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+
+  /* ===== Top bar ===== */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    backdrop-filter: saturate(180%) blur(10px);
+    background: rgba(255,255,255,.8);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .topbar-inner {
+    max-width: 1440px; margin: 0 auto;
+    height: 62px; padding: 0 28px;
+    display: flex; align-items: center; gap: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: -.2px; }
+  .brand .logo {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #d98a52);
+    display: grid; place-items: center; color: #fff; font-size: 16px;
+    box-shadow: 0 4px 12px rgba(194,104,58,.38);
+  }
+  .brand b { font-size: 15px; }
+  .brand small { display:block; font-weight: 500; font-size: 11px; color: var(--ink-3); margin-top:-2px; }
+  .spacer { flex: 1; }
+  .topbar-link { color: var(--ink-2); font-size: 13.5px; text-decoration: none; padding: 6px 10px; border-radius:8px; }
+  .topbar-link:hover { background: var(--accent-softer); color: var(--accent-dark); }
+  .topbar-link.active { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+  .topbar-stat { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-2); padding:5px 12px; border:1px solid var(--line-2); border-radius:999px; background:#fff; }
+  .topbar-stat b { color: var(--ink); }
+  .topbar-stat .dot { width:7px; height:7px; border-radius:50%; background:var(--amber); }
+
+  /* ===== Layout ===== */
+  .page { max-width: 1440px; margin: 0 auto; padding: 24px 28px 80px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 312px minmax(0,1fr) 360px;
+    gap: 22px; align-items: start;
+  }
+
+  /* ===== Left rail ===== */
+  .rail { position: sticky; top: 86px; display: flex; flex-direction: column; gap: 14px; }
+  .rail-head { display:flex; align-items:baseline; gap:8px; padding: 0 4px; }
+  .rail-head h2 { margin:0; font-size:15px; letter-spacing:-.2px; }
+  .rail-head span { font-size:12px; color: var(--ink-3); }
+  .rail-list { display:flex; flex-direction:column; gap:10px; }
+  .person {
+    background: var(--card); border:1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow-soft); padding: 13px 14px; cursor:pointer;
+    display:grid; grid-template-columns:auto 1fr auto; gap:11px; align-items:center;
+    transition:.15s; position:relative;
+  }
+  .person:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(194,104,58,.13); }
+  .person.active { border-color: var(--accent); background: var(--accent-softer); }
+  .person.active::before { content:""; position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:0 3px 3px 0; background: var(--accent); }
+  .person .pav { width:40px; height:40px; border-radius:11px; display:grid; place-items:center; color:#fff; font-weight:700; font-size:14px; }
+  .person .pmeta { min-width:0; }
+  .person .pname { font-weight:700; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .person .prole { font-size:11.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .person .pfoot { display:flex; align-items:center; gap:7px; margin-top:6px; }
+  .person .ptag { font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:.3px; }
+  .person .plwd { font-size:11px; color:var(--ink-2); }
+  .miniring { width:38px; height:38px; position:relative; }
+  .miniring svg { transform:rotate(-90deg); }
+  .miniring .mt { fill:none; stroke:var(--line-2); stroke-width:4.5; }
+  .miniring .mb { fill:none; stroke:var(--accent); stroke-width:4.5; stroke-linecap:round; }
+  .miniring .mp { position:absolute; inset:0; display:grid; place-items:center; font-size:10.5px; font-weight:800; color:var(--accent-dark); }
+
+  /* exit-type chips */
+  .et-resignation    { background:#ecf1f7; color:#436fa0; }
+  .et-end_of_contract{ background:#fdf4e6; color:#a87a23; }
+  .et-retirement     { background:#ecf5ef; color:#3f8f63; }
+  .et-involuntary    { background:#fdeceb; color:#c0392b; }
+  .et-mutual         { background:#f2eefb; color:#6a57ac; }
+
+  /* status pills */
+  .st { font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:999px; }
+  .st-notice      { background:#fdf3df; color:#a87a23; }
+  .st-in_progress { background:var(--accent-soft); color:var(--accent-dark); }
+  .st-clearing    { background:#f2eefb; color:#6a57ac; }
+  .st-completed   { background:#eaf5ee; color:#3f8f63; }
+
+  /* ===== Center column ===== */
+  .center { display:flex; flex-direction:column; gap:18px; min-width:0; }
+
+  /* Hero */
+  .hero { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden; border:1px solid var(--line); }
+  .hero-cover { height: 78px; }
+  .hero-body { padding: 0 26px 22px; margin-top:-40px; display:grid; grid-template-columns:auto 1fr; gap:20px; align-items:end; }
+  .hero-av { width:84px; height:84px; border-radius:22px; display:grid; place-items:center; color:#fff; font-size:30px; font-weight:700; letter-spacing:-1px; border:4px solid #fff; box-shadow:var(--shadow-soft); }
+  .hero-info { padding-bottom:2px; }
+  .hero-info h1 { margin:0; font-size:23px; letter-spacing:-.5px; }
+  .hero-role { font-size:14px; color:var(--ink-2); margin-top:2px; }
+  .hero-tags { display:flex; flex-wrap:wrap; gap:7px; margin-top:11px; }
+  .tag { display:inline-flex; align-items:center; gap:6px; background:var(--accent-softer); color:var(--accent-dark); border:1px solid var(--line-2); padding:3px 10px; border-radius:999px; font-size:12px; font-weight:500; }
+  .tag.neutral { background:#f6f4f2; color:var(--ink-2); }
+  .tag.warn { background:var(--soon-soft); color:var(--soon); border-color:#f4dcc1; }
+
+  /* Quick row */
+  .quickrow { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .quick { background:var(--card); border:1px solid var(--line); border-radius:var(--radius-sm); box-shadow:var(--shadow-soft); padding:13px 15px; display:flex; align-items:center; gap:11px; }
+  .quick .qic { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; font-size:16px; flex:none; }
+  .quick .qt { font-size:10.5px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.4px; }
+  .quick .qv { font-size:15px; font-weight:700; }
+  .quick .qv small { font-weight:500; color:var(--ink-3); font-size:12px; }
+
+  /* Journey */
+  .sec-head { display:flex; align-items:baseline; gap:11px; margin: 6px 4px 0; }
+  .sec-head h2 { margin:0; font-size:16px; letter-spacing:-.3px; }
+  .sec-head p { margin:0; font-size:12.5px; color:var(--ink-3); }
+
+  .timeline { position:relative; padding-left:8px; }
+  .timeline::before { content:""; position:absolute; left:25px; top:14px; bottom:26px; width:2px; background:var(--line-2); border-radius:2px; }
+  .stage { position:relative; padding-left:60px; margin-bottom:18px; }
+  .node { position:absolute; left:8px; top:4px; width:36px; height:36px; border-radius:50%; background:#fff; border:2px solid var(--line-2); display:grid; place-items:center; font-size:16px; z-index:2; transition:.25s; }
+  .stage.complete .node { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .stage.active .node { border-color:var(--accent); color:var(--accent); box-shadow:0 0 0 5px var(--accent-soft); }
+
+  .stage-card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow-soft); overflow:hidden; border:1px solid var(--line); }
+  .stage-top { display:flex; align-items:center; gap:13px; cursor:pointer; padding:15px 18px; user-select:none; }
+  .stage-top:hover { background:var(--accent-softer); }
+  .stage-title { font-size:15px; font-weight:700; letter-spacing:-.2px; }
+  .stage-sub { font-size:12px; color:var(--ink-3); }
+  .stage-when { margin-left:auto; font-size:11.5px; color:var(--ink-2); background:#f6f4f2; border-radius:999px; padding:4px 11px; white-space:nowrap; }
+  .stage.active .stage-when { background:var(--accent-soft); color:var(--accent-dark); }
+  .stage-meter { display:flex; align-items:center; gap:9px; }
+  .meter-track { width:84px; height:7px; background:var(--line); border-radius:999px; overflow:hidden; }
+  .meter-fill { height:100%; width:0; background:linear-gradient(90deg, var(--accent), #e0935c); border-radius:999px; transition:width .5s cubic-bezier(.16,1,.3,1); }
+  .meter-pct { font-size:12px; font-weight:700; color:var(--accent); width:34px; text-align:right; }
+  .chev { color:var(--ink-3); transition:transform .25s; font-size:11px; }
+  .stage.collapsed .chev { transform:rotate(-90deg); }
+  .stage-content { padding:2px 18px 16px; }
+  .stage.collapsed .stage-content { display:none; }
+
+  .group { margin-top:10px; }
+  .group-head { display:flex; align-items:center; gap:8px; margin:6px 2px 7px; font-size:11px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; }
+  .group-chip { padding:2px 9px; border-radius:999px; font-size:10.5px; font-weight:700; }
+  .group-hr      .group-chip { background:var(--tint-hr);      color:var(--tint-hr-ink); }
+  .group-it      .group-chip { background:var(--tint-it);      color:var(--tint-it-ink); }
+  .group-admin   .group-chip { background:var(--tint-admin);   color:var(--tint-admin-ink); }
+  .group-finance .group-chip { background:var(--tint-finance); color:var(--tint-finance-ink); }
+  .group-manager .group-chip { background:var(--tint-manager); color:var(--tint-manager-ink); }
+  .group-count { color:var(--ink-3); font-weight:600; letter-spacing:0; text-transform:none; }
+
+  .task { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:12px; transition:background .15s; }
+  .task:hover { background:var(--accent-softer); }
+  .task + .task { margin-top:2px; }
+  .check { width:21px; height:21px; border-radius:7px; flex:none; border:2px solid #d6cdc4; background:#fff; cursor:pointer; display:grid; place-items:center; transition:.15s; }
+  .check:hover { border-color:var(--accent); }
+  .check svg { width:12px; height:12px; opacity:0; transform:scale(.5); transition:.18s; color:#fff; }
+  .task.done .check { background:var(--accent); border-color:var(--accent); }
+  .task.done .check svg { opacity:1; transform:scale(1); }
+  .task-main { min-width:0; flex:1; }
+  .task-name { font-size:13.5px; font-weight:500; transition:.15s; }
+  .task.done .task-name { color:var(--ink-3); text-decoration:line-through; text-decoration-color:#d6cabd; }
+  .task-note { font-size:11.5px; color:var(--ink-3); margin-top:1px; }
+  .task-side { display:flex; align-items:center; gap:12px; flex:none; }
+  .owner { display:flex; align-items:center; gap:7px; }
+  .owner .oav { width:23px; height:23px; border-radius:50%; display:grid; place-items:center; color:#fff; font-size:10px; font-weight:700; }
+  .owner .oname { font-size:12px; color:var(--ink-2); }
+  .due { font-size:11.5px; color:var(--ink-2); background:#f6f4f2; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .due.soon { background:var(--soon-soft); color:var(--soon); }
+  .due.over { background:var(--over-soft); color:var(--over); }
+  .due.ok   { background:var(--ok-soft); color:var(--ok); }
+  .due.done { background:var(--accent-soft); color:var(--accent-dark); }
+
+  .clearance { display:none; text-align:center; background:linear-gradient(120deg, var(--accent-soft), var(--amber-soft)); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow-soft); border:1px solid var(--line-2); }
+  .clearance h3 { margin:0 0 4px; font-size:16px; }
+  .clearance p { margin:0; font-size:13px; color:var(--ink-2); }
+
+  /* ===== Right column ===== */
+  .side { position: sticky; top: 86px; display:flex; flex-direction:column; gap:18px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-soft); overflow:hidden; }
+  .panel-head { display:flex; align-items:center; gap:9px; padding:14px 18px 0; }
+  .panel-head h3 { margin:0; font-size:14.5px; letter-spacing:-.2px; }
+  .panel-head .ph-sub { margin-left:auto; font-size:11.5px; color:var(--ink-3); }
+
+  /* Ring panel */
+  .ringpanel { text-align:center; padding:18px 18px 20px; }
+  .ring { position:relative; width:128px; height:128px; margin:6px auto 0; }
+  .ring svg { transform:rotate(-90deg); }
+  .ring .track { fill:none; stroke:var(--accent-soft); stroke-width:12; }
+  .ring .bar { fill:none; stroke:url(#grad); stroke-width:12; stroke-linecap:round; transition:stroke-dashoffset .7s cubic-bezier(.16,1,.3,1); }
+  .ring .center { position:absolute; inset:0; display:grid; place-items:center; }
+  .ring .center b { font-size:30px; letter-spacing:-1px; line-height:1; }
+  .ring .center span { font-size:11px; color:var(--ink-3); margin-top:3px; }
+  .ring-caption { font-size:12px; color:var(--ink-3); margin-top:10px; }
+  .ring-breakdown { display:flex; justify-content:center; gap:18px; margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+  .rb { text-align:center; }
+  .rb b { font-size:18px; display:block; line-height:1.1; }
+  .rb span { font-size:10.5px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.3px; }
+
+  /* Asset recovery */
+  .assets { padding:8px 14px 14px; }
+  .asset-summary { display:flex; align-items:center; gap:12px; margin:10px 4px 12px; padding:11px 13px; background:var(--accent-softer); border:1px solid var(--line-2); border-radius:12px; }
+  .asset-summary .as-bar { flex:1; }
+  .as-track { height:8px; background:var(--line); border-radius:999px; overflow:hidden; }
+  .as-fill { height:100%; background:linear-gradient(90deg, var(--accent), #e0935c); border-radius:999px; transition:width .5s; }
+  .as-meta { font-size:11.5px; color:var(--ink-2); margin-top:6px; display:flex; justify-content:space-between; }
+  .as-meta b { color:var(--ink); }
+  .as-out { font-size:11.5px; font-weight:700; color:var(--over); white-space:nowrap; }
+  .as-out.clear { color:var(--ok); }
+
+  .asset { display:grid; grid-template-columns:auto 1fr auto; gap:11px; align-items:center; padding:10px 11px; border-radius:12px; transition:background .15s; }
+  .asset:hover { background:var(--accent-softer); }
+  .asset + .asset { margin-top:1px; }
+  .asset .aic { width:34px; height:34px; border-radius:10px; display:grid; place-items:center; font-size:16px; flex:none; background:#f6f4f2; }
+  .asset.returned .aic { background:var(--ok-soft); }
+  .asset.outstanding .aic { background:var(--over-soft); }
+  .asset .amain { min-width:0; }
+  .asset .aname { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .asset .ameta { font-size:11px; color:var(--ink-3); margin-top:1px; }
+  .asset .abadges { display:flex; gap:5px; margin-top:5px; }
+  .badge { font-size:10px; font-weight:700; padding:1px 7px; border-radius:999px; }
+  .rs-returned   { background:var(--ok-soft); color:var(--ok); }
+  .rs-in_transit { background:var(--soon-soft); color:var(--soon); }
+  .rs-outstanding{ background:var(--over-soft); color:var(--over); }
+  .rs-na         { background:#f1ece7; color:var(--ink-3); }
+  .cond-received { background:#ecf1f7; color:#436fa0; }
+  .cond-wiped    { background:#f2eefb; color:#6a57ac; }
+  .cond-damaged  { background:var(--soon-soft); color:var(--soon); }
+  .cond-missing  { background:var(--over-soft); color:var(--over); }
+  .cond-pending  { background:#f1ece7; color:var(--ink-3); }
+  .areturn { width:88px; flex:none; font:inherit; font-size:11px; font-weight:700; padding:6px 0; border-radius:8px; cursor:pointer; border:1px solid var(--line-2); background:#fff; color:var(--ink-2); transition:.15s; text-align:center; }
+  .areturn:hover { border-color:var(--accent); color:var(--accent-dark); }
+  .asset.returned .areturn { background:var(--ok-soft); border-color:#bfe0cd; color:var(--ok); cursor:default; }
+  .asset.na .areturn { opacity:.45; pointer-events:none; }
+
+  /* Exit summary list */
+  .sumlist { padding:6px 18px 16px; }
+  .sumrow { display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); font-size:12.5px; }
+  .sumrow:first-child { border-top:0; }
+  .sumrow .sl { color:var(--ink-3); width:118px; flex:none; }
+  .sumrow .sv { font-weight:600; color:var(--ink); }
+
+  .footer { grid-column:1 / -1; text-align:center; color:var(--ink-3); font-size:12px; margin-top:18px; }
+
+  @media (max-width: 1240px) {
+    .grid { grid-template-columns: 280px minmax(0,1fr); }
+    .side { grid-column: 1 / -1; position:static; flex-direction:row; flex-wrap:wrap; }
+    .side > .panel { flex:1 1 320px; }
+  }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .rail, .side { position:static; }
+    .quickrow { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===== Top bar ===== -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo">&#128682;</div>
+        <div><b>Offboard</b><small>Exit journeys &amp; asset recovery</small></div>
+      </div>
+      <div class="spacer"></div>
+      <a href="#" class="topbar-link active">Departures</a>
+      <a href="#" class="topbar-link">Templates</a>
+      <a href="#" class="topbar-link">Assets</a>
+      <a href="#" class="topbar-link">Reports</a>
+      <div class="topbar-stat"><span class="dot"></span> <span id="tbStat">3 active offboardings</span></div>
+    </div>
+  </header>
+
+  <!-- ===== Page ===== -->
+  <main class="page">
+    <div class="grid">
+
+      <!-- ===== Left rail: departing employees ===== -->
+      <aside class="rail">
+        <div class="rail-head"><h2>Departing</h2><span id="railCount"></span></div>
+        <div class="rail-list" id="railList"></div>
+      </aside>
+
+      <!-- ===== Center: hero + journey ===== -->
+      <section class="center">
+        <!-- Hero -->
+        <div class="hero">
+          <div class="hero-cover" id="heroCover"></div>
+          <div class="hero-body">
+            <div class="hero-av" id="heroAv">--</div>
+            <div class="hero-info">
+              <h1 id="heroName">--</h1>
+              <div class="hero-role" id="heroRole">--</div>
+              <div class="hero-tags" id="heroTags"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick facts -->
+        <div class="quickrow" id="quickrow"></div>
+
+        <!-- Journey -->
+        <div class="sec-head">
+          <h2>Exit journey</h2>
+          <p>Five wind-down stages from notice to final clearance. Check items off as you complete them.</p>
+        </div>
+        <div class="timeline" id="timeline"></div>
+
+        <div class="clearance" id="clearance">
+          <h3>&#9989; Cleared for departure</h3>
+          <p>All offboarding tasks done and every asset accounted for. Final paperwork can be filed.</p>
+        </div>
+      </section>
+
+      <!-- ===== Right: ring + asset recovery + summary ===== -->
+      <aside class="side">
+        <!-- Completion ring -->
+        <div class="panel ringpanel">
+          <div class="ring">
+            <svg width="128" height="128" viewBox="0 0 128 128">
+              <defs>
+                <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#e0935c"/>
+                  <stop offset="1" stop-color="#c2683a"/>
+                </linearGradient>
+              </defs>
+              <circle class="track" cx="64" cy="64" r="54"/>
+              <circle class="bar" id="ringBar" cx="64" cy="64" r="54" stroke-dasharray="339.29" stroke-dashoffset="339.29"/>
+            </svg>
+            <div class="center"><b id="ringPct">0%</b><span>offboarded</span></div>
+          </div>
+          <div class="ring-caption" id="ringCaption">0 of 0 tasks done</div>
+          <div class="ring-breakdown">
+            <div class="rb"><b id="rbAssets">0/0</b><span>Assets back</span></div>
+            <div class="rb"><b id="rbOpen">0</b><span>Open tasks</span></div>
+            <div class="rb"><b id="rbDays">--</b><span>Days to LWD</span></div>
+          </div>
+        </div>
+
+        <!-- Asset recovery -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Asset recovery</h3>
+            <span class="ph-sub" id="assetSubhead"></span>
+          </div>
+          <div class="assets">
+            <div class="asset-summary">
+              <div class="as-bar">
+                <div class="as-track"><div class="as-fill" id="asFill"></div></div>
+                <div class="as-meta"><span id="asLabel"></span><span class="as-out" id="asOut"></span></div>
+              </div>
+            </div>
+            <div id="assetList"></div>
+          </div>
+        </div>
+
+        <!-- Exit summary -->
+        <div class="panel">
+          <div class="panel-head"><h3>Exit summary</h3></div>
+          <div class="sumlist" id="sumlist"></div>
+        </div>
+      </aside>
+
+      <div class="footer">Offboard · a respectful way to wind down a tenure · prototype</div>
+    </div>
+  </main>
+
+<script>
+/* ============ Helpers ============ */
+const AVCOLORS = ["#c2683a","#436fa0","#b0466a","#a87a23","#6a57ac","#3f8f63","#9e5128"];
+function colorFor(name){ let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))|0; return AVCOLORS[Math.abs(h)%AVCOLORS.length]; }
+function initials(name){ return name.split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* owners */
+function owner(name, role){ return {name, role}; }
+const O = {
+  hr:     owner("Priya Nair","People Ops"),
+  it:     owner("Diego Alvarez","IT"),
+  admin:  owner("Office Ops","Facilities"),
+  fin:    owner("Hannah Ling","Finance"),
+  mgr:    owner("Sam Okoro","Manager"),
+  self:   owner("Employee","Leaving"),
+};
+
+function task(name, group, ow, due, dueState, done, note){
+  return {name, group, owner:ow, due, dueState, done:!!done, note:note||""};
+}
+
+/* Exit journey is the MIRROR of onboarding — winding access/knowledge/assets DOWN. */
+function defaultExit(mgrName){
+  const mgr = owner(mgrName, "Manager");
+  return [
+    {
+      key:"notice", icon:"&#128221;", title:"Notice &amp; intent", sub:"Resignation logged, plan set",
+      when:"On notice", groups:[
+        {g:"hr", items:[
+          task("Acknowledge resignation letter","hr",O.hr,"Done","done",true),
+          task("Confirm last working day","hr",O.hr,"Done","done",true),
+          task("Schedule exit interview","hr",O.hr,"Done","done",true,"Day before LWD"),
+        ]},
+        {g:"manager", items:[
+          task("Approve departure in workflow","manager",mgr,"Done","done",true),
+          task("Draft transition / backfill plan","manager",mgr,"Done","done",true),
+        ]},
+      ]
+    },
+    {
+      key:"knowledge", icon:"&#129504;", title:"Knowledge transfer", sub:"Hand work over before access ends",
+      when:"Notice week 1", groups:[
+        {g:"manager", items:[
+          task("Reassign open tickets &amp; projects","manager",mgr,"Mon","ok",true),
+          task("Record handover doc &amp; runbooks","manager",O.self,"Wed","soon",false,"Shared drive"),
+          task("Intro successor to key stakeholders","manager",mgr,"Thu","soon",false),
+        ]},
+        {g:"it", items:[
+          task("Transfer file &amp; repo ownership","it",O.it,"Fri","soon",false),
+          task("Export & archive personal mailbox rules","it",O.it,"Fri","ok",false),
+        ]},
+      ]
+    },
+    {
+      key:"access", icon:"&#128274;", title:"Access wind-down", sub:"Revoke systems &amp; credentials",
+      when:"Last 3 days", groups:[
+        {g:"it", items:[
+          task("Schedule SSO / email deactivation","it",O.it,"LWD","ok",false,"Auto at 18:00 LWD"),
+          task("Revoke VPN &amp; role-specific access","it",O.it,"LWD","ok",false),
+          task("Remove from Slack / Figma / tools","it",O.it,"LWD","ok",false),
+          task("Reset shared service passwords","it",O.it,"LWD","ok",false),
+        ]},
+        {g:"admin", items:[
+          task("Deactivate building badge","admin",O.admin,"LWD","ok",false),
+          task("Disable parking / canteen card","admin",O.admin,"LWD","ok",false),
+        ]},
+      ]
+    },
+    {
+      key:"assets", icon:"&#128230;", title:"Asset return", sub:"Recover every issued item",
+      when:"On / before LWD", groups:[
+        {g:"it", items:[
+          task("Collect &amp; wipe laptop","it",O.it,"LWD","ok",false,"Verify FileVault wipe"),
+          task("Collect phone &amp; SIM","it",O.it,"LWD","ok",false),
+          task("Collect monitor &amp; peripherals","it",O.it,"LWD","soon",false),
+        ]},
+        {g:"admin", items:[
+          task("Recover access badge &amp; keys","admin",O.admin,"LWD","ok",false),
+        ]},
+      ]
+    },
+    {
+      key:"final", icon:"&#129309;", title:"Final clearance", sub:"Pay, interview, farewell",
+      when:"LWD &amp; after", groups:[
+        {g:"finance", items:[
+          task("Settle final salary &amp; unused leave","finance",O.fin,"LWD","ok",false),
+          task("Clear outstanding expense claims","finance",O.fin,"LWD","ok",false),
+          task("Issue final payslip &amp; tax docs","finance",O.fin,"LWD+5","ok",false),
+        ]},
+        {g:"hr", items:[
+          task("Conduct exit interview","hr",O.hr,"LWD","ok",false),
+          task("Remove from payroll &amp; benefits","hr",O.hr,"LWD+1","ok",false),
+          task("Send experience / reference letter","hr",O.hr,"LWD+3","ok",false),
+        ]},
+      ]
+    },
+  ];
+}
+
+/* asset templates */
+function asset(name, category, tag, issued, value, returnState, condition, holderRole){
+  return {name, category, tag, issued, value, returnState, condition, holderRole};
+}
+function defaultAssets(){
+  return [
+    asset('MacBook Pro 14"','laptop','LAP-2291','2024-03-11',2399,'outstanding','pending','primary device'),
+    asset("iPhone 15 + company SIM",'phone','PHN-0884','2024-03-11',999,'outstanding','pending','work line'),
+    asset('Dell 27" 4K monitor','monitor','MON-1450','2024-03-12',520,'in_transit','received','desk'),
+    asset("Logitech MX dock + keyboard",'peripheral','PER-3320','2024-03-12',240,'outstanding','pending','desk kit'),
+    asset("Building access badge",'badge','BDG-7781','2024-03-08',0,'returned','received','HQ floor 4'),
+    asset("Parking & canteen card",'card','CRD-2210','2024-03-08',0,'returned','received','garage B'),
+    asset("Adobe CC license seat",'software','SW-AD-19','2024-03-15',660,'na','wiped','reclaimed seat'),
+  ];
+}
+
+const CATICON = { laptop:"&#128187;", phone:"&#128241;", monitor:"&#128421;", badge:"&#127991;", peripheral:"&#9000;", software:"&#128190;", card:"&#128179;", key:"&#128273;" };
+
+/* ============ Data: departures ============ */
+const PEOPLE = [
+  (function(){
+    const j = defaultExit("Sam Okoro");
+    // stage notice + KT mostly done, access/assets/final open
+    return {
+      id:"marcus", name:"Marcus Hale", role:"Senior Backend Engineer", dept:"Engineering",
+      exitType:"resignation", manager:"Sam Okoro",
+      lwd:"Jun 19, 2026", lwdDays:12, exitInterview:"Jun 18, 2026", tenure:"2 yr 3 mo",
+      reason:"New role abroad", successor:"Wei Chen (backfill)",
+      journey:j, assets: defaultAssets()
+    };
+  })(),
+  (function(){
+    const j = defaultExit("Dana Reyes");
+    // further along: notice/KT/access done, assets in progress, final open
+    j[0].groups.forEach(g=>g.items.forEach(i=>{ i.done=true; i.due="Done"; i.dueState="done"; }));
+    j[1].groups.forEach(g=>g.items.forEach(i=>{ i.done=true; i.due="Done"; i.dueState="done"; }));
+    j[2].groups.forEach(g=>g.items.forEach(i=>{ i.done=true; i.due="Done"; i.dueState="done"; }));
+    j[3].groups[0].items[0].done=true; j[3].groups[0].items[0].due="Done"; j[3].groups[0].items[0].dueState="done";
+    j[3].groups[1].items[0].dueState="soon"; j[3].groups[1].items[0].due="Tomorrow";
+    const a = defaultAssets();
+    a[0].returnState="returned"; a[0].condition="wiped";
+    a[1].returnState="returned"; a[1].condition="wiped";
+    a[2].returnState="returned"; a[2].condition="received";
+    a[3].returnState="in_transit"; a[3].condition="pending";
+    return {
+      id:"sofia", name:"Sofia Lindqvist", role:"Account Executive", dept:"Sales",
+      exitType:"mutual", manager:"Dana Reyes",
+      lwd:"Jun 12, 2026", lwdDays:5, exitInterview:"Jun 11, 2026", tenure:"3 yr 8 mo",
+      reason:"Mutual agreement", successor:"Marco Bianchi (interim)",
+      journey:j, assets:a
+    };
+  })(),
+  (function(){
+    const j = defaultExit("Wei Chen");
+    // just on notice: only notice stage done
+    j[0].groups.forEach(g=>g.items.forEach(i=>{ i.done=true; i.due="Done"; i.dueState="done"; }));
+    j[1].groups[0].items[0].done=true; j[1].groups[0].items[0].due="Done"; j[1].groups[0].items[0].dueState="done";
+    // one overdue for realism in KT
+    j[1].groups[0].items[1].dueState="over"; j[1].groups[0].items[1].due="Overdue";
+    const a = defaultAssets();
+    a.forEach(x=>{ if(x.returnState!=="na"){ x.returnState="outstanding"; x.condition="pending"; } });
+    a[4].returnState="outstanding"; a[4].condition="pending";
+    a[5].returnState="outstanding"; a[5].condition="pending";
+    return {
+      id:"arjun", name:"Arjun Mehta", role:"Product Designer", dept:"Design",
+      exitType:"end_of_contract", manager:"Wei Chen",
+      lwd:"Jul 03, 2026", lwdDays:26, exitInterview:"Jul 02, 2026", tenure:"11 mo",
+      reason:"Fixed-term contract end", successor:"role closed",
+      journey:j, assets:a
+    };
+  })(),
+];
+
+const EXIT_LABEL = { resignation:"Resignation", end_of_contract:"Contract end", retirement:"Retirement", involuntary:"Involuntary", mutual:"Mutual" };
+const RS_LABEL = { returned:"Returned", in_transit:"In transit", outstanding:"Outstanding", na:"N/A" };
+const COND_LABEL = { pending:"Pending", received:"Received", damaged:"Damaged", missing:"Missing", wiped:"Wiped" };
+const GROUP_LABELS = { hr:"HR", it:"IT", admin:"Admin", finance:"Finance", manager:"Manager" };
+
+/* ============ State ============ */
+let currentId = PEOPLE[0].id;
+function current(){ return PEOPLE.find(p=>p.id===currentId); }
+
+/* ============ Stats ============ */
+function taskStats(p){
+  let t=0,d=0; p.journey.forEach(s=>s.groups.forEach(g=>g.items.forEach(i=>{ t++; if(i.done) d++; }))); return {t,d,pct:t?Math.round(d/t*100):0};
+}
+function assetStats(p){
+  let total=0, back=0, outVal=0;
+  p.assets.forEach(a=>{ if(a.returnState==="na") return; total++; if(a.returnState==="returned") back++; else outVal += a.value; });
+  return {total, back, outVal, pct: total?Math.round(back/total*100):0};
+}
+function stageStats(s){ let t=0,d=0; s.groups.forEach(g=>g.items.forEach(i=>{ t++; if(i.done) d++; })); return {t,d,pct:t?Math.round(d/t*100):0}; }
+
+/* ============ Left rail ============ */
+function renderRail(){
+  const list = document.getElementById("railList");
+  document.getElementById("railCount").textContent = PEOPLE.length + " people";
+  list.innerHTML = PEOPLE.map(p=>{
+    const ts = taskStats(p);
+    const col = colorFor(p.name);
+    const C = 2*Math.PI*16;
+    return `<div class="person ${p.id===currentId?'active':''}" data-id="${p.id}">
+      <div class="pav" style="background:${col}">${initials(p.name)}</div>
+      <div class="pmeta">
+        <div class="pname">${escapeHtml(p.name)}</div>
+        <div class="prole">${escapeHtml(p.role)} · ${escapeHtml(p.dept)}</div>
+        <div class="pfoot">
+          <span class="ptag et-${p.exitType}">${EXIT_LABEL[p.exitType]}</span>
+          <span class="plwd">LWD ${p.lwd.replace(', 2026','')}</span>
+        </div>
+      </div>
+      <div class="miniring">
+        <svg width="38" height="38" viewBox="0 0 38 38">
+          <circle class="mt" cx="19" cy="19" r="16"/>
+          <circle class="mb" cx="19" cy="19" r="16" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${(C*(1-ts.pct/100)).toFixed(2)}" transform="rotate(-90 19 19)"/>
+        </svg>
+        <div class="mp">${ts.pct}%</div>
+      </div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".person").forEach(el=>{
+    el.addEventListener("click",()=>{ currentId=el.dataset.id; renderAll(); });
+  });
+}
+
+/* ============ Hero ============ */
+function renderHero(){
+  const c = current();
+  const col = colorFor(c.name);
+  const av = document.getElementById("heroAv");
+  av.textContent = initials(c.name);
+  av.style.background = `linear-gradient(135deg, ${col}, ${col}cc)`;
+  document.getElementById("heroName").textContent = c.name;
+  document.getElementById("heroRole").textContent = `${c.role} · ${c.dept}`;
+  document.getElementById("heroTags").innerHTML = `
+    <span class="tag"><span>&#128221;</span> ${EXIT_LABEL[c.exitType]}</span>
+    <span class="tag warn"><span>&#128197;</span> Last day ${c.lwd}</span>
+    <span class="tag neutral"><span>&#128100;</span> Manager: ${escapeHtml(c.manager)}</span>
+    <span class="tag neutral"><span>&#9203;</span> Tenure ${c.tenure}</span>`;
+  document.getElementById("heroCover").style.background =
+    `radial-gradient(420px 200px at 80% -40px, ${col}33 0%, ${col}00 70%), linear-gradient(120deg, ${col}22 0%, #fbeee3 55%, #fdf3df 120%)`;
+}
+
+/* ============ Quick facts ============ */
+function renderQuick(){
+  const c = current();
+  const ts = taskStats(c), as = assetStats(c);
+  const open = ts.t - ts.d;
+  document.getElementById("quickrow").innerHTML = `
+    <div class="quick">
+      <div class="qic" style="background:var(--accent-soft)">&#9989;</div>
+      <div><div class="qt">Tasks done</div><div class="qv">${ts.d} <small>/ ${ts.t}</small></div></div>
+    </div>
+    <div class="quick">
+      <div class="qic" style="background:var(--over-soft)">&#128230;</div>
+      <div><div class="qt">Assets back</div><div class="qv">${as.back} <small>/ ${as.total}</small></div></div>
+    </div>
+    <div class="quick">
+      <div class="qic" style="background:var(--amber-soft)">&#9203;</div>
+      <div><div class="qt">Days to last day</div><div class="qv">${c.lwdDays} <small>days</small></div></div>
+    </div>`;
+}
+
+/* ============ Timeline ============ */
+function dueClass(s){ return s==="over"?"over": s==="soon"?"soon": s==="done"?"done": s==="ok"?"ok":""; }
+function renderTimeline(){
+  const c = current();
+  const tl = document.getElementById("timeline");
+  const firstOpen = c.journey.findIndex(x=>stageStats(x).pct<100);
+
+  tl.innerHTML = c.journey.map((s, si)=>{
+    const st = stageStats(s);
+    const complete = st.pct===100;
+    const active = si===firstOpen;
+    const collapsed = complete && !active;
+
+    const groups = s.groups.map(g=>{
+      const dn = g.items.filter(i=>i.done).length;
+      const items = g.items.map((i, ii)=>`
+        <div class="task ${i.done?'done':''}" data-s="${si}" data-g="${g.g}" data-i="${ii}">
+          <div class="check" role="checkbox" aria-checked="${i.done}" tabindex="0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="task-main">
+            <div class="task-name">${i.name}</div>
+            ${i.note?`<div class="task-note">${i.note}</div>`:""}
+          </div>
+          <div class="task-side">
+            <div class="owner" title="${escapeHtml(i.owner.name)} · ${escapeHtml(i.owner.role)}">
+              <span class="oav" style="background:${colorFor(i.owner.name)}">${initials(i.owner.name)}</span>
+              <span class="oname">${escapeHtml(i.owner.name.split(' ')[0])}</span>
+            </div>
+            <span class="due ${dueClass(i.dueState)}">${i.due}</span>
+          </div>
+        </div>`).join("");
+      return `
+        <div class="group group-${g.g}">
+          <div class="group-head">
+            <span class="group-chip">${GROUP_LABELS[g.g]}</span>
+            <span class="group-count">${dn}/${g.items.length} done</span>
+          </div>
+          ${items}
+        </div>`;
+    }).join("");
+
+    return `
+      <div class="stage ${complete?'complete':''} ${active?'active':''} ${collapsed?'collapsed':''}" data-stage="${si}">
+        <div class="node">${complete?'&#10003;':s.icon}</div>
+        <div class="stage-card">
+          <div class="stage-top">
+            <div>
+              <div class="stage-title">${s.title}</div>
+              <div class="stage-sub">${s.sub}</div>
+            </div>
+            <div class="stage-when">${s.when}</div>
+            <div class="stage-meter">
+              <div class="meter-track"><div class="meter-fill" style="width:${st.pct}%"></div></div>
+              <div class="meter-pct">${st.pct}%</div>
+            </div>
+            <span class="chev">&#9660;</span>
+          </div>
+          <div class="stage-content">${groups}</div>
+        </div>
+      </div>`;
+  }).join("");
+
+  tl.querySelectorAll(".stage-top").forEach(top=>{
+    top.addEventListener("click",e=>{
+      if(e.target.closest(".check")) return;
+      top.closest(".stage").classList.toggle("collapsed");
+    });
+  });
+  tl.querySelectorAll(".task").forEach(t=>{
+    const check = t.querySelector(".check");
+    const toggle = ()=>{
+      const si=+t.dataset.s, gg=t.dataset.g, ii=+t.dataset.i;
+      const stage = current().journey[si];
+      const grp = stage.groups.find(x=>x.g===gg);
+      const it = grp.items[ii];
+      it.done = !it.done;
+      if(it.done){ it.dueState="done"; it.due="Done"; }
+      renderAll();
+    };
+    check.addEventListener("click",e=>{ e.stopPropagation(); toggle(); });
+    check.addEventListener("keydown",e=>{ if(e.key===" "||e.key==="Enter"){ e.preventDefault(); toggle(); } });
+  });
+}
+
+/* ============ Ring ============ */
+const CIRC = 2*Math.PI*54;
+function renderRing(){
+  const c = current();
+  const ts = taskStats(c), as = assetStats(c);
+  document.getElementById("ringBar").style.strokeDashoffset = CIRC*(1-ts.pct/100);
+  document.getElementById("ringPct").textContent = ts.pct+"%";
+  document.getElementById("ringCaption").textContent = `${ts.d} of ${ts.t} tasks done`;
+  document.getElementById("rbAssets").textContent = `${as.back}/${as.total}`;
+  document.getElementById("rbOpen").textContent = ts.t - ts.d;
+  document.getElementById("rbDays").textContent = c.lwdDays;
+  const cleared = ts.pct===100 && as.back===as.total;
+  document.getElementById("clearance").style.display = cleared?"block":"none";
+}
+
+/* ============ Asset recovery ============ */
+function renderAssets(){
+  const c = current();
+  const as = assetStats(c);
+  document.getElementById("assetSubhead").textContent = `${c.assets.length} items issued`;
+  document.getElementById("asFill").style.width = as.pct+"%";
+  document.getElementById("asLabel").innerHTML = `<b>${as.back}/${as.total}</b> recovered`;
+  const out = as.total - as.back;
+  const outEl = document.getElementById("asOut");
+  if(out===0){ outEl.textContent = "All cleared"; outEl.classList.add("clear"); }
+  else { outEl.textContent = `${out} out · $${as.outVal.toLocaleString()}`; outEl.classList.remove("clear"); }
+
+  const list = document.getElementById("assetList");
+  list.innerHTML = c.assets.map((a, ai)=>{
+    const cls = a.returnState==="returned" ? "returned" : a.returnState==="na" ? "na" : (a.returnState==="outstanding"?"outstanding":"");
+    const btn = a.returnState==="returned" ? "&#10003; Returned"
+              : a.returnState==="na" ? "Reclaimed"
+              : "Mark returned";
+    return `<div class="asset ${cls}" data-i="${ai}">
+      <div class="aic">${CATICON[a.category]||"&#128230;"}</div>
+      <div class="amain">
+        <div class="aname">${escapeHtml(a.name)}</div>
+        <div class="ameta">${a.tag} · issued ${a.issued}${a.value?` · $${a.value.toLocaleString()}`:""}</div>
+        <div class="abadges">
+          <span class="badge rs-${a.returnState}">${RS_LABEL[a.returnState]}</span>
+          <span class="badge cond-${a.condition}">${COND_LABEL[a.condition]}</span>
+        </div>
+      </div>
+      <button class="areturn" type="button">${btn}</button>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll(".asset").forEach(el=>{
+    const btn = el.querySelector(".areturn");
+    btn.addEventListener("click",()=>{
+      const a = current().assets[+el.dataset.i];
+      if(a.returnState==="returned" || a.returnState==="na") return;
+      a.returnState = "returned";
+      if(a.condition==="pending") a.condition = (a.category==="laptop"||a.category==="phone"||a.category==="software") ? "wiped" : "received";
+      renderAll();
+    });
+  });
+}
+
+/* ============ Exit summary ============ */
+function renderSummary(){
+  const c = current();
+  document.getElementById("sumlist").innerHTML = `
+    <div class="sumrow"><span class="sl">Last working day</span><span class="sv">${c.lwd}</span></div>
+    <div class="sumrow"><span class="sl">Exit interview</span><span class="sv">${c.exitInterview}</span></div>
+    <div class="sumrow"><span class="sl">Tenure</span><span class="sv">${c.tenure}</span></div>
+    <div class="sumrow"><span class="sl">Reason</span><span class="sv">${escapeHtml(c.reason)}</span></div>
+    <div class="sumrow"><span class="sl">Backfill</span><span class="sv">${escapeHtml(c.successor)}</span></div>
+    <div class="sumrow"><span class="sl">Status</span><span class="sv"><span class="st st-${statusOf(c)}">${statusLabel(c)}</span></span></div>`;
+}
+function statusOf(c){
+  const ts = taskStats(c), as = assetStats(c);
+  if(ts.pct===100 && as.back===as.total) return "completed";
+  if(ts.pct>=60) return "clearing";
+  if(ts.pct>0) return "in_progress";
+  return "notice";
+}
+function statusLabel(c){ return ({notice:"On notice", in_progress:"In progress", clearing:"Clearing", completed:"Completed"})[statusOf(c)]; }
+
+/* ============ Render all ============ */
+function renderAll(){
+  document.getElementById("tbStat").textContent = PEOPLE.length + " active offboardings";
+  renderRail();
+  renderHero();
+  renderQuick();
+  renderTimeline();
+  renderRing();
+  renderAssets();
+  renderSummary();
+}
+renderAll();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Exit Checklist: an offboarding journey checklist, asset recovery, and a completion ring. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/38-exit-checklist.html
+</script>
+</body>
+</html>

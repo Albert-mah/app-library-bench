@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Devicely — Fleet &amp; Device Management</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Device Management System (Devicely)",
+  "prefix": "dvc_",
+  "collections": {
+    "dvc_locations": {"titleField":"name","fields":{"name":"input","site_code":"input","timezone":"input"}},
+    "dvc_owners": {"titleField":"name","fields":{"name":"input","email":"input","department":"select:engineering|design|sales|finance|operations|support|it","avatar_initials":"input"}},
+    "dvc_devices": {"titleField":"asset_tag","fields":{"asset_tag":"input","hostname":"input","device_type":"select:laptop|desktop|phone|tablet|monitor|server|printer|network","make":"input","model":"input","os":"select:macos|windows|linux|ios|android|other","os_version":"input","serial":"input","status":"select:active|idle|maintenance|retired|lost","health_score":"integer","compliant":"boolean","encrypted":"boolean","mdm_enrolled":"boolean","antivirus_ok":"boolean","os_patched":"boolean","last_seen":"datetime","warranty_end":"date","purchase_date":"date","cost":"number"},"relations":{"owner":"m2o dvc_owners (fk owner_id)","location":"m2o dvc_locations (fk location_id)"}}
+  },
+  "page": {
+    "name": "Device Fleet",
+    "layout": "stat strip (event-flow summary, native) | left FilterForm + facet rail driving the grid | main = native GridCard (dvc_devices) + JSField whole-record card with health ring + compliance badges | click card -> Details popup",
+    "regions": [
+      {"id":"stats","block":"native summary strip / JSBlock fed by ctx.resource aggregates","intent":"fleet KPI tiles","content":["total devices","compliant %","health avg ring","at-risk count","warranty expiring"]},
+      {"id":"facets","block":"FilterForm + facet JSBlock (pills)","intent":"filter the grid","drives":"dvc_devices grid via addFilterGroup + refresh","facets":["device_type","status","os","compliance state","location"]},
+      {"id":"grid","block":"native GridCard (dvc_devices) + JSField whole-record card (remove sibling native fields, showLabel:false)","collection":"dvc_devices","intent":"device card grid","card":["device-type glyph + status dot","asset_tag + hostname","make/model + os badge","SVG health ring (health_score)","compliance badge row (encrypted / mdm / av / patched)","owner avatar + location","last seen + warranty chip"],"click":"ctx.openView(<Details ViewActionModel uid>, {filterByTk})"},
+      {"id":"detail","block":"native Details popup (dvc_devices single record)","intent":"full device record","shows":["all fields grouped: identity / hardware / security posture / lifecycle / assignment","compliance checklist","activity timeline (JS item)"]}
+    ]
+  },
+  "interactions": ["facet pills + search push addFilterGroup to dvc_devices resource then refresh","sort select reorders grid","health ring color thresholds (>=85 green, 60-84 amber, <60 red)","compliance badges reflect boolean fields","click card opens Details popup","stat strip recomputes from filtered set (event-flow)"],
+  "jsKernels": ["device JSField card (health ring SVG + compliance badge row)","facet rail pills (cross-block filter)","KPI stat strip aggregate"],
+  "notes": "Container/content rule: the device grid is a NATIVE GridCard of dvc_devices; the rich card (health ring, compliance badges, owner avatar) is ONE JSField whole-record card with sibling native fields removed and showLabel:false. Facets are a FilterForm + a small facet JSBlock pushing addFilterGroup to the same resource. The detail view is a native Details popup, not a JSBlock. Health score, compliance booleans (encrypted/mdm_enrolled/antivirus_ok/os_patched) are real fields. Do not rebuild the whole page as a freestanding JSBlock."
+}
+</script>
+<style>
+  :root{
+    /* IT / data / asset department — tech blue + cyan accent */
+    --blue:#1668dc; --blue-soft:#e6f0ff; --blue-line:#91caff; --blue-deep:#0c4ab8;
+    --cyan:#13c2c2; --cyan-soft:#e6fffb;
+    --ink:#1c2430; --ink-2:#5a6573; --ink-3:#8c97a6;
+    --line:#eef1f5; --line-2:#e3e8ef; --bg:#f4f6f9; --card:#fff;
+    --green:#52c41a; --green-soft:#f6ffed; --green-line:#b7eb8f;
+    --amber:#faad14; --amber-soft:#fffbe6;
+    --red:#f5222d; --red-soft:#fff1f0; --red-line:#ffccc7;
+    --purple:#722ed1;
+    /* device-type accents */
+    --t-laptop:#1668dc; --t-desktop:#2f54eb; --t-phone:#13c2c2; --t-tablet:#08979c;
+    --t-monitor:#722ed1; --t-server:#d4380d; --t-printer:#595959; --t-network:#eb2f96;
+    --r:11px;
+    --shadow:0 1px 2px rgba(16,30,54,.05), 0 8px 22px rgba(16,30,54,.06);
+    --shadow-sm:0 1px 2px rgba(16,30,54,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:20px; padding:0 24px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--blue),var(--cyan));
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 2px 9px rgba(22,104,220,.36);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:3px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--blue-soft);color:var(--blue)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .search-top{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;width:240px;color:var(--ink-3);font-size:13px}
+  .search-top input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
+  .chip-live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);
+    background:var(--green-soft);border:1px solid var(--green-line);padding:5px 10px;border-radius:20px;white-space:nowrap}
+  .chip-live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- shell ---------- */
+  .shell{display:grid;grid-template-columns:248px minmax(0,1fr);height:calc(100vh - 56px)}
+  .side{
+    background:var(--card);border-right:1px solid var(--line-2);overflow:auto;padding:16px 0;
+  }
+  .main{overflow:auto;padding:22px 26px 40px}
+
+  /* ---------- sidebar facets ---------- */
+  .side-sec{padding:0 18px 18px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+  .side-sec:last-child{border-bottom:none}
+  .side-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-3);margin:14px 0 10px;display:flex;align-items:center;justify-content:space-between}
+  .side-title .clr{font-size:11px;font-weight:600;color:var(--blue);cursor:pointer;text-transform:none;letter-spacing:0}
+  .facet{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--ink-2);transition:.12s}
+  .facet:hover{background:var(--line)}
+  .facet.on{background:var(--blue-soft);color:var(--blue);font-weight:600}
+  .facet .fi{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:11px;flex:none;background:var(--line);color:var(--ink-2)}
+  .facet.on .fi{background:var(--blue);color:#fff}
+  .facet .fn{flex:1;min-width:0}
+  .facet .fc{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;font-weight:600}
+  .facet.on .fc{color:var(--blue)}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .dot.active{background:var(--green)} .dot.idle{background:var(--ink-3)}
+  .dot.maintenance{background:var(--amber)} .dot.retired{background:#bfbfbf} .dot.lost{background:var(--red)}
+
+  /* ---------- header / stats ---------- */
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+  .page-head h1{font-size:21px;font-weight:700;letter-spacing:-.4px}
+  .page-head p{color:var(--ink-3);font-size:12.5px;margin-top:3px}
+  .head-actions{display:flex;align-items:center;gap:9px}
+  .btn{border:none;border-radius:9px;padding:9px 15px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.13s;display:flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--blue);color:#fff;box-shadow:0 2px 8px rgba(22,104,220,.3)}
+  .btn-primary:hover{background:var(--blue-deep)}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:var(--blue-line);color:var(--blue)}
+
+  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+  .stat{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:15px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+  .stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue)}
+  .stat.s-ok::before{background:var(--green)} .stat.s-warn::before{background:var(--amber)} .stat.s-risk::before{background:var(--red)} .stat.s-cyan::before{background:var(--cyan)}
+  .stat .sl{font-size:11.5px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:6px}
+  .stat .sv{font-size:27px;font-weight:800;letter-spacing:-.6px;margin-top:7px;display:flex;align-items:baseline;gap:7px}
+  .stat .sv small{font-size:13px;font-weight:600;color:var(--ink-3)}
+  .stat .sd{font-size:11.5px;margin-top:5px;font-weight:600}
+  .sd.up{color:var(--green)} .sd.down{color:var(--red)} .sd.flat{color:var(--ink-3)}
+  .stat .ring-mini{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:46px;height:46px}
+  .stat .ring-mini text{font-size:9px;font-weight:800;fill:var(--ink)}
+
+  /* ---------- toolbar above grid ---------- */
+  .grid-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .seg{display:flex;background:#fff;border:1px solid var(--line-2);border-radius:9px;overflow:hidden}
+  .seg button{border:none;background:none;padding:7px 13px;font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;border-right:1px solid var(--line-2)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--blue-soft);color:var(--blue)}
+  .tb-spacer{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .tb-count{font-size:12.5px;color:var(--ink-3);font-weight:600}
+  .tb-count b{color:var(--ink)}
+  .selstack{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
+  .selstack select{border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);background:#fff;outline:none;cursor:pointer}
+
+  .active-filters{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;min-height:0}
+  .active-filters .lbl{font-size:12px;color:var(--ink-3);font-weight:600}
+  .chip-f{display:flex;align-items:center;gap:6px;background:var(--blue-soft);color:var(--blue);border-radius:18px;padding:4px 6px 4px 11px;font-size:12px;font-weight:600}
+  .chip-f button{border:none;background:rgba(22,104,220,.18);color:var(--blue);width:17px;height:17px;border-radius:50%;cursor:pointer;font-size:11px;line-height:1;display:grid;place-items:center}
+  .chip-f button:hover{background:var(--blue);color:#fff}
+
+  /* ---------- device card grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .dcard{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow-sm);
+    cursor:pointer;transition:.15s;overflow:hidden;position:relative;display:flex;flex-direction:column;
+  }
+  .dcard:hover{box-shadow:var(--shadow);transform:translateY(-2px);border-color:var(--blue-line)}
+  .dc-strip{height:4px;background:var(--blue)}
+  .dc-strip.laptop{background:var(--t-laptop)} .dc-strip.desktop{background:var(--t-desktop)}
+  .dc-strip.phone{background:var(--t-phone)} .dc-strip.tablet{background:var(--t-tablet)}
+  .dc-strip.monitor{background:var(--t-monitor)} .dc-strip.server{background:var(--t-server)}
+  .dc-strip.printer{background:var(--t-printer)} .dc-strip.network{background:var(--t-network)}
+  .dc-body{padding:15px 16px 13px;flex:1;display:flex;flex-direction:column}
+
+  .dc-top{display:flex;align-items:flex-start;gap:12px}
+  .dc-glyph{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;font-size:21px;flex:none;background:var(--blue-soft);color:var(--blue);position:relative}
+  .dc-glyph.laptop{background:#e6f0ff;color:var(--t-laptop)} .dc-glyph.desktop{background:#f0f5ff;color:var(--t-desktop)}
+  .dc-glyph.phone{background:var(--cyan-soft);color:var(--t-phone)} .dc-glyph.tablet{background:#e6fffb;color:var(--t-tablet)}
+  .dc-glyph.monitor{background:#f9f0ff;color:var(--t-monitor)} .dc-glyph.server{background:#fff2e8;color:var(--t-server)}
+  .dc-glyph.printer{background:#f5f5f5;color:var(--t-printer)} .dc-glyph.network{background:#fff0f6;color:var(--t-network)}
+  .dc-glyph .sdot{position:absolute;bottom:-2px;right:-2px;width:13px;height:13px;border-radius:50%;border:2.5px solid #fff}
+  .dc-glyph .sdot.active{background:var(--green)} .dc-glyph .sdot.idle{background:var(--ink-3)}
+  .dc-glyph .sdot.maintenance{background:var(--amber)} .dc-glyph .sdot.retired{background:#bfbfbf} .dc-glyph .sdot.lost{background:var(--red)}
+
+  .dc-id{flex:1;min-width:0}
+  .dc-tag{font-size:14.5px;font-weight:700;letter-spacing:-.2px;display:flex;align-items:center;gap:7px}
+  .dc-tag .typ{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);background:var(--line);padding:2px 6px;border-radius:5px}
+  .dc-host{font-size:12px;color:var(--ink-3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dc-model{font-size:12.5px;color:var(--ink-2);margin-top:6px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .os-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--line);color:var(--ink-2)}
+  .os-badge .osi{font-size:11px}
+  .os-badge.macos{background:#f0f0f0;color:#1d1d1f} .os-badge.windows{background:#e6f0ff;color:#0067b8}
+  .os-badge.linux{background:#fff7e6;color:#d46b08} .os-badge.ios{background:#f0f0f0;color:#1d1d1f}
+  .os-badge.android{background:var(--green-soft);color:#389e0d}
+
+  /* health ring */
+  .dc-ring-wrap{flex:none;text-align:center}
+  .dc-ring{width:54px;height:54px;display:block}
+  .dc-ring circle{fill:none;stroke-width:5}
+  .dc-ring .bg{stroke:var(--line-2)}
+  .dc-ring .fg{stroke-linecap:round;transition:stroke-dashoffset .3s}
+  .dc-ring text{font-size:15px;font-weight:800}
+  .dc-ring-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);margin-top:2px}
+
+  /* compliance badges */
+  .dc-compliance{margin-top:13px;padding-top:12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .cbadge{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:7px}
+  .cbadge.ok{background:var(--green-soft);color:#389e0d}
+  .cbadge.bad{background:var(--red-soft);color:var(--red);border:1px solid var(--red-line)}
+  .cbadge .ci{font-size:10px}
+
+  .dc-foot{display:flex;align-items:center;gap:9px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}
+  .owner{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .owner .oav{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:700;
+    background:linear-gradient(135deg,var(--blue),var(--cyan))}
+  .owner .oi{line-height:1.2;min-width:0}
+  .owner .oi b{font-size:12px;font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .owner .oi span{font-size:11px;color:var(--ink-3)}
+  .dc-meta{text-align:right;flex:none}
+  .dc-meta .seen{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px;justify-content:flex-end}
+  .dc-meta .seen i{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .dc-meta .seen.stale i{background:var(--amber)}
+  .dc-meta .seen.off i{background:var(--ink-3)}
+  .warranty{font-size:10.5px;font-weight:600;margin-top:4px;padding:2px 7px;border-radius:6px;display:inline-block}
+  .warranty.ok{background:var(--green-soft);color:#389e0d}
+  .warranty.soon{background:var(--amber-soft);color:#d48806}
+  .warranty.exp{background:var(--red-soft);color:var(--red)}
+
+  .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--ink-3)}
+  .empty .big{font-size:42px;margin-bottom:10px;opacity:.5}
+  .empty b{display:block;font-size:15px;color:var(--ink-2);margin-bottom:4px}
+
+  /* ---------- detail drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(16,30,54,.42);opacity:0;pointer-events:none;transition:.2s;z-index:50;backdrop-filter:blur(1px)}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;bottom:0;width:520px;max-width:94vw;background:var(--card);
+    box-shadow:-12px 0 40px rgba(16,30,54,.18);transform:translateX(100%);transition:.26s cubic-bezier(.4,0,.2,1);
+    z-index:55;display:flex;flex-direction:column;
+  }
+  .drawer.show{transform:translateX(0)}
+  .dr-head{padding:20px 24px;border-bottom:1px solid var(--line-2);display:flex;align-items:flex-start;gap:14px}
+  .dr-head .dc-glyph{width:52px;height:52px;font-size:25px}
+  .dr-htext{flex:1;min-width:0}
+  .dr-htext h2{font-size:18px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:9px}
+  .dr-htext .hm{font-size:12.5px;color:var(--ink-3);font-family:ui-monospace,Menlo,monospace;margin-top:3px}
+  .dr-close{border:none;background:var(--line);width:32px;height:32px;border-radius:9px;cursor:pointer;font-size:16px;color:var(--ink-2);flex:none}
+  .dr-close:hover{background:var(--line-2)}
+  .dr-body{overflow:auto;padding:20px 24px;flex:1}
+  .dr-hero{display:flex;align-items:center;gap:18px;background:linear-gradient(135deg,var(--blue-soft),var(--cyan-soft));border-radius:var(--r);padding:16px 18px;margin-bottom:20px}
+  .dr-hero .dc-ring{width:72px;height:72px}
+  .dr-hero .dc-ring text{font-size:18px}
+  .dr-hero .hi{flex:1}
+  .dr-hero .hi .hs{font-size:13px;font-weight:600;color:var(--ink-2)}
+  .dr-hero .hi .hd{font-size:12px;color:var(--ink-3);margin-top:3px}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:20px}
+  .status-pill.active{background:var(--green-soft);color:#389e0d} .status-pill.idle{background:var(--line);color:var(--ink-2)}
+  .status-pill.maintenance{background:var(--amber-soft);color:#d48806} .status-pill.retired{background:#f5f5f5;color:var(--ink-3)} .status-pill.lost{background:var(--red-soft);color:var(--red)}
+
+  .dr-section{margin-bottom:22px}
+  .dr-section h3{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-3);margin-bottom:11px;display:flex;align-items:center;gap:8px}
+  .dr-section h3::after{content:"";flex:1;height:1px;background:var(--line)}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:9px 14px}
+  .kv dt{font-size:12.5px;color:var(--ink-3);font-weight:500}
+  .kv dd{font-size:13px;color:var(--ink);font-weight:600}
+  .kv dd.mono{font-family:ui-monospace,Menlo,monospace;font-weight:500;font-size:12.5px}
+
+  .checklist{display:flex;flex-direction:column;gap:9px}
+  .check-item{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:9px;border:1px solid var(--line-2)}
+  .check-item .cc{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:13px;flex:none;color:#fff}
+  .check-item.ok{background:var(--green-soft);border-color:var(--green-line)} .check-item.ok .cc{background:var(--green)}
+  .check-item.bad{background:var(--red-soft);border-color:var(--red-line)} .check-item.bad .cc{background:var(--red)}
+  .check-item .ct{flex:1}
+  .check-item .ct b{font-size:13px;display:block}
+  .check-item .ct span{font-size:11.5px;color:var(--ink-3)}
+
+  .timeline{position:relative;padding-left:22px}
+  .timeline::before{content:"";position:absolute;left:6px;top:5px;bottom:5px;width:2px;background:var(--line-2)}
+  .tl-item{position:relative;padding:0 0 16px}
+  .tl-item:last-child{padding-bottom:0}
+  .tl-item::before{content:"";position:absolute;left:-19px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid #fff;box-shadow:0 0 0 2px var(--blue-line)}
+  .tl-item.muted::before{background:var(--ink-3);box-shadow:0 0 0 2px var(--line-2)}
+  .tl-item .tt{font-size:13px;font-weight:600}
+  .tl-item .td{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+
+  .dr-foot{padding:16px 24px;border-top:1px solid var(--line-2);display:flex;gap:10px;background:#fafbfc}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:80;display:flex;align-items:center;gap:9px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .td{width:8px;height:8px;border-radius:50%;background:var(--cyan)}
+
+  @media(max-width:1080px){
+    .shell{grid-template-columns:1fr}
+    .side{display:none}
+    .stats{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">D</span>Devicely <small>fleet</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Devices</a>
+    <a href="#">Compliance</a>
+    <a href="#">Assignments</a>
+    <a href="#">Lifecycle</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="search-top">🔎<input id="search" placeholder="Search asset tag, hostname, serial…"></div>
+    <span class="chip-live"><i></i> MDM synced 4m ago</span>
+    <div class="acct">
+      <div class="ava">RK</div>
+      <div class="who"><b>Riya Kapoor</b><br><span>IT Operations</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ============ LEFT: FACET RAIL ============ -->
+  <aside class="side">
+    <div class="side-sec">
+      <div class="side-title">Device type <span class="clr" data-clr="type">clear</span></div>
+      <div id="facetType"></div>
+    </div>
+    <div class="side-sec">
+      <div class="side-title">Status <span class="clr" data-clr="status">clear</span></div>
+      <div id="facetStatus"></div>
+    </div>
+    <div class="side-sec">
+      <div class="side-title">Operating system <span class="clr" data-clr="os">clear</span></div>
+      <div id="facetOs"></div>
+    </div>
+    <div class="side-sec">
+      <div class="side-title">Compliance <span class="clr" data-clr="comp">clear</span></div>
+      <div id="facetComp"></div>
+    </div>
+    <div class="side-sec">
+      <div class="side-title">Location <span class="clr" data-clr="loc">clear</span></div>
+      <div id="facetLoc"></div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <h1>Device fleet</h1>
+        <p>342 managed endpoints across 5 sites · last MDM sync 14:26 UTC</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-ghost" id="exportBtn">⬇ Export CSV</button>
+        <button class="btn btn-primary" id="enrollBtn">＋ Enroll device</button>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="stats" id="stats"></div>
+
+    <!-- toolbar -->
+    <div class="grid-toolbar">
+      <div class="seg" id="viewSeg">
+        <button class="on" data-v="grid">▦ Grid</button>
+        <button data-v="compact">☰ Compact</button>
+      </div>
+      <div class="tb-spacer">
+        <span class="tb-count"><b id="shownCount">0</b> of <span id="totalCount">0</span> devices</span>
+        <div class="selstack">
+          Sort
+          <select id="sortSel">
+            <option value="health-asc">Health · lowest first</option>
+            <option value="health-desc">Health · highest first</option>
+            <option value="lastseen">Last seen · recent</option>
+            <option value="warranty">Warranty · expiring</option>
+            <option value="tag">Asset tag · A–Z</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="active-filters" id="activeFilters"></div>
+
+    <div class="grid" id="grid"></div>
+  </main>
+</div>
+
+<!-- detail drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head" id="drHead"></div>
+  <div class="dr-body" id="drBody"></div>
+  <div class="dr-foot">
+    <button class="btn btn-primary" id="drRemediate">⚙ Run remediation</button>
+    <button class="btn btn-ghost" id="drReassign">↔ Reassign</button>
+    <button class="btn btn-ghost" id="drRetire" style="margin-left:auto">Retire</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><span class="td"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- reference data ---------- */
+  var TYPE = {
+    laptop:  {label:"Laptop",  glyph:"💻"},
+    desktop: {label:"Desktop", glyph:"🖥️"},
+    phone:   {label:"Phone",   glyph:"📱"},
+    tablet:  {label:"Tablet",  glyph:"📲"},
+    monitor: {label:"Monitor", glyph:"🖵"},
+    server:  {label:"Server",  glyph:"🗄️"},
+    printer: {label:"Printer", glyph:"🖨️"},
+    network: {label:"Network", glyph:"📡"}
+  };
+  var STATUS = {
+    active:{label:"Active"}, idle:{label:"Idle"}, maintenance:{label:"Maintenance"},
+    retired:{label:"Retired"}, lost:{label:"Lost / stolen"}
+  };
+  var OS = {
+    macos:{label:"macOS",glyph:"",cls:"macos"}, windows:{label:"Windows",glyph:"⊞",cls:"windows"},
+    linux:{label:"Linux",glyph:"🐧",cls:"linux"}, ios:{label:"iOS",glyph:"",cls:"ios"},
+    android:{label:"Android",glyph:"🤖",cls:"android"}, other:{label:"Other",glyph:"○",cls:""}
+  };
+  var LOC = {
+    sf:"San Francisco HQ", nyc:"New York", ldn:"London", sgp:"Singapore", remote:"Remote / WFH"
+  };
+
+  /* ---------- device dataset (high-density English mock) ---------- */
+  var DEVICES = [
+    {tag:"NB-1042",host:"riya-mbp16.corp",type:"laptop",make:"Apple",model:"MacBook Pro 16″ M3 Max",os:"macos",osv:"14.4.1",serial:"C02XK1Q3JGH7",status:"active",health:96,enc:1,mdm:1,av:1,patch:1,owner:"Riya Kapoor",dept:"IT Operations",init:"RK",loc:"sf",seen:"2m",warranty:"2027-03-12",purchase:"2024-03-12",cost:4299},
+    {tag:"NB-1043",host:"dev-leo-x1.corp",type:"laptop",make:"Lenovo",model:"ThinkPad X1 Carbon G11",os:"windows",osv:"11 23H2",serial:"PF3K8R2T",status:"active",health:88,enc:1,mdm:1,av:1,patch:0,owner:"Leo Nakamura",dept:"Engineering",init:"LN",loc:"sf",seen:"7m",warranty:"2026-08-20",purchase:"2023-08-20",cost:1899},
+    {tag:"NB-1051",host:"design-mia-mbp.corp",type:"laptop",make:"Apple",model:"MacBook Air 15″ M2",os:"macos",osv:"14.3",serial:"C02ZL4P9KQ2",status:"active",health:91,enc:1,mdm:1,av:1,patch:1,owner:"Mia Castellano",dept:"Design",init:"MC",loc:"nyc",seen:"1m",warranty:"2027-01-05",purchase:"2024-01-05",cost:1699},
+    {tag:"NB-0987",host:"sales-omar-sp.corp",type:"laptop",make:"Microsoft",model:"Surface Laptop 5",os:"windows",osv:"11 22H2",serial:"044XQ81B2",status:"idle",health:54,enc:0,mdm:1,av:1,patch:0,owner:"Omar Haddad",dept:"Sales",init:"OH",loc:"remote",seen:"6d",warranty:"2025-11-30",purchase:"2022-11-30",cost:1399},
+    {tag:"NB-1108",host:"fin-grace-dt.corp",type:"desktop",make:"Dell",model:"OptiPlex 7010 Tower",os:"windows",osv:"11 23H2",serial:"DLL7010A4",status:"active",health:83,enc:1,mdm:0,av:1,patch:1,owner:"Grace Okafor",dept:"Finance",init:"GO",loc:"nyc",seen:"19m",warranty:"2027-06-01",purchase:"2024-06-01",cost:1149},
+    {tag:"NB-1120",host:"ops-iphone-15.corp",type:"phone",make:"Apple",model:"iPhone 15 Pro",os:"ios",osv:"17.4.1",serial:"F2LZ9K8XQ7P",status:"active",health:94,enc:1,mdm:1,av:1,patch:1,owner:"Daniel Reyes",dept:"Operations",init:"DR",loc:"sf",seen:"4m",warranty:"2026-10-14",purchase:"2024-10-14",cost:1199},
+    {tag:"NB-1121",host:"field-pixel8.corp",type:"phone",make:"Google",model:"Pixel 8 Pro",os:"android",osv:"14",serial:"GP8P2024XK",status:"active",health:79,enc:1,mdm:1,av:0,patch:1,owner:"Aisha Bello",dept:"Support",init:"AB",loc:"ldn",seen:"22m",warranty:"2026-09-02",purchase:"2024-09-02",cost:999},
+    {tag:"NB-1134",host:"sup-ipad-air.corp",type:"tablet",make:"Apple",model:"iPad Air 11″ M2",os:"ios",osv:"17.4",serial:"DMPZ7QL3K8",status:"active",health:90,enc:1,mdm:1,av:1,patch:1,owner:"Nadia Petrov",dept:"Support",init:"NP",loc:"ldn",seen:"33m",warranty:"2027-04-18",purchase:"2024-04-18",cost:799},
+    {tag:"NB-0731",host:"eng-build-srv01",type:"server",make:"Dell",model:"PowerEdge R660",os:"linux",osv:"Ubuntu 22.04",serial:"PER660CI09",status:"active",health:97,enc:1,mdm:1,av:1,patch:1,owner:"Platform Team",dept:"Engineering",init:"PT",loc:"sf",seen:"30s",warranty:"2028-02-11",purchase:"2024-02-11",cost:8650},
+    {tag:"NB-0732",host:"eng-ci-srv02",type:"server",make:"HPE",model:"ProLiant DL380 G11",os:"linux",osv:"Debian 12",serial:"HPE380G11X",status:"maintenance",health:62,enc:1,mdm:1,av:1,patch:0,owner:"Platform Team",dept:"Engineering",init:"PT",loc:"sgp",seen:"1h",warranty:"2027-12-05",purchase:"2023-12-05",cost:7980},
+    {tag:"NB-1166",host:"mktg-mon-u32.corp",type:"monitor",make:"Dell",model:"UltraSharp U3223QE 32″",os:"other",osv:"—",serial:"U3223QE7K",status:"active",health:99,enc:0,mdm:0,av:0,patch:0,owner:"Marketing Pool",dept:"Operations",init:"MP",loc:"nyc",seen:"5h",warranty:"2027-07-22",purchase:"2024-07-22",cost:949},
+    {tag:"NB-0654",host:"hr-printer-c5.corp",type:"printer",make:"HP",model:"Color LaserJet E58650",os:"other",osv:"FW 5.7",serial:"HPE58650C5",status:"active",health:71,enc:0,mdm:0,av:0,patch:0,owner:"HR Floor 3",dept:"Operations",init:"HR",loc:"sf",seen:"40m",warranty:"2025-09-15",purchase:"2022-09-15",cost:2299},
+    {tag:"NB-0501",host:"net-fw-edge01",type:"network",make:"Cisco",model:"Meraki MX95 Firewall",os:"other",osv:"18.107.2",serial:"Q2XY-MX95-A1",status:"active",health:93,enc:1,mdm:1,av:0,patch:1,owner:"Network Team",dept:"IT Operations",init:"NT",loc:"sf",seen:"1m",warranty:"2027-05-30",purchase:"2024-05-30",cost:3450},
+    {tag:"NB-0312",host:"old-thinkcentre",type:"desktop",make:"Lenovo",model:"ThinkCentre M720",os:"windows",osv:"10 22H2",serial:"LNV720M99",status:"retired",health:38,enc:0,mdm:0,av:0,patch:0,owner:"Unassigned",dept:"—",init:"UA",loc:"nyc",seen:"94d",warranty:"2024-03-01",purchase:"2019-03-01",cost:799},
+    {tag:"NB-0988",host:"sales-tab-lost",type:"tablet",make:"Samsung",model:"Galaxy Tab S9",os:"android",osv:"13",serial:"SGT9LOST21",status:"lost",health:0,enc:1,mdm:1,av:0,patch:0,owner:"Tomás Vidal",dept:"Sales",init:"TV",loc:"remote",seen:"11d",warranty:"2026-02-28",purchase:"2023-02-28",cost:849},
+    {tag:"NB-1190",host:"design-imac24.corp",type:"desktop",make:"Apple",model:"iMac 24″ M3",os:"macos",osv:"14.4",serial:"C07ZP2K9XYZ",status:"active",health:95,enc:1,mdm:1,av:1,patch:1,owner:"Sofia Lindqvist",dept:"Design",init:"SL",loc:"sgp",seen:"12m",warranty:"2027-08-09",purchase:"2024-08-09",cost:1899},
+    {tag:"NB-1201",host:"eng-galen-mbp.corp",type:"laptop",make:"Apple",model:"MacBook Pro 14″ M3 Pro",os:"macos",osv:"14.4.1",serial:"C02YQ7K8P3D",status:"active",health:86,enc:1,mdm:1,av:0,patch:1,owner:"Galen Wu",dept:"Engineering",init:"GW",loc:"sf",seen:"3m",warranty:"2027-02-19",purchase:"2024-02-19",cost:2499},
+    {tag:"NB-1077",host:"fin-iphone13.corp",type:"phone",make:"Apple",model:"iPhone 13",os:"ios",osv:"16.7",serial:"F4QZ8P1XK9",status:"idle",health:58,enc:1,mdm:0,av:1,patch:0,owner:"Hana Suzuki",dept:"Finance",init:"HS",loc:"ldn",seen:"8d",warranty:"2025-10-22",purchase:"2022-10-22",cost:899}
+  ];
+
+  /* derive helpers ------------------------------------------------ */
+  var TODAY = new Date("2026-06-07T00:00:00");
+  function warrantyState(end){
+    var d=new Date(end+"T00:00:00");
+    var days=Math.round((d-TODAY)/86400000);
+    if(days<0) return {cls:"exp",txt:"Warranty expired"};
+    if(days<=120) return {cls:"soon",txt:"Expires in "+days+"d"};
+    return {cls:"ok",txt:"Under warranty"};
+  }
+  function seenState(s){
+    if(/d$/.test(s)){var n=parseInt(s,10); return n>=7?"off":"stale";}
+    if(/h$/.test(s)){return "stale";}
+    return "fresh";
+  }
+  function compliantOf(d){ return d.enc && d.mdm && (d.type==="laptop"||d.type==="desktop"||d.type==="phone"||d.type==="tablet"||d.type==="server" ? (d.av||d.type==="server"?d.av:1) : 1) ? null : null; }
+  function isCompliant(d){
+    // a device is compliant when all applicable security controls pass
+    var needsAv = ["laptop","desktop","server"].indexOf(d.type)>-1;
+    var needsPatch = ["laptop","desktop","server","phone","tablet"].indexOf(d.type)>-1;
+    if(["monitor","printer"].indexOf(d.type)>-1) return true; // peripherals exempt
+    if(d.status==="retired"||d.status==="lost") return false;
+    if(!d.enc||!d.mdm) return false;
+    if(needsAv && !d.av) return false;
+    if(needsPatch && !d.patch) return false;
+    return true;
+  }
+  function healthColor(h){ return h>=85?"#52c41a":(h>=60?"#faad14":"#f5222d"); }
+
+  /* ---------- facet state ---------- */
+  var filters = {type:[],status:[],os:[],comp:[],loc:[]};
+  var searchQ = "";
+  var sortMode = "health-asc";
+
+  /* build facet lists with counts ------------------------------- */
+  function countBy(key,val,cmp){
+    return DEVICES.filter(function(d){
+      if(key==="comp"){
+        var c = isCompliant(d);
+        return val==="compliant" ? c : !c;
+      }
+      return d[key]===val;
+    }).length;
+  }
+
+  function renderFacets(){
+    // type
+    var ht="";
+    Object.keys(TYPE).forEach(function(k){
+      var n=DEVICES.filter(function(d){return d.type===k;}).length; if(!n) return;
+      var on=filters.type.indexOf(k)>-1;
+      ht+='<div class="facet'+(on?" on":"")+'" data-facet="type" data-v="'+k+'"><span class="fi">'+TYPE[k].glyph+'</span><span class="fn">'+TYPE[k].label+'</span><span class="fc">'+n+'</span></div>';
+    });
+    document.getElementById("facetType").innerHTML=ht;
+    // status
+    var hs="";
+    Object.keys(STATUS).forEach(function(k){
+      var n=DEVICES.filter(function(d){return d.status===k;}).length; if(!n) return;
+      var on=filters.status.indexOf(k)>-1;
+      hs+='<div class="facet'+(on?" on":"")+'" data-facet="status" data-v="'+k+'"><span class="dot '+k+'"></span><span class="fn">'+STATUS[k].label+'</span><span class="fc">'+n+'</span></div>';
+    });
+    document.getElementById("facetStatus").innerHTML=hs;
+    // os
+    var ho="";
+    Object.keys(OS).forEach(function(k){
+      var n=DEVICES.filter(function(d){return d.os===k;}).length; if(!n) return;
+      var on=filters.os.indexOf(k)>-1;
+      ho+='<div class="facet'+(on?" on":"")+'" data-facet="os" data-v="'+k+'"><span class="fi">'+(OS[k].glyph||"○")+'</span><span class="fn">'+OS[k].label+'</span><span class="fc">'+n+'</span></div>';
+    });
+    document.getElementById("facetOs").innerHTML=ho;
+    // compliance
+    var comp=DEVICES.filter(isCompliant).length, non=DEVICES.length-comp;
+    var hc="";
+    [["compliant","✓","Compliant",comp],["noncompliant","!","Non-compliant",non]].forEach(function(r){
+      var on=filters.comp.indexOf(r[0])>-1;
+      hc+='<div class="facet'+(on?" on":"")+'" data-facet="comp" data-v="'+r[0]+'"><span class="fi">'+r[1]+'</span><span class="fn">'+r[2]+'</span><span class="fc">'+r[3]+'</span></div>';
+    });
+    document.getElementById("facetComp").innerHTML=hc;
+    // location
+    var hl="";
+    Object.keys(LOC).forEach(function(k){
+      var n=DEVICES.filter(function(d){return d.loc===k;}).length; if(!n) return;
+      var on=filters.loc.indexOf(k)>-1;
+      hl+='<div class="facet'+(on?" on":"")+'" data-facet="loc" data-v="'+k+'"><span class="fi">📍</span><span class="fn">'+LOC[k]+'</span><span class="fc">'+n+'</span></div>';
+    });
+    document.getElementById("facetLoc").innerHTML=hl;
+  }
+
+  /* facet click (cross-block filter) ---------------------------- */
+  document.querySelector(".side").addEventListener("click",function(e){
+    var clr=e.target.closest(".clr");
+    if(clr){ filters[clr.dataset.clr]=[]; rerender(); return; }
+    var f=e.target.closest(".facet"); if(!f) return;
+    var key=f.dataset.facet, v=f.dataset.v;
+    var arr=filters[key], i=arr.indexOf(v);
+    if(i>-1) arr.splice(i,1); else arr.push(v);
+    rerender();
+  });
+
+  /* search ------------------------------------------------------- */
+  document.getElementById("search").addEventListener("input",function(e){
+    searchQ=e.target.value.trim().toLowerCase(); rerender();
+  });
+  document.getElementById("sortSel").addEventListener("change",function(e){
+    sortMode=e.target.value; rerender();
+  });
+
+  /* view seg ----------------------------------------------------- */
+  var compactMode=false;
+  document.getElementById("viewSeg").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    document.querySelectorAll("#viewSeg button").forEach(function(x){x.classList.remove("on");});
+    b.classList.add("on"); compactMode=b.dataset.v==="compact"; rerender();
+  });
+
+  /* ---------- filtering pipeline -------------------------------- */
+  function applyFilters(){
+    return DEVICES.filter(function(d){
+      if(filters.type.length && filters.type.indexOf(d.type)<0) return false;
+      if(filters.status.length && filters.status.indexOf(d.status)<0) return false;
+      if(filters.os.length && filters.os.indexOf(d.os)<0) return false;
+      if(filters.loc.length && filters.loc.indexOf(d.loc)<0) return false;
+      if(filters.comp.length){
+        var c=isCompliant(d);
+        var want = (filters.comp.indexOf("compliant")>-1 && c) || (filters.comp.indexOf("noncompliant")>-1 && !c);
+        if(!want) return false;
+      }
+      if(searchQ){
+        var hay=(d.tag+" "+d.host+" "+d.serial+" "+d.model+" "+d.owner).toLowerCase();
+        if(hay.indexOf(searchQ)<0) return false;
+      }
+      return true;
+    });
+  }
+  function sortList(list){
+    var c=list.slice();
+    if(sortMode==="health-asc") c.sort(function(a,b){return a.health-b.health;});
+    else if(sortMode==="health-desc") c.sort(function(a,b){return b.health-a.health;});
+    else if(sortMode==="warranty") c.sort(function(a,b){return new Date(a.warranty)-new Date(b.warranty);});
+    else if(sortMode==="tag") c.sort(function(a,b){return a.tag.localeCompare(b.tag);});
+    else if(sortMode==="lastseen") c.sort(function(a,b){return seenRank(a.seen)-seenRank(b.seen);});
+    return c;
+  }
+  function seenRank(s){
+    if(/s$/.test(s)) return parseInt(s,10)/3600;
+    if(/m$/.test(s)) return parseInt(s,10)/60;
+    if(/h$/.test(s)) return parseInt(s,10);
+    if(/d$/.test(s)) return parseInt(s,10)*24;
+    return 9999;
+  }
+
+  /* ---------- KPI strip (event-flow summary over filtered set) -- */
+  function renderStats(list){
+    var total=list.length;
+    var compliant=list.filter(isCompliant).length;
+    var compPct = total? Math.round(compliant/total*100) : 0;
+    var scored=list.filter(function(d){return d.status!=="retired"&&d.status!=="lost";});
+    var avgHealth = scored.length? Math.round(scored.reduce(function(s,d){return s+d.health;},0)/scored.length) : 0;
+    var atRisk=list.filter(function(d){return d.health<60 && d.status!=="retired";}).length;
+    var warrSoon=list.filter(function(d){return warrantyState(d.warranty).cls!=="ok";}).length;
+
+    var tiles=[
+      {cls:"s-cyan",l:"📦 Total devices",v:total,sub:"",sd:'<span class="sd flat">'+list.filter(function(d){return d.status==="active";}).length+' active</span>'},
+      {cls:compPct>=80?"s-ok":(compPct>=60?"s-warn":"s-risk"),l:"🛡 Compliant",v:compPct,unit:"%",ring:compPct,ringColor:compPct>=80?"#52c41a":(compPct>=60?"#faad14":"#f5222d"),sd:'<span class="sd '+(compPct>=80?"up":"down")+'">'+compliant+' / '+total+' devices</span>'},
+      {cls:avgHealth>=85?"s-ok":(avgHealth>=60?"s-warn":"s-risk"),l:"❤ Avg health",v:avgHealth,ring:avgHealth,ringColor:healthColor(avgHealth),sd:'<span class="sd '+(avgHealth>=85?"up":"flat")+'">across '+scored.length+' live</span>'},
+      {cls:atRisk?"s-risk":"s-ok",l:"⚠ At risk",v:atRisk,sd:'<span class="sd '+(atRisk?"down":"up")+'">health &lt; 60</span>'},
+      {cls:warrSoon?"s-warn":"s-ok",l:"📅 Warranty",v:warrSoon,sd:'<span class="sd '+(warrSoon?"down":"flat")+'">expiring / expired</span>'}
+    ];
+    var html="";
+    tiles.forEach(function(t){
+      var ring="";
+      if(t.ring!==undefined){
+        var R=18,C=2*Math.PI*R,off=C*(1-t.ring/100);
+        ring='<svg class="ring-mini" viewBox="0 0 46 46"><circle cx="23" cy="23" r="'+R+'" fill="none" stroke="#e3e8ef" stroke-width="4"/>'+
+             '<circle cx="23" cy="23" r="'+R+'" fill="none" stroke="'+t.ringColor+'" stroke-width="4" stroke-linecap="round" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 23 23)"/>'+
+             '<text x="23" y="27" text-anchor="middle">'+t.ring+'</text></svg>';
+      }
+      html+='<div class="stat '+t.cls+'"><div class="sl">'+t.l+'</div>'+
+            '<div class="sv">'+t.v+(t.unit?'<small>'+t.unit+'</small>':'')+'</div>'+t.sd+ring+'</div>';
+    });
+    document.getElementById("stats").innerHTML=html;
+  }
+
+  /* ---------- health ring svg ---------------------------------- */
+  function ringSVG(h,size){
+    var R=size===72?28:(size===54?22:18), sw=size===72?6:5;
+    var C=2*Math.PI*R, off=C*(1-h/100), col=healthColor(h), c=size/2;
+    return '<svg class="dc-ring" viewBox="0 0 '+size+' '+size+'" style="width:'+size+'px;height:'+size+'px">'+
+      '<circle class="bg" cx="'+c+'" cy="'+c+'" r="'+R+'" stroke-width="'+sw+'"/>'+
+      '<circle class="fg" cx="'+c+'" cy="'+c+'" r="'+R+'" stroke="'+col+'" stroke-width="'+sw+'" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 '+c+' '+c+')"/>'+
+      '<text x="'+c+'" y="'+(c+5)+'" text-anchor="middle" fill="'+col+'">'+h+'</text></svg>';
+  }
+
+  /* ---------- compliance badge row ----------------------------- */
+  function complianceBadges(d){
+    var defs=[
+      {k:"enc", on:d.enc, glyph:"🔒", okt:"Encrypted", badt:"Unencrypted"},
+      {k:"mdm", on:d.mdm, glyph:"📡", okt:"MDM", badt:"No MDM"},
+      {k:"av",  on:d.av,  glyph:"🛡", okt:"AV ok", badt:"AV off", skip:["monitor","printer","network"].indexOf(d.type)>-1},
+      {k:"patch",on:d.patch, glyph:"⬆", okt:"Patched", badt:"Patch due", skip:["monitor","printer"].indexOf(d.type)>-1}
+    ];
+    var h="";
+    defs.forEach(function(b){
+      if(b.skip) return;
+      h+='<span class="cbadge '+(b.on?"ok":"bad")+'"><span class="ci">'+(b.on?b.glyph:"⚠")+'</span>'+(b.on?b.okt:b.badt)+'</span>';
+    });
+    return h;
+  }
+
+  /* ---------- device card -------------------------------------- */
+  function deviceCard(d,idx){
+    var t=TYPE[d.type], os=OS[d.os], w=warrantyState(d.warranty), seen=seenState(d.seen);
+    var seenLbl = seen==="fresh"?"Seen "+d.seen+" ago":(seen==="stale"?"Seen "+d.seen+" ago":"Offline "+d.seen);
+    return '<div class="dcard" data-idx="'+idx+'">'+
+      '<div class="dc-strip '+d.type+'"></div>'+
+      '<div class="dc-body">'+
+        '<div class="dc-top">'+
+          '<div class="dc-glyph '+d.type+'">'+t.glyph+'<span class="sdot '+d.status+'"></span></div>'+
+          '<div class="dc-id">'+
+            '<div class="dc-tag">'+d.tag+' <span class="typ">'+t.label+'</span></div>'+
+            '<div class="dc-host">'+d.host+'</div>'+
+            '<div class="dc-model">'+d.make+' '+d.model+'</div>'+
+            '<div class="dc-model"><span class="os-badge '+os.cls+'">'+(os.glyph?'<span class="osi">'+os.glyph+'</span>':'')+os.label+' '+d.osv+'</span></div>'+
+          '</div>'+
+          '<div class="dc-ring-wrap">'+ringSVG(d.health,54)+'<div class="dc-ring-lbl">Health</div></div>'+
+        '</div>'+
+        '<div class="dc-compliance">'+complianceBadges(d)+'</div>'+
+        '<div class="dc-foot">'+
+          '<div class="owner"><span class="oav">'+d.init+'</span><span class="oi"><b>'+d.owner+'</b><span>'+LOC[d.loc]+'</span></span></div>'+
+          '<div class="dc-meta">'+
+            '<div class="seen '+seen+'"><i></i>'+seenLbl+'</div>'+
+            '<span class="warranty '+w.cls+'">'+w.txt+'</span>'+
+          '</div>'+
+        '</div>'+
+      '</div></div>';
+  }
+
+  /* compact row -------------------------------------------------- */
+  function compactRow(d,idx){
+    var t=TYPE[d.type], os=OS[d.os], w=warrantyState(d.warranty);
+    return '<div class="dcard" data-idx="'+idx+'" style="flex-direction:row;align-items:center">'+
+      '<div class="dc-strip '+d.type+'" style="height:auto;width:4px;align-self:stretch"></div>'+
+      '<div class="dc-body" style="flex-direction:row;align-items:center;gap:16px;padding:11px 16px;width:100%">'+
+        '<div class="dc-glyph '+d.type+'" style="width:38px;height:38px;font-size:18px">'+t.glyph+'<span class="sdot '+d.status+'"></span></div>'+
+        '<div style="min-width:150px"><div class="dc-tag" style="font-size:13.5px">'+d.tag+'</div><div class="dc-host">'+d.host+'</div></div>'+
+        '<div style="flex:1;min-width:0"><span class="os-badge '+os.cls+'">'+os.label+'</span> <span style="color:var(--ink-2);font-size:12.5px">'+d.model+'</span></div>'+
+        '<div style="display:flex;gap:6px">'+complianceBadges(d)+'</div>'+
+        '<div class="owner" style="flex:none;min-width:120px"><span class="oav" style="width:24px;height:24px">'+d.init+'</span><span class="oi"><b>'+d.owner+'</b></span></div>'+
+        '<span class="warranty '+w.cls+'">'+w.txt+'</span>'+
+        ringSVG(d.health,46)+
+      '</div></div>';
+  }
+
+  /* active filter chips ----------------------------------------- */
+  function renderActiveChips(){
+    var host=document.getElementById("activeFilters"); var chips=[];
+    var labelMap={type:TYPE,status:STATUS,os:OS,loc:LOC,comp:{compliant:{label:"Compliant"},noncompliant:{label:"Non-compliant"}}};
+    Object.keys(filters).forEach(function(key){
+      filters[key].forEach(function(v){
+        var lab = key==="loc"? LOC[v] : (labelMap[key][v]?labelMap[key][v].label:v);
+        chips.push('<span class="chip-f">'+lab+'<button data-key="'+key+'" data-v="'+v+'">×</button></span>');
+      });
+    });
+    if(searchQ) chips.push('<span class="chip-f">“'+searchQ+'”<button data-search="1">×</button></span>');
+    if(chips.length){
+      host.innerHTML='<span class="lbl">Filtered by</span>'+chips.join("")+'<span class="lbl" style="cursor:pointer;color:var(--blue)" id="clrAll">clear all</span>';
+    } else host.innerHTML="";
+  }
+  document.getElementById("activeFilters").addEventListener("click",function(e){
+    if(e.target.id==="clrAll"){ filters={type:[],status:[],os:[],comp:[],loc:[]}; searchQ=""; document.getElementById("search").value=""; rerender(); return; }
+    var b=e.target.closest("button"); if(!b) return;
+    if(b.dataset.search){ searchQ=""; document.getElementById("search").value=""; }
+    else { var k=b.dataset.key, v=b.dataset.v; filters[k]=filters[k].filter(function(x){return x!==v;}); }
+    rerender();
+  });
+
+  /* ---------- master render ------------------------------------ */
+  var lastList=[];
+  function rerender(){
+    renderFacets();
+    var list=sortList(applyFilters());
+    lastList=list;
+    renderStats(list);
+    renderActiveChips();
+    document.getElementById("shownCount").textContent=list.length;
+    document.getElementById("totalCount").textContent=DEVICES.length;
+    var grid=document.getElementById("grid");
+    if(!list.length){
+      grid.innerHTML='<div class="empty"><div class="big">🔍</div><b>No devices match these filters</b><span>Try clearing a facet or widening your search.</span></div>';
+      return;
+    }
+    grid.style.gridTemplateColumns = compactMode ? "1fr" : "repeat(auto-fill,minmax(300px,1fr))";
+    grid.innerHTML = list.map(function(d,i){ return compactMode? compactRow(d,i) : deviceCard(d,i); }).join("");
+  }
+
+  /* ---------- card click -> detail drawer ---------------------- */
+  document.getElementById("grid").addEventListener("click",function(e){
+    var card=e.target.closest(".dcard"); if(!card) return;
+    openDrawer(lastList[+card.dataset.idx]);
+  });
+
+  function openDrawer(d){
+    var t=TYPE[d.type], os=OS[d.os], w=warrantyState(d.warranty);
+    document.getElementById("drHead").innerHTML=
+      '<div class="dc-glyph '+d.type+'">'+t.glyph+'<span class="sdot '+d.status+'"></span></div>'+
+      '<div class="dr-htext"><h2>'+d.tag+' <span class="status-pill '+d.status+'">'+STATUS[d.status].label+'</span></h2>'+
+      '<div class="hm">'+d.host+' · SN '+d.serial+'</div></div>'+
+      '<button class="dr-close" id="drClose">×</button>';
+
+    var checks=[
+      {ok:!!d.enc, t:"Disk encryption", s:d.enc?"FileVault / BitLocker enforced":"Volume is NOT encrypted — exposure risk"},
+      {ok:!!d.mdm, t:"MDM enrolment", s:d.mdm?"Enrolled & supervised":"Device is outside MDM management"},
+      {ok:!!d.av,  t:"Antivirus / EDR", s:d.av?"Defender / CrowdStrike reporting healthy":"Endpoint protection not reporting"},
+      {ok:!!d.patch, t:"OS patch level", s:d.patch?"Up to date with baseline":"Pending critical updates"}
+    ];
+    var compliant=isCompliant(d);
+
+    document.getElementById("drBody").innerHTML=
+      '<div class="dr-hero">'+ringSVG(d.health,72)+
+        '<div class="hi"><div class="hs">Health score '+d.health+'/100</div>'+
+        '<div class="hd">'+(compliant?"✅ Fully compliant with org baseline":"⛔ "+checks.filter(function(c){return !c.ok;}).length+" control(s) failing")+'</div></div>'+
+      '</div>'+
+
+      '<div class="dr-section"><h3>Identity</h3><dl class="kv">'+
+        '<dt>Asset tag</dt><dd>'+d.tag+'</dd>'+
+        '<dt>Hostname</dt><dd class="mono">'+d.host+'</dd>'+
+        '<dt>Serial</dt><dd class="mono">'+d.serial+'</dd>'+
+        '<dt>Device type</dt><dd>'+t.label+'</dd>'+
+        '<dt>Status</dt><dd><span class="status-pill '+d.status+'">'+STATUS[d.status].label+'</span></dd>'+
+      '</dl></div>'+
+
+      '<div class="dr-section"><h3>Hardware</h3><dl class="kv">'+
+        '<dt>Make</dt><dd>'+d.make+'</dd>'+
+        '<dt>Model</dt><dd>'+d.model+'</dd>'+
+        '<dt>Operating system</dt><dd><span class="os-badge '+os.cls+'">'+os.label+' '+d.osv+'</span></dd>'+
+      '</dl></div>'+
+
+      '<div class="dr-section"><h3>Security posture</h3><div class="checklist">'+
+        checks.map(function(c){return '<div class="check-item '+(c.ok?"ok":"bad")+'"><span class="cc">'+(c.ok?"✓":"!")+'</span><div class="ct"><b>'+c.t+'</b><span>'+c.s+'</span></div></div>';}).join("")+
+      '</div></div>'+
+
+      '<div class="dr-section"><h3>Lifecycle</h3><dl class="kv">'+
+        '<dt>Purchase date</dt><dd>'+fmtDate(d.purchase)+'</dd>'+
+        '<dt>Warranty</dt><dd><span class="warranty '+w.cls+'">'+w.txt+'</span> · '+fmtDate(d.warranty)+'</dd>'+
+        '<dt>Purchase cost</dt><dd>$'+d.cost.toLocaleString()+'</dd>'+
+        '<dt>Last seen</dt><dd>'+d.seen+' ago</dd>'+
+      '</dl></div>'+
+
+      '<div class="dr-section"><h3>Assignment</h3><dl class="kv">'+
+        '<dt>Owner</dt><dd>'+d.owner+'</dd>'+
+        '<dt>Department</dt><dd>'+d.dept+'</dd>'+
+        '<dt>Location</dt><dd>📍 '+LOC[d.loc]+'</dd>'+
+      '</dl></div>'+
+
+      '<div class="dr-section"><h3>Activity</h3><div class="timeline">'+
+        '<div class="tl-item"><div class="tt">MDM check-in</div><div class="td">'+d.seen+' ago · policy compliant scan completed</div></div>'+
+        (d.patch?'':'<div class="tl-item"><div class="tt">Patch deployment queued</div><div class="td">Yesterday 09:12 · awaiting maintenance window</div></div>')+
+        '<div class="tl-item muted"><div class="tt">Assigned to '+d.owner+'</div><div class="td">'+fmtDate(d.purchase)+' · provisioned by IT Operations</div></div>'+
+        '<div class="tl-item muted"><div class="tt">Procured</div><div class="td">'+fmtDate(d.purchase)+' · PO matched, asset capitalized</div></div>'+
+      '</div></div>';
+
+    document.getElementById("drClose").onclick=closeDrawer;
+    document.getElementById("scrim").classList.add("show");
+    document.getElementById("drawer").classList.add("show");
+  }
+  function closeDrawer(){
+    document.getElementById("scrim").classList.remove("show");
+    document.getElementById("drawer").classList.remove("show");
+  }
+  document.getElementById("scrim").addEventListener("click",closeDrawer);
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDrawer();});
+  document.getElementById("drRemediate").onclick=function(){flash("Remediation playbook queued");};
+  document.getElementById("drReassign").onclick=function(){flash("Reassignment workflow opened");};
+  document.getElementById("drRetire").onclick=function(){flash("Retirement request submitted");};
+
+  function fmtDate(s){ return new Date(s+"T00:00:00").toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"}); }
+
+  /* header actions ---------------------------------------------- */
+  document.getElementById("enrollBtn").onclick=function(){flash("Enroll device wizard — opens MDM");};
+  document.getElementById("exportBtn").onclick=function(){flash("Exported "+lastList.length+" devices to CSV");};
+
+  /* toast -------------------------------------------------------- */
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  /* init -------------------------------------------------------- */
+  rerender();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Device Management: device cards with SVG health rings and compliance badges. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/25-device-management.html
+</script>
+</body>
+</html>

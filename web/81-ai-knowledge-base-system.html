@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Knowledge Base System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --surface:#ffffff;
+    --surface-2:#fbfcfd;
+    --ink:#1e2530;
+    --ink-2:#475063;
+    --ink-3:#6b7587;
+    --muted:#929cad;
+    --line:#e6e9ee;
+    --line-2:#eef1f4;
+    --lime:#65a30d;
+    --lime-dk:#4d7c0f;
+    --lime-bg:#f2f8e8;
+    --lime-bd:#d6e8b3;
+    --blue:#2563eb;
+    --blue-bg:#eef3ff;
+    --amber:#b45309;
+    --amber-bg:#fdf3e3;
+    --red:#dc2626;
+    --red-bg:#fdeeee;
+    --violet:#7c3aed;
+    --violet-bg:#f3eefe;
+    --teal:#0d9488;
+    --teal-bg:#e7f6f4;
+    --shadow:0 1px 2px rgba(22,28,40,.04), 0 1px 1px rgba(22,28,40,.03);
+    --shadow-md:0 6px 22px rgba(22,28,40,.08), 0 2px 6px rgba(22,28,40,.05);
+    --shadow-lg:0 18px 48px rgba(22,28,40,.16);
+    --r:10px;
+    --r-sm:7px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:13px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--lime-bd);color:var(--ink)}
+  button{font-family:inherit;cursor:pointer}
+  input{font-family:inherit}
+
+  /* ---------- layout shell ---------- */
+  .app{display:flex;min-height:100vh}
+  .rail{
+    width:62px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:6px;position:sticky;top:0;height:100vh;
+  }
+  .rail .logo{
+    width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--lime),var(--lime-dk));
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;margin-bottom:10px;
+    box-shadow:0 3px 8px rgba(101,163,13,.32);
+  }
+  .rail .ricon{
+    width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--ink-3);
+    position:relative;transition:.14s;
+  }
+  .rail .ricon:hover{background:var(--line-2);color:var(--ink)}
+  .rail .ricon.active{background:var(--lime-bg);color:var(--lime-dk)}
+  .rail .ricon.active::before{content:"";position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--lime)}
+  .rail .spacer{flex:1}
+  .rail .ava{width:30px;height:30px;border-radius:50%;background:#dfe7c9;color:var(--lime-dk);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    height:54px;background:var(--surface);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;padding:0 22px;position:sticky;top:0;z-index:40;
+  }
+  .topbar h1{font-size:14px;font-weight:700;margin:0;letter-spacing:-.1px}
+  .crumb{color:var(--muted);font-size:12px;display:flex;align-items:center;gap:7px}
+  .crumb b{color:var(--ink-2);font-weight:600}
+  .topbar .grow{flex:1}
+  .tb-stat{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);padding:0 10px;border-left:1px solid var(--line-2)}
+  .tb-stat b{color:var(--ink);font-weight:700}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 3px var(--lime-bg)}
+
+  .wrap{max-width:1180px;margin:0 auto;width:100%;padding:22px 26px 60px}
+
+  /* ---------- hero ask ---------- */
+  .hero{
+    background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px 18px;
+    box-shadow:var(--shadow-md);margin-bottom:18px;position:relative;overflow:hidden;
+  }
+  .hero::after{
+    content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;
+    background:radial-gradient(circle,rgba(101,163,13,.07),transparent 68%);pointer-events:none;
+  }
+  .hero-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .hero-badge{
+    display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--lime-dk);
+    background:var(--lime-bg);border:1px solid var(--lime-bd);padding:3px 9px;border-radius:20px;
+  }
+  .hero-badge .pulse{width:6px;height:6px;border-radius:50%;background:var(--lime);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .hero-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.3px}
+  .hero-head .sub{color:var(--ink-3);font-size:12px;margin-left:auto}
+
+  .askbox{
+    display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:12px;
+    padding:6px 6px 6px 14px;background:var(--surface-2);transition:.16s;
+  }
+  .askbox:focus-within{border-color:var(--lime);box-shadow:0 0 0 4px var(--lime-bg);background:#fff}
+  .askbox svg{flex-shrink:0;color:var(--muted)}
+  .askbox input{
+    flex:1;border:none;background:transparent;outline:none;font-size:15px;color:var(--ink);padding:8px 0;
+  }
+  .askbox input::placeholder{color:var(--muted)}
+  .ask-btn{
+    background:linear-gradient(135deg,var(--lime),var(--lime-dk));color:#fff;border:none;border-radius:9px;
+    padding:9px 18px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;
+    box-shadow:0 2px 7px rgba(101,163,13,.3);transition:.14s;
+  }
+  .ask-btn:hover{filter:brightness(1.05);transform:translateY(-1px)}
+  .ask-btn:active{transform:translateY(0)}
+
+  .chips{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap;align-items:center}
+  .chips .lbl{font-size:11px;color:var(--muted);margin-right:2px}
+  .chip{
+    font-size:12px;color:var(--ink-2);background:#fff;border:1px solid var(--line);border-radius:18px;
+    padding:5px 11px;display:inline-flex;align-items:center;gap:6px;transition:.12s;
+  }
+  .chip:hover{border-color:var(--lime-bd);background:var(--lime-bg);color:var(--lime-dk)}
+  .chip svg{color:var(--muted)}
+  .chip:hover svg{color:var(--lime-dk)}
+
+  /* ---------- answer panel ---------- */
+  .answer{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
+    margin-bottom:18px;overflow:hidden;
+  }
+  .answer-top{
+    display:flex;align-items:center;gap:11px;padding:14px 18px;border-bottom:1px solid var(--line-2);
+    background:linear-gradient(180deg,#fcfdfb,#fff);
+  }
+  .ai-mark{
+    width:30px;height:30px;border-radius:8px;background:var(--lime-bg);border:1px solid var(--lime-bd);
+    display:flex;align-items:center;justify-content:center;color:var(--lime-dk);flex-shrink:0;
+  }
+  .answer-top .q{font-weight:600;color:var(--ink);font-size:13.5px}
+  .answer-top .meta{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .conf{
+    display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;
+    padding:3px 9px;border-radius:18px;background:var(--lime-bg);color:var(--lime-dk);border:1px solid var(--lime-bd);
+  }
+  .answer-body{padding:16px 18px 6px;display:grid;grid-template-columns:1fr 264px;gap:20px}
+  @media(max-width:840px){.answer-body{grid-template-columns:1fr}}
+  .answer-main{font-size:13.5px;color:var(--ink-2);line-height:1.7}
+  .answer-main p{margin:0 0 11px}
+  .answer-main strong{color:var(--ink)}
+  .cite{
+    display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;
+    font-size:10px;font-weight:700;color:var(--lime-dk);background:var(--lime-bg);border:1px solid var(--lime-bd);
+    border-radius:5px;vertical-align:top;margin:0 1px;cursor:pointer;transition:.12s;line-height:18px;
+  }
+  .cite:hover{background:var(--lime-dk);color:#fff;border-color:var(--lime-dk)}
+  .ans-list{margin:4px 0 12px;padding:0;list-style:none}
+  .ans-list li{position:relative;padding:5px 0 5px 22px;border-bottom:1px solid var(--line-2)}
+  .ans-list li:last-child{border-bottom:none}
+  .ans-list li::before{content:"";position:absolute;left:4px;top:12px;width:6px;height:6px;border-radius:2px;background:var(--lime)}
+  .ans-list .k{color:var(--ink);font-weight:600}
+
+  .sources-rail h4{
+    font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 10px;font-weight:700;
+  }
+  .src-card{
+    display:block;border:1px solid var(--line);border-radius:9px;padding:10px 11px;margin-bottom:9px;text-decoration:none;
+    background:var(--surface-2);transition:.14s;position:relative;
+  }
+  .src-card:hover{border-color:var(--lime-bd);box-shadow:var(--shadow);transform:translateY(-1px);background:#fff}
+  .src-card .num{
+    position:absolute;top:9px;right:9px;font-size:10px;font-weight:700;color:var(--lime-dk);
+    background:var(--lime-bg);border:1px solid var(--lime-bd);border-radius:5px;width:18px;height:18px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .src-card .stitle{font-size:12.5px;font-weight:600;color:var(--ink);margin:0 24px 4px 0;line-height:1.35}
+  .src-card .smeta{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .src-card .ftype{
+    font-size:9.5px;font-weight:700;letter-spacing:.3px;padding:1px 5px;border-radius:4px;text-transform:uppercase;
+  }
+  .ftype.pdf{background:var(--red-bg);color:var(--red)}
+  .ftype.doc{background:var(--blue-bg);color:var(--blue)}
+  .ftype.wiki{background:var(--violet-bg);color:var(--violet)}
+  .ftype.faq{background:var(--teal-bg);color:var(--teal)}
+  .src-card .relbar{margin-top:7px;height:4px;border-radius:3px;background:var(--line-2);overflow:hidden}
+  .src-card .relbar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--lime),var(--lime-dk))}
+  .src-card .relnum{font-size:10px;color:var(--muted);margin-top:3px;display:block}
+
+  .answer-foot{
+    border-top:1px solid var(--line-2);padding:11px 18px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    background:var(--surface-2);
+  }
+  .followup{
+    font-size:12px;color:var(--ink-2);background:#fff;border:1px solid var(--line);border-radius:18px;padding:5px 12px;
+    display:inline-flex;align-items:center;gap:6px;transition:.12s;
+  }
+  .followup:hover{border-color:var(--lime);background:var(--lime-bg);color:var(--lime-dk)}
+  .followup svg{color:var(--lime-dk)}
+  .ff-lbl{font-size:11px;color:var(--muted);margin-right:2px;font-weight:600}
+  .act-icons{margin-left:auto;display:flex;gap:4px}
+  .act-icon{
+    width:28px;height:28px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink-3);
+    display:flex;align-items:center;justify-content:center;transition:.12s;
+  }
+  .act-icon:hover{border-color:var(--lime-bd);color:var(--lime-dk);background:var(--lime-bg)}
+  .act-icon.on{border-color:var(--lime-bd);color:var(--lime-dk);background:var(--lime-bg)}
+
+  /* ---------- 2col below ---------- */
+  .grid2{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
+  @media(max-width:920px){.grid2{grid-template-columns:1fr}}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow)}
+  .panel-h{
+    display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--line-2);
+  }
+  .panel-h h3{margin:0;font-size:13px;font-weight:700;letter-spacing:-.1px}
+  .panel-h .count{font-size:11px;color:var(--muted);font-weight:600}
+  .panel-h .grow{flex:1}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;background:var(--line-2);padding:3px;border-radius:9px}
+  .tab{
+    border:none;background:transparent;color:var(--ink-3);font-size:12px;font-weight:600;padding:5px 12px;
+    border-radius:7px;transition:.12s;
+  }
+  .tab:hover{color:var(--ink)}
+  .tab.active{background:#fff;color:var(--ink);box-shadow:var(--shadow)}
+
+  /* search mini */
+  .mini-search{
+    display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:4px 9px;background:var(--surface-2);
+  }
+  .mini-search svg{color:var(--muted)}
+  .mini-search input{border:none;background:transparent;outline:none;font-size:12px;width:148px;color:var(--ink)}
+
+  /* filter pills */
+  .fbar{display:flex;gap:6px;padding:11px 16px;flex-wrap:wrap;border-bottom:1px solid var(--line-2);align-items:center}
+  .fpill{
+    font-size:11.5px;font-weight:600;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);
+    border-radius:18px;padding:4px 11px;transition:.12s;display:inline-flex;align-items:center;gap:6px;
+  }
+  .fpill:hover{border-color:var(--lime-bd);color:var(--ink)}
+  .fpill.active{background:var(--lime-bg);border-color:var(--lime-bd);color:var(--lime-dk)}
+  .fpill .n{font-size:10px;background:#fff;border-radius:9px;padding:0 5px;color:var(--ink-3);border:1px solid var(--line-2)}
+  .fpill.active .n{background:#fff;color:var(--lime-dk);border-color:var(--lime-bd)}
+
+  /* doc rows */
+  .rows{padding:4px 0}
+  .row{
+    display:grid;grid-template-columns:1fr 96px 86px 118px 24px;gap:12px;align-items:center;
+    padding:10px 16px;border-bottom:1px solid var(--line-2);cursor:pointer;transition:.1s;
+  }
+  .row:last-child{border-bottom:none}
+  .row:hover{background:var(--lime-bg)}
+  .row.hidden{display:none}
+  .doc-name{display:flex;align-items:center;gap:10px;min-width:0}
+  .doc-ic{
+    width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700;
+  }
+  .doc-ic.pdf{background:var(--red-bg);color:var(--red)}
+  .doc-ic.doc{background:var(--blue-bg);color:var(--blue)}
+  .doc-ic.wiki{background:var(--violet-bg);color:var(--violet)}
+  .doc-ic.faq{background:var(--teal-bg);color:var(--teal)}
+  .doc-txt{min-width:0}
+  .doc-t{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doc-s{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:7px;margin-top:1px}
+  .doc-s .sep{width:3px;height:3px;border-radius:50%;background:var(--line)}
+  .col-r{font-size:11.5px;color:var(--ink-3);text-align:left}
+
+  .pill{
+    display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:16px;white-space:nowrap;
+  }
+  .pill.indexed{background:var(--lime-bg);color:var(--lime-dk)}
+  .pill.processing{background:var(--blue-bg);color:var(--blue)}
+  .pill.review{background:var(--amber-bg);color:var(--amber)}
+  .pill.stale{background:var(--red-bg);color:var(--red)}
+  .pill .pd{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .pill.processing .pd{animation:pulse 1.4s infinite}
+
+  .qbadge{
+    font-size:11px;font-weight:700;padding:2px 8px;border-radius:7px;display:inline-block;
+  }
+  .q-hi{background:var(--lime-bg);color:var(--lime-dk)}
+  .q-md{background:var(--amber-bg);color:var(--amber)}
+  .q-lo{background:var(--red-bg);color:var(--red)}
+
+  .chev{color:var(--muted)}
+  .row:hover .chev{color:var(--lime-dk)}
+
+  .empty{padding:46px 16px;text-align:center;color:var(--muted)}
+  .empty svg{margin-bottom:10px;color:var(--line)}
+  .empty p{margin:0;font-size:13px}
+  .empty .e2{font-size:11.5px;margin-top:4px;color:var(--muted)}
+
+  /* ---------- right column ---------- */
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px 16px}
+  .stat{
+    border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--surface-2);
+  }
+  .stat .v{font-size:21px;font-weight:800;color:var(--ink);letter-spacing:-.5px;line-height:1.1}
+  .stat .l{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .stat .d{font-size:10.5px;font-weight:700;margin-top:5px;display:inline-flex;align-items:center;gap:3px}
+  .d.up{color:var(--lime-dk)}
+  .d.down{color:var(--red)}
+
+  /* coverage chart */
+  .chart-wrap{padding:6px 16px 16px}
+  .chart-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}
+  .lg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-3)}
+  .lg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+
+  /* bars */
+  .bars{padding:8px 16px 16px}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .bar-row .bl{font-size:11.5px;color:var(--ink-2);width:104px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar-track{flex:1;height:8px;background:var(--line-2);border-radius:5px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--lime),var(--lime-dk));transition:width .6s cubic-bezier(.2,.8,.2,1)}
+  .bar-row .bv{font-size:11px;font-weight:700;color:var(--ink);width:32px;text-align:right}
+
+  /* activity feed */
+  .feed{padding:6px 16px 14px;max-height:330px;overflow-y:auto}
+  .fitem{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line-2);position:relative}
+  .fitem:last-child{border-bottom:none}
+  .fic{
+    width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:1px;
+  }
+  .fic.lime{background:var(--lime-bg);color:var(--lime-dk)}
+  .fic.blue{background:var(--blue-bg);color:var(--blue)}
+  .fic.amber{background:var(--amber-bg);color:var(--amber)}
+  .fic.violet{background:var(--violet-bg);color:var(--violet)}
+  .ftxt{min-width:0;flex:1}
+  .ftxt .a{font-size:12px;color:var(--ink-2);line-height:1.45}
+  .ftxt .a b{color:var(--ink);font-weight:600}
+  .ftxt .tm{font-size:10.5px;color:var(--muted);margin-top:2px}
+  .ai-tag{
+    font-size:9px;font-weight:700;letter-spacing:.3px;color:var(--lime-dk);background:var(--lime-bg);
+    border:1px solid var(--lime-bd);border-radius:4px;padding:0 4px;margin-right:5px;vertical-align:1px;
+  }
+
+  /* ---------- drawer ---------- */
+  .scrim{
+    position:fixed;inset:0;background:rgba(22,28,40,.4);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.2s;z-index:80;
+  }
+  .scrim.open{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:520px;max-width:94vw;background:var(--surface);
+    box-shadow:var(--shadow-lg);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:90;
+    display:flex;flex-direction:column;
+  }
+  .drawer.open{transform:translateX(0)}
+  .dr-head{padding:18px 22px 14px;border-bottom:1px solid var(--line-2)}
+  .dr-top{display:flex;align-items:flex-start;gap:12px}
+  .dr-close{
+    margin-left:auto;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink-3);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.12s;
+  }
+  .dr-close:hover{background:var(--line-2);color:var(--ink)}
+  .dr-title{font-size:16px;font-weight:700;letter-spacing:-.2px;margin:0;line-height:1.3}
+  .dr-sub{font-size:11.5px;color:var(--ink-3);margin-top:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .dr-body{padding:18px 22px 30px;overflow-y:auto;flex:1}
+
+  .ai-summary{
+    border:1px solid var(--lime-bd);background:linear-gradient(180deg,var(--lime-bg),#fbfdf7);border-radius:11px;padding:13px 14px;margin-bottom:18px;
+  }
+  .ai-summary .sh{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+  .ai-summary .sh b{font-size:12px;color:var(--lime-dk);font-weight:700}
+  .ai-summary .sh .conf{margin-left:auto}
+  .ai-summary p{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+
+  .dr-sec-t{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin:18px 0 10px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:8px 12px;font-size:12.5px}
+  .kv .k{color:var(--ink-3)}
+  .kv .v{color:var(--ink);font-weight:500}
+
+  .ex-fields{display:flex;flex-direction:column;gap:8px}
+  .ex-field{
+    border:1px solid var(--line);border-radius:9px;padding:10px 12px;display:flex;align-items:center;gap:10px;background:var(--surface-2);
+  }
+  .ex-field .ef-k{font-size:11px;color:var(--ink-3);width:118px;flex-shrink:0}
+  .ex-field .ef-v{font-size:12.5px;color:var(--ink);font-weight:600;flex:1}
+  .ef-conf{
+    font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;display:flex;align-items:center;gap:4px;flex-shrink:0;
+  }
+  .ef-conf.hi{background:var(--lime-bg);color:var(--lime-dk)}
+  .ef-conf.md{background:var(--amber-bg);color:var(--amber)}
+  .ef-conf .mini-bar{width:30px;height:4px;border-radius:3px;background:rgba(0,0,0,.08);overflow:hidden}
+  .ef-conf .mini-bar i{display:block;height:100%;background:currentColor;border-radius:3px}
+
+  .tag-row{display:flex;gap:6px;flex-wrap:wrap}
+  .tagx{
+    font-size:11px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:3px 10px;
+    display:inline-flex;align-items:center;gap:5px;
+  }
+  .tagx.ai{background:var(--lime-bg);border-color:var(--lime-bd);color:var(--lime-dk)}
+  .tagx.ai::before{content:"✦";font-size:9px}
+
+  .review-box{
+    border:1px solid var(--amber-bg);background:var(--amber-bg);border-radius:10px;padding:12px 13px;margin-top:6px;
+  }
+  .review-box .rh{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--amber);margin-bottom:7px}
+  .review-box p{margin:0 0 10px;font-size:12px;color:#92560b;line-height:1.55}
+  .rb-actions{display:flex;gap:8px}
+  .btn-sm{
+    font-size:12px;font-weight:600;border-radius:8px;padding:6px 13px;border:1px solid transparent;transition:.12s;
+  }
+  .btn-primary{background:var(--lime-dk);color:#fff;border-color:var(--lime-dk)}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{background:#fff;color:var(--ink-2);border-color:var(--line)}
+  .btn-ghost:hover{background:var(--line-2)}
+
+  .snippet{
+    border-left:3px solid var(--lime);background:var(--surface-2);border-radius:0 8px 8px 0;padding:10px 13px;font-size:12px;
+    color:var(--ink-2);line-height:1.6;margin-top:4px;
+  }
+  .snippet mark{background:var(--lime-bd);color:var(--ink);padding:0 2px;border-radius:3px}
+
+  .qmeter{display:flex;align-items:center;gap:12px;margin-top:4px}
+  .ring{flex-shrink:0}
+  .qmeter .qt{font-size:12px;color:var(--ink-3);line-height:1.5}
+  .qmeter .qt b{color:var(--ink);font-weight:700}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+    padding:10px 18px;border-radius:10px;font-size:12.5px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;
+    pointer-events:none;transition:.22s;z-index:120;display:flex;align-items:center;gap:9px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast svg{color:var(--lime)}
+
+  /* scrollbar */
+  .feed::-webkit-scrollbar,.dr-body::-webkit-scrollbar{width:8px}
+  .feed::-webkit-scrollbar-thumb,.dr-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- icon rail -->
+  <nav class="rail">
+    <div class="logo">K</div>
+    <div class="ricon active" title="Ask">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9c0-1.6-.4-3-1.1-4.3"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-.9.7-1.5 1.2-1.5 2.5"/><circle cx="12" cy="17.5" r="0.6" fill="currentColor"/></svg>
+    </div>
+    <div class="ricon" title="Library">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h11a2 2 0 0 1 2 2v12H6a2 2 0 0 1-2-2Z"/><path d="M17 7h3v12H6"/><path d="M8 9h6M8 13h6"/></svg>
+    </div>
+    <div class="ricon" title="Insights">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><rect x="7" y="11" width="3" height="5"/><rect x="12" y="7" width="3" height="9"/><rect x="17" y="13" width="3" height="3"/></svg>
+    </div>
+    <div class="ricon" title="Sources">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M3 8 12 3l9 5"/><path d="M3 8l9 5 9-5"/></svg>
+    </div>
+    <div class="ricon" title="Settings">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0 1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1Z"/></svg>
+    </div>
+    <div class="spacer"></div>
+    <div class="ava">AM</div>
+  </nav>
+
+  <div class="main">
+    <!-- topbar -->
+    <header class="topbar">
+      <h1>Knowledge Base</h1>
+      <div class="crumb">/ <b>Workspace</b> · Acme Cloud Ops</div>
+      <div class="grow"></div>
+      <div class="tb-stat"><span class="dot"></span> Index <b>live</b></div>
+      <div class="tb-stat"><b>2,481</b> docs</div>
+      <div class="tb-stat"><b>98.2%</b> coverage</div>
+      <div class="tb-stat"><b>41</b> questions today</div>
+    </header>
+
+    <div class="wrap">
+      <!-- HERO ASK -->
+      <section class="hero">
+        <div class="hero-head">
+          <span class="hero-badge"><span class="pulse"></span> AI Assistant</span>
+          <h2>Ask your knowledge base anything</h2>
+          <span class="sub">Answers grounded in 2,481 indexed documents · cited every time</span>
+        </div>
+        <form class="askbox" id="askForm" autocomplete="off">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="askInput" placeholder="e.g. What is our refund window for enterprise annual plans?" />
+          <button class="ask-btn" type="submit">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            Ask AI
+          </button>
+        </form>
+        <div class="chips">
+          <span class="lbl">Try:</span>
+          <button class="chip" type="button" data-q="How do I rotate production API keys safely?"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8"/></svg> Rotate API keys</button>
+          <button class="chip" type="button" data-q="What is the SLA for P1 incidents on the platform tier?"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> P1 incident SLA</button>
+          <button class="chip" type="button" data-q="How does SSO work with our SAML provider?"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> SSO / SAML setup</button>
+          <button class="chip" type="button" data-q="What is the data retention policy for deleted workspaces?"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg> Data retention</button>
+        </div>
+      </section>
+
+      <!-- ANSWER -->
+      <section class="answer" id="answerCard">
+        <div class="answer-top">
+          <div class="ai-mark"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8v8l9 5 9-5V8Z"/><path d="m12 12 9-4M12 12v9M12 12 3 8"/></svg></div>
+          <div>
+            <div class="q" id="answerQ">What is our refund window for enterprise annual plans?</div>
+          </div>
+          <div class="meta">
+            <span class="conf"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> 94% confidence</span>
+          </div>
+        </div>
+        <div class="answer-body">
+          <div class="answer-main">
+            <p>Enterprise <strong>annual</strong> plans include a <strong>30-day full-refund window</strong> measured from the original invoice date. Requests inside this window are processed at <strong>100%</strong>, typically settling within <strong>5–7 business days</strong> to the original payment method.<span class="cite" data-src="1">1</span></p>
+            <p>After day 30 the contract converts to a non-refundable annual commitment, but customers may request a <strong>pro-rated service credit</strong> toward a future renewal if they downgrade — this requires approval from the Account Manager.<span class="cite" data-src="2">2</span></p>
+            <ul class="ans-list">
+              <li><span class="k">Eligibility</span> — annual term, paid by invoice or card, no prior refund on the same account</li>
+              <li><span class="k">Window</span> — 30 calendar days from invoice date <span class="cite" data-src="1">1</span></li>
+              <li><span class="k">Exceptions</span> — usage-based overages are never refundable <span class="cite" data-src="3">3</span></li>
+            </ul>
+            <p style="font-size:11.5px;color:var(--muted);margin-bottom:4px">Synthesized from 3 sources · last verified 4 days ago. <a href="#" style="color:var(--lime-dk);text-decoration:none;font-weight:600">Report an issue</a></p>
+          </div>
+          <aside class="sources-rail">
+            <h4>Cited sources · 3</h4>
+            <a class="src-card" href="#" data-doc="d1">
+              <span class="num">1</span>
+              <div class="stitle">Enterprise Billing &amp; Refund Policy</div>
+              <div class="smeta"><span class="ftype pdf">pdf</span> Finance · v4.2</div>
+              <div class="relbar"><i style="width:96%"></i></div>
+              <span class="relnum">0.96 relevance</span>
+            </a>
+            <a class="src-card" href="#" data-doc="d2">
+              <span class="num">2</span>
+              <div class="stitle">Account Manager Playbook — Downgrades</div>
+              <div class="smeta"><span class="ftype wiki">wiki</span> Sales Ops</div>
+              <div class="relbar"><i style="width:88%"></i></div>
+              <span class="relnum">0.88 relevance</span>
+            </a>
+            <a class="src-card" href="#" data-doc="d3">
+              <span class="num">3</span>
+              <div class="stitle">Usage &amp; Overage Terms (Annex C)</div>
+              <div class="smeta"><span class="ftype doc">doc</span> Legal</div>
+              <div class="relbar"><i style="width:81%"></i></div>
+              <span class="relnum">0.81 relevance</span>
+            </a>
+          </aside>
+        </div>
+        <div class="answer-foot">
+          <span class="ff-lbl">Follow-ups</span>
+          <button class="followup" type="button" data-q="How do I submit a refund request as an enterprise admin?"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg> How to submit a request?</button>
+          <button class="followup" type="button" data-q="What counts as usage-based overage on annual plans?"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg> What counts as overage?</button>
+          <button class="followup" type="button" data-q="Does the refund window differ for monthly plans?"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg> Monthly vs annual?</button>
+          <div class="act-icons">
+            <button class="act-icon" id="thumbUp" title="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"/><path d="M7 10l4-7a2 2 0 0 1 3 2l-1 5h5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 21H7"/></svg></button>
+            <button class="act-icon" title="Copy" id="copyBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2 COL -->
+      <div class="grid2">
+        <!-- LEFT: doc table -->
+        <div class="panel">
+          <div class="panel-h">
+            <h3>Indexed Documents</h3>
+            <span class="count" id="docCount">14 of 14</span>
+            <div class="grow"></div>
+            <div class="tabs" id="tabs">
+              <button class="tab active" data-tab="all">All</button>
+              <button class="tab" data-tab="indexed">Indexed</button>
+              <button class="tab" data-tab="processing">Processing</button>
+              <button class="tab" data-tab="review">Needs review</button>
+            </div>
+            <div class="mini-search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="docSearch" placeholder="Filter title or source…" />
+            </div>
+          </div>
+          <div class="fbar" id="fbar">
+            <button class="fpill active" data-src="all">All sources <span class="n" id="n-all">14</span></button>
+            <button class="fpill" data-src="Engineering">Engineering <span class="n">5</span></button>
+            <button class="fpill" data-src="Security">Security <span class="n">3</span></button>
+            <button class="fpill" data-src="Finance">Finance <span class="n">3</span></button>
+            <button class="fpill" data-src="Support">Support <span class="n">3</span></button>
+          </div>
+          <div class="rows" id="rows"></div>
+          <div class="empty" id="emptyState" style="display:none">
+            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <p>No documents match your filters</p>
+            <p class="e2">Try a different source, status, or search term.</p>
+          </div>
+        </div>
+
+        <!-- RIGHT: stats + chart + feed -->
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div class="panel">
+            <div class="panel-h"><h3>This Week</h3><span class="count">vs. last week</span></div>
+            <div class="stat-grid">
+              <div class="stat"><div class="v">312</div><div class="l">Questions answered</div><div class="d up">▲ 18%</div></div>
+              <div class="stat"><div class="v">91%</div><div class="l">Answer rate</div><div class="d up">▲ 4 pts</div></div>
+              <div class="stat"><div class="v">1.4s</div><div class="l">Median latency</div><div class="d up">▼ 0.3s</div></div>
+              <div class="stat"><div class="v">7</div><div class="l">Knowledge gaps</div><div class="d down">▲ 2</div></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h3>Answer Confidence</h3><span class="count">last 30 days</span></div>
+            <div class="chart-wrap">
+              <svg viewBox="0 0 280 110" width="100%" height="110" preserveAspectRatio="none" id="confChart">
+                <defs>
+                  <linearGradient id="confGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#65a30d" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#65a30d" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <line x1="0" y1="27" x2="280" y2="27" stroke="#eef1f4" stroke-width="1"/>
+                <line x1="0" y1="55" x2="280" y2="55" stroke="#eef1f4" stroke-width="1"/>
+                <line x1="0" y1="83" x2="280" y2="83" stroke="#eef1f4" stroke-width="1"/>
+                <path id="confArea" fill="url(#confGrad)" d=""/>
+                <path id="confLine" fill="none" stroke="#65a30d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d=""/>
+                <g id="confDots"></g>
+              </svg>
+              <div class="chart-legend">
+                <span class="lg"><i style="background:#65a30d"></i> High conf (&gt;90%)</span>
+                <span class="lg"><i style="background:#d6e8b3"></i> Grounded answers</span>
+                <span class="lg"><i style="background:#fdf3e3;border:1px solid #f0d9a8"></i> Escalated to human</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h3>Top Topics Asked</h3><span class="count">7 days</span></div>
+            <div class="bars" id="topicBars"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h3>AI Activity</h3><span class="count">live feed</span></div>
+            <div class="feed" id="feed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="dr-head">
+    <div class="dr-top">
+      <div class="doc-ic pdf" id="drIc" style="width:38px;height:38px;font-size:12px">PDF</div>
+      <div style="min-width:0">
+        <h2 class="dr-title" id="drTitle">Enterprise Billing &amp; Refund Policy</h2>
+        <div class="dr-sub" id="drSub"></div>
+      </div>
+      <button class="dr-close" id="drClose" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+</aside>
+
+<div class="toast" id="toast">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- seed data ---------------- */
+  var docs = [
+    {id:"d1", title:"Enterprise Billing & Refund Policy", type:"pdf", src:"Finance", status:"indexed", quality:96, chunks:142, owner:"R. Okafor", updated:"4 days ago", asks:88, version:"v4.2",
+     summary:"Defines refund windows, pro-rated credits and non-refundable usage terms across monthly and annual enterprise plans. The 30-day annual window is the most-cited clause this quarter.",
+     snippet:"Annual enterprise subscriptions carry a <mark>30-day full-refund window</mark> from the invoice date; requests are settled at 100% within 5–7 business days.",
+     fields:[["Refund window","30 days (annual)",96],["Settlement time","5–7 business days",94],["Pro-rated credit","On downgrade only",82],["Owner team","Finance — Billing",90]],
+     tags:["billing","refunds","enterprise","annual"], aiTags:["high-traffic","policy"]},
+    {id:"d2", title:"Account Manager Playbook — Downgrades", type:"wiki", src:"Finance", status:"indexed", quality:88, chunks:64, owner:"L. Tran", updated:"1 week ago", asks:31, version:"living",
+     summary:"Step-by-step guide for AMs handling plan downgrades, including when a service credit may be offered instead of a refund and the required approval chain.",
+     snippet:"When a customer downgrades after the refund window, the AM may issue a <mark>pro-rated service credit</mark> toward the next renewal, subject to director approval.",
+     fields:[["Approval needed","AM + Director",91],["Credit cap","20% of remaining term",78],["Applies after","Day 30",88]],
+     tags:["sales-ops","downgrade","credit"], aiTags:["needs-owner-review"]},
+    {id:"d3", title:"Usage & Overage Terms (Annex C)", type:"doc", src:"Finance", status:"review", quality:71, chunks:38, owner:"Legal Desk", updated:"3 weeks ago", asks:12, version:"v2.0",
+     summary:"Contractual annex covering metered usage and overage charges. The AI flagged ambiguous language around what counts as 'committed' vs 'on-demand' usage.",
+     snippet:"Overage charges for <mark>on-demand usage</mark> are billed monthly and are explicitly non-refundable under all plan types.",
+     fields:[["Overage refundable","No",93],["Billing cadence","Monthly",90],["Ambiguous clause","§C.3 'committed use'",58]],
+     tags:["legal","usage","overage"], aiTags:["low-quality","ambiguous"], review:"Clause §C.3 mixes 'committed' and 'on-demand' usage definitions. The AI could not confidently answer 3 related questions. Suggest the Legal owner clarify the boundary and re-index."},
+    {id:"d4", title:"Production API Key Rotation Runbook", type:"doc", src:"Engineering", status:"indexed", quality:95, chunks:96, owner:"S. Mehta", updated:"2 days ago", asks:54, version:"v3.1",
+     summary:"Operational runbook for rotating production API keys with zero downtime, including dual-key overlap windows and rollback steps.",
+     snippet:"Always provision the <mark>new key alongside the old</mark> for a 24h overlap before revoking; never rotate both primary and standby in the same change window.",
+     fields:[["Overlap window","24 hours",95],["Rollback step","Re-enable old key",92],["Change approval","On-call lead",88]],
+     tags:["security","api-keys","runbook","sre"], aiTags:["high-traffic"]},
+    {id:"d5", title:"SSO & SAML Integration Guide", type:"wiki", src:"Security", status:"indexed", quality:90, chunks:73, owner:"D. Park", updated:"5 days ago", asks:47, version:"v2.4",
+     summary:"Configuration guide for connecting external SAML identity providers, with worked examples for Okta, Entra ID and Google Workspace.",
+     snippet:"Map the IdP's <mark>email assertion</mark> to the NameID; just-in-time provisioning creates users on first login when enabled.",
+     fields:[["Protocol","SAML 2.0",96],["JIT provisioning","Supported",90],["Supported IdPs","Okta, Entra, Google",88]],
+     tags:["security","sso","saml","identity"], aiTags:["high-traffic"]},
+    {id:"d6", title:"Incident Response & SLA Matrix", type:"pdf", src:"Engineering", status:"indexed", quality:93, chunks:58, owner:"On-call Team", updated:"6 days ago", asks:39, version:"v5.0",
+     summary:"Severity definitions and response/resolution SLAs by plan tier. P1 platform-tier incidents carry the tightest commitments.",
+     snippet:"<mark>P1 incidents on platform tier</mark> have a 15-minute response and 4-hour resolution target, with hourly status updates.",
+     fields:[["P1 response","15 minutes",95],["P1 resolution","4 hours",90],["Update cadence","Hourly",92]],
+     tags:["sre","incident","sla","platform"], aiTags:["high-traffic","policy"]},
+    {id:"d7", title:"Data Retention & Deletion Policy", type:"pdf", src:"Security", status:"indexed", quality:92, chunks:44, owner:"Compliance", updated:"1 week ago", asks:28, version:"v3.3",
+     summary:"Governs how long data persists after workspace deletion, soft-delete grace periods and certified destruction timelines.",
+     snippet:"Deleted workspaces enter a <mark>30-day soft-delete</mark> grace period; backups are purged within 90 days of permanent deletion.",
+     fields:[["Soft-delete grace","30 days",94],["Backup purge","90 days",90],["Restore window","Within grace only",88]],
+     tags:["compliance","retention","gdpr","deletion"], aiTags:["policy"]},
+    {id:"d8", title:"Webhook Delivery & Retry Semantics", type:"doc", src:"Engineering", status:"processing", quality:0, chunks:0, owner:"API Team", updated:"12 min ago", asks:0, version:"draft",
+     summary:"Newly uploaded draft describing webhook retry/backoff behavior. Currently being chunked and embedded by the indexer.",
+     snippet:"Indexing in progress — 41% of 51 chunks embedded. Answers will become available once processing completes.",
+     fields:[["Chunks embedded","21 / 51",100],["Est. completion","~3 min",90]],
+     tags:["api","webhooks","retry"], aiTags:["indexing"]},
+    {id:"d9", title:"Rate Limits & Throttling Reference", type:"doc", src:"Engineering", status:"indexed", quality:89, chunks:51, owner:"API Team", updated:"3 days ago", asks:33, version:"v2.1",
+     summary:"Per-plan request quotas, burst allowances and the headers returned when throttled.",
+     snippet:"On throttle the API returns <mark>429 with Retry-After</mark>; enterprise tiers receive a 10x burst allowance over base.",
+     fields:[["Throttle code","429",96],["Retry header","Retry-After",94],["Enterprise burst","10x base",86]],
+     tags:["api","rate-limit","throttling"], aiTags:["high-traffic"]},
+    {id:"d10", title:"Customer Onboarding Checklist", type:"wiki", src:"Support", status:"indexed", quality:85, chunks:40, owner:"CS Team", updated:"1 week ago", asks:22, version:"living",
+     summary:"Standard onboarding milestones for new enterprise customers, from kickoff to go-live and the first business review.",
+     snippet:"Schedule the <mark>technical kickoff within 5 business days</mark> of contract signature; assign a named CSM before kickoff.",
+     fields:[["Kickoff SLA","5 business days",88],["Named CSM","Required",90],["First review","Day 90",82]],
+     tags:["customer-success","onboarding","enterprise"], aiTags:[]},
+    {id:"d11", title:"Refund Request — Support Macros", type:"faq", src:"Support", status:"review", quality:68, chunks:29, owner:"Support Ops", updated:"2 weeks ago", asks:19, version:"v1.4",
+     summary:"Canned support replies for refund requests. The AI flagged that two macros cite an outdated 14-day window that conflicts with the current policy.",
+     snippet:"Macro RF-02 references a <mark>14-day window</mark>, which conflicts with the current 30-day enterprise annual policy.",
+     fields:[["Stated window","14 days (outdated)",61],["Conflicts with","Doc d1 (30 days)",72],["Macros affected","RF-02, RF-05",80]],
+     tags:["support","macros","refunds"], aiTags:["conflict","stale"], review:"Two macros (RF-02, RF-05) cite a 14-day refund window that conflicts with the authoritative Billing & Refund Policy (30 days). The AI down-ranked this source. Update or retire the macros to remove the conflict."},
+    {id:"d12", title:"Security Whitepaper — Encryption", type:"pdf", src:"Security", status:"indexed", quality:91, chunks:67, owner:"Security Team", updated:"4 days ago", asks:25, version:"v6.0",
+     summary:"Describes encryption at rest and in transit, key management and the shared-responsibility model.",
+     snippet:"All customer data is encrypted at rest with <mark>AES-256</mark> and in transit with TLS 1.3; keys are rotated automatically every 90 days.",
+     fields:[["At rest","AES-256",96],["In transit","TLS 1.3",96],["Key rotation","90 days",90]],
+     tags:["security","encryption","compliance"], aiTags:["policy"]},
+    {id:"d13", title:"Feature Flag & Release Process", type:"wiki", src:"Engineering", status:"indexed", quality:87, chunks:48, owner:"Platform", updated:"5 days ago", asks:17, version:"living",
+     summary:"How features ship behind flags, the staged rollout percentages and the kill-switch procedure.",
+     snippet:"New features roll out in <mark>5% → 25% → 100%</mark> stages; a kill switch can disable any flag in under 60 seconds.",
+     fields:[["Rollout stages","5 / 25 / 100%",90],["Kill switch","< 60 seconds",88]],
+     tags:["platform","release","feature-flags"], aiTags:[]},
+    {id:"d14", title:"Support Tier Escalation Paths", type:"faq", src:"Support", status:"indexed", quality:84, chunks:35, owner:"Support Ops", updated:"1 week ago", asks:21, version:"v2.2",
+     summary:"Defines when and how tickets escalate from L1 to L2/L3 and engineering, with response expectations at each tier.",
+     snippet:"Escalate to <mark>L3 / engineering</mark> when an issue affects multiple customers or has no documented workaround within 2 hours.",
+     fields:[["Escalate to L3 when","Multi-customer impact",88],["No-workaround limit","2 hours",84]],
+     tags:["support","escalation","tickets"], aiTags:[]}
+  ];
+
+  var topics = [
+    {name:"Billing & refunds", v:88},
+    {name:"API & keys", v:72},
+    {name:"SSO / identity", v:61},
+    {name:"Incidents / SLA", v:54},
+    {name:"Data retention", v:43},
+    {name:"Onboarding", v:31}
+  ];
+
+  var feed = [
+    {ic:"lime", ai:true, html:"Answered <b>“refund window for enterprise annual plans”</b> with 94% confidence", tm:"just now"},
+    {ic:"violet", ai:true, html:"Extracted <b>5 fields</b> from <b>API Key Rotation Runbook</b> · all ≥ 88% confidence", tm:"2 min ago"},
+    {ic:"blue", ai:true, html:"Started indexing <b>Webhook Delivery & Retry Semantics</b> — 21 of 51 chunks embedded", tm:"12 min ago"},
+    {ic:"amber", ai:true, html:"Flagged a <b>conflict</b>: Support macro RF-02 cites a 14-day window vs. policy 30-day", tm:"26 min ago"},
+    {ic:"lime", ai:true, html:"Re-ranked sources for topic <b>“incident SLA”</b> after policy v5.0 update", tm:"40 min ago"},
+    {ic:"amber", ai:true, html:"Detected a <b>knowledge gap</b>: 4 unanswered questions about <b>region failover</b>", tm:"1 hr ago"},
+    {ic:"violet", ai:true, html:"Auto-tagged <b>Security Whitepaper</b> as <b>policy</b> · <b>encryption</b>", tm:"2 hr ago"},
+    {ic:"lime", ai:true, html:"Escalated <b>“custom data residency in EU”</b> to a human expert — low confidence", tm:"3 hr ago"}
+  ];
+
+  /* ---------------- helpers ---------------- */
+  var $ = function(s,r){return (r||document).querySelector(s);};
+  var $$ = function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+  var byId = {};
+  docs.forEach(function(d){byId[d.id]=d;});
+
+  function statusPill(st){
+    var map = {
+      indexed:["indexed","Indexed"],
+      processing:["processing","Indexing"],
+      review:["review","Needs review"],
+      stale:["stale","Stale"]
+    };
+    var m = map[st]||map.indexed;
+    return '<span class="pill '+m[0]+'"><span class="pd"></span>'+m[1]+'</span>';
+  }
+  function qBadge(q){
+    if(q===0) return '<span class="col-r" style="color:var(--muted)">—</span>';
+    var cls = q>=88?"q-hi":q>=75?"q-md":"q-lo";
+    return '<span class="qbadge '+cls+'">'+q+'</span>';
+  }
+  var typeLabel = {pdf:"PDF",doc:"DOC",wiki:"WIKI",faq:"FAQ"};
+
+  /* ---------------- render rows ---------------- */
+  var state = {tab:"all", src:"all", q:""};
+
+  function matches(d){
+    if(state.tab==="indexed" && d.status!=="indexed") return false;
+    if(state.tab==="processing" && d.status!=="processing") return false;
+    if(state.tab==="review" && d.status!=="review") return false;
+    if(state.src!=="all" && d.src!==state.src) return false;
+    if(state.q){
+      var hay = (d.title+" "+d.src+" "+d.owner+" "+d.tags.join(" ")).toLowerCase();
+      if(hay.indexOf(state.q.toLowerCase())<0) return false;
+    }
+    return true;
+  }
+
+  function renderRows(){
+    var rowsEl = byId_rows = $("#rows");
+    var list = docs.filter(matches);
+    rowsEl.innerHTML = list.map(function(d){
+      return ''+
+      '<div class="row" data-doc="'+d.id+'">'+
+        '<div class="doc-name">'+
+          '<div class="doc-ic '+d.type+'">'+typeLabel[d.type]+'</div>'+
+          '<div class="doc-txt">'+
+            '<div class="doc-t">'+d.title+'</div>'+
+            '<div class="doc-s"><span>'+d.src+'</span><span class="sep"></span><span>'+d.owner+'</span><span class="sep"></span><span>'+(d.chunks||0)+' chunks</span></div>'+
+          '</div>'+
+        '</div>'+
+        '<div>'+qBadge(d.quality)+'</div>'+
+        '<div class="col-r">'+(d.asks>0?d.asks+' asks':'—')+'</div>'+
+        '<div>'+statusPill(d.status)+'</div>'+
+        '<div class="chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></div>'+
+      '</div>';
+    }).join("");
+    $("#docCount").textContent = list.length+" of "+docs.length;
+    $("#emptyState").style.display = list.length? "none":"block";
+    rowsEl.style.display = list.length? "block":"none";
+
+    $$(".row", rowsEl).forEach(function(r){
+      r.addEventListener("click", function(){ openDrawer(r.getAttribute("data-doc")); });
+    });
+  }
+  var byId_rows;
+
+  /* ---------------- tabs / filters / search ---------------- */
+  $$("#tabs .tab").forEach(function(t){
+    t.addEventListener("click", function(){
+      $$("#tabs .tab").forEach(function(x){x.classList.remove("active");});
+      t.classList.add("active");
+      state.tab = t.getAttribute("data-tab");
+      renderRows();
+    });
+  });
+  $$("#fbar .fpill").forEach(function(p){
+    p.addEventListener("click", function(){
+      $$("#fbar .fpill").forEach(function(x){x.classList.remove("active");});
+      p.classList.add("active");
+      state.src = p.getAttribute("data-src");
+      renderRows();
+    });
+  });
+  $("#docSearch").addEventListener("input", function(e){
+    state.q = e.target.value.trim();
+    renderRows();
+  });
+
+  /* ---------------- drawer ---------------- */
+  function openDrawer(id){
+    var d = byId[id];
+    if(!d) return;
+    var ic = $("#drIc");
+    ic.className = "doc-ic "+d.type;
+    ic.style.width="38px"; ic.style.height="38px"; ic.style.fontSize="12px";
+    ic.textContent = typeLabel[d.type];
+    $("#drTitle").innerHTML = d.title;
+
+    var subBits = [
+      '<span class="ftype '+d.type+'" style="padding:1px 6px;border-radius:4px">'+typeLabel[d.type]+'</span>',
+      d.src,
+      d.owner,
+      'updated '+d.updated,
+      d.version
+    ];
+    $("#drSub").innerHTML = subBits.join(' <span class="sep" style="width:3px;height:3px;border-radius:50%;background:var(--line);display:inline-block"></span> ');
+
+    var body = "";
+    // AI summary
+    body += '<div class="ai-summary">'+
+      '<div class="sh">'+
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4d7c0f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2 2M16.4 16.4l2 2M5.6 18.4l2-2M16.4 7.6l2-2"/><circle cx="12" cy="12" r="3.2"/></svg>'+
+        '<b>AI Summary</b>'+
+        confChip(d)+
+      '</div>'+
+      '<p>'+d.summary+'</p>'+
+    '</div>';
+
+    // Top matching snippet
+    body += '<div class="dr-sec-t">Top Matching Passage</div>';
+    body += '<div class="snippet">'+d.snippet+'</div>';
+
+    // Extracted fields
+    if(d.fields && d.fields.length){
+      body += '<div class="dr-sec-t">AI-Extracted Fields</div><div class="ex-fields">';
+      d.fields.forEach(function(f){
+        var c = f[2];
+        var cls = c>=85?"hi":"md";
+        body += '<div class="ex-field">'+
+          '<span class="ef-k">'+f[0]+'</span>'+
+          '<span class="ef-v">'+f[1]+'</span>'+
+          '<span class="ef-conf '+cls+'"><span class="mini-bar"><i style="width:'+c+'%"></i></span>'+c+'%</span>'+
+        '</div>';
+      });
+      body += '</div>';
+    }
+
+    // Quality meter (ring)
+    if(d.quality>0){
+      body += '<div class="dr-sec-t">Index Quality</div>';
+      body += '<div class="qmeter">'+ring(d.quality)+
+        '<div class="qt">Embedded across <b>'+d.chunks+' chunks</b>. Score blends retrieval relevance, freshness and source authority. '+
+        (d.quality>=88?'This is a <b>trusted</b> source.':d.quality>=75?'<b>Usable</b> but could be refreshed.':'<b>Low</b> — review recommended.')+'</div>'+
+      '</div>';
+    }
+
+    // Review/correct panel
+    if(d.review){
+      body += '<div class="dr-sec-t">Review &amp; Correct</div>';
+      body += '<div class="review-box">'+
+        '<div class="rh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> AI needs your input</div>'+
+        '<p>'+d.review+'</p>'+
+        '<div class="rb-actions">'+
+          '<button class="btn-sm btn-primary" data-act="approve">Approve fix &amp; re-index</button>'+
+          '<button class="btn-sm btn-ghost" data-act="assign">Assign to owner</button>'+
+        '</div>'+
+      '</div>';
+    }
+
+    // Meta
+    body += '<div class="dr-sec-t">Details</div>';
+    body += '<div class="kv">'+
+      kv("Source", d.src)+
+      kv("Owner", d.owner)+
+      kv("Version", d.version)+
+      kv("Chunks", d.chunks||"—")+
+      kv("Times asked", d.asks)+
+      kv("Last updated", d.updated)+
+      kv("Status", statusPill(d.status))+
+    '</div>';
+
+    // Tags
+    body += '<div class="dr-sec-t">Tags</div><div class="tag-row">';
+    d.tags.forEach(function(t){ body += '<span class="tagx">#'+t+'</span>'; });
+    (d.aiTags||[]).forEach(function(t){ body += '<span class="tagx ai">'+t+'</span>'; });
+    body += '</div>';
+
+    $("#drBody").innerHTML = body;
+    $("#drBody").scrollTop = 0;
+
+    // wire review actions
+    $$('#drBody [data-act]').forEach(function(b){
+      b.addEventListener("click", function(){
+        var act = b.getAttribute("data-act");
+        toast(act==="approve"? "Fix approved — re-indexing queued" : "Assigned to "+d.owner);
+      });
+    });
+
+    $("#drawer").classList.add("open");
+    $("#scrim").classList.add("open");
+    $("#drawer").setAttribute("aria-hidden","false");
+  }
+  function kv(k,v){return '<div class="k">'+k+'</div><div class="v">'+v+'</div>';}
+  function confChip(d){
+    var c = d.quality;
+    if(c===0) return '<span class="conf" style="margin-left:auto;background:var(--blue-bg);color:var(--blue);border-color:#cfdcff">indexing…</span>';
+    var lvl = c>=88?'':'style="background:var(--amber-bg);color:var(--amber);border-color:#f0d9a8"';
+    return '<span class="conf" '+lvl+' style="margin-left:auto">'+c+'% confidence</span>';
+  }
+  function ring(pct){
+    var r=20, c=2*Math.PI*r, off=c*(1-pct/100);
+    var col = pct>=88?"#65a30d":pct>=75?"#b45309":"#dc2626";
+    return '<svg class="ring" width="56" height="56" viewBox="0 0 56 56">'+
+      '<circle cx="28" cy="28" r="20" fill="none" stroke="#eef1f4" stroke-width="6"/>'+
+      '<circle cx="28" cy="28" r="20" fill="none" stroke="'+col+'" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 28 28)"/>'+
+      '<text x="28" y="32" text-anchor="middle" font-size="13" font-weight="800" fill="#1e2530">'+pct+'</text>'+
+    '</svg>';
+  }
+  function closeDrawer(){
+    $("#drawer").classList.remove("open");
+    $("#scrim").classList.remove("open");
+    $("#drawer").setAttribute("aria-hidden","true");
+  }
+  $("#drClose").addEventListener("click", closeDrawer);
+  $("#scrim").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeDrawer(); });
+
+  // src cards in answer open drawer
+  $$(".src-card").forEach(function(c){
+    c.addEventListener("click", function(e){ e.preventDefault(); openDrawer(c.getAttribute("data-doc")); });
+  });
+  // citation markers open the mapped source
+  var citeMap = {"1":"d1","2":"d2","3":"d3"};
+  $$(".cite").forEach(function(c){
+    c.addEventListener("click", function(){ openDrawer(citeMap[c.getAttribute("data-src")]); });
+  });
+
+  /* ---------------- ask interactions ---------------- */
+  function setQuestion(q){
+    $("#askInput").value = q;
+    $("#answerQ").textContent = q;
+    // briefly mimic a fresh "AI thinking" state by flashing the confidence chip
+    var conf = $("#answerCard .conf");
+    var prev = conf.innerHTML;
+    conf.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid var(--lime-dk);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite"></span> thinking…';
+    $("#answerCard").scrollIntoView({behavior:"smooth", block:"start"});
+    setTimeout(function(){ conf.innerHTML = prev; }, 900);
+    toast("Answer regenerated from 3 grounded sources");
+  }
+  $("#askForm").addEventListener("submit", function(e){
+    e.preventDefault();
+    var v = $("#askInput").value.trim();
+    if(!v){ $("#askInput").focus(); return; }
+    setQuestion(v);
+  });
+  $$(".chip[data-q]").forEach(function(c){
+    c.addEventListener("click", function(){ setQuestion(c.getAttribute("data-q")); });
+  });
+  $$(".followup[data-q]").forEach(function(c){
+    c.addEventListener("click", function(){ setQuestion(c.getAttribute("data-q")); });
+  });
+
+  // thumb + copy
+  $("#thumbUp").addEventListener("click", function(){
+    this.classList.toggle("on");
+    toast(this.classList.contains("on")? "Marked helpful — thanks!" : "Feedback removed");
+  });
+  $("#copyBtn").addEventListener("click", function(){ toast("Answer copied to clipboard"); });
+
+  /* spin keyframe injected */
+  var sty = document.createElement("style");
+  sty.textContent = "@keyframes spin{to{transform:rotate(360deg)}}";
+  document.head.appendChild(sty);
+
+  /* ---------------- confidence chart ---------------- */
+  (function(){
+    var data = [82,85,84,88,87,90,89,92,91,93,90,94];
+    var W=280, H=110, pad=6, top=8, bot=H-8;
+    var max=100, min=78;
+    var step = (W-pad*2)/(data.length-1);
+    function y(v){ return bot - (v-min)/(max-min)*(bot-top); }
+    var pts = data.map(function(v,i){ return [pad+i*step, y(v)]; });
+    var line = pts.map(function(p,i){ return (i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1); }).join(" ");
+    var area = line+" L"+pts[pts.length-1][0].toFixed(1)+" "+bot+" L"+pts[0][0].toFixed(1)+" "+bot+" Z";
+    $("#confLine").setAttribute("d", line);
+    $("#confArea").setAttribute("d", area);
+    var dots = pts.map(function(p,i){
+      var big = i===pts.length-1;
+      return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(big?4:2.4)+'" fill="'+(big?"#65a30d":"#fff")+'" stroke="#65a30d" stroke-width="'+(big?2:1.6)+'"/>';
+    }).join("");
+    $("#confDots").innerHTML = dots;
+  })();
+
+  /* ---------------- topic bars ---------------- */
+  (function(){
+    var max = Math.max.apply(null, topics.map(function(t){return t.v;}));
+    $("#topicBars").innerHTML = topics.map(function(t){
+      var w = Math.round(t.v/max*100);
+      return '<div class="bar-row">'+
+        '<span class="bl">'+t.name+'</span>'+
+        '<span class="bar-track"><span class="bar-fill" style="width:0%" data-w="'+w+'"></span></span>'+
+        '<span class="bv">'+t.v+'</span>'+
+      '</div>';
+    }).join("");
+    requestAnimationFrame(function(){
+      setTimeout(function(){
+        $$("#topicBars .bar-fill").forEach(function(f){ f.style.width = f.getAttribute("data-w")+"%"; });
+      },120);
+    });
+  })();
+
+  /* ---------------- feed ---------------- */
+  (function(){
+    var icons = {
+      lime:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+      violet:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg>',
+      blue:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M21 3v6h-6"/></svg>',
+      amber:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>'
+    };
+    $("#feed").innerHTML = feed.map(function(f){
+      return '<div class="fitem">'+
+        '<div class="fic '+f.ic+'">'+icons[f.ic]+'</div>'+
+        '<div class="ftxt"><div class="a">'+(f.ai?'<span class="ai-tag">AI</span>':'')+f.html+'</div><div class="tm">'+f.tm+'</div></div>'+
+      '</div>';
+    }).join("");
+  })();
+
+  /* ---------------- toast ---------------- */
+  var toastT;
+  function toast(msg){
+    $("#toastMsg").textContent = msg;
+    $("#toast").classList.add("show");
+    clearTimeout(toastT);
+    toastT = setTimeout(function(){ $("#toast").classList.remove("show"); }, 2200);
+  }
+
+  /* ---------------- init ---------------- */
+  renderRows();
+})();
+</script>
+</body>
+</html>

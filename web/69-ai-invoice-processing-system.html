@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Invoice Processing System</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --bg-2:#eef0f3;
+    --panel:#ffffff;
+    --panel-2:#f3f5f7;
+    --panel-3:#e9edf1;
+    --line:#e2e6eb;
+    --line-soft:#edf0f3;
+    --txt:#1f2937;
+    --txt-2:#566072;
+    --txt-3:#8b94a4;
+    --accent:#059669;
+    --accent-2:#10b981;
+    --teal:#0d9488;
+    --green:#059669;
+    --amber:#d97706;
+    --red:#dc2626;
+    --blue:#2563eb;
+    --shadow:0 14px 40px -18px rgba(31,41,55,.28);
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);
+    color:var(--txt);
+    -webkit-font-smoothing:antialiased;
+    font-size:14px;
+    line-height:1.45;
+  }
+  ::selection{background:rgba(5,150,105,.18);color:var(--txt)}
+
+  /* ---------- Layout ---------- */
+  .app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+  .sidebar{
+    border-right:1px solid var(--line-soft);
+    padding:22px 16px;
+    display:flex;flex-direction:column;gap:6px;
+    position:sticky;top:0;height:100vh;
+    background:#ffffff;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 8px 20px}
+  .logo{
+    width:38px;height:38px;border-radius:11px;flex:none;
+    background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);
+    display:grid;place-items:center;box-shadow:0 8px 18px -6px rgba(5,150,105,.45);
+  }
+  .logo svg{width:21px;height:21px}
+  .brand .b-name{font-weight:700;font-size:15px;letter-spacing:.2px;line-height:1.1}
+  .brand .b-sub{font-size:11px;color:var(--txt-3);letter-spacing:.4px}
+  .nav-group{font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--txt-3);padding:14px 10px 6px;font-weight:600}
+  .nav{
+    display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;
+    color:var(--txt-2);cursor:pointer;font-weight:500;position:relative;transition:.16s;
+  }
+  .nav svg{width:18px;height:18px;flex:none;opacity:.85}
+  .nav:hover{background:var(--panel-2);color:var(--txt)}
+  .nav.active{background:rgba(5,150,105,.10);color:var(--accent)}
+  .nav.active svg{opacity:1}
+  .nav.active::before{content:"";position:absolute;left:-16px;top:8px;bottom:8px;width:3px;border-radius:0 4px 4px 0;background:linear-gradient(var(--accent),var(--accent-2))}
+  .nav .badge{margin-left:auto;background:var(--accent);color:#fff;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px;min-width:22px;text-align:center}
+  .nav .badge.gray{background:var(--panel-3);color:var(--txt-2)}
+  .side-foot{margin-top:auto;padding:14px 10px 4px;border-top:1px solid var(--line-soft)}
+  .usage{font-size:11.5px;color:var(--txt-2);margin-bottom:8px;display:flex;justify-content:space-between}
+  .meter{height:6px;border-radius:6px;background:var(--panel-3);overflow:hidden}
+  .meter>i{display:block;height:100%;width:68%;background:linear-gradient(90deg,var(--teal),var(--accent));border-radius:6px}
+  .user{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#059669,#10b981);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    display:flex;align-items:center;gap:18px;padding:18px 28px;
+    border-bottom:1px solid var(--line-soft);position:sticky;top:0;z-index:30;
+    background:rgba(255,255,255,.85);backdrop-filter:blur(14px);
+  }
+  .topbar h1{font-size:18px;margin:0;font-weight:700}
+  .topbar .crumb{font-size:12px;color:var(--txt-3);margin-top:2px}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--panel);
+    border:1px solid var(--line);border-radius:11px;padding:8px 13px;width:300px;transition:.16s;
+  }
+  .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(5,150,105,.15)}
+  .search svg{width:16px;height:16px;color:var(--txt-3);flex:none}
+  .search input{background:none;border:none;outline:none;color:var(--txt);width:100%;font-size:13px;font-family:inherit}
+  .icon-btn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);display:grid;place-items:center;cursor:pointer;color:var(--txt-2);transition:.16s;position:relative}
+  .icon-btn:hover{color:var(--accent);border-color:var(--accent)}
+  .icon-btn svg{width:18px;height:18px}
+  .dot{position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 3px var(--panel)}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;
+    font-weight:600;font-size:13px;border-radius:10px;padding:9px 15px;transition:.16s;white-space:nowrap;
+  }
+  .btn svg{width:16px;height:16px}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;box-shadow:0 10px 22px -10px rgba(5,150,105,.6)}
+  .btn.primary:hover{filter:brightness(1.06);transform:translateY(-1px)}
+  .btn.ghost{background:var(--panel);color:var(--txt-2);border:1px solid var(--line)}
+  .btn.ghost:hover{color:var(--accent);border-color:var(--accent)}
+
+  .content{padding:24px 28px 60px;flex:1;overflow:auto}
+
+  /* ---------- KPI cards ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .kpi{
+    background:var(--panel);
+    border:1px solid var(--line);border-radius:var(--r);padding:17px 18px;position:relative;overflow:hidden;
+    box-shadow:0 1px 2px rgba(31,41,55,.04),0 8px 24px -18px rgba(31,41,55,.18);
+  }
+  .kpi::after{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(5,150,105,.08),transparent 70%)}
+  .kpi .k-top{display:flex;align-items:center;gap:9px;color:var(--txt-2);font-size:12px;font-weight:500;margin-bottom:10px}
+  .kpi .k-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none}
+  .kpi .k-ico svg{width:16px;height:16px}
+  .kpi .k-val{font-size:27px;font-weight:760;letter-spacing:-.5px;line-height:1}
+  .kpi .k-val small{font-size:14px;color:var(--txt-3);font-weight:600}
+  .kpi .k-delta{font-size:11.5px;margin-top:8px;display:inline-flex;align-items:center;gap:4px;font-weight:600}
+  .up{color:var(--green)}.down{color:var(--red)}.flat{color:var(--txt-3)}
+  .spark{position:absolute;right:14px;bottom:12px;opacity:.85}
+
+  /* ---------- Workspace grid ---------- */
+  .work{display:grid;grid-template-columns:1.55fr 1fr;gap:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 2px rgba(31,41,55,.04),0 10px 30px -22px rgba(31,41,55,.22)}
+  .card-h{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+  .card-h h2{font-size:14.5px;margin:0;font-weight:700}
+  .card-h .sub{font-size:11.5px;color:var(--txt-3)}
+  .card-h .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  /* tabs */
+  .tabs{display:flex;gap:4px;background:var(--panel-2);padding:3px;border-radius:10px}
+  .tab{padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--txt-2);cursor:pointer;transition:.14s;white-space:nowrap;border:none;background:none;font-family:inherit;display:flex;align-items:center;gap:6px}
+  .tab .cnt{font-size:11px;background:var(--panel-3);border-radius:20px;padding:0 7px;color:var(--txt-2)}
+  .tab.active{background:var(--panel);color:var(--txt);box-shadow:0 1px 3px rgba(31,41,55,.12)}
+  .tab.active .cnt{background:var(--accent);color:#fff}
+
+  /* inbox rows */
+  .inbox{display:flex;flex-direction:column}
+  .inv-row{
+    display:grid;grid-template-columns:34px 1.6fr 1fr 1fr auto;gap:14px;align-items:center;
+    padding:13px 18px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:.13s;position:relative;
+  }
+  .inv-row:hover{background:var(--panel-2)}
+  .inv-row.sel{background:linear-gradient(90deg,rgba(5,150,105,.08),transparent)}
+  .inv-row.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .vfile{width:34px;height:42px;border-radius:6px;background:linear-gradient(160deg,#eef6f2,#e6edf3);border:1px solid var(--line);display:grid;place-items:center;color:var(--accent);position:relative;flex:none}
+  .vfile svg{width:16px;height:16px}
+  .vfile .ext{position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;color:#fff;background:var(--accent);border-radius:3px;padding:0 3px;letter-spacing:.3px}
+  .v-vendor{font-weight:650;font-size:13.5px;display:flex;align-items:center;gap:7px}
+  .v-meta{font-size:11.5px;color:var(--txt-3);margin-top:2px;display:flex;gap:8px;align-items:center}
+  .v-amt{font-weight:700;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+  .v-amt small{display:block;font-weight:500;font-size:10.5px;color:var(--txt-3);margin-top:1px}
+  .conf{display:flex;align-items:center;gap:8px}
+  .conf-ring{width:32px;height:32px;flex:none}
+  .conf-txt{font-size:11px;color:var(--txt-3);line-height:1.2}
+  .conf-txt b{display:block;font-size:13px;color:var(--txt);font-weight:700}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:650;padding:3px 9px;border-radius:20px;white-space:nowrap;border:1px solid transparent}
+  .pill svg{width:11px;height:11px}
+  .pill.ok{background:rgba(5,150,105,.10);color:var(--green);border-color:rgba(5,150,105,.22)}
+  .pill.review{background:rgba(217,119,6,.10);color:var(--amber);border-color:rgba(217,119,6,.22)}
+  .pill.err{background:rgba(220,38,38,.09);color:var(--red);border-color:rgba(220,38,38,.20)}
+  .pill.proc{background:rgba(37,99,235,.09);color:var(--blue);border-color:rgba(37,99,235,.20)}
+  .pill.paid{background:rgba(13,148,136,.10);color:var(--teal);border-color:rgba(13,148,136,.22)}
+  .pill.gray{background:var(--panel-3);color:var(--txt-2)}
+
+  .empty{padding:48px 20px;text-align:center;color:var(--txt-3)}
+  .empty svg{width:42px;height:42px;opacity:.4;margin-bottom:10px}
+
+  /* ---------- right column ---------- */
+  .rightcol{display:flex;flex-direction:column;gap:18px}
+  /* donut chart */
+  .donut-wrap{display:flex;align-items:center;gap:18px;padding:18px}
+  .legend{display:flex;flex-direction:column;gap:11px;flex:1}
+  .leg-row{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .leg-dot{width:10px;height:10px;border-radius:3px;flex:none}
+  .leg-row .lv{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+  .leg-row .lp{color:var(--txt-3);font-size:11px;width:42px;text-align:right}
+
+  /* activity feed */
+  .feed{padding:6px 18px 16px;max-height:300px;overflow:auto}
+  .feed-item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-soft);position:relative}
+  .feed-item:last-child{border-bottom:none}
+  .feed-ico{width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center}
+  .feed-ico svg{width:14px;height:14px}
+  .feed-txt{font-size:12.5px;line-height:1.4}
+  .feed-txt b{font-weight:680}
+  .feed-time{font-size:10.5px;color:var(--txt-3);margin-top:3px;display:flex;align-items:center;gap:5px}
+  .ai-tag{font-size:9px;font-weight:800;letter-spacing:.4px;color:var(--accent);background:rgba(5,150,105,.12);border-radius:4px;padding:1px 5px;text-transform:uppercase}
+
+  /* ---------- Drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(31,41,55,.32);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:.25s;z-index:90}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;height:100vh;width:min(720px,94vw);background:var(--bg);
+    border-left:1px solid var(--line);box-shadow:-30px 0 70px -28px rgba(31,41,55,.35);
+    transform:translateX(102%);transition:transform .32s cubic-bezier(.4,0,.2,1);z-index:100;
+    display:flex;flex-direction:column;
+  }
+  .drawer.show{transform:translateX(0)}
+  .dr-head{padding:20px 24px;border-bottom:1px solid var(--line-soft);display:flex;align-items:flex-start;gap:14px}
+  .dr-head .dr-x{margin-left:auto;cursor:pointer;color:var(--txt-3);width:34px;height:34px;border-radius:9px;display:grid;place-items:center;border:1px solid var(--line);background:var(--panel)}
+  .dr-head .dr-x:hover{color:var(--accent);border-color:var(--accent)}
+  .dr-body{flex:1;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .doc-pane{border-right:1px solid var(--line-soft);padding:20px;background:var(--panel-2)}
+  .doc-paper{
+    background:#ffffff;color:#1c2438;border-radius:8px;padding:22px 20px;font-size:11px;line-height:1.55;
+    box-shadow:0 12px 30px -14px rgba(31,41,55,.30);border:1px solid var(--line);position:relative;min-height:420px;
+  }
+  .doc-paper .hl{background:rgba(5,150,105,.16);outline:1.5px solid rgba(5,150,105,.5);border-radius:3px;padding:0 2px;cursor:pointer;transition:.14s}
+  .doc-paper .hl:hover{background:rgba(5,150,105,.30)}
+  .doc-paper .hl.warn{background:rgba(217,119,6,.20);outline-color:rgba(217,119,6,.6)}
+  .doc-logo{font-size:18px;font-weight:800;color:#2a3258;letter-spacing:-.5px}
+  .doc-row{display:flex;justify-content:space-between;margin:3px 0}
+  .doc-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:10px}
+  .doc-table th{text-align:left;border-bottom:1.5px solid #c9cee0;padding:5px 4px;color:#5a6488;font-size:9px;text-transform:uppercase;letter-spacing:.4px}
+  .doc-table td{padding:5px 4px;border-bottom:1px solid #e3e6f0}
+  .doc-table td:last-child,.doc-table th:last-child{text-align:right}
+  .doc-total{margin-top:12px;border-top:2px solid #2a3258;padding-top:8px;display:flex;justify-content:space-between;font-weight:800;font-size:13px;color:#2a3258}
+  .scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);box-shadow:0 0 14px var(--accent);animation:scan 3.5s linear infinite;opacity:.55}
+  @keyframes scan{0%{top:6%}100%{top:96%}}
+
+  .fields-pane{padding:20px 22px}
+  .ai-banner{
+    display:flex;align-items:center;gap:11px;background:linear-gradient(120deg,rgba(5,150,105,.10),rgba(16,185,129,.06));
+    border:1px solid rgba(5,150,105,.22);border-radius:12px;padding:12px 14px;margin-bottom:18px;
+  }
+  .ai-banner .ai-orb{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;flex:none;box-shadow:0 6px 14px -5px rgba(5,150,105,.55)}
+  .ai-banner .ai-orb svg{width:16px;height:16px}
+  .ai-banner h4{margin:0;font-size:12.5px}
+  .ai-banner p{margin:1px 0 0;font-size:11px;color:var(--txt-2)}
+  .ai-banner .score{margin-left:auto;text-align:right}
+  .ai-banner .score b{font-size:20px;font-weight:800;color:var(--green);line-height:1}
+  .ai-banner .score span{font-size:10px;color:var(--txt-3)}
+
+  .field{margin-bottom:14px}
+  .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--txt-3);font-weight:600;display:flex;align-items:center;gap:7px;margin-bottom:6px}
+  .field .fbox{
+    display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:9px 12px;transition:.14s;
+  }
+  .field .fbox:hover{border-color:var(--line)}
+  .field .fbox.flagged{border-color:rgba(217,119,6,.45);background:rgba(217,119,6,.06)}
+  .field .fbox input{background:none;border:none;outline:none;color:var(--txt);font-size:13.5px;font-weight:600;width:100%;font-family:inherit}
+  .field .conf-mini{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}
+  .cm-high{background:rgba(5,150,105,.12);color:var(--green)}
+  .cm-med{background:rgba(217,119,6,.12);color:var(--amber)}
+  .cm-low{background:rgba(220,38,38,.10);color:var(--red)}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+  .li-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+  .li-table th{text-align:left;color:var(--txt-3);font-size:10px;text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--line-soft)}
+  .li-table td{padding:7px 8px;border-bottom:1px solid var(--line-soft)}
+  .li-table td:last-child,.li-table th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .li-table tr:hover td{background:var(--panel-2)}
+
+  .reason{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:13px 15px;font-size:12px;color:var(--txt-2);line-height:1.55;margin-top:6px}
+  .reason b{color:var(--txt)}
+  .reason .rh{display:flex;align-items:center;gap:8px;color:var(--accent);font-weight:700;font-size:11.5px;margin-bottom:7px;text-transform:uppercase;letter-spacing:.5px}
+  .reason ul{margin:8px 0 0;padding-left:18px}
+  .reason li{margin:4px 0}
+
+  .dr-foot{padding:15px 22px;border-top:1px solid var(--line-soft);display:flex;gap:10px;align-items:center;background:var(--bg)}
+  .dr-foot .spacer{flex:1}
+
+  .sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--txt-3);font-weight:700;margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+  .sec-title::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+
+  /* upload zone (compose) */
+  .upzone{
+    border:1.5px dashed var(--line);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;
+    margin:14px 18px;background:repeating-linear-gradient(135deg,transparent,transparent 12px,rgba(5,150,105,.03) 12px,rgba(5,150,105,.03) 24px);
+    cursor:pointer;transition:.16s;
+  }
+  .upzone:hover{border-color:var(--accent);background:rgba(5,150,105,.05)}
+  .upzone .up-ico{width:42px;height:42px;border-radius:11px;background:rgba(5,150,105,.12);display:grid;place-items:center;flex:none;color:var(--accent)}
+  .upzone .up-ico svg{width:22px;height:22px}
+  .upzone h4{margin:0;font-size:13px}
+  .upzone p{margin:2px 0 0;font-size:11.5px;color:var(--txt-3)}
+
+  .row-flex{display:flex;align-items:center;gap:8px}
+  .mini-progress{height:5px;border-radius:4px;background:var(--panel-3);overflow:hidden;width:90px}
+  .mini-progress>i{display:block;height:100%;border-radius:4px}
+
+  /* validation chips on row */
+  .v-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:#ffffff;border:1px solid var(--line);border-radius:12px;padding:13px 18px;display:flex;align-items:center;gap:11px;box-shadow:var(--shadow);z-index:120;opacity:0;pointer-events:none;transition:.3s;font-size:13px;font-weight:600;color:var(--txt)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast svg{width:18px;height:18px;color:var(--green)}
+
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#cdd4dc;border-radius:8px;border:2px solid var(--bg)}
+  ::-webkit-scrollbar-thumb:hover{background:#b3bcc7}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  @media(max-width:1150px){.work{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.dr-body{grid-template-columns:1fr}.doc-pane{border-right:none;border-bottom:1px solid var(--line-soft)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h11l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v5h5"/><path d="M9 13h6M9 16h4"/></svg>
+      </div>
+      <div>
+        <div class="b-name">InvoiceIQ</div>
+        <div class="b-sub">AI Invoice Processing</div>
+      </div>
+    </div>
+
+    <div class="nav-group">Workspace</div>
+    <div class="nav active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v12H5.2L4 18Z"/><path d="M8 9h8M8 12h5"/></svg>Review Queue <span class="badge">7</span></div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18"/></svg>All Invoices <span class="badge gray">241</span></div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Approvals <span class="badge gray">12</span></div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h2M8 17h6"/></svg>Vendors</div>
+
+    <div class="nav-group">Insights</div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-9"/></svg>Analytics</div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 7Z"/></svg>Automation Rules</div>
+
+    <div class="side-foot">
+      <div class="usage"><span>AI extractions this month</span><span>2,047 / 3,000</span></div>
+      <div class="meter"><i></i></div>
+      <div class="user">
+        <div class="avatar">MA</div>
+        <div style="line-height:1.2">
+          <div style="font-size:12.5px;font-weight:650">Mira Adler</div>
+          <div style="font-size:10.5px;color:var(--txt-3)">AP Lead · Finance</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1>Accounts Payable</h1>
+        <div class="crumb">Workspace / Dashboard · Q2 2026</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+        <input id="globalSearch" placeholder="Search vendor, invoice #, PO…">
+      </div>
+      <button class="icon-btn" title="Notifications"><span class="dot"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+      <button class="btn primary" onclick="document.getElementById('upBlock').scrollIntoView({behavior:'smooth'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New Invoice</button>
+    </header>
+
+    <div class="content">
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="k-top"><span class="k-ico" style="background:rgba(5,150,105,.12);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 4h11l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v5h5"/></svg></span>Invoices processed</div>
+          <div class="k-val">241</div>
+          <div class="k-delta up"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 14 6-6 6 6"/></svg>+18% vs last month</div>
+          <svg class="spark" width="68" height="26" viewBox="0 0 68 26"><polyline points="0,20 12,17 22,19 32,11 42,14 54,6 68,3" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="k-top"><span class="k-ico" style="background:rgba(13,148,136,.12);color:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0Z"/><path d="m9 12 2 2 4-4"/></svg></span>Auto-approved</div>
+          <div class="k-val">73<small>%</small></div>
+          <div class="k-delta up"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 14 6-6 6 6"/></svg>+9 pts straight-through</div>
+          <svg class="spark" width="68" height="26" viewBox="0 0 68 26"><polyline points="0,22 12,18 22,15 32,16 42,10 54,8 68,4" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="k-top"><span class="k-ico" style="background:rgba(217,119,6,.12);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></span>Needs review</div>
+          <div class="k-val">7</div>
+          <div class="k-delta down"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 10 6 6 6-6"/></svg>3 flagged exceptions</div>
+          <svg class="spark" width="68" height="26" viewBox="0 0 68 26"><polyline points="0,8 12,12 22,9 32,15 42,12 54,18 68,20" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="k-top"><span class="k-ico" style="background:rgba(37,99,235,.10);color:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 6h18M3 6l1.5 13a2 2 0 0 0 2 1.8h11a2 2 0 0 0 2-1.8L21 6M9 6V4h6v2"/></svg></span>Payable this cycle</div>
+          <div class="k-val"><small>$</small>318.4<small>K</small></div>
+          <div class="k-delta flat"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14"/></svg>across 4 currencies</div>
+          <svg class="spark" width="68" height="26" viewBox="0 0 68 26"><polyline points="0,16 12,14 22,18 32,12 42,15 54,10 68,12" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+
+      <div class="work">
+        <!-- ===== Inbox / triage ===== -->
+        <div class="card">
+          <div class="card-h">
+            <h2>Invoice Inbox</h2>
+            <div class="right">
+              <div class="tabs" id="tabs">
+                <button class="tab active" data-f="all">All <span class="cnt">12</span></button>
+                <button class="tab" data-f="review">Needs review <span class="cnt">7</span></button>
+                <button class="tab" data-f="approved">Approved <span class="cnt">3</span></button>
+                <button class="tab" data-f="exception">Exceptions <span class="cnt">2</span></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- upload / compose block -->
+          <div id="upBlock">
+            <div class="upzone" id="upZone">
+              <div class="up-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 20h14"/></svg></div>
+              <div style="flex:1">
+                <h4>Drop invoices to extract with AI</h4>
+                <p>PDF, PNG or email forward — fields, line items &amp; totals are read automatically</p>
+              </div>
+              <button class="btn primary" id="extractBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 1.9 4.6L19 9l-4.1 1.4L12 15l-1.9-4.6L6 9l5.1-1.4Z"/><path d="M5 17l.8 2L8 20l-2.2.8L5 23l-.8-2.2L2 20l2.2-1Z"/></svg>Extract &amp; Analyze</button>
+            </div>
+          </div>
+
+          <div class="inbox" id="inbox"></div>
+        </div>
+
+        <!-- ===== right column ===== -->
+        <div class="rightcol">
+          <!-- donut -->
+          <div class="card">
+            <div class="card-h"><h2>AI Confidence Mix</h2><div class="sub" style="margin-left:auto">last 30 days</div></div>
+            <div class="donut-wrap">
+              <svg width="118" height="118" viewBox="0 0 42 42">
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#e9edf1" stroke-width="6"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#059669" stroke-width="6" stroke-dasharray="64 36" stroke-dashoffset="25" stroke-linecap="round"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#d97706" stroke-width="6" stroke-dasharray="23 77" stroke-dashoffset="-39" stroke-linecap="round"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="13 87" stroke-dashoffset="-62" stroke-linecap="round"/>
+                <text x="21" y="20" text-anchor="middle" fill="#1f2937" font-size="7.5" font-weight="700">94.2%</text>
+                <text x="21" y="26.5" text-anchor="middle" fill="#8b94a4" font-size="3.4">avg conf.</text>
+              </svg>
+              <div class="legend">
+                <div class="leg-row"><span class="leg-dot" style="background:#059669"></span>High (≥95%)<span class="lv">176</span><span class="lp">64%</span></div>
+                <div class="leg-row"><span class="leg-dot" style="background:#d97706"></span>Medium<span class="lv">63</span><span class="lp">23%</span></div>
+                <div class="leg-row"><span class="leg-dot" style="background:#dc2626"></span>Low / flagged<span class="lv">36</span><span class="lp">13%</span></div>
+                <div style="border-top:1px solid var(--line-soft);padding-top:9px;font-size:11px;color:var(--txt-3)">Avg. handling time dropped to <b style="color:var(--teal)">38s</b> per invoice</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- activity feed -->
+          <div class="card">
+            <div class="card-h">
+              <h2>AI Activity</h2>
+              <div class="right"><span class="pill paid"><span style="width:6px;height:6px;border-radius:50%;background:var(--teal);display:inline-block"></span>live</span></div>
+            </div>
+            <div class="feed" id="feed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DRAWER ========== -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div class="vfile" style="width:40px;height:50px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3h9l5 5v13H5Z"/><path d="M13 3v6h6"/></svg><span class="ext" id="drExt">PDF</span></div>
+    <div>
+      <div style="font-weight:700;font-size:16px" id="drVendor">—</div>
+      <div style="font-size:12px;color:var(--txt-3);margin-top:2px" id="drMeta">—</div>
+    </div>
+    <div class="dr-x" onclick="closeDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+  </div>
+
+  <div class="dr-body">
+    <!-- document preview -->
+    <div class="doc-pane">
+      <div style="font-size:11px;color:var(--txt-3);margin-bottom:10px;display:flex;align-items:center;gap:7px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>Source document · highlighted fields are AI-mapped
+      </div>
+      <div class="doc-paper" id="docPaper">
+        <div class="scan-line"></div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="doc-logo" id="docLogo">Vendor</div>
+            <div style="font-size:9px;color:#5a6488" id="docAddr">123 Market Street, Suite 400</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:16px;font-weight:800;color:#2a3258">INVOICE</div>
+            <div style="font-size:9px;color:#5a6488">No. <span class="hl" id="docNo">—</span></div>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;justify-content:space-between">
+          <div>
+            <div style="font-size:8px;color:#8a93b5;text-transform:uppercase;letter-spacing:.5px">Bill To</div>
+            <div style="font-weight:700;margin-top:2px">Northwind Manufacturing Inc.</div>
+            <div style="color:#5a6488">450 Industrial Pkwy, Columbus OH</div>
+          </div>
+          <div style="text-align:right">
+            <div class="doc-row"><span style="color:#8a93b5">Issued:</span>&nbsp;<span class="hl" id="docDate">—</span></div>
+            <div class="doc-row"><span style="color:#8a93b5">Due:</span>&nbsp;<span class="hl" id="docDue">—</span></div>
+            <div class="doc-row"><span style="color:#8a93b5">PO:</span>&nbsp;<span class="hl warn" id="docPO">—</span></div>
+          </div>
+        </div>
+        <table class="doc-table" id="docItems"></table>
+        <div class="doc-total"><span>TOTAL DUE</span><span class="hl" id="docTotal">—</span></div>
+        <div style="margin-top:14px;font-size:8.5px;color:#8a93b5">Remit payment within terms. Thank you for your business.</div>
+      </div>
+    </div>
+
+    <!-- extracted fields -->
+    <div class="fields-pane">
+      <div class="ai-banner">
+        <div class="ai-orb"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="m12 3 1.9 4.6L19 9l-4.1 1.4L12 15l-1.9-4.6L6 9Z"/></svg></div>
+        <div>
+          <h4>Extracted by AI</h4>
+          <p id="drModel">vision + LLM · reconciled against PO &amp; vendor profile</p>
+        </div>
+        <div class="score"><b id="drScore">98%</b><span>confidence</span></div>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label>Vendor</label>
+          <div class="fbox"><input id="fVendor" value=""><span class="conf-mini cm-high" id="cVendor">99%</span></div>
+        </div>
+        <div class="field">
+          <label>Invoice #</label>
+          <div class="fbox"><input id="fNo" value=""><span class="conf-mini cm-high" id="cNo">98%</span></div>
+        </div>
+        <div class="field">
+          <label>Issue date</label>
+          <div class="fbox"><input id="fDate" value=""><span class="conf-mini cm-high" id="cDate">97%</span></div>
+        </div>
+        <div class="field">
+          <label>Due date</label>
+          <div class="fbox"><input id="fDue" value=""><span class="conf-mini cm-high" id="cDue">96%</span></div>
+        </div>
+        <div class="field">
+          <label>PO number <span id="poFlag"></span></label>
+          <div class="fbox" id="poBox"><input id="fPO" value=""><span class="conf-mini cm-med" id="cPO">71%</span></div>
+        </div>
+        <div class="field">
+          <label>Total amount</label>
+          <div class="fbox"><input id="fTotal" value=""><span class="conf-mini cm-high" id="cTotal">99%</span></div>
+        </div>
+      </div>
+
+      <div class="sec-title">Line items <span style="color:var(--accent);text-transform:none;letter-spacing:0;font-weight:600" id="liCount"></span></div>
+      <table class="li-table"><thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Amount</th></tr></thead><tbody id="liBody"></tbody></table>
+
+      <div class="sec-title">AI assessment</div>
+      <div class="reason" id="reason"></div>
+
+      <div class="sec-title">Routing suggestion</div>
+      <div class="row-flex" style="gap:10px;flex-wrap:wrap">
+        <span class="pill proc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M13 6l6 6-6 6"/></svg><span id="routeTo">Sarah Chen · Procurement</span></span>
+        <span class="pill gray">GL: <span id="glCode">5210 · Cloud Services</span></span>
+        <span class="pill gray">Cost center: <span id="ccCode">OPS-NA</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="dr-foot">
+    <button class="btn ghost" onclick="closeDrawer()">Cancel</button>
+    <button class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 3h9l5 5v13H5Z"/><path d="M9 13l2 2 4-4"/></svg>Save draft</button>
+    <div class="spacer"></div>
+    <button class="btn ghost" style="color:var(--red);border-color:rgba(220,38,38,.35)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>Reject</button>
+    <button class="btn primary" onclick="approveCurrent()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5 9-11"/></svg>Approve &amp; Post</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5 9-11"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ---------------- seed data ---------------- */
+const INV = [
+  {id:'INV-2026-0418', vendor:'Atlas Cloud Services', addr:'500 Howard St, San Francisco CA', ext:'PDF',
+   date:'Jun 12, 2026', due:'Jul 12, 2026', po:'PO-88421', total:'$14,820.00', cur:'USD', amt:14820,
+   status:'review', conf:71, score:71, model:'vision + LLM · PO mismatch detected', flagPO:true,
+   route:'Sarah Chen · Procurement', gl:'5210 · Cloud Services', cc:'OPS-NA',
+   items:[['Compute — m6i.4xlarge reserved','12 mo','$890.00','$10,680.00'],['Object storage (S-tier)','40 TB','$72.00','$2,880.00'],['Premium support plan','1','$1,260.00','$1,260.00']],
+   reason:{verdict:'Hold for review', color:'amber',
+     bullets:['PO-88421 totals <b>$13,560</b> in the ledger — invoice is <b>$1,260 higher</b> (added support plan not on PO).','Vendor &amp; bank details match the verified Atlas profile.','No duplicate found in the last 90 days.'],
+     summary:'Amounts and dates extracted cleanly, but the invoice <b>exceeds the matched purchase order</b>. Confirm the support add-on before posting.'}},
+
+  {id:'INV-44109', vendor:'Brightline Logistics', addr:'88 Harbor Rd, Newark NJ', ext:'PDF',
+   date:'Jun 14, 2026', due:'Jun 28, 2026', po:'PO-90233', total:'$6,240.50', cur:'USD', amt:6240.5,
+   status:'review', conf:88, score:88, model:'vision + LLM · 2-way matched', flagPO:false,
+   route:'David Okafor · Operations', gl:'6110 · Freight & Logistics', cc:'OPS-NA',
+   items:[['LTL freight — Zone 3','14 pallets','$310.00','$4,340.00'],['Fuel surcharge','—','$640.50','$640.50'],['Liftgate & detention','8 hr','$157.50','$1,260.00']],
+   reason:{verdict:'Recommend approve', color:'green',
+     bullets:['2-way match to PO-90233 succeeded within tolerance.','Fuel surcharge line read at 84% — please eyeball the amount.','Payment terms Net 14 align with contract.'],
+     summary:'Clean extraction and a successful PO match. One mid-confidence line item is worth a quick glance before approval.'}},
+
+  {id:'CV-2026-771', vendor:'Cedar & Vine Catering', addr:'12 Vine St, Portland OR', ext:'JPG',
+   date:'Jun 15, 2026', due:'Jun 22, 2026', po:'—', total:'$1,985.00', cur:'USD', amt:1985,
+   status:'exception', conf:46, score:46, model:'vision (photo) · low image quality', flagPO:true,
+   route:'Mira Adler · Finance', gl:'7420 · Meals & Events', cc:'G&A',
+   items:[['Catered lunch — team offsite','45 ppl','$32.00','$1,440.00'],['Service & gratuity (18%)','—','$259.00','$259.00'],['Equipment rental','1','$286.00','$286.00']],
+   reason:{verdict:'Exception — manual entry',color:'red',
+     bullets:['Photo is skewed and partially shadowed — OCR confidence is low.','No PO on file; this is an <b>off-contract expense</b>.','Total reconstructed from line items; vendor not yet in master.'],
+     summary:'Image quality is too low for confident extraction. Verify the total and add the vendor before posting.'}},
+
+  {id:'DLT-9920', vendor:'Delta Office Supplies', addr:'301 Commerce Dr, Austin TX', ext:'PDF',
+   date:'Jun 11, 2026', due:'Jul 11, 2026', po:'PO-87655', total:'$842.16', cur:'USD', amt:842.16,
+   status:'approved', conf:99, score:99, model:'vision + LLM · 3-way matched · auto-approved', flagPO:false,
+   route:'Auto-posted', gl:'6310 · Office Supplies', cc:'G&A',
+   items:[['Copy paper (case)','20','$28.40','$568.00'],['Toner cartridges','6','$39.36','$236.16'],['Misc. stationery','—','$38.00','$38.00']],
+   reason:{verdict:'Auto-approved',color:'green',
+     bullets:['3-way match (PO + receipt + invoice) passed with no variance.','All fields above the 95% auto-post threshold.','Recurring vendor with a clean 14-month payment history.'],
+     summary:'Fully matched and high-confidence. This invoice was posted automatically with no human touch.'}},
+
+  {id:'EVG-INV-3340', vendor:'Evergreen Facilities', addr:'77 Maple Ct, Denver CO', ext:'PDF',
+   date:'Jun 13, 2026', due:'Jun 27, 2026', po:'PO-89001', total:'$3,410.00', cur:'USD', amt:3410,
+   status:'review', conf:92, score:92, model:'vision + LLM · 2-way matched', flagPO:false,
+   route:'David Okafor · Operations', gl:'6420 · Facilities', cc:'OPS-NA',
+   items:[['Monthly HVAC maintenance','1','$1,850.00','$1,850.00'],['Janitorial — common areas','1','$1,200.00','$1,200.00'],['Filter replacement','12','$30.00','$360.00']],
+   reason:{verdict:'Recommend approve',color:'green',
+     bullets:['Matches the recurring facilities contract amount exactly.','All header fields above 95%.','Within monthly budget for cost center OPS-NA.'],
+     summary:'A recurring service invoice that matches contract terms. Safe to approve.'}},
+
+  {id:'FX-2026-118', vendor:'Fjord Design Studio', addr:'Storgata 9, Oslo NO', ext:'PDF',
+   date:'Jun 10, 2026', due:'Jul 24, 2026', po:'—', total:'€9,600.00', cur:'EUR', amt:9600,
+   status:'review', conf:84, score:84, model:'vision + LLM · multi-currency · FX applied', flagPO:true,
+   route:'Sarah Chen · Procurement', gl:'5180 · Design & Creative', cc:'MKT',
+   items:[['Brand identity system','1','€6,400.00','€6,400.00'],['Web design — 8 templates','8','€350.00','€2,800.00'],['Revision rounds','2','€200.00','€400.00']],
+   reason:{verdict:'Review — no PO',color:'amber',
+     bullets:['Currency detected as <b>EUR</b>; converted to <b>$10,368</b> at today\'s rate.','No PO — services engagement, needs procurement sign-off.','Vendor VAT ID validated against EU registry.'],
+     summary:'Extraction is solid and currency was handled automatically, but a missing PO means procurement should approve this creative spend.'}},
+
+  {id:'GRN-5567', vendor:'Granite Hardware Co.', addr:'14 Quarry Rd, Pittsburgh PA', ext:'PDF',
+   date:'Jun 09, 2026', due:'Jul 09, 2026', po:'PO-86990', total:'$2,118.75', cur:'USD', amt:2118.75,
+   status:'approved', conf:97, score:97, model:'vision + LLM · 3-way matched', flagPO:false,
+   route:'Auto-posted', gl:'6210 · Maintenance', cc:'OPS-NA',
+   items:[['Industrial fasteners (bulk)','5,000','$0.18','$900.00'],['Power tools','3','$289.00','$867.00'],['Safety equipment','—','$351.75','$351.75']],
+   reason:{verdict:'Auto-approved',color:'green',
+     bullets:['3-way match passed with zero variance.','Quantities reconciled against goods-receipt note.','High-confidence on every header field.'],
+     summary:'Matched against receipt and PO with no discrepancies. Auto-approved.'}},
+
+  {id:'HZ-INV-2207', vendor:'Horizon Telecom', addr:'2200 Network Blvd, Dallas TX', ext:'PDF',
+   date:'Jun 08, 2026', due:'Jun 23, 2026', po:'PO-88002', total:'$5,470.00', cur:'USD', amt:5470,
+   status:'exception', conf:61, score:61, model:'vision + LLM · possible duplicate', flagPO:true,
+   route:'Mira Adler · Finance', gl:'6150 · Telecom', cc:'G&A',
+   items:[['Enterprise data lines (12)','12','$320.00','$3,840.00'],['VoIP seats','40','$28.00','$1,120.00'],['Equipment lease','1','$510.00','$510.00']],
+   reason:{verdict:'Exception — duplicate suspected',color:'red',
+     bullets:['<b>87% similar</b> to INV HZ-INV-2189 paid on May 23 (same amount, same lines).','Could be a re-send or a genuine recurring monthly bill.','Verify billing period before posting to avoid double payment.'],
+     summary:'This invoice closely resembles one already paid last month. Confirm the billing period to rule out a duplicate.'}},
+
+  {id:'IRN-008812', vendor:'Ironwood Consulting', addr:'9 King St, Boston MA', ext:'PDF',
+   date:'Jun 16, 2026', due:'Jul 16, 2026', po:'PO-90455', total:'$18,000.00', cur:'USD', amt:18000,
+   status:'review', conf:90, score:90, model:'vision + LLM · 2-way matched', flagPO:false,
+   route:'Sarah Chen · Procurement', gl:'5300 · Professional Services', cc:'G&A',
+   items:[['Strategy engagement — phase 2','120 hr','$135.00','$16,200.00'],['Workshop facilitation','2','$750.00','$1,500.00'],['Travel reimbursement','—','$300.00','$300.00']],
+   reason:{verdict:'Recommend approve',color:'green',
+     bullets:['Matched to PO-90455; hours within the approved cap.','Above the dual-sign threshold — needs a second approver.','Travel line flagged at 79% — confirm receipt attached.'],
+     summary:'A large but matched consulting invoice. It crosses the dual-approval limit, so a second sign-off is required.'}},
+
+  {id:'JNP-2026-55', vendor:'Juniper Print House', addr:'140 Press Ln, Chicago IL', ext:'JPG',
+   date:'Jun 17, 2026', due:'Jul 01, 2026', po:'PO-90510', total:'$1,260.40', cur:'USD', amt:1260.4,
+   status:'review', conf:86, score:86, model:'vision (scan) · 2-way matched', flagPO:false,
+   route:'Sarah Chen · Procurement', gl:'5185 · Print & Production', cc:'MKT',
+   items:[['Brochures — full color','5,000','$0.18','$900.00'],['Business cards','2,000','$0.06','$120.00'],['Foil finishing','—','$240.40','$240.40']],
+   reason:{verdict:'Recommend approve',color:'green',
+     bullets:['Scanned receipt parsed cleanly despite a folded corner.','Matched to PO-90510 within tolerance.','Finishing line read at 80% — minor, verify if convenient.'],
+     summary:'A clean scan that matched its PO. Minor low-confidence on one finishing line, otherwise ready.'}},
+
+  {id:'KST-7741', vendor:'Keystone Insurance', addr:'600 Liberty Ave, Hartford CT', ext:'PDF',
+   date:'Jun 05, 2026', due:'Jul 05, 2026', po:'—', total:'$7,250.00', cur:'USD', amt:7250,
+   status:'approved', conf:96, score:96, model:'vision + LLM · recurring · policy matched', flagPO:false,
+   route:'Auto-posted', gl:'7110 · Insurance', cc:'G&A',
+   items:[['General liability premium (Q3)','1','$5,400.00','$5,400.00'],['Property coverage','1','$1,500.00','$1,500.00'],['Admin fee','—','$350.00','$350.00']],
+   reason:{verdict:'Auto-approved',color:'green',
+     bullets:['Matches the active insurance policy schedule.','Recurring quarterly premium — amount unchanged from Q2.','High confidence on all fields.'],
+     summary:'A recurring premium matching the policy schedule. Auto-approved.'}},
+
+  {id:'LMN-INV-301', vendor:'Lumen Energy Partners', addr:'410 Grid St, Phoenix AZ', ext:'PDF',
+   date:'Jun 18, 2026', due:'Jul 03, 2026', po:'—', total:'$4,090.22', cur:'USD', amt:4090.22,
+   status:'review', conf:83, score:83, model:'vision + LLM · usage-based', flagPO:true,
+   route:'David Okafor · Operations', gl:'6160 · Utilities', cc:'OPS-NA',
+   items:[['Electricity — 38,400 kWh','38,400','$0.094','$3,609.60'],['Demand charge','1','$320.62','$320.62'],['Grid access fee','—','$160.00','$160.00']],
+   reason:{verdict:'Review — usage spike',color:'amber',
+     bullets:['Usage is <b>22% above</b> the trailing 3-month average.','No PO (utility) — variance is the only check.','Rate per kWh matches the tariff on file.'],
+     summary:'Rates are correct but consumption jumped this period. Confirm the usage spike is expected before posting.'}},
+];
+
+/* ---------------- render inbox ---------------- */
+const inbox = document.getElementById('inbox');
+let activeFilter='all', current=null;
+
+function ring(conf){
+  const c = conf>=95?'#059669':conf>=80?'#2563eb':conf>=65?'#d97706':'#dc2626';
+  const dash = (conf/100*88).toFixed(1);
+  return `<svg class="conf-ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="#e9edf1" stroke-width="3.5"/><circle cx="18" cy="18" r="14" fill="none" stroke="${c}" stroke-width="3.5" stroke-dasharray="${dash} 88" stroke-dashoffset="22" stroke-linecap="round" transform="rotate(-90 18 18)"/><text x="18" y="20.5" text-anchor="middle" fill="${c}" font-size="9" font-weight="800">${conf}</text></svg>`;
+}
+function statusPill(s){
+  if(s==='approved') return '<span class="pill ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg>Approved</span>';
+  if(s==='review')   return '<span class="pill review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 8v5M12 16h.01"/></svg>Needs review</span>';
+  if(s==='exception')return '<span class="pill err"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>Exception</span>';
+  return '<span class="pill gray">—</span>';
+}
+function matchChip(d){
+  if(d.flagPO) return '<span class="pill err" style="font-size:10px;padding:2px 7px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>PO check</span>';
+  return '<span class="pill paid" style="font-size:10px;padding:2px 7px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-11"/></svg>PO matched</span>';
+}
+
+function renderInbox(){
+  const q = (document.getElementById('globalSearch').value||'').toLowerCase();
+  let list = INV.filter(d=>{
+    const okF = activeFilter==='all' ? true : d.status===activeFilter;
+    const okQ = !q || (d.vendor+' '+d.id+' '+d.po).toLowerCase().includes(q);
+    return okF && okQ;
+  });
+  if(!list.length){
+    inbox.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg><div style="font-weight:600;color:var(--txt-2)">No invoices match</div><div style="font-size:12px;margin-top:3px">Try a different filter or clear the search.</div></div>`;
+    return;
+  }
+  inbox.innerHTML = list.map(d=>`
+    <div class="inv-row ${current===d.id?'sel':''}" data-id="${d.id}" onclick="openDrawer('${d.id}')">
+      <div class="vfile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3h9l5 5v13H5Z"/><path d="M13 3v6h6"/></svg><span class="ext">${d.ext}</span></div>
+      <div>
+        <div class="v-vendor">${d.vendor}</div>
+        <div class="v-meta"><span>${d.id}</span><span>·</span><span>${d.date}</span></div>
+        <div class="v-chips" style="margin-top:6px">${statusPill(d.status)}${matchChip(d)}</div>
+      </div>
+      <div class="conf">${ring(d.conf)}<div class="conf-txt"><b>${d.conf}%</b>confidence</div></div>
+      <div class="v-amt">${d.total}<small>due ${d.due}</small></div>
+      <div style="color:var(--txt-3)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></div>
+    </div>`).join('');
+}
+
+/* ---------------- tabs / search ---------------- */
+document.getElementById('tabs').addEventListener('click',e=>{
+  const t=e.target.closest('.tab'); if(!t)return;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); activeFilter=t.dataset.f; renderInbox();
+});
+document.getElementById('globalSearch').addEventListener('input',renderInbox);
+
+/* ---------------- drawer ---------------- */
+function confClass(c){return c>=95?'cm-high':c>=80?'cm-high':c>=65?'cm-med':'cm-low';}
+function jitter(base,spread){return Math.max(40,Math.min(99,Math.round(base + (Math.random()*spread-spread/2))));}
+
+function openDrawer(id){
+  const d = INV.find(x=>x.id===id); if(!d)return;
+  current=id; renderInbox();
+  document.getElementById('drVendor').textContent=d.vendor;
+  document.getElementById('drMeta').textContent=`${d.id} · ${d.total} · due ${d.due}`;
+  document.getElementById('drExt').textContent=d.ext;
+  document.getElementById('drScore').textContent=d.score+'%';
+  document.getElementById('drScore').style.color = d.score>=90?'var(--green)':d.score>=70?'var(--amber)':'var(--red)';
+  document.getElementById('drModel').textContent=d.model;
+
+  // fields
+  document.getElementById('fVendor').value=d.vendor;
+  document.getElementById('fNo').value=d.id;
+  document.getElementById('fDate').value=d.date;
+  document.getElementById('fDue').value=d.due;
+  document.getElementById('fPO').value=d.po;
+  document.getElementById('fTotal').value=d.total;
+
+  // per-field confidence (derived)
+  const setC=(el,v,extra)=>{const e=document.getElementById(el);e.textContent=v+'%';e.className='conf-mini '+(v>=90?'cm-high':v>=70?'cm-med':'cm-low');};
+  setC('cVendor', jitter(d.conf+6,4));
+  setC('cNo', jitter(d.conf+4,4));
+  setC('cDate', jitter(d.conf+3,5));
+  setC('cDue', jitter(d.conf,6));
+  setC('cTotal', jitter(d.conf+5,3));
+  const poC = d.flagPO ? Math.max(40,d.conf-22) : jitter(d.conf+2,4);
+  setC('cPO', poC);
+  document.getElementById('poBox').classList.toggle('flagged', d.flagPO);
+  document.getElementById('poFlag').innerHTML = d.flagPO ? '<span class="ai-tag" style="color:var(--amber);background:rgba(217,119,6,.13)">verify</span>' : '';
+
+  // line items
+  document.getElementById('liCount').textContent=`${d.items.length} detected`;
+  document.getElementById('liBody').innerHTML = d.items.map(it=>`<tr><td>${it[0]}</td><td>${it[1]}</td><td>${it[2]}</td><td>${it[3]}</td></tr>`).join('');
+
+  // reasoning
+  const col = d.reason.color==='green'?'var(--green)':d.reason.color==='amber'?'var(--amber)':'var(--red)';
+  document.getElementById('reason').innerHTML = `
+    <div class="rh" style="color:${col}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 1.9 4.6L19 9l-4.1 1.4L12 15l-1.9-4.6L6 9Z"/></svg>${d.reason.verdict}</div>
+    ${d.reason.summary}
+    <ul>${d.reason.bullets.map(b=>`<li>${b}</li>`).join('')}</ul>`;
+
+  // routing
+  document.getElementById('routeTo').textContent=d.route;
+  document.getElementById('glCode').textContent=d.gl;
+  document.getElementById('ccCode').textContent=d.cc;
+
+  // doc preview
+  document.getElementById('docLogo').textContent=d.vendor;
+  document.getElementById('docAddr').textContent=d.addr;
+  document.getElementById('docNo').textContent=d.id;
+  document.getElementById('docDate').textContent=d.date;
+  document.getElementById('docDue').textContent=d.due;
+  document.getElementById('docPO').textContent=d.po;
+  document.getElementById('docTotal').textContent=d.total;
+  document.getElementById('docItems').innerHTML =
+    '<thead><tr><th>Description</th><th>Qty</th><th>Amount</th></tr></thead><tbody>'+
+    d.items.map(it=>`<tr><td>${it[0]}</td><td>${it[1]}</td><td class="hl">${it[3]}</td></tr>`).join('')+'</tbody>';
+
+  document.getElementById('scrim').classList.add('show');
+  document.getElementById('drawer').classList.add('show');
+}
+function closeDrawer(){
+  document.getElementById('scrim').classList.remove('show');
+  document.getElementById('drawer').classList.remove('show');
+}
+function approveCurrent(){
+  const d = INV.find(x=>x.id===current); if(d){d.status='approved';d.conf=Math.max(d.conf,96);}
+  closeDrawer(); renderInbox();
+  toast(`Approved · posted to GL ${d?d.gl.split(' · ')[0]:''}`);
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+
+/* ---------------- extract simulation ---------------- */
+const extractBtn=document.getElementById('extractBtn');
+extractBtn.addEventListener('click',()=>{
+  const orig=extractBtn.innerHTML;
+  extractBtn.disabled=true;
+  extractBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 3a9 9 0 1 0 9 9" stroke-linecap="round"/></svg>Reading document…';
+  let steps=['Detecting layout…','Extracting fields…','Matching against POs…','Scoring confidence…'];
+  let i=0;
+  const iv=setInterval(()=>{
+    i++;
+    if(i<steps.length){extractBtn.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 3a9 9 0 1 0 9 9" stroke-linecap="round"/></svg>${steps[i]}`;}
+    else{
+      clearInterval(iv);
+      extractBtn.disabled=false;extractBtn.innerHTML=orig;
+      pushFeed('extracted','<b>Maple Grove Supplies</b> invoice extracted — 6 fields, 4 line items','just now',98);
+      toast('Extraction complete · 98% confidence · queued for review');
+    }
+  },820);
+});
+document.getElementById('upZone').addEventListener('click',()=>extractBtn.click());
+
+/* ---------------- activity feed ---------------- */
+const FEED=[
+  {t:'extracted',txt:'<b>Atlas Cloud Services</b> extracted — PO variance flagged for review',time:'2 min ago',c:71},
+  {t:'matched',txt:'<b>Delta Office Supplies</b> 3-way matched and <b>auto-posted</b> to GL 6310',time:'14 min ago',c:99},
+  {t:'duplicate',txt:'Possible duplicate detected on <b>Horizon Telecom</b> (87% match)',time:'31 min ago',c:61},
+  {t:'route',txt:'Routed <b>Ironwood Consulting</b> to <b>Sarah Chen</b> — dual approval required',time:'48 min ago',c:90},
+  {t:'fx',txt:'Converted <b>Fjord Design</b> €9,600 → $10,368 at live FX rate',time:'1 hr ago',c:84},
+  {t:'matched',txt:'<b>Granite Hardware Co.</b> auto-approved — zero variance',time:'2 hr ago',c:97},
+  {t:'spike',txt:'Usage anomaly on <b>Lumen Energy</b> — 22% above 3-mo average',time:'3 hr ago',c:83},
+];
+function feedIcon(t){
+  const map={
+    extracted:['rgba(5,150,105,.12)','var(--accent)','<path d="m12 3 1.9 4.6L19 9l-4.1 1.4L12 15l-1.9-4.6L6 9Z"/>'],
+    matched:['rgba(5,150,105,.12)','var(--green)','<path d="m5 12 5 5 9-11"/>'],
+    duplicate:['rgba(220,38,38,.10)','var(--red)','<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 0 1 1-1h9"/>'],
+    route:['rgba(37,99,235,.10)','var(--blue)','<path d="M3 12h18M13 6l6 6-6 6"/>'],
+    fx:['rgba(13,148,136,.12)','var(--teal)','<path d="M3 7h13l-3-3M21 17H8l3 3"/>'],
+    spike:['rgba(217,119,6,.12)','var(--amber)','<path d="M3 17l5-6 4 3 5-8 4 5"/>'],
+  };
+  return map[t]||map.extracted;
+}
+function feedRow(f){
+  const [bg,col,path]=feedIcon(f.t);
+  return `<div class="feed-item">
+    <div class="feed-ico" style="background:${bg};color:${col}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${path}</svg></div>
+    <div style="flex:1">
+      <div class="feed-txt">${f.txt}</div>
+      <div class="feed-time"><span class="ai-tag">AI</span>${f.time} · ${f.c}% conf.</div>
+    </div>
+  </div>`;
+}
+function renderFeed(){document.getElementById('feed').innerHTML=FEED.map(feedRow).join('');}
+function pushFeed(t,txt,time,c){FEED.unshift({t,txt,time,c});renderFeed();}
+
+/* ---------------- toast ---------------- */
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2600);
+}
+
+/* spinner keyframe */
+const st=document.createElement('style');st.textContent='@keyframes spin{to{transform:rotate(360deg)}}';document.head.appendChild(st);
+
+/* ---------------- init ---------------- */
+renderInbox();
+renderFeed();
+</script>
+</body>
+</html>

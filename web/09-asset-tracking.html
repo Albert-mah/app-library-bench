@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AssetDesk — Self-Service Terminal</title>
+<style>
+  :root{
+    --accent:#1677ff;
+    --accent-deep:#0958d9;
+    --accent-soft:#e6f0ff;
+    --green:#16a34a;
+    --green-soft:#dcfce7;
+    --amber:#d97706;
+    --amber-soft:#fef3c7;
+    --ink:#1f2937;
+    --ink-soft:#5b6675;
+    --line:#e6e8ee;
+    --bg-card:#ffffff;
+    --radius:24px;
+    --shadow:0 24px 60px -28px rgba(22,55,120,.35);
+    --shadow-sm:0 8px 24px -14px rgba(22,55,120,.30);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 700px at 18% -10%, #eef4ff 0%, transparent 55%),
+      radial-gradient(1000px 600px at 110% 120%, #eafaf0 0%, transparent 50%),
+      linear-gradient(160deg,#f7f9fc 0%, #eef2f8 100%);
+    min-height:100%;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ===== top bar ===== */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:22px 40px;
+  }
+  .brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:22px;letter-spacing:-.02em;}
+  .brand .logo{
+    width:46px;height:46px;border-radius:14px;
+    background:linear-gradient(140deg,var(--accent),#3b82f6);
+    display:grid;place-items:center;color:#fff;box-shadow:var(--shadow-sm);
+  }
+  .brand small{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);letter-spacing:.04em;text-transform:uppercase;}
+  .station{
+    display:flex;align-items:center;gap:18px;color:var(--ink-soft);font-weight:600;font-size:14px;
+  }
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;
+    background:#fff;border:1px solid var(--line);border-radius:999px;
+    padding:9px 16px;box-shadow:var(--shadow-sm);font-size:14px;
+  }
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px var(--green-soft);}
+  #clock{font-variant-numeric:tabular-nums;}
+
+  /* ===== stage ===== */
+  .stage{
+    max-width:1200px;margin:0 auto;padding:8px 40px 48px;
+  }
+
+  /* ===== scan hero ===== */
+  .scan-hero{
+    text-align:center;padding:34px 24px 10px;
+  }
+  .scan-hero h1{
+    font-size:38px;line-height:1.1;letter-spacing:-.03em;margin:0 0 8px;font-weight:800;
+  }
+  .scan-hero p{color:var(--ink-soft);font-size:17px;margin:0 0 26px;}
+  .scan-box{
+    max-width:760px;margin:0 auto;
+    background:var(--bg-card);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:18px;display:flex;gap:14px;align-items:center;
+    transition:box-shadow .25s, transform .25s, border-color .25s;
+  }
+  .scan-box.focused{border-color:var(--accent);box-shadow:0 0 0 5px var(--accent-soft),var(--shadow);}
+  .scan-icon{
+    width:64px;height:64px;flex:none;border-radius:18px;background:var(--accent-soft);
+    display:grid;place-items:center;color:var(--accent);
+  }
+  #tag{
+    flex:1;border:none;outline:none;background:transparent;
+    font-size:30px;font-weight:700;letter-spacing:.04em;color:var(--ink);
+    padding:6px 4px;min-width:0;
+  }
+  #tag::placeholder{color:#aab2c0;font-weight:600;letter-spacing:.02em;}
+  .scan-go{
+    flex:none;border:none;cursor:pointer;
+    background:linear-gradient(140deg,var(--accent),var(--accent-deep));
+    color:#fff;font-weight:800;font-size:20px;letter-spacing:-.01em;
+    padding:0 34px;height:64px;border-radius:18px;
+    box-shadow:0 14px 28px -12px rgba(22,119,255,.65);
+    transition:transform .12s, box-shadow .2s, opacity .2s;
+  }
+  .scan-go:hover{transform:translateY(-2px);}
+  .scan-go:active{transform:translateY(0);}
+  .scan-hint{margin:16px auto 0;color:var(--ink-soft);font-size:14px;}
+  .chips{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;}
+  .chip{
+    cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:999px;
+    padding:9px 16px;font-weight:700;font-size:14px;color:var(--accent);
+    box-shadow:var(--shadow-sm);transition:transform .12s,background .2s;letter-spacing:.03em;
+  }
+  .chip:hover{transform:translateY(-2px);background:var(--accent-soft);}
+
+  /* ===== resolved card ===== */
+  .resolved{
+    margin-top:30px;display:none;animation:rise .4s cubic-bezier(.2,.7,.3,1);
+  }
+  .resolved.show{display:block;}
+  @keyframes rise{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:none;}}
+
+  .asset-card{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .asset-head{
+    display:flex;gap:26px;align-items:center;padding:30px 34px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#fbfdff,#fff);
+  }
+  .asset-visual{
+    width:128px;height:128px;flex:none;border-radius:22px;
+    display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);
+    box-shadow:inset 0 0 0 1px rgba(22,119,255,.12);
+  }
+  .asset-meta{flex:1;min-width:0;}
+  .asset-meta .tagline{
+    font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);
+  }
+  .asset-meta h2{margin:4px 0 6px;font-size:30px;letter-spacing:-.02em;}
+  .asset-sub{color:var(--ink-soft);font-size:16px;font-weight:600;}
+  .status-tag{
+    display:inline-flex;align-items:center;gap:9px;
+    padding:11px 20px;border-radius:999px;font-weight:800;font-size:15px;
+    margin-top:14px;
+  }
+  .st-avail{background:var(--green-soft);color:var(--green);}
+  .st-out{background:var(--accent-soft);color:var(--accent-deep);}
+  .st-over{background:var(--amber-soft);color:var(--amber);}
+  .status-tag .dot{box-shadow:none;}
+  .st-avail .dot{background:var(--green);}
+  .st-out .dot{background:var(--accent);}
+  .st-over .dot{background:var(--amber);}
+
+  .asset-facts{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  }
+  .fact{background:#fff;padding:18px 24px;}
+  .fact .k{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+  .fact .v{font-size:17px;font-weight:700;margin-top:4px;}
+
+  .actions{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:24px 34px 30px;
+  }
+  .act{
+    cursor:pointer;border:none;border-radius:18px;
+    padding:24px 18px;font-weight:800;font-size:19px;letter-spacing:-.01em;
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+    transition:transform .12s, box-shadow .2s, opacity .2s;
+    color:#fff;
+  }
+  .act svg{width:34px;height:34px;}
+  .act:hover{transform:translateY(-3px);}
+  .act:active{transform:translateY(0);}
+  .act.primary{background:linear-gradient(140deg,var(--accent),var(--accent-deep));box-shadow:0 16px 30px -14px rgba(22,119,255,.6);}
+  .act.checkin{background:linear-gradient(140deg,#22c55e,#15803d);box-shadow:0 16px 30px -14px rgba(34,197,94,.6);}
+  .act.transfer{background:linear-gradient(140deg,#fff,#fff);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow-sm);}
+  .act small{font-size:13px;font-weight:600;opacity:.85;}
+  .act.transfer .ic{color:var(--accent);}
+  .act:disabled{opacity:.38;cursor:not-allowed;transform:none;filter:grayscale(.3);}
+
+  /* ===== bottom grid ===== */
+  .grid2{
+    margin-top:30px;display:grid;grid-template-columns:1.1fr 1fr;gap:24px;
+  }
+  .panel{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow-sm);overflow:hidden;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:20px 24px 14px;
+  }
+  .panel-head h3{margin:0;font-size:18px;letter-spacing:-.01em;}
+  .count{
+    background:var(--accent-soft);color:var(--accent-deep);font-weight:800;font-size:13px;
+    padding:5px 12px;border-radius:999px;
+  }
+  .list{padding:6px 14px 16px;display:flex;flex-direction:column;gap:8px;}
+  .row{
+    display:flex;align-items:center;gap:14px;padding:14px 14px;border-radius:16px;
+    transition:background .15s;
+  }
+  .row:hover{background:#f6f8fc;cursor:pointer;}
+  .row .rl{
+    width:48px;height:48px;flex:none;border-radius:13px;display:grid;place-items:center;
+    background:#f2f5fa;color:var(--ink-soft);
+  }
+  .row .rm{flex:1;min-width:0;}
+  .row .rm .t{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row .rm .s{color:var(--ink-soft);font-size:14px;margin-top:2px;}
+  .badge{font-size:12px;font-weight:800;padding:6px 11px;border-radius:999px;white-space:nowrap;}
+  .b-out{background:var(--accent-soft);color:var(--accent-deep);}
+  .b-over{background:var(--amber-soft);color:var(--amber);}
+
+  .feed{padding:8px 14px 18px;display:flex;flex-direction:column;}
+  .ev{display:flex;gap:14px;padding:13px 12px;position:relative;align-items:flex-start;}
+  .ev .ei{
+    width:38px;height:38px;flex:none;border-radius:11px;display:grid;place-items:center;color:#fff;
+  }
+  .ei.co{background:var(--accent);}
+  .ei.ci{background:var(--green);}
+  .ei.tr{background:#8b5cf6;}
+  .ev .et{flex:1;min-width:0;}
+  .ev .et .l1{font-weight:700;font-size:15px;}
+  .ev .et .l1 b{color:var(--accent-deep);}
+  .ev .et .l2{color:var(--ink-soft);font-size:13px;margin-top:2px;}
+  .ev .when{color:#9aa3b2;font-size:12px;font-weight:600;white-space:nowrap;}
+
+  /* ===== toast ===== */
+  #toaster{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:10px;align-items:center;}
+  .toast{
+    display:flex;align-items:center;gap:13px;
+    background:#1f2937;color:#fff;border-radius:16px;
+    padding:16px 22px;font-weight:700;font-size:16px;
+    box-shadow:0 18px 44px -16px rgba(0,0,0,.5);
+    animation:tin .3s cubic-bezier(.2,.8,.3,1);
+    min-width:300px;
+  }
+  @keyframes tin{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+  .toast .ti{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;}
+  .toast.ok .ti{background:var(--green);}
+  .toast.info .ti{background:var(--accent);}
+  .toast.warn .ti{background:var(--amber);}
+  .toast .sub{font-weight:500;font-size:13px;opacity:.8;}
+
+  /* ===== modal (transfer) ===== */
+  .scrim{
+    position:fixed;inset:0;background:rgba(20,30,50,.45);backdrop-filter:blur(3px);
+    display:none;place-items:center;z-index:50;padding:24px;
+  }
+  .scrim.show{display:grid;animation:fade .2s;}
+  @keyframes fade{from{opacity:0;}to{opacity:1;}}
+  .modal{
+    background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);
+    width:min(480px,100%);padding:30px;animation:rise .3s;
+  }
+  .modal h3{margin:0 0 4px;font-size:24px;letter-spacing:-.02em;}
+  .modal p{color:var(--ink-soft);margin:0 0 22px;}
+  .field{margin-bottom:18px;}
+  .field label{display:block;font-weight:700;font-size:14px;margin-bottom:8px;}
+  .field select,.field input{
+    width:100%;border:1px solid var(--line);border-radius:14px;padding:15px 16px;
+    font-size:16px;font-family:inherit;outline:none;background:#fafbfd;font-weight:600;color:var(--ink);
+  }
+  .field select:focus,.field input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+  .modal-actions{display:flex;gap:12px;margin-top:6px;}
+  .btn{flex:1;border:none;cursor:pointer;border-radius:14px;padding:16px;font-weight:800;font-size:16px;transition:transform .12s;}
+  .btn:active{transform:scale(.98);}
+  .btn-ghost{background:#f1f4f9;color:var(--ink);}
+  .btn-go{background:linear-gradient(140deg,var(--accent),var(--accent-deep));color:#fff;}
+
+  @media (max-width:880px){
+    .grid2{grid-template-columns:1fr;}
+    .actions{grid-template-columns:1fr;}
+    .asset-facts{grid-template-columns:1fr;}
+    .asset-head{flex-direction:column;text-align:center;}
+    .scan-hero h1{font-size:30px;}
+    #tag{font-size:24px;}
+    .stage{padding:8px 18px 40px;}
+    .topbar{padding:18px 18px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v10M7 7v10M11 7v10M15 7v10M19 7v10M21 7v10"/></svg>
+    </div>
+    <div>AssetDesk<small>Self-Service Terminal</small></div>
+  </div>
+  <div class="station">
+    <span class="pill"><span class="dot"></span> Station&nbsp;<b>WEST-03</b></span>
+    <span class="pill" id="clock">--:--</span>
+  </div>
+</header>
+
+<main class="stage">
+
+  <!-- SCAN HERO -->
+  <section class="scan-hero">
+    <h1>Scan or enter an asset tag</h1>
+    <p>Point the handheld scanner at the barcode, or type the tag and press Enter.</p>
+
+    <div class="scan-box" id="scanBox">
+      <div class="scan-icon">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="17" y1="8" x2="17" y2="16"/></svg>
+      </div>
+      <input id="tag" type="text" placeholder="e.g. LAP-2041" autocomplete="off" spellcheck="false" autofocus>
+      <button class="scan-go" id="goBtn">Look up</button>
+    </div>
+
+    <div class="chips" id="chips">
+      <!-- quick demo tags injected -->
+    </div>
+    <div class="scan-hint">Try: <b>LAP-2041</b> · <b>PRJ-118</b> · <b>CAM-007</b> · <b>DRL-552</b></div>
+  </section>
+
+  <!-- RESOLVED ASSET -->
+  <section class="resolved" id="resolved">
+    <div class="asset-card">
+      <div class="asset-head">
+        <div class="asset-visual" id="assetVisual"></div>
+        <div class="asset-meta">
+          <div class="tagline" id="assetTag">—</div>
+          <h2 id="assetName">—</h2>
+          <div class="asset-sub" id="assetCat">—</div>
+          <div class="status-tag" id="assetStatus"><span class="dot"></span><span>—</span></div>
+        </div>
+      </div>
+      <div class="asset-facts">
+        <div class="fact"><div class="k">Home location</div><div class="v" id="fLoc">—</div></div>
+        <div class="fact"><div class="k">Holder / Last user</div><div class="v" id="fHolder">—</div></div>
+        <div class="fact"><div class="k">Due / Since</div><div class="v" id="fDue">—</div></div>
+      </div>
+      <div class="actions">
+        <button class="act primary" id="actOut">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Check out<small>Take this asset</small>
+        </button>
+        <button class="act checkin" id="actIn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 5 12 10 7"/><line x1="5" y1="12" x2="17" y2="12"/></svg>
+          Check in<small>Return to shelf</small>
+        </button>
+        <button class="act transfer" id="actTransfer">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          Transfer<small>Hand to someone</small>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- BOTTOM: checked-out + activity -->
+  <section class="grid2">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Currently checked out</h3>
+        <span class="count" id="outCount">0</span>
+      </div>
+      <div class="list" id="outList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Recent activity</h3>
+        <span class="count" style="background:#eef2f7;color:#5b6675">live</span>
+      </div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- TRANSFER MODAL -->
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <h3>Transfer asset</h3>
+    <p id="transferSub">Hand off this asset to another team member.</p>
+    <div class="field">
+      <label>Transfer to</label>
+      <select id="transferTo">
+        <option>Maya Chen — Design</option>
+        <option>Devon Park — Field Ops</option>
+        <option>Ravi Nair — Engineering</option>
+        <option>Lena Frost — Marketing</option>
+        <option>Tom Alvarez — IT</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Note (optional)</label>
+      <input id="transferNote" type="text" placeholder="e.g. for the off-site shoot">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="transferCancel">Cancel</button>
+      <button class="btn btn-go" id="transferConfirm">Confirm transfer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toaster"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- icons ---------- */
+  const ICON = {
+    laptop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><line x1="1" y1="21" x2="23" y2="21"/></svg>',
+    projector:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="11" rx="2"/><circle cx="9" cy="12.5" r="3"/><line x1="16" y1="11" x2="18" y2="11"/></svg>',
+    camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+    drill:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10v6H7l-1 4H4z"/><path d="M13 9h4l4-2v6l-4-2h-4"/></svg>',
+    box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'
+  };
+
+  /* ---------- mock asset registry ---------- */
+  const REGISTRY = {
+    'LAP-2041':{name:'MacBook Pro 16"',cat:'Laptop · M3 Pro · 36GB',icon:'laptop',loc:'IT Cabinet · West',status:'available',holder:'On shelf',due:'—'},
+    'PRJ-118' :{name:'Epson EB-L Projector',cat:'AV · 4K Laser · 7000lm',icon:'projector',loc:'AV Closet · 4F',status:'out',holder:'Devon Park',due:'Today, 6:00 PM'},
+    'CAM-007' :{name:'Sony A7 IV Kit',cat:'Camera · 24-70mm · 2 batt',icon:'camera',loc:'Studio Locker B',status:'overdue',holder:'Lena Frost',due:'2 days overdue'},
+    'DRL-552' :{name:'Makita Impact Drill',cat:'Field Tool · 18V LXT',icon:'drill',loc:'Field Cart · Bay 2',status:'available',holder:'On shelf',due:'—'},
+    'TAB-310' :{name:'iPad Pro 12.9"',cat:'Tablet · Wi-Fi · 256GB',icon:'box',loc:'IT Cabinet · West',status:'out',holder:'Maya Chen',due:'Fri, 5:00 PM'}
+  };
+
+  /* ---------- live state ---------- */
+  let checkedOut = [
+    {tag:'PRJ-118', name:'Epson EB-L Projector', icon:'projector', holder:'Devon Park', state:'out',  meta:'Due today 6:00 PM'},
+    {tag:'CAM-007', name:'Sony A7 IV Kit',       icon:'camera',    holder:'Lena Frost',  state:'over', meta:'2 days overdue'},
+    {tag:'TAB-310', name:'iPad Pro 12.9"',       icon:'box',       holder:'Maya Chen',   state:'out',  meta:'Due Fri 5:00 PM'}
+  ];
+  let feed = [
+    {type:'co', who:'Devon Park', asset:'Epson EB-L Projector', when:'9m ago'},
+    {type:'ci', who:'Ravi Nair',  asset:'Dell Dock WD22',       when:'31m ago'},
+    {type:'tr', who:'Maya Chen',  asset:'iPad Pro 12.9"',       when:'1h ago', extra:'from Tom Alvarez'},
+    {type:'co', who:'Lena Frost', asset:'Sony A7 IV Kit',       when:'2d ago'}
+  ];
+
+  let current = null; // currently resolved asset tag
+
+  /* ---------- elements ---------- */
+  const $ = id => document.getElementById(id);
+  const tagInput = $('tag'), scanBox = $('scanBox'), resolved = $('resolved');
+
+  /* ---------- clock ---------- */
+  function tick(){
+    const d = new Date();
+    $('clock').textContent = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+  tick(); setInterval(tick, 15000);
+
+  /* ---------- quick chips ---------- */
+  ['LAP-2041','PRJ-118','CAM-007','DRL-552'].forEach(t=>{
+    const c = document.createElement('button');
+    c.className='chip'; c.textContent=t;
+    c.onclick=()=>{ tagInput.value=t; resolve(t); };
+    $('chips').appendChild(c);
+  });
+
+  /* ---------- toast ---------- */
+  function toast(kind, title, sub){
+    const el = document.createElement('div');
+    el.className='toast '+kind;
+    el.innerHTML = '<div class="ti">'+
+      (kind==='ok'?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+       :kind==='warn'?'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg>'
+       :'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="7" x2="12" y2="7"/></svg>')
+      +'</div><div><div>'+title+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div>';
+    $('toaster').appendChild(el);
+    setTimeout(()=>{ el.style.transition='opacity .3s, transform .3s'; el.style.opacity='0'; el.style.transform='translateY(10px)'; setTimeout(()=>el.remove(),300); }, 3200);
+  }
+
+  /* ---------- resolve an asset ---------- */
+  function resolve(rawTag){
+    const tag = (rawTag||'').trim().toUpperCase();
+    if(!tag){ shake(); return; }
+    const a = REGISTRY[tag];
+    if(!a){
+      shake();
+      toast('warn','Tag not found', '“'+tag+'” isn’t in the registry');
+      return;
+    }
+    current = tag;
+    $('assetTag').textContent = tag;
+    $('assetName').textContent = a.name;
+    $('assetCat').textContent = a.cat;
+    $('assetVisual').innerHTML = ICON[a.icon] || ICON.box;
+    $('fLoc').textContent = a.loc;
+    $('fHolder').textContent = a.holder;
+    $('fDue').textContent = a.due;
+
+    const st = $('assetStatus');
+    const out = $('actOut'), inn = $('actIn'), tr = $('actTransfer');
+    if(a.status==='available'){
+      st.className='status-tag st-avail'; st.querySelector('span:last-child').textContent='Available · on shelf';
+      out.disabled=false; inn.disabled=true; tr.disabled=true;
+    } else if(a.status==='overdue'){
+      st.className='status-tag st-over'; st.querySelector('span:last-child').textContent='Overdue · with '+a.holder;
+      out.disabled=true; inn.disabled=false; tr.disabled=false;
+    } else { // out
+      st.className='status-tag st-out'; st.querySelector('span:last-child').textContent='Checked out · with '+a.holder;
+      out.disabled=true; inn.disabled=false; tr.disabled=false;
+    }
+
+    resolved.classList.add('show');
+    resolved.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function shake(){
+    scanBox.animate([
+      {transform:'translateX(0)'},{transform:'translateX(-9px)'},
+      {transform:'translateX(8px)'},{transform:'translateX(-5px)'},{transform:'translateX(0)'}
+    ], {duration:380, easing:'ease-in-out'});
+  }
+
+  /* ---------- render lists ---------- */
+  function renderOut(){
+    const wrap = $('outList'); wrap.innerHTML='';
+    $('outCount').textContent = checkedOut.length;
+    if(!checkedOut.length){
+      wrap.innerHTML='<div style="padding:26px 14px;text-align:center;color:#9aa3b2;font-weight:600">Everything is on the shelf 🎉</div>';
+      return;
+    }
+    checkedOut.forEach(it=>{
+      const row = document.createElement('div'); row.className='row';
+      row.innerHTML =
+        '<div class="rl">'+(ICON[it.icon]||ICON.box)+'</div>'+
+        '<div class="rm"><div class="t">'+it.name+'</div><div class="s">'+it.tag+' · '+it.holder+'</div></div>'+
+        '<span class="badge '+(it.state==='over'?'b-over':'b-out')+'">'+it.meta+'</span>';
+      row.onclick=()=>{ tagInput.value=it.tag; resolve(it.tag); };
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderFeed(){
+    const wrap = $('feed'); wrap.innerHTML='';
+    const verb = {co:'checked out', ci:'checked in', tr:'transferred'};
+    const cls  = {co:'co', ci:'ci', tr:'tr'};
+    const ic   = {
+      co:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
+      ci:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+      tr:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>'
+    };
+    feed.forEach(e=>{
+      const row = document.createElement('div'); row.className='ev';
+      row.innerHTML =
+        '<div class="ei '+cls[e.type]+'">'+ic[e.type]+'</div>'+
+        '<div class="et"><div class="l1"><b>'+e.who+'</b> '+verb[e.type]+' '+e.asset+'</div>'+
+        '<div class="l2">'+(e.extra?e.extra+' · ':'')+'Station WEST-03</div></div>'+
+        '<div class="when">'+e.when+'</div>';
+      wrap.appendChild(row);
+    });
+  }
+
+  function pushFeed(ev){ feed.unshift(ev); if(feed.length>6) feed.pop(); renderFeed(); }
+
+  /* ---------- actions ---------- */
+  function checkOut(){
+    const a = REGISTRY[current]; if(!a) return;
+    a.status='out'; a.holder='You (Station WEST-03)'; a.due='Today, 6:00 PM';
+    if(!checkedOut.find(x=>x.tag===current))
+      checkedOut.unshift({tag:current, name:a.name, icon:a.icon, holder:'You', state:'out', meta:'Due today 6:00 PM'});
+    pushFeed({type:'co', who:'You', asset:a.name, when:'just now'});
+    renderOut();
+    toast('ok', a.name+' checked out', 'Tag '+current+' · due 6:00 PM today');
+    resolve(current);
+  }
+  function checkIn(){
+    const a = REGISTRY[current]; if(!a) return;
+    a.status='available'; a.holder='On shelf'; a.due='—';
+    checkedOut = checkedOut.filter(x=>x.tag!==current);
+    pushFeed({type:'ci', who:'You', asset:a.name, when:'just now'});
+    renderOut();
+    toast('ok', a.name+' returned', 'Tag '+current+' is back on the shelf');
+    resolve(current);
+  }
+  function doTransfer(to, note){
+    const a = REGISTRY[current]; if(!a) return;
+    const who = to.split('—')[0].trim();
+    a.status='out'; a.holder=who; a.due='Tomorrow, 5:00 PM';
+    const ex = checkedOut.find(x=>x.tag===current);
+    if(ex){ ex.holder=who; ex.state='out'; ex.meta='Due tomorrow 5:00 PM'; }
+    else checkedOut.unshift({tag:current, name:a.name, icon:a.icon, holder:who, state:'out', meta:'Due tomorrow 5:00 PM'});
+    pushFeed({type:'tr', who:who, asset:a.name, when:'just now', extra:'from You'+(note?' · “'+note+'”':'')});
+    renderOut();
+    toast('info', 'Transferred to '+who, a.name+' · '+current);
+    resolve(current);
+  }
+
+  /* ---------- wiring ---------- */
+  $('goBtn').onclick = ()=> resolve(tagInput.value);
+  tagInput.addEventListener('keydown', e=>{ if(e.key==='Enter') resolve(tagInput.value); });
+  tagInput.addEventListener('focus', ()=> scanBox.classList.add('focused'));
+  tagInput.addEventListener('blur',  ()=> scanBox.classList.remove('focused'));
+
+  $('actOut').onclick = checkOut;
+  $('actIn').onclick  = checkIn;
+
+  $('actTransfer').onclick = ()=>{
+    const a = REGISTRY[current]; if(!a) return;
+    $('transferSub').textContent = 'Hand off '+a.name+' ('+current+') to another team member.';
+    $('scrim').classList.add('show');
+  };
+  $('transferCancel').onclick = ()=> $('scrim').classList.remove('show');
+  $('scrim').addEventListener('click', e=>{ if(e.target===$('scrim')) $('scrim').classList.remove('show'); });
+  $('transferConfirm').onclick = ()=>{
+    doTransfer($('transferTo').value, $('transferNote').value.trim());
+    $('transferNote').value='';
+    $('scrim').classList.remove('show');
+  };
+
+  // keep kiosk focus on the scan field for hands-free scanner input
+  document.addEventListener('click', e=>{
+    if($('scrim').classList.contains('show')) return;
+    if(e.target.closest('button,select,input,.row,.chip')) return;
+    tagInput.focus();
+  });
+
+  /* ---------- init ---------- */
+  renderOut();
+  renderFeed();
+  tagInput.focus();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Asset Tracking: checkout / return flows with a location timeline. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/09-asset-tracking.html
+</script>
+</body>
+</html>

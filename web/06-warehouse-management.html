@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StockPilot OPS — Warehouse Command Center</title>
+<style>
+  :root {
+    --canvas: #0e1320;
+    --canvas-2: #0a0f1a;
+    --panel: #161c2c;
+    --panel-2: #1b2336;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --text: #e6edf7;
+    --muted: #8b97ad;
+    --faint: #5a677e;
+    --amber: #faad14;
+    --green: #52c41a;
+    --red: #ff4d4f;
+    --blue: #36a3ff;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--canvas);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 700px at 18% -10%, rgba(54, 163, 255, 0.08), transparent 60%),
+      radial-gradient(900px 600px at 95% 110%, rgba(250, 173, 20, 0.07), transparent 55%),
+      var(--canvas);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* ===== Top status ribbon ===== */
+  .ribbon {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 12px 22px;
+    background: linear-gradient(180deg, rgba(27, 35, 54, 0.95), rgba(22, 28, 44, 0.92));
+    border-bottom: 1px solid var(--border-strong);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    flex-shrink: 0;
+    z-index: 5;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+  .brand .logo {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(145deg, var(--amber), #d48806);
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 16px; color: #1a1100;
+    box-shadow: 0 0 18px rgba(250, 173, 20, 0.4);
+  }
+  .brand .title { font-size: 15px; font-weight: 700; letter-spacing: .4px; }
+  .brand .sub { font-size: 10.5px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .ribbon-sep { width: 1px; height: 30px; background: var(--border); }
+
+  .wh-select {
+    position: relative;
+  }
+  .wh-select label { display: block; font-size: 9.5px; color: var(--faint); letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 3px; }
+  .wh-select select {
+    appearance: none;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 7px 34px 7px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 230px;
+  }
+  .wh-select::after {
+    content: "▾";
+    position: absolute; right: 12px; bottom: 9px;
+    color: var(--amber); pointer-events: none; font-size: 12px;
+  }
+  .wh-select select:focus { outline: none; border-color: var(--amber); }
+
+  .clock { margin-left: auto; text-align: right; }
+  .clock .time { font-family: var(--mono); font-size: 26px; font-weight: 700; letter-spacing: 1px; color: #fff; line-height: 1; }
+  .clock .date { font-size: 10.5px; color: var(--muted); letter-spacing: 1.2px; margin-top: 4px; }
+
+  .conn {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--muted);
+    padding: 7px 13px;
+    background: rgba(82, 196, 26, 0.08);
+    border: 1px solid rgba(82, 196, 26, 0.25);
+    border-radius: 999px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.6);
+    animation: pulse 2.2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.55); }
+    70% { box-shadow: 0 0 0 8px rgba(82, 196, 26, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(82, 196, 26, 0); }
+  }
+
+  .alert-pill {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 14px;
+    background: rgba(255, 77, 79, 0.1);
+    border: 1px solid rgba(255, 77, 79, 0.3);
+    border-radius: 999px;
+    font-size: 12px; font-weight: 600; color: #ffb4b5;
+    cursor: pointer;
+  }
+  .alert-pill .badge {
+    background: var(--red); color: #fff;
+    border-radius: 999px; min-width: 19px; height: 19px;
+    display: grid; place-items: center;
+    font-size: 11px; font-weight: 800; padding: 0 5px;
+    box-shadow: 0 0 12px rgba(255, 77, 79, 0.5);
+  }
+
+  /* ===== Main grid ===== */
+  .stage {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 318px;
+    grid-template-rows: auto 1fr;
+    gap: 14px;
+    padding: 16px 18px;
+    min-height: 0;
+  }
+
+  /* stat strip spans top of left col */
+  .stat-strip {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .stat {
+    background: linear-gradient(160deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    padding: 13px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--amber);
+  }
+  .stat.green::before { background: var(--green); }
+  .stat.red::before { background: var(--red); }
+  .stat.blue::before { background: var(--blue); }
+  .stat .k { font-size: 10px; color: var(--muted); letter-spacing: 1.3px; text-transform: uppercase; }
+  .stat .v { font-family: var(--mono); font-size: 30px; font-weight: 700; margin-top: 5px; line-height: 1; color: #fff; }
+  .stat .v small { font-size: 14px; color: var(--muted); font-weight: 500; }
+  .stat .d { font-size: 11px; margin-top: 7px; display: flex; align-items: center; gap: 5px; }
+  .stat .d.up { color: var(--green); }
+  .stat .d.down { color: var(--red); }
+  .stat .d.flat { color: var(--muted); }
+
+  /* bin map panel */
+  .map-panel {
+    grid-column: 1 / 2;
+    grid-row: 2 / 3;
+    background: linear-gradient(160deg, var(--panel), rgba(22, 28, 44, 0.7));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px;
+    flex-shrink: 0;
+  }
+  .panel-head h2 {
+    font-size: 13px; font-weight: 700; letter-spacing: .6px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .panel-head h2 .bar { width: 4px; height: 16px; background: var(--amber); border-radius: 2px; box-shadow: 0 0 10px rgba(250,173,20,.5); }
+  .legend { margin-left: auto; display: flex; gap: 16px; font-size: 11px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .lg-green { background: var(--green); box-shadow: 0 0 7px rgba(82,196,26,.6); }
+  .lg-amber { background: var(--amber); box-shadow: 0 0 7px rgba(250,173,20,.6); }
+  .lg-red { background: var(--red); box-shadow: 0 0 7px rgba(255,77,79,.6); }
+  .lg-empty { background: #2a3450; }
+
+  .map-scroll {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+    padding-right: 4px;
+  }
+  .zone-block { margin-bottom: 18px; }
+  .zone-label {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 9px;
+  }
+  .zone-label .zn { font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: .5px; }
+  .zone-label .zt { font-size: 10.5px; color: var(--faint); letter-spacing: .6px; }
+  .zone-label .zc { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  .rack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+    gap: 6px;
+  }
+  .bin {
+    aspect-ratio: 1 / 0.82;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #1f2740;
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .12s ease, box-shadow .12s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 3px 4px;
+  }
+  .bin:hover { transform: translateY(-2px) scale(1.04); z-index: 2; border-color: var(--border-strong); }
+  .bin .fill {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    opacity: .9;
+  }
+  .bin .code { position: relative; font-family: var(--mono); font-size: 8.5px; font-weight: 700; color: rgba(255,255,255,.92); text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+  .bin .pct { position: relative; font-family: var(--mono); font-size: 8px; color: rgba(255,255,255,.78); text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+  .bin.empty { background: #161d31; }
+  .bin.empty .fill { display: none; }
+  .bin.b-green .fill { background: linear-gradient(180deg, rgba(82,196,26,.45), var(--green)); }
+  .bin.b-green:hover { box-shadow: 0 0 18px rgba(82,196,26,.5); }
+  .bin.b-amber .fill { background: linear-gradient(180deg, rgba(250,173,20,.45), var(--amber)); }
+  .bin.b-amber:hover { box-shadow: 0 0 18px rgba(250,173,20,.55); }
+  .bin.b-red .fill { background: linear-gradient(180deg, rgba(255,77,79,.5), var(--red)); }
+  .bin.b-red { animation: redglow 2.6s ease-in-out infinite; }
+  .bin.b-red:hover { box-shadow: 0 0 20px rgba(255,77,79,.6); }
+  @keyframes redglow {
+    0%,100% { box-shadow: 0 0 0 rgba(255,77,79,0); }
+    50% { box-shadow: 0 0 14px rgba(255,77,79,.45); }
+  }
+
+  /* right column */
+  .right-col {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+  }
+  .side-panel {
+    background: linear-gradient(160deg, var(--panel), rgba(22, 28, 44, 0.7));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 15px 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* gauges */
+  .gauges {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 8px;
+    margin-top: 6px;
+  }
+  .gauge {
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .gauge svg { display: block; }
+  .gauge .gv { font-family: var(--mono); font-size: 17px; font-weight: 700; fill: #fff; }
+  .gauge .gl { font-size: 10px; color: var(--muted); letter-spacing: .6px; margin-top: 5px; text-align: center; }
+  .gauge .gl b { color: var(--text); display: block; font-size: 11px; font-weight: 700; }
+
+  /* zone capacity linear bars */
+  .zbars { margin-top: 10px; display: flex; flex-direction: column; gap: 11px; }
+  .zbar .zbar-top { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+  .zbar .zbar-top .zname { color: var(--text); font-weight: 600; }
+  .zbar .zbar-top .zval { font-family: var(--mono); color: var(--muted); }
+  .zbar .track { height: 8px; border-radius: 5px; background: #232c44; overflow: hidden; }
+  .zbar .bar { height: 100%; border-radius: 5px; transition: width .9s cubic-bezier(.22,1,.36,1); }
+
+  /* live feed */
+  .feed-panel { flex: 1; min-height: 0; }
+  .feed-head { display: flex; align-items: center; margin-bottom: 10px; flex-shrink: 0; }
+  .feed-head h2 { font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; display: flex; align-items: center; gap: 9px; }
+  .feed-head h2 .bar { width: 4px; height: 16px; background: var(--blue); border-radius: 2px; box-shadow: 0 0 10px rgba(54,163,255,.5); }
+  .feed-head .live { margin-left: auto; font-size: 10px; color: var(--green); letter-spacing: 1.2px; display: flex; align-items: center; gap: 6px; }
+  .feed-list {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding-right: 3px;
+  }
+  .feed-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    animation: slidein .4s ease;
+  }
+  @keyframes slidein {
+    from { opacity: 0; transform: translateX(14px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .feed-item.in { border-left-color: var(--green); }
+  .feed-item.out { border-left-color: var(--amber); }
+  .feed-item.alert { border-left-color: var(--red); }
+  .feed-item .ic {
+    width: 26px; height: 26px; border-radius: 7px;
+    display: grid; place-items: center;
+    font-size: 13px; flex-shrink: 0;
+  }
+  .feed-item.in .ic { background: rgba(82,196,26,.14); color: var(--green); }
+  .feed-item.out .ic { background: rgba(250,173,20,.14); color: var(--amber); }
+  .feed-item.alert .ic { background: rgba(255,77,79,.14); color: var(--red); }
+  .feed-item .body { flex: 1; min-width: 0; }
+  .feed-item .l1 { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feed-item .l2 { color: var(--muted); font-size: 10.5px; margin-top: 2px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feed-item .ts { font-family: var(--mono); font-size: 10px; color: var(--faint); flex-shrink: 0; }
+
+  /* tooltip */
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    z-index: 50;
+    background: rgba(10, 15, 26, 0.97);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    padding: 10px 13px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.6);
+    min-width: 175px;
+    opacity: 0;
+    transition: opacity .12s ease;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .tt-code { font-family: var(--mono); font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 7px; display: flex; justify-content: space-between; gap: 12px; }
+  .tooltip .tt-code .tag { font-size: 9.5px; padding: 2px 7px; border-radius: 5px; font-weight: 700; letter-spacing: .4px; }
+  .tag.t-green { background: rgba(82,196,26,.18); color: var(--green); }
+  .tag.t-amber { background: rgba(250,173,20,.18); color: var(--amber); }
+  .tag.t-red { background: rgba(255,77,79,.18); color: var(--red); }
+  .tag.t-empty { background: #2a3450; color: var(--muted); }
+  .tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; font-size: 11px; margin-top: 4px; }
+  .tooltip .tt-row span { color: var(--muted); }
+  .tooltip .tt-row b { color: var(--text); font-family: var(--mono); font-weight: 600; }
+
+  /* scrollbars */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a3450; border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #36426a; }
+
+  .scanline {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay;
+  }
+</style>
+</head>
+<body>
+  <div class="scanline"></div>
+
+  <!-- ===== Status ribbon ===== -->
+  <header class="ribbon">
+    <div class="brand">
+      <div class="logo">S</div>
+      <div>
+        <div class="title">StockPilot OPS</div>
+        <div class="sub">Warehouse Command Center</div>
+      </div>
+    </div>
+
+    <div class="ribbon-sep"></div>
+
+    <div class="wh-select">
+      <label>Facility</label>
+      <select id="whSelect"></select>
+    </div>
+
+    <div class="conn"><span class="dot"></span> WMS Link · <span id="connLat">42</span>ms</div>
+    <div class="alert-pill" id="alertPill"><span class="badge" id="alertCount">3</span> Critical Bins</div>
+
+    <div class="clock">
+      <div class="time" id="clock">--:--:--</div>
+      <div class="date" id="dateline">—</div>
+    </div>
+  </header>
+
+  <!-- ===== Stage ===== -->
+  <main class="stage">
+
+    <!-- KPI strip -->
+    <section class="stat-strip" id="statStrip"></section>
+
+    <!-- Bin / rack map -->
+    <section class="map-panel">
+      <div class="panel-head">
+        <h2><span class="bar"></span> Bin &amp; Rack Map</h2>
+        <div class="legend">
+          <span><i class="lg-green"></i> &lt; 70%</span>
+          <span><i class="lg-amber"></i> 70–89%</span>
+          <span><i class="lg-red"></i> ≥ 90%</span>
+          <span><i class="lg-empty"></i> Empty</span>
+        </div>
+      </div>
+      <div class="map-scroll" id="mapScroll"></div>
+    </section>
+
+    <!-- Right column -->
+    <aside class="right-col">
+
+      <section class="side-panel">
+        <div class="panel-head" style="margin-bottom:6px">
+          <h2><span class="bar"></span> Zone Capacity</h2>
+        </div>
+        <div class="gauges" id="gauges"></div>
+        <div class="zbars" id="zbars"></div>
+      </section>
+
+      <section class="side-panel feed-panel">
+        <div class="feed-head">
+          <h2><span class="bar"></span> Inbound / Outbound</h2>
+          <div class="live"><span class="dot"></span> LIVE</div>
+        </div>
+        <div class="feed-list" id="feedList"></div>
+      </section>
+
+    </aside>
+  </main>
+
+  <div class="tooltip" id="tooltip"></div>
+
+<script>
+/* ============ Mock warehouse data ============ */
+const SKUS = [
+  "SKU-AX901 · Lithium Cells 18650","SKU-BT220 · Hydraulic Seals","SKU-CR457 · Steel Brackets M8",
+  "SKU-DF112 · PVC Conduit 25mm","SKU-EG338 · Coolant Pumps","SKU-FH774 · LED Driver 60W",
+  "SKU-GK509 · Servo Motors NEMA23","SKU-HM640 · Pallet Wrap 500m","SKU-JN281 · Ball Bearings 6204",
+  "SKU-KP015 · Thermal Paste 5g","SKU-LQ862 · Copper Wire 2.5mm","SKU-MR393 · Safety Gloves L"
+];
+const CARRIERS = ["DHL Express","Maersk Line","FedEx Freight","Local Fleet 04","UPS Ground","Schenker"];
+
+const ZONE_DEFS = [
+  { id:"A", name:"A · Fast-Pick", cols:14, rows:3 },
+  { id:"B", name:"B · Bulk Pallet", cols:14, rows:3 },
+  { id:"C", name:"C · Cold Chain", cols:12, rows:2 },
+  { id:"D", name:"D · Hazmat / Quarantine", cols:10, rows:2 }
+];
+
+const FACILITIES = [
+  { id:"rdc-01", name:"RDC-01 · Rotterdam EU-Central" },
+  { id:"dc-na2", name:"DC-NA2 · Memphis North-America" },
+  { id:"fc-ap5", name:"FC-AP5 · Singapore APAC-Hub" }
+];
+
+/* deterministic pseudo-random per facility so switches feel real */
+function rng(seed){ let s = seed>>>0; return ()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+
+function buildFacility(seedStr){
+  let seed = 0; for(const c of seedStr) seed = (seed*31 + c.charCodeAt(0))>>>0;
+  const r = rng(seed);
+  const zones = ZONE_DEFS.map(z=>{
+    const bins = [];
+    for(let row=1; row<=z.rows; row++){
+      for(let col=1; col<=z.cols; col++){
+        const isEmpty = r() < 0.07;
+        let fill;
+        if(isEmpty){ fill = 0; }
+        else {
+          const base = z.id==="C" ? 0.55 : z.id==="D" ? 0.4 : 0.35;
+          fill = Math.min(100, Math.round((base + r()*0.62)*100));
+        }
+        bins.push({
+          code: z.id + String(col).padStart(2,"0") + "-" + row,
+          fill,
+          empty: isEmpty,
+          sku: isEmpty ? null : SKUS[Math.floor(r()*SKUS.length)],
+          units: isEmpty ? 0 : Math.round(fill*( 6 + Math.floor(r()*22) )),
+          updated: Math.floor(r()*58)+1
+        });
+      }
+    }
+    return { ...z, bins };
+  });
+  return zones;
+}
+
+/* ============ State ============ */
+let zones = [];
+const tooltip = document.getElementById("tooltip");
+
+function colorClass(b){
+  if(b.empty) return "empty";
+  if(b.fill >= 90) return "b-red";
+  if(b.fill >= 70) return "b-amber";
+  return "b-green";
+}
+function tagClass(b){
+  if(b.empty) return "t-empty";
+  if(b.fill >= 90) return "t-red";
+  if(b.fill >= 70) return "t-amber";
+  return "t-green";
+}
+function statusWord(b){
+  if(b.empty) return "EMPTY";
+  if(b.fill >= 90) return "CRITICAL";
+  if(b.fill >= 70) return "HIGH";
+  return "OK";
+}
+
+/* ============ Render: bin map ============ */
+function renderMap(){
+  const wrap = document.getElementById("mapScroll");
+  wrap.innerHTML = "";
+  zones.forEach(z=>{
+    const occupied = z.bins.filter(b=>!b.empty);
+    const avg = occupied.length ? Math.round(occupied.reduce((a,b)=>a+b.fill,0)/occupied.length) : 0;
+    const block = document.createElement("div");
+    block.className = "zone-block";
+    block.innerHTML = `
+      <div class="zone-label">
+        <span class="zn">ZONE ${z.id}</span>
+        <span class="zt">${z.name.split("· ")[1]||""}</span>
+        <span class="zc">${occupied.length}/${z.bins.length} occupied · avg ${avg}%</span>
+      </div>`;
+    const grid = document.createElement("div");
+    grid.className = "rack-grid";
+    z.bins.forEach(b=>{
+      const cell = document.createElement("div");
+      cell.className = "bin " + colorClass(b);
+      const fh = b.empty ? 0 : Math.max(8, b.fill);
+      cell.innerHTML = `
+        <div class="fill" style="height:${fh}%"></div>
+        <div class="code">${b.code}</div>
+        <div class="pct">${b.empty ? "—" : b.fill+"%"}</div>`;
+      cell.addEventListener("mousemove", e=>showTip(e, b));
+      cell.addEventListener("mouseleave", hideTip);
+      grid.appendChild(cell);
+    });
+    block.appendChild(grid);
+    wrap.appendChild(block);
+  });
+}
+
+function showTip(e, b){
+  tooltip.innerHTML = `
+    <div class="tt-code">${b.code} <span class="tag ${tagClass(b)}">${statusWord(b)}</span></div>
+    ${b.empty
+      ? `<div class="tt-row"><span>Status</span><b>Available slot</b></div>`
+      : `<div class="tt-row"><span>SKU</span><b>${b.sku.split(" · ")[0]}</b></div>
+         <div class="tt-row"><span>Item</span><b>${b.sku.split(" · ")[1]}</b></div>
+         <div class="tt-row"><span>Fill</span><b>${b.fill}%</b></div>
+         <div class="tt-row"><span>On hand</span><b>${b.units.toLocaleString()} u</b></div>`}
+    <div class="tt-row"><span>Last move</span><b>${b.updated} min ago</b></div>`;
+  tooltip.classList.add("show");
+  const pad = 16;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  const r = tooltip.getBoundingClientRect();
+  if(x + r.width > window.innerWidth - 8) x = e.clientX - r.width - pad;
+  if(y + r.height > window.innerHeight - 8) y = e.clientY - r.height - pad;
+  tooltip.style.left = x + "px";
+  tooltip.style.top = y + "px";
+}
+function hideTip(){ tooltip.classList.remove("show"); }
+
+/* ============ Render: KPI strip ============ */
+function renderStats(){
+  const all = zones.flatMap(z=>z.bins);
+  const occupied = all.filter(b=>!b.empty);
+  const totalUnits = occupied.reduce((a,b)=>a+b.units,0);
+  const util = Math.round(occupied.length / all.length * 100);
+  const critical = all.filter(b=>!b.empty && b.fill>=90).length;
+  const inboundToday = 184 + (occupied.length % 40);
+  const outboundToday = 213 + (occupied.length % 35);
+
+  const stats = [
+    { cls:"blue",  k:"Total On Hand", v: (totalUnits/1000).toFixed(1), small:"k units", d:"up", dt:"▲ 3.4% vs avg" },
+    { cls:"",      k:"Slot Utilization", v: util, small:"%", d: util>85?"down":"flat", dt: util>85?"▲ near ceiling":"● nominal" },
+    { cls:"green", k:"Inbound · Today", v: inboundToday, small:"plt", d:"up", dt:"▲ "+(inboundToday-167)+" vs yest" },
+    { cls:"red",   k:"Critical Bins", v: critical, small:"≥90%", d: critical>0?"down":"flat", dt: critical>0?"▲ action needed":"● all clear" }
+  ];
+  const strip = document.getElementById("statStrip");
+  strip.innerHTML = stats.map(s=>`
+    <div class="stat ${s.cls}">
+      <div class="k">${s.k}</div>
+      <div class="v">${s.v}<small> ${s.small}</small></div>
+      <div class="d ${s.d}">${s.dt}</div>
+    </div>`).join("");
+
+  document.getElementById("alertCount").textContent = critical;
+}
+
+/* ============ Render: gauges + zone bars ============ */
+function gaugeColor(p){ return p>=90 ? "var(--red)" : p>=70 ? "var(--amber)" : "var(--green)"; }
+
+function renderGaugesAndBars(){
+  const g = document.getElementById("gauges");
+  g.innerHTML = "";
+  zones.forEach(z=>{
+    const occ = z.bins.filter(b=>!b.empty);
+    const pct = occ.length ? Math.round(occ.reduce((a,b)=>a+b.fill,0)/occ.length) : 0;
+    const R=30, C=2*Math.PI*R, off = C*(1-pct/100);
+    const col = gaugeColor(pct);
+    const el = document.createElement("div");
+    el.className = "gauge";
+    el.innerHTML = `
+      <svg width="86" height="86" viewBox="0 0 86 86">
+        <circle cx="43" cy="43" r="${R}" fill="none" stroke="#232c44" stroke-width="8"/>
+        <circle cx="43" cy="43" r="${R}" fill="none" stroke="${col}" stroke-width="8"
+          stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
+          transform="rotate(-90 43 43)" style="filter:drop-shadow(0 0 5px ${col});transition:stroke-dashoffset 1s cubic-bezier(.22,1,.36,1)"/>
+        <text x="43" y="48" text-anchor="middle" class="gv">${pct}%</text>
+      </svg>
+      <div class="gl"><b>ZONE ${z.id}</b>${z.name.split("· ")[1]}</div>`;
+    g.appendChild(el);
+  });
+
+  const zb = document.getElementById("zbars");
+  zb.innerHTML = zones.map(z=>{
+    const occ = z.bins.filter(b=>!b.empty);
+    const pct = Math.round(occ.length / z.bins.length * 100);
+    const col = pct>=90 ? "var(--red)" : pct>=70 ? "var(--amber)" : "var(--green)";
+    return `
+      <div class="zbar">
+        <div class="zbar-top"><span class="zname">ZONE ${z.id} slots</span><span class="zval">${occ.length}/${z.bins.length}</span></div>
+        <div class="track"><div class="bar" style="width:${pct}%;background:linear-gradient(90deg,${col}aa,${col});box-shadow:0 0 8px ${col}88"></div></div>
+      </div>`;
+  }).join("");
+}
+
+/* ============ Live feed ============ */
+const feedList = document.getElementById("feedList");
+function pad2(n){ return String(n).padStart(2,"0"); }
+function nowTs(){ const d=new Date(); return pad2(d.getHours())+":"+pad2(d.getMinutes())+":"+pad2(d.getSeconds()); }
+
+function pickBin(){ const all = zones.flatMap(z=>z.bins); return all[Math.floor(Math.random()*all.length)]; }
+
+function makeEvent(){
+  const roll = Math.random();
+  const bin = pickBin();
+  if(roll < 0.45){
+    return { type:"in", icon:"⇣", l1:"Inbound · "+(SKUS[Math.floor(Math.random()*SKUS.length)].split(" · ")[1]),
+      l2:"PO-"+(48000+Math.floor(Math.random()*900))+" → "+bin.code+" · "+CARRIERS[Math.floor(Math.random()*CARRIERS.length)], ts:nowTs() };
+  } else if(roll < 0.85){
+    return { type:"out", icon:"⇡", l1:"Outbound · "+(Math.floor(Math.random()*40)+1)+" cases picked",
+      l2:"WO-"+(72000+Math.floor(Math.random()*900))+" ← "+bin.code+" · "+CARRIERS[Math.floor(Math.random()*CARRIERS.length)], ts:nowTs() };
+  } else {
+    return { type:"alert", icon:"!", l1:"Threshold breach · "+bin.code,
+      l2:"Fill "+ (bin.empty?92:Math.max(90,bin.fill)) +"% · replenishment hold", ts:nowTs() };
+  }
+}
+function pushEvent(ev){
+  const item = document.createElement("div");
+  item.className = "feed-item " + ev.type;
+  item.innerHTML = `
+    <div class="ic">${ev.icon}</div>
+    <div class="body">
+      <div class="l1">${ev.l1}</div>
+      <div class="l2">${ev.l2}</div>
+    </div>
+    <div class="ts">${ev.ts}</div>`;
+  feedList.insertBefore(item, feedList.firstChild);
+  while(feedList.children.length > 24) feedList.removeChild(feedList.lastChild);
+}
+
+/* ============ Clock + latency ============ */
+function tickClock(){
+  const d = new Date();
+  document.getElementById("clock").textContent = pad2(d.getHours())+":"+pad2(d.getMinutes())+":"+pad2(d.getSeconds());
+  document.getElementById("dateline").textContent =
+    d.toLocaleDateString("en-US",{weekday:"short",year:"numeric",month:"short",day:"numeric"}).toUpperCase();
+}
+
+/* ============ Facility switch ============ */
+function loadFacility(id){
+  zones = buildFacility(id);
+  renderMap();
+  renderStats();
+  renderGaugesAndBars();
+  feedList.innerHTML = "";
+  for(let i=0;i<8;i++) pushEvent(makeEvent());
+}
+
+function init(){
+  const sel = document.getElementById("whSelect");
+  sel.innerHTML = FACILITIES.map(f=>`<option value="${f.id}">${f.name}</option>`).join("");
+  sel.addEventListener("change", e=>loadFacility(e.target.value));
+
+  loadFacility(FACILITIES[0].id);
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  setInterval(()=>pushEvent(makeEvent()), 2600);
+
+  setInterval(()=>{
+    document.getElementById("connLat").textContent = 30 + Math.floor(Math.random()*40);
+  }, 3000);
+
+  setInterval(()=>{
+    if(!zones.length) return;
+    const z = zones[Math.floor(Math.random()*zones.length)];
+    const b = z.bins[Math.floor(Math.random()*z.bins.length)];
+    if(b.empty) return;
+    b.fill = Math.max(20, Math.min(100, b.fill + (Math.random()<0.5?-1:1)*(2+Math.floor(Math.random()*6))));
+    b.units = Math.round(b.fill*(6+Math.floor(Math.random()*22)));
+    renderMap(); renderStats(); renderGaugesAndBars();
+  }, 7000);
+
+  document.getElementById("alertPill").addEventListener("click", ()=>{
+    document.querySelector(".bin.b-red")?.scrollIntoView({behavior:"smooth", block:"center"});
+  });
+}
+
+init();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Warehouse Management: a warehouse / location / stock three-tier model with a location tree and an inventory dashboard. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/06-warehouse-management.html
+</script>
+</body>
+</html>

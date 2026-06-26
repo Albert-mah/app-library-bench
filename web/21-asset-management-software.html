@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ironledger — Heavy Asset Operations</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Heavy Asset Operations Ledger (Ironledger)",
+  "prefix": "ams_",
+  "archetype": "operations-ledger dashboard (KPI strip + heavy-asset register Table + depreciation curve chart + maintenance Calendar) — logistics/heavy-equipment view, NOT the IT-device catalog of #02",
+  "palette": "steel slate-blue primary #2f54eb-leaning industrial #1d3b6e + amber #fa8c16 ops accent on #f4f6fa canvas",
+  "collections": {
+    "ams_sites": {"titleField":"name","fields":{"name":"input","code":"input","region":"select:north|south|east|west|central","manager":"input"}},
+    "ams_categories": {"titleField":"name","fields":{"name":"input","useful_life_months":"integer","salvage_rate":"number"}},
+    "ams_vendors": {"titleField":"name","fields":{"name":"input","contact":"input","phone":"input","sla_hours":"integer"}},
+    "ams_assets": {"titleField":"name","fields":{"name":"input","asset_tag":"input","serial_no":"input","status":"select:in_service|standby|under_maintenance|down|retired","condition":"select:excellent|good|fair|poor","acquire_cost":"number","acquire_date":"date","useful_life_months":"integer","salvage_value":"number","book_value":"number","accum_depreciation":"number","utilization_pct":"integer","meter_hours":"integer"},"relations":{"site":"m2o ams_sites (fk site_id)","category":"m2o ams_categories (fk category_id)","vendor":"m2o ams_vendors (fk vendor_id)"}},
+    "ams_maintenances": {"titleField":"title","fields":{"title":"input","type":"select:preventive|inspection|repair|calibration|overhaul","status":"select:scheduled|in_progress|completed|overdue","priority":"select:low|medium|high|critical","scheduled_at":"datetime","duration_hours":"number","est_cost":"number","technician":"input","notes":"textarea"},"relations":{"asset":"m2o ams_assets (fk asset_id)","vendor":"m2o ams_vendors (fk vendor_id)"}},
+    "ams_depreciation_entries": {"titleField":"period","fields":{"period":"input","method":"select:straight_line|declining_balance","opening_value":"number","depreciation":"number","closing_value":"number"},"relations":{"asset":"m2o ams_assets (fk asset_id)"}}
+  },
+  "page": {
+    "name": "Asset Operations",
+    "layout": "KPI strip (event-flow aggregate row) | main = native Table of ams_assets with rich JSColumn lead + depreciation bar JSColumn | right rail = depreciation-curve JSBlock (chart) over selected asset + maintenance Calendar of ams_maintenances",
+    "regions": [
+      {"id":"kpis","block":"JS slot row driven by event-flow aggregate over ams_assets / ams_maintenances","intent":"fleet-wide ops KPIs","shows":["total asset count + net book value","in-service vs down %","scheduled vs overdue maintenance","avg utilization %"]},
+      {"id":"register","block":"native Table block (ams_assets) — NOT a freestanding JSBlock","intent":"heavy-asset register / ledger","columns":["lead JSColumn: tag + name + category + site (avatar glyph)","status pill JSColumn","condition JSColumn","acquire cost + acquire date","book value + accum depreciation","depreciation-progress JSColumn (bar = accum/cost)","utilization JSColumn (mini ring)","next maintenance JSColumn"],"actions":["toolbar JSAction filter pills by status","row JSRecordAction: View ledger / Schedule maintenance"],"behaviors":["row click selects asset → drives depreciation-curve chart (cross-block)","cross-block filter from KPI cards / status pills"]},
+      {"id":"depr_curve","block":"JSBlock (chart, no single data container — plots ams_depreciation_entries for the selected asset)","intent":"net-book-value depreciation curve over useful life","binds":"selected asset_id from register row click","shows":["straight-line + declining-balance curves","salvage floor line","current period marker"]},
+      {"id":"maint_cal","block":"native Calendar block (ams_maintenances)","collection":"ams_maintenances","intent":"maintenance / PM schedule","colorField":"status","titleField":"title","dateField":"scheduled_at","behaviors":["click event → open maintenance detail popup","filtered by selected asset when one is picked"]}
+    ]
+  },
+  "interactions": ["row click in register selects asset and re-plots depreciation curve (cross-block)","status pills filter the register table (addFilterGroup + refresh)","KPI card click cross-filters register","calendar event color = maintenance status","Schedule maintenance row action opens create popup bound to filterByTk asset"],
+  "jsKernels": ["register lead JSColumn (tag+name+site glyph)","depreciation-progress bar JSColumn","utilization mini-ring JSColumn","depreciation-curve chart JSBlock (dual method curves + salvage floor + current marker)","KPI aggregate strip"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (Table for the asset register, Calendar for maintenance); reproduce the custom look with JSColumns/JSActions inside the Table. The depreciation curve is the ONE region with no single native data container that maps to a chart visual → JSBlock plotting ams_depreciation_entries (or computed straight-line/declining-balance from ams_assets fields) for the selected asset, refreshed on register row select. Do NOT rebuild the register table as a freestanding JSBlock. KPI strip is an event-flow aggregate (no extra collection). Distinct from #02: this is heavy/logistics assets with money + depreciation + meter hours, not an IT device catalog."
+}
+</script>
+<style>
+  :root{
+    --pri:#1d3b6e; --pri-2:#2f54eb; --pri-soft:#eef2fb; --pri-line:#adc6ff;
+    --amber:#fa8c16; --amber-soft:#fff7e6; --amber-line:#ffd591;
+    --ink:#16233a; --ink-2:#5b6b85; --ink-3:#90a0b8;
+    --line:#eef1f6; --line-2:#e1e7f0; --bg:#f4f6fa; --card:#fff;
+    --green:#389e0d; --green-soft:#f6ffed; --green-line:#b7eb8f;
+    --red:#cf1322; --red-soft:#fff1f0; --red-line:#ffa39e;
+    --gold:#d48806; --gold-soft:#fffbe6;
+    --cyan:#08979c; --purple:#722ed1; --slate:#5b6b85;
+    --r:11px;
+    --shadow:0 1px 2px rgba(16,40,80,.05), 0 8px 22px rgba(16,40,80,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:13.5px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:20px; padding:0 24px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800; font-size:16px; letter-spacing:-.3px}
+  .brand .glyph{
+    width:30px;height:30px;border-radius:9px;
+    background:linear-gradient(135deg,var(--pri),var(--pri-2));
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 3px 10px rgba(29,59,110,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:11.5px;margin-left:1px}
+  .topnav{display:flex;gap:3px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--pri-soft);color:var(--pri-2)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .searchbar{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);
+    border-radius:9px;padding:7px 12px;width:240px;color:var(--ink-3);font-size:12.5px}
+  .searchbar input{border:none;background:none;outline:none;font-family:inherit;font-size:12.5px;flex:1;color:var(--ink)}
+  .chip-live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);
+    background:var(--green-soft);border:1px solid var(--green-line);padding:5px 10px;border-radius:20px}
+  .chip-live i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--pri-2),#85a5ff);
+    color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- page shell ---------- */
+  .page{max-width:1440px;margin:0 auto;padding:22px 24px 40px}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:16px;flex-wrap:wrap}
+  .page-head h1{font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .page-head p{color:var(--ink-3);font-size:13px;margin-top:3px}
+  .head-actions{display:flex;gap:9px}
+  .btn{border:none;border-radius:9px;padding:9px 15px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.13s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--pri-2);color:#fff;box-shadow:0 2px 8px rgba(47,84,235,.3)}
+  .btn-primary:hover{background:#1d39c4}
+  .btn-ghost{background:#fff;border:1px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#c9d4e6;color:var(--ink)}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:15px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden;cursor:pointer;transition:.13s}
+  .kpi:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(16,40,80,.1)}
+  .kpi .k-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .kpi .k-lbl{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px}
+  .kpi .k-ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:14px}
+  .kpi .k-val{font-size:25px;font-weight:800;letter-spacing:-.6px;line-height:1}
+  .kpi .k-val small{font-size:14px;font-weight:700;color:var(--ink-3);margin-left:2px}
+  .kpi .k-sub{font-size:11.5px;color:var(--ink-2);margin-top:7px;display:flex;align-items:center;gap:6px}
+  .delta{font-weight:700;font-size:11px;padding:1px 6px;border-radius:9px}
+  .delta.up{background:var(--green-soft);color:var(--green)}
+  .delta.down{background:var(--red-soft);color:var(--red)}
+  .delta.warn{background:var(--gold-soft);color:var(--gold)}
+  .k-bar{height:5px;border-radius:4px;background:var(--line);margin-top:10px;overflow:hidden}
+  .k-bar i{display:block;height:100%;border-radius:4px}
+  .ic-blue{background:var(--pri-soft);color:var(--pri-2)} .ic-amber{background:var(--amber-soft);color:var(--amber)}
+  .ic-green{background:var(--green-soft);color:var(--green)} .ic-red{background:var(--red-soft);color:var(--red)}
+  .ic-cyan{background:#e6fffb;color:var(--cyan)}
+
+  /* ---------- main grid ---------- */
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 408px;gap:18px;align-items:start}
+  @media(max-width:1240px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}}
+
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .panel-head h2{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .panel-head .meta{font-size:11.5px;color:var(--ink-3)}
+
+  /* status pills toolbar */
+  .pill-row{display:flex;gap:7px;flex-wrap:wrap}
+  .spill{font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:5px 11px;border-radius:16px;border:1px solid var(--line-2);background:#fff;transition:.12s;display:flex;align-items:center;gap:6px}
+  .spill .dot{width:7px;height:7px;border-radius:50%}
+  .spill:hover{border-color:#c9d4e6}
+  .spill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .spill.on .dot{box-shadow:0 0 0 2px rgba(255,255,255,.5)}
+
+  /* ---------- register table ---------- */
+  .tbl-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  thead th{
+    text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);
+    padding:11px 14px;border-bottom:1px solid var(--line-2);background:#fafbfd;white-space:nowrap;position:sticky;top:0;z-index:2;
+  }
+  thead th.r{text-align:right}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr{cursor:pointer;transition:.1s}
+  tbody tr:hover{background:#f7f9fd}
+  tbody tr.sel{background:var(--pri-soft)}
+  tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--pri-2)}
+
+  .lead{display:flex;align-items:center;gap:11px;min-width:230px}
+  .a-glyph{width:38px;height:38px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:17px;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(16,40,80,.18)}
+  .a-meta b{font-size:13px;font-weight:700;color:var(--ink);display:block;line-height:1.25}
+  .a-meta .sub{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap}
+  .a-meta .tag{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:var(--pri-2);background:var(--pri-soft);padding:1px 6px;border-radius:5px;font-weight:700}
+  .site-chip{font-size:10.5px;color:var(--ink-2);background:var(--line);padding:1px 7px;border-radius:9px}
+
+  .badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:11px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .badge .d{width:6px;height:6px;border-radius:50%}
+  .b-in_service{background:var(--green-soft);color:var(--green)} .b-in_service .d{background:var(--green)}
+  .b-standby{background:var(--pri-soft);color:var(--pri-2)} .b-standby .d{background:var(--pri-2)}
+  .b-under_maintenance{background:var(--amber-soft);color:var(--gold)} .b-under_maintenance .d{background:var(--amber)}
+  .b-down{background:var(--red-soft);color:var(--red)} .b-down .d{background:var(--red)}
+  .b-retired{background:var(--line);color:var(--ink-3)} .b-retired .d{background:var(--ink-3)}
+
+  .cond{font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .cond .bars{display:flex;gap:2px}
+  .cond .bars span{width:4px;height:13px;border-radius:2px;background:var(--line-2)}
+  .cond.excellent{color:var(--green)} .cond.excellent .bars span:nth-child(-n+4){background:var(--green)}
+  .cond.good{color:var(--cyan)} .cond.good .bars span:nth-child(-n+3){background:var(--cyan)}
+  .cond.fair{color:var(--gold)} .cond.fair .bars span:nth-child(-n+2){background:var(--amber)}
+  .cond.poor{color:var(--red)} .cond.poor .bars span:nth-child(-n+1){background:var(--red)}
+
+  .money{font-weight:700;font-size:12.5px;text-align:right}
+  .money .date{font-weight:500;font-size:10.5px;color:var(--ink-3);display:block;margin-top:1px}
+  .bookval{text-align:right}
+  .bookval b{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .bookval span{font-size:10.5px;color:var(--red);display:block;margin-top:1px}
+
+  /* depreciation bar */
+  .depr{min-width:120px}
+  .depr-top{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);margin-bottom:4px}
+  .depr-top b{color:var(--ink-2);font-weight:700}
+  .depr-bar{height:6px;border-radius:4px;background:var(--line);overflow:hidden}
+  .depr-bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--amber),#ffc069)}
+
+  /* utilization ring */
+  .util{display:flex;align-items:center;gap:8px}
+  .uring{width:34px;height:34px;flex:none}
+  .uring circle{fill:none;stroke-width:4}
+  .uring .bg{stroke:var(--line)}
+  .uring .fg{stroke:var(--pri-2);stroke-linecap:round;transition:stroke-dashoffset .3s}
+  .uring text{font-size:9px;font-weight:800;fill:var(--ink)}
+  .util .uh{font-size:10.5px;color:var(--ink-3);line-height:1.2}
+  .util .uh b{display:block;color:var(--ink-2);font-size:11px}
+
+  .nextm{font-size:11.5px}
+  .nextm b{display:block;font-weight:700;font-size:11.5px}
+  .nextm .when{color:var(--ink-3);font-size:10.5px}
+  .nextm .when.over{color:var(--red);font-weight:700}
+  .nextm .when.soon{color:var(--gold);font-weight:700}
+  .nextm .none{color:var(--ink-3);font-style:italic}
+
+  .row-acts{display:flex;gap:4px;opacity:0;transition:.12s;justify-content:flex-end}
+  tbody tr:hover .row-acts{opacity:1}
+  .row-acts button{border:none;background:var(--line);width:27px;height:27px;border-radius:7px;cursor:pointer;font-size:12px;color:var(--ink-2)}
+  .row-acts button:hover{background:var(--pri-soft);color:var(--pri-2)}
+
+  /* ---------- right rail ---------- */
+  .rail{display:flex;flex-direction:column;gap:18px}
+  .sticky{position:sticky;top:74px}
+
+  /* depreciation curve chart */
+  .chart-sel{font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;gap:7px}
+  .chart-sel .glyph-sm{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:11px;color:#fff}
+  .chart-body{padding:16px 16px 12px}
+  .chart-legend{display:flex;gap:16px;margin-bottom:10px;font-size:11px;color:var(--ink-2);flex-wrap:wrap}
+  .chart-legend span{display:flex;align-items:center;gap:6px}
+  .chart-legend i{width:14px;height:3px;border-radius:2px}
+  .chart-legend i.sl{background:var(--pri-2)} .chart-legend i.db{background:var(--amber)}
+  .chart-legend i.sv{background:var(--ink-3);height:0;border-top:2px dashed var(--ink-3)}
+  .svgchart{width:100%;height:190px;display:block}
+  .chart-foot{display:flex;justify-content:space-between;padding:11px 16px;border-top:1px solid var(--line);font-size:11.5px}
+  .chart-foot div b{display:block;font-size:13.5px;font-weight:800;color:var(--ink)}
+  .chart-foot div span{font-size:10.5px;color:var(--ink-3)}
+
+  /* maintenance calendar */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+  .cal-nav{display:flex;align-items:center;gap:6px}
+  .cal-nav button{border:1px solid var(--line-2);background:#fff;width:26px;height:26px;border-radius:7px;cursor:pointer;color:var(--ink-2);font-size:13px}
+  .cal-nav button:hover{border-color:var(--pri-line);color:var(--pri-2)}
+  .cal-nav b{font-size:13px;font-weight:700;min-width:118px;text-align:center}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;padding:8px 12px 14px}
+  .cal-dow{font-size:10px;font-weight:700;color:var(--ink-3);text-transform:uppercase;text-align:center;padding:6px 0;letter-spacing:.5px}
+  .cal-cell{min-height:54px;border:1px solid transparent;border-radius:8px;padding:4px 4px 3px;position:relative;cursor:pointer;transition:.1s}
+  .cal-cell:hover{background:#f7f9fd}
+  .cal-cell.dim{color:var(--ink-3);opacity:.5}
+  .cal-cell.today{background:var(--pri-soft);border-color:var(--pri-line)}
+  .cal-cell .dnum{font-size:11px;font-weight:600;color:var(--ink-2)}
+  .cal-cell.today .dnum{color:var(--pri-2);font-weight:800}
+  .ev{font-size:9.5px;font-weight:600;color:#fff;border-radius:4px;padding:1px 4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+  .ev.preventive{background:var(--pri-2)} .ev.inspection{background:var(--cyan)}
+  .ev.repair{background:var(--red)} .ev.calibration{background:var(--purple)} .ev.overhaul{background:var(--amber)}
+  .ev.completed{opacity:.45}
+  .ev.more{background:var(--line);color:var(--ink-2)}
+  .cal-legend{display:flex;flex-wrap:wrap;gap:9px;padding:0 16px 14px;font-size:10.5px;color:var(--ink-2)}
+  .cal-legend span{display:flex;align-items:center;gap:5px}
+  .cal-legend i{width:9px;height:9px;border-radius:3px}
+
+  /* upcoming list under calendar */
+  .upc{padding:4px 0 8px}
+  .upc-item{display:flex;align-items:center;gap:11px;padding:9px 16px;border-top:1px solid var(--line);cursor:pointer;transition:.1s}
+  .upc-item:hover{background:#f7f9fd}
+  .upc-day{width:42px;flex:none;text-align:center;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:4px 0;line-height:1.1}
+  .upc-day b{font-size:15px;font-weight:800;display:block;color:var(--ink)}
+  .upc-day span{font-size:9px;font-weight:700;color:var(--ink-3);text-transform:uppercase}
+  .upc-main{flex:1;min-width:0}
+  .upc-main b{font-size:12.5px;font-weight:700;display:block;line-height:1.2}
+  .upc-main .sub{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px;margin-top:2px}
+  .mtype{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;color:#fff}
+  .mtype.preventive{background:var(--pri-2)} .mtype.inspection{background:var(--cyan)}
+  .mtype.repair{background:var(--red)} .mtype.calibration{background:var(--purple)} .mtype.overhaul{background:var(--amber)}
+  .upc-cost{font-size:12px;font-weight:700;color:var(--ink);text-align:right;white-space:nowrap}
+  .upc-cost span{display:block;font-size:9.5px;font-weight:600;color:var(--ink-3)}
+  .prio{font-size:9.5px;font-weight:700;padding:0 5px;border-radius:7px}
+  .prio.critical{background:var(--red-soft);color:var(--red)} .prio.high{background:var(--amber-soft);color:var(--gold)}
+  .prio.medium{background:var(--pri-soft);color:var(--pri-2)} .prio.low{background:var(--line);color:var(--ink-3)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--amber)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">◆</span>Ironledger <small>ops</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Asset Operations</a>
+    <a href="#">Register</a>
+    <a href="#">Maintenance</a>
+    <a href="#">Depreciation</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="searchbar">🔍<input placeholder="Search tag, serial, site…"></div>
+    <span class="chip-live"><i></i> Live · 6 sites</span>
+    <div class="acct">
+      <div class="ava">DR</div>
+      <div class="who"><b>Dana Reyes</b><br><span>Fleet &amp; Assets</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Asset Operations Ledger</h1>
+      <p>Heavy-equipment register, net book value &amp; preventive-maintenance schedule across all logistics sites.</p>
+    </div>
+    <div class="head-actions">
+      <button class="btn btn-ghost" id="btnExport">⬇ Export register</button>
+      <button class="btn btn-primary" id="btnAdd">＋ Register asset</button>
+    </div>
+  </div>
+
+  <!-- ============ KPI STRIP ============ -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- ============ MAIN GRID ============ -->
+  <div class="grid">
+
+    <!-- LEFT: asset register table -->
+    <div class="panel">
+      <div class="panel-head">
+        <h2>📋 Asset register</h2>
+        <div class="pill-row" id="statusPills">
+          <span class="spill on" data-f="all">All</span>
+          <span class="spill" data-f="in_service"><span class="dot" style="background:var(--green)"></span>In service</span>
+          <span class="spill" data-f="standby"><span class="dot" style="background:var(--pri-2)"></span>Standby</span>
+          <span class="spill" data-f="under_maintenance"><span class="dot" style="background:var(--amber)"></span>Maintenance</span>
+          <span class="spill" data-f="down"><span class="dot" style="background:var(--red)"></span>Down</span>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Asset / Site</th>
+              <th>Status</th>
+              <th>Condition</th>
+              <th class="r">Acquire cost</th>
+              <th class="r">Net book value</th>
+              <th>Depreciation</th>
+              <th>Util.</th>
+              <th>Next maintenance</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="regBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RIGHT RAIL -->
+    <div class="rail sticky">
+
+      <!-- depreciation curve -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>📉 Depreciation curve</h2>
+          <div class="chart-sel" id="chartSel"></div>
+        </div>
+        <div class="chart-body">
+          <div class="chart-legend">
+            <span><i class="sl"></i> Straight-line</span>
+            <span><i class="db"></i> Declining balance</span>
+            <span><i class="sv"></i> Salvage floor</span>
+          </div>
+          <svg class="svgchart" id="deprChart" viewBox="0 0 360 190" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="chart-foot" id="chartFoot"></div>
+      </div>
+
+      <!-- maintenance calendar -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>🗓 Maintenance schedule</h2>
+          <div class="cal-nav">
+            <button id="calPrev">‹</button><b id="calLabel">June 2026</b><button id="calNext">›</button>
+          </div>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-legend">
+          <span><i style="background:var(--pri-2)"></i>Preventive</span>
+          <span><i style="background:var(--cyan)"></i>Inspection</span>
+          <span><i style="background:var(--red)"></i>Repair</span>
+          <span><i style="background:var(--purple)"></i>Calibration</span>
+          <span><i style="background:var(--amber)"></i>Overhaul</span>
+        </div>
+        <div class="panel-head" style="border-top:1px solid var(--line);border-bottom:none">
+          <h2 style="font-size:13px">Upcoming work orders</h2>
+          <span class="meta" id="upcMeta"></span>
+        </div>
+        <div class="upc" id="upcList"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- reference data ---------- */
+  var SITES = {
+    pdx:{name:"Portland DC",region:"west"}, atl:{name:"Atlanta Hub",region:"south"},
+    chi:{name:"Chicago Rail",region:"central"}, nwk:{name:"Newark Port",region:"east"},
+    dal:{name:"Dallas Yard",region:"south"}, sea:{name:"Seattle Terminal",region:"west"}
+  };
+  var CAT = {
+    forklift:{glyph:"🏗",col:"#fa8c16",life:84},
+    reach:{glyph:"🦾",col:"#2f54eb",life:96},
+    truck:{glyph:"🚛",col:"#1d3b6e",life:120},
+    crane:{glyph:"🏗",col:"#722ed1",life:180},
+    conveyor:{glyph:"⚙",col:"#08979c",life:144},
+    genset:{glyph:"🔌",col:"#389e0d",life:120},
+    chiller:{glyph:"❄",col:"#13c2c2",life:132},
+    scrubber:{glyph:"🧹",col:"#cf1322",life:72}
+  };
+
+  function money(n){ return "$"+n.toLocaleString("en-US"); }
+  function moneyK(n){ return n>=1000 ? "$"+(n/1000).toFixed(n>=10000?0:1)+"k" : "$"+n; }
+
+  /* ---------- ASSETS (register) ---------- */
+  var ASSETS = [
+    {tag:"FRK-0142", name:"Toyota 8FGCU25 Forklift", serial:"8FG-77120", cat:"forklift", site:"pdx", status:"in_service", cond:"good", cost:38500, acq:"2022-03-14", life:84, util:78, hours:6120, nextDay:9, nextType:"preventive", nextTitle:"250-hr PM service"},
+    {tag:"RCH-0088", name:"Crown RR Reach Truck", serial:"RR-5740-X", cat:"reach", site:"atl", status:"in_service", cond:"excellent", cost:46200, acq:"2024-01-22", life:96, util:84, hours:2310, nextDay:14, nextType:"inspection", nextTitle:"Mast safety inspection"},
+    {tag:"TRK-2201", name:"Freightliner Cascadia 126", serial:"FL-CSD-8821", cat:"truck", site:"nwk", status:"under_maintenance", cond:"fair", cost:142000, acq:"2020-09-05", life:120, util:0, hours:418000, nextDay:2, nextType:"repair", nextTitle:"Brake actuator replacement"},
+    {tag:"CRN-0017", name:"Konecranes SMV Reach Stacker", serial:"SMV-4531-RS", cat:"crane", site:"nwk", status:"in_service", cond:"good", cost:520000, acq:"2019-06-18", life:180, util:71, hours:21400, nextDay:21, nextType:"overhaul", nextTitle:"Boom hydraulics overhaul"},
+    {tag:"CNV-0451", name:"Hytrol ABEZ Belt Conveyor", serial:"ABEZ-90-LN3", cat:"conveyor", site:"chi", status:"in_service", cond:"good", cost:88000, acq:"2021-11-02", life:144, util:92, hours:34800, nextDay:5, nextType:"calibration", nextTitle:"Weigh-scale calibration"},
+    {tag:"GEN-0033", name:"Cat C15 Standby Genset", serial:"CAT-C15-3309", cat:"genset", site:"dal", status:"standby", cond:"excellent", cost:64000, acq:"2023-07-29", life:120, util:12, hours:880, nextDay:-3, nextType:"inspection", nextTitle:"Load-bank test (overdue)"},
+    {tag:"CHL-0009", name:"Daikin Cold-Store Chiller", serial:"DK-CS-2210", cat:"chiller", site:"sea", status:"down", cond:"poor", cost:118000, acq:"2018-04-11", life:132, util:0, hours:54600, nextDay:1, nextType:"repair", nextTitle:"Compressor #2 swap"},
+    {tag:"FRK-0205", name:"Hyster H50FT Forklift", serial:"H50-FT-6612", cat:"forklift", site:"chi", status:"in_service", cond:"fair", cost:34200, acq:"2021-02-08", life:84, util:66, hours:9740, nextDay:18, nextType:"preventive", nextTitle:"Hydraulic fluid + filters"},
+    {tag:"TRK-2188", name:"Volvo VNL 760 Sleeper", serial:"VNL-760-4420", cat:"truck", site:"dal", status:"in_service", cond:"good", cost:158000, acq:"2023-05-20", life:120, util:81, hours:182000, nextDay:11, nextType:"inspection", nextTitle:"DOT annual inspection"},
+    {tag:"SCR-0061", name:"Tennant T16 Floor Scrubber", serial:"T16-LP-1180", cat:"scrubber", site:"pdx", status:"standby", cond:"good", cost:21800, acq:"2024-08-15", life:72, util:34, hours:610, nextDay:27, nextType:"preventive", nextTitle:"Brush + squeegee service"},
+    {tag:"RCH-0094", name:"Yale MR16 Reach Truck", serial:"MR16-7790", cat:"reach", site:"sea", status:"in_service", cond:"excellent", cost:48900, acq:"2025-02-03", life:96, util:88, hours:740, nextDay:30, nextType:"inspection", nextTitle:"Quarterly safety check"},
+    {tag:"CNV-0478", name:"Dematic Sortation Line", serial:"DM-SORT-5512", cat:"conveyor", site:"atl", status:"under_maintenance", cond:"fair", cost:265000, acq:"2020-12-01", life:144, util:0, hours:41200, nextDay:4, nextType:"calibration", nextTitle:"Divert-sensor alignment"},
+    {tag:"GEN-0048", name:"Kohler 600REOZJ Genset", serial:"KH-600-2207", cat:"genset", site:"nwk", status:"in_service", cond:"good", cost:92000, acq:"2022-10-19", life:120, util:23, hours:3120, nextDay:-1, nextType:"preventive", nextTitle:"Coolant + oil (overdue)"},
+    {tag:"CRN-0024", name:"Manitowoc GR-800 Crane", serial:"GR800-3340", cat:"crane", site:"dal", status:"in_service", cond:"good", cost:610000, acq:"2017-08-23", life:180, util:58, hours:18900, nextDay:24, nextType:"overhaul", nextTitle:"Winch gearbox overhaul"},
+    {tag:"FRK-0233", name:"Linde H30D Diesel Forklift", serial:"H30D-8845", cat:"forklift", site:"sea", status:"retired", cond:"poor", cost:31500, acq:"2016-05-30", life:84, util:0, hours:14820, nextDay:null, nextType:null, nextTitle:null}
+  ];
+
+  /* ---------- DEPRECIATION (computed per asset) ---------- */
+  // age in months from acquire date to "today" 2026-06-07
+  var TODAY = new Date("2026-06-07T00:00:00");
+  function ageMonths(acq){ var d=new Date(acq+"T00:00:00"); return Math.max(0,Math.round((TODAY-d)/(30.44*86400000))); }
+
+  ASSETS.forEach(function(a){
+    a.glyph = CAT[a.cat].glyph; a.col = CAT[a.cat].col;
+    a.salvage = Math.round(a.cost * 0.12); // 12% salvage
+    var age = Math.min(ageMonths(a.acq), a.life);
+    a.ageM = age;
+    // straight-line book value at current age
+    var slMonthly = (a.cost - a.salvage)/a.life;
+    a.book = a.status==="retired" ? a.salvage : Math.max(a.salvage, Math.round(a.cost - slMonthly*age));
+    a.accum = a.cost - a.book;
+    a.deprPct = Math.min(100, Math.round((a.accum/(a.cost - a.salvage))*100));
+  });
+
+  /* ---------- KPIs ---------- */
+  function renderKPIs(){
+    var live = ASSETS.filter(function(a){return a.status!=="retired";});
+    var totalCost = live.reduce(function(s,a){return s+a.cost;},0);
+    var nbv = live.reduce(function(s,a){return s+a.book;},0);
+    var inSvc = live.filter(function(a){return a.status==="in_service";}).length;
+    var down = ASSETS.filter(function(a){return a.status==="down";}).length;
+    var underM = ASSETS.filter(function(a){return a.status==="under_maintenance";}).length;
+    var avgUtil = Math.round(live.reduce(function(s,a){return s+a.util;},0)/live.length);
+    var overdue = ASSETS.filter(function(a){return a.nextDay!==null && a.nextDay<0;}).length;
+    var sched = ASSETS.filter(function(a){return a.nextDay!==null && a.nextDay>=0;}).length;
+    var uptimePct = Math.round((inSvc/live.length)*100);
+
+    var cards = [
+      {lbl:"Net book value", ic:"💰", icc:"ic-blue", val:moneyK(nbv), sub:"of "+moneyK(totalCost)+" acquired", barc:"var(--pri-2)", bar:Math.round(nbv/totalCost*100), delta:{t:"−"+Math.round((1-nbv/totalCost)*100)+"% depr.", c:"down"}, f:"all"},
+      {lbl:"Active fleet", ic:"🏗", icc:"ic-cyan", val:live.length, vsub:"assets", sub:uptimePct+"% in-service uptime", barc:"var(--green)", bar:uptimePct, delta:{t:"+2 this qtr", c:"up"}, f:"all"},
+      {lbl:"Down / repair", ic:"⚠", icc:"ic-red", val:(down+underM), sub:down+" down · "+underM+" in shop", barc:"var(--red)", bar:Math.round((down+underM)/live.length*100), delta:{t:down+" critical", c:"down"}, f:"down"},
+      {lbl:"Maintenance due", ic:"🔧", icc:"ic-amber", val:sched, vsub:"scheduled", sub:overdue+" overdue work orders", barc:"var(--amber)", bar:Math.min(100,sched*7), delta:{t:overdue+" overdue", c:"warn"}, f:"under_maintenance"},
+      {lbl:"Avg utilization", ic:"📊", icc:"ic-green", val:avgUtil, vsub:"%", sub:"meter-hour weighted", barc:"var(--green)", bar:avgUtil, delta:{t:"+4 pts", c:"up"}, f:"all"}
+    ];
+    var host=document.getElementById("kpis"); host.innerHTML="";
+    cards.forEach(function(c){
+      var el=document.createElement("div"); el.className="kpi"; el.dataset.f=c.f;
+      el.innerHTML=
+        '<div class="k-top"><span class="k-lbl">'+c.lbl+'</span><span class="k-ic '+c.icc+'">'+c.ic+'</span></div>'+
+        '<div class="k-val num">'+c.val+(c.vsub?'<small>'+c.vsub+'</small>':'')+'</div>'+
+        '<div class="k-sub">'+(c.delta?'<span class="delta '+c.delta.c+'">'+c.delta.t+'</span>':'')+c.sub+'</div>'+
+        '<div class="k-bar"><i style="width:'+c.bar+'%;background:'+c.barc+'"></i></div>';
+      el.onclick=function(){
+        var pill=document.querySelector('.spill[data-f="'+c.f+'"]');
+        if(pill) pill.click();
+        flash("Filtered register · "+c.lbl);
+      };
+      host.appendChild(el);
+    });
+  }
+
+  /* ---------- REGISTER TABLE ---------- */
+  var filter="all", selectedTag=null;
+
+  function condBars(){ return '<span class="bars"><span></span><span></span><span></span><span></span></span>'; }
+  function nextWhen(a){
+    if(a.nextDay===null) return '<span class="none">— retired —</span>';
+    if(a.nextDay<0) return '<span class="when over">'+Math.abs(a.nextDay)+'d overdue</span>';
+    if(a.nextDay===0) return '<span class="when soon">today</span>';
+    if(a.nextDay<=5) return '<span class="when soon">in '+a.nextDay+'d</span>';
+    return '<span class="when">in '+a.nextDay+'d</span>';
+  }
+
+  function renderTable(){
+    var rows = ASSETS.filter(function(a){return filter==="all"||a.status===filter;});
+    var body=document.getElementById("regBody"); body.innerHTML="";
+    rows.forEach(function(a){
+      var off = (1-a.util/100)*Math.PI*2*15;
+      var tr=document.createElement("tr"); tr.dataset.tag=a.tag;
+      if(a.tag===selectedTag) tr.className="sel";
+      tr.innerHTML=
+        '<td><div class="lead">'+
+          '<div class="a-glyph" style="background:linear-gradient(135deg,'+a.col+','+a.col+'cc)">'+a.glyph+'</div>'+
+          '<div class="a-meta"><b>'+a.name+'</b>'+
+            '<div class="sub"><span class="tag">'+a.tag+'</span><span class="site-chip">'+SITES[a.site].name+'</span></div>'+
+          '</div></div></td>'+
+        '<td><span class="badge b-'+a.status+'"><span class="d"></span>'+statusTxt(a.status)+'</span></td>'+
+        '<td><div class="cond '+a.cond+'">'+condBars()+a.cond.charAt(0).toUpperCase()+a.cond.slice(1)+'</div></td>'+
+        '<td><div class="money num">'+money(a.cost)+'<span class="date">'+fmtDate(a.acq)+'</span></div></td>'+
+        '<td><div class="bookval"><b class="num">'+money(a.book)+'</b><span class="num">−'+moneyK(a.accum)+' depr.</span></div></td>'+
+        '<td><div class="depr"><div class="depr-top"><span>'+a.deprPct+'% used</span><b>'+a.ageM+'/'+a.life+'mo</b></div><div class="depr-bar"><i style="width:'+a.deprPct+'%"></i></div></div></td>'+
+        '<td><div class="util">'+
+          '<svg class="uring" viewBox="0 0 38 38"><circle class="bg" cx="19" cy="19" r="15"/><circle class="fg" cx="19" cy="19" r="15" stroke-dasharray="'+(Math.PI*2*15).toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 19 19)" stroke="'+(a.util>=75?'var(--green)':a.util>=40?'var(--pri-2)':'var(--amber)')+'"/><text x="19" y="22" text-anchor="middle">'+a.util+'</text></svg>'+
+          '<span class="uh"><b>'+(a.hours/1000).toFixed(1)+'k</b>hrs</span></div></td>'+
+        '<td><div class="nextm">'+(a.nextTitle?'<b>'+a.nextTitle+'</b>':'<span class="none">no PM</span>')+nextWhen(a)+'</div></td>'+
+        '<td><div class="row-acts"><button title="View ledger" data-act="view">📄</button><button title="Schedule maintenance" data-act="sched">🔧</button></div></td>';
+      tr.addEventListener("click",function(e){
+        var b=e.target.closest("button");
+        if(b){ e.stopPropagation();
+          if(b.dataset.act==="view"){ selectAsset(a.tag); flash("Opening ledger · "+a.tag); }
+          else { flash("Schedule maintenance · "+a.tag); }
+          return;
+        }
+        selectAsset(a.tag);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  function selectAsset(tag){
+    selectedTag=tag;
+    document.querySelectorAll("#regBody tr").forEach(function(tr){ tr.classList.toggle("sel", tr.dataset.tag===tag); });
+    renderChart(); renderUpcoming();
+  }
+
+  function statusTxt(s){ return {in_service:"In service",standby:"Standby",under_maintenance:"In shop",down:"Down",retired:"Retired"}[s]; }
+  function fmtDate(d){ var x=new Date(d+"T00:00:00"); return x.toLocaleDateString("en-US",{month:"short",year:"numeric"}); }
+
+  document.getElementById("statusPills").addEventListener("click",function(e){
+    var p=e.target.closest(".spill"); if(!p) return;
+    document.querySelectorAll(".spill").forEach(function(x){x.classList.remove("on");});
+    p.classList.add("on"); filter=p.dataset.f; renderTable();
+  });
+
+  /* ---------- DEPRECIATION CURVE CHART ---------- */
+  function renderChart(){
+    var a = ASSETS.find(function(x){return x.tag===selectedTag;}) || ASSETS[0];
+    var W=360,H=190,padL=8,padR=8,padT=12,padB=20;
+    var n=12; // 12 sample points across useful life
+    var sel=document.getElementById("chartSel");
+    sel.innerHTML='<span class="glyph-sm" style="background:'+a.col+'">'+a.glyph+'</span> '+a.tag;
+
+    // build curves over useful life in months
+    var maxV=a.cost;
+    function x(i){ return padL + (W-padL-padR)*(i/(n-1)); }
+    function y(v){ return padT + (H-padT-padB)*(1 - v/maxV); }
+    var slPts=[], dbPts=[], svPts=[];
+    var slMonthly=(a.cost-a.salvage)/a.life;
+    var dbRate = 2/( (a.life/12) ); // double declining annual rate
+    for(var i=0;i<n;i++){
+      var month = a.life*(i/(n-1));
+      var sl = Math.max(a.salvage, a.cost - slMonthly*month);
+      var years = month/12;
+      var db = Math.max(a.salvage, a.cost*Math.pow(1-dbRate,years));
+      slPts.push([x(i),y(sl)]); dbPts.push([x(i),y(db)]); svPts.push([x(i),y(a.salvage)]);
+    }
+    function path(pts){ return pts.map(function(p,i){return (i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1);}).join(" "); }
+    function area(pts){ return path(pts)+" L"+pts[pts.length-1][0].toFixed(1)+" "+y(0).toFixed(1)+" L"+pts[0][0].toFixed(1)+" "+y(0).toFixed(1)+" Z"; }
+
+    // current marker position
+    var curX = x((a.ageM/a.life)*(n-1));
+
+    var grid="";
+    for(var g=0;g<=4;g++){ var gy=padT+(H-padT-padB)*g/4; grid+='<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="#eef1f6" stroke-width="1"/>'; }
+
+    document.getElementById("deprChart").innerHTML=
+      grid+
+      '<defs><linearGradient id="slg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f54eb" stop-opacity=".16"/><stop offset="1" stop-color="#2f54eb" stop-opacity="0"/></linearGradient></defs>'+
+      '<path d="'+area(slPts)+'" fill="url(#slg)"/>'+
+      '<path d="'+path(svPts)+'" fill="none" stroke="#90a0b8" stroke-width="1.4" stroke-dasharray="4 3"/>'+
+      '<path d="'+path(dbPts)+'" fill="none" stroke="#fa8c16" stroke-width="2.2"/>'+
+      '<path d="'+path(slPts)+'" fill="none" stroke="#2f54eb" stroke-width="2.4"/>'+
+      '<line x1="'+curX.toFixed(1)+'" y1="'+padT+'" x2="'+curX.toFixed(1)+'" y2="'+(H-padB)+'" stroke="#16233a" stroke-width="1.2" stroke-dasharray="3 3" opacity=".5"/>'+
+      '<circle cx="'+curX.toFixed(1)+'" cy="'+y(a.book).toFixed(1)+'" r="4.5" fill="#fff" stroke="#2f54eb" stroke-width="2.5"/>'+
+      '<text x="'+(W-padR)+'" y="'+(H-6)+'" text-anchor="end" font-size="9" fill="#90a0b8">'+(a.life/12).toFixed(0)+'-yr life</text>'+
+      '<text x="'+padL+'" y="'+(H-6)+'" font-size="9" fill="#90a0b8">acquired</text>';
+
+    document.getElementById("chartFoot").innerHTML=
+      '<div><b class="num">'+money(a.book)+'</b><span>net book value · now</span></div>'+
+      '<div style="text-align:center"><b class="num">'+a.deprPct+'%</b><span>life consumed</span></div>'+
+      '<div style="text-align:right"><b class="num">'+money(a.salvage)+'</b><span>salvage floor</span></div>';
+  }
+
+  /* ---------- MAINTENANCE CALENDAR ---------- */
+  // synthesize maintenance events around today from each asset's nextDay
+  var MAINT = ASSETS.filter(function(a){return a.nextDay!==null;}).map(function(a){
+    var d=new Date(TODAY); d.setDate(d.getDate()+a.nextDay);
+    var prio = a.nextType==="repair"||a.nextDay<0 ? (a.status==="down"?"critical":"high") : (a.nextType==="overhaul"?"high":(a.nextDay<=7?"medium":"low"));
+    var cost = a.nextType==="overhaul"?Math.round(a.cost*0.07):a.nextType==="repair"?Math.round(a.cost*0.04):a.nextType==="calibration"?1200:850;
+    return {tag:a.tag, asset:a.name, date:d, type:a.nextType, title:a.nextTitle, prio:prio, cost:cost,
+            status:(a.nextDay<0?"overdue":a.nextDay<=2?"in_progress":"scheduled"),
+            tech:["M. Ortiz","K. Nguyen","P. Castro","R. Sokolov","J. Tan"][Math.abs(a.tag.charCodeAt(4))%5], site:a.site};
+  });
+  // add a couple completed historical entries for density
+  [ {off:-6,type:"preventive",title:"500-hr PM completed",tag:"FRK-0142"},
+    {off:-9,type:"inspection",title:"Annual safety passed",tag:"RCH-0088"},
+    {off:-4,type:"calibration",title:"Scale re-cert done",tag:"CNV-0451"} ].forEach(function(e){
+    var d=new Date(TODAY); d.setDate(d.getDate()+e.off);
+    MAINT.push({tag:e.tag,asset:e.tag,date:d,type:e.type,title:e.title,prio:"low",cost:850,status:"completed",tech:"M. Ortiz",site:"pdx"});
+  });
+
+  var calMonth = TODAY.getMonth(), calYear = TODAY.getFullYear();
+  var MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  function renderCalendar(){
+    document.getElementById("calLabel").textContent = MONTHS[calMonth]+" "+calYear;
+    var first=new Date(calYear,calMonth,1), startDow=first.getDay();
+    var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+    var prevDays=new Date(calYear,calMonth,0).getDate();
+    var grid=document.getElementById("calGrid"); grid.innerHTML="";
+    DOW.forEach(function(d){ var h=document.createElement("div"); h.className="cal-dow"; h.textContent=d; grid.appendChild(h); });
+
+    var cells=[];
+    for(var i=startDow-1;i>=0;i--) cells.push({day:prevDays-i,dim:true,date:null});
+    for(var d=1;d<=daysInMonth;d++) cells.push({day:d,dim:false,date:new Date(calYear,calMonth,d)});
+    while(cells.length%7!==0) cells.push({day:cells.length-daysInMonth-startDow+1,dim:true,date:null});
+
+    cells.forEach(function(c){
+      var cell=document.createElement("div"); cell.className="cal-cell"+(c.dim?" dim":"");
+      var isToday = c.date && c.date.toDateString()===TODAY.toDateString();
+      if(isToday) cell.className+=" today";
+      var html='<div class="dnum">'+c.day+'</div>';
+      if(c.date){
+        var evs=MAINT.filter(function(m){return m.date.toDateString()===c.date.toDateString() && (!selectedTag||m.tag===selectedTag);});
+        evs.slice(0,2).forEach(function(m){
+          html+='<div class="ev '+m.type+(m.status==="completed"?" completed":"")+'" title="'+m.title+' · '+m.tag+'">'+m.tag.split("-")[0]+' '+typeShort(m.type)+'</div>';
+        });
+        if(evs.length>2) html+='<div class="ev more">+'+(evs.length-2)+' more</div>';
+        if(evs.length){ cell.style.cursor="pointer"; cell.onclick=function(){ flash(evs.length+" work order"+(evs.length>1?"s":"")+" on "+MONTHS[calMonth].slice(0,3)+" "+c.day); }; }
+      }
+      cell.innerHTML=html;
+      grid.appendChild(cell);
+    });
+  }
+  function typeShort(t){ return {preventive:"PM",inspection:"INSP",repair:"RPR",calibration:"CAL",overhaul:"OVH"}[t]; }
+
+  document.getElementById("calPrev").onclick=function(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); };
+  document.getElementById("calNext").onclick=function(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); };
+
+  /* ---------- UPCOMING WORK ORDERS ---------- */
+  function renderUpcoming(){
+    var list=MAINT.filter(function(m){return m.status!=="completed" && (!selectedTag||m.tag===selectedTag);})
+                  .sort(function(a,b){return a.date-b.date;}).slice(0,6);
+    document.getElementById("upcMeta").textContent = (selectedTag?selectedTag+" · ":"")+list.length+" open";
+    var host=document.getElementById("upcList"); host.innerHTML="";
+    if(!list.length){ host.innerHTML='<div style="padding:18px;text-align:center;color:var(--ink-3);font-size:12px">No open work orders for '+(selectedTag||"this view")+'.</div>'; return; }
+    list.forEach(function(m){
+      var asset=ASSETS.find(function(x){return x.tag===m.tag;});
+      var el=document.createElement("div"); el.className="upc-item";
+      el.innerHTML=
+        '<div class="upc-day"><b class="num">'+m.date.getDate()+'</b><span>'+MONTHS[m.date.getMonth()].slice(0,3)+'</span></div>'+
+        '<div class="upc-main"><b>'+m.title+'</b>'+
+          '<div class="sub"><span class="mtype '+m.type+'">'+typeShort(m.type)+'</span><span>'+m.tag+'</span><span class="prio '+m.prio+'">'+m.prio+'</span>'+(m.status==="overdue"?'<span style="color:var(--red);font-weight:700">overdue</span>':'')+'</div>'+
+        '</div>'+
+        '<div class="upc-cost num">'+money(m.cost)+'<span>'+m.tech+'</span></div>';
+      el.onclick=function(){ selectAsset(m.tag); flash("Work order · "+m.title); };
+      host.appendChild(el);
+    });
+  }
+
+  /* ---------- header actions ---------- */
+  document.getElementById("btnExport").onclick=function(){ flash("Exporting register — "+ASSETS.length+" assets to CSV"); };
+  document.getElementById("btnAdd").onclick=function(){ flash("New asset form (filterByTk bound)"); };
+
+  /* ---------- toast ---------- */
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2200); }
+
+  /* ---------- init ---------- */
+  renderKPIs(); renderTable();
+  selectedTag = ASSETS[3].tag; // pre-select the reach stacker (nice curve)
+  selectAsset(selectedTag);
+  renderCalendar();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Asset Management Software: a heavy-asset register, a depreciation curve, and a maintenance calendar. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/21-asset-management-software.html
+</script>
+</body>
+</html>

@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Customer Support Workflow</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #f6f7f9;
+    --panel-3: #eef1f5;
+    --line: #e3e7ee;
+    --line-soft: #edf0f4;
+    --txt: #1f2937;
+    --txt-2: #51607a;
+    --txt-3: #8a96ab;
+    --accent: #0284c7;
+    --accent-2: #0369a1;
+    --mint: #0d9488;
+    --amber: #d97706;
+    --rose: #e11d48;
+    --cyan: #0891b2;
+    --radius: 14px;
+    --shadow: 0 12px 32px rgba(31,41,55,.12);
+    font-synthesis: none;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #d3d9e2; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #bcc4d1; background-clip: padding-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- App shell ---------- */
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    padding: 22px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 18px; }
+  .brand .logo {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; box-shadow: 0 6px 16px rgba(2,132,199,.28);
+    flex: 0 0 auto;
+  }
+  .brand .logo svg { width: 22px; height: 22px; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: .2px; line-height: 1.15; }
+  .brand .sub { font-size: 11px; color: var(--txt-3); }
+  .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--txt-3); padding: 14px 10px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 10px;
+    color: var(--txt-2); cursor: pointer; font-weight: 500; font-size: 13.5px;
+    transition: background .15s, color .15s; position: relative; user-select: none;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: 0 0 auto; opacity: .85; }
+  .nav-item:hover { background: var(--panel-2); color: var(--txt); }
+  .nav-item.active { background: rgba(2,132,199,.1); color: var(--accent); }
+  .nav-item.active::before { content: ""; position: absolute; left: -16px; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: var(--accent); }
+  .nav-item .badge { margin-left: auto; background: var(--rose); color: #fff; font-size: 10.5px; font-weight: 700; border-radius: 20px; padding: 1px 7px; }
+  .nav-item .badge.muted { background: var(--panel-3); color: var(--txt-2); }
+  .sidebar .spacer { flex: 1; }
+  .quota {
+    margin-top: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 13px;
+  }
+  .quota .q-top { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--txt-2); margin-bottom: 8px; }
+  .quota .q-top b { color: var(--txt); font-weight: 600; }
+  .qbar { height: 7px; border-radius: 7px; background: var(--panel-3); overflow: hidden; }
+  .qbar > i { display: block; height: 100%; width: 68%; border-radius: 7px; background: linear-gradient(90deg, var(--mint), var(--cyan)); }
+  .quota .q-note { font-size: 11px; color: var(--txt-3); margin-top: 8px; }
+
+  /* ---------- Main ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px; padding: 16px 26px;
+    border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20;
+    background: rgba(255,255,255,.82); backdrop-filter: blur(12px);
+  }
+  .topbar h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .topbar .crumb { font-size: 12px; color: var(--txt-3); margin-top: 2px; }
+  .search {
+    margin-left: auto; display: flex; align-items: center; gap: 9px; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 11px; padding: 9px 13px; width: 320px;
+  }
+  .search svg { width: 16px; height: 16px; color: var(--txt-3); flex: 0 0 auto; }
+  .search input { background: none; border: none; outline: none; color: var(--txt); font-size: 13.5px; width: 100%; font-family: inherit; }
+  .search input::placeholder { color: var(--txt-3); }
+  .icon-btn { width: 40px; height: 40px; border-radius: 11px; background: var(--panel-2); border: 1px solid var(--line); display: grid; place-items: center; cursor: pointer; color: var(--txt-2); position: relative; transition: background .15s, border-color .15s; }
+  .icon-btn:hover { background: var(--panel-3); border-color: #cfd6e0; color: var(--txt); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .icon-btn .dot { position: absolute; top: 9px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--rose); border: 2px solid var(--panel-2); }
+  .avatar { width: 40px; height: 40px; border-radius: 11px; background: linear-gradient(135deg, #0ea5e9, #0369a1); display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 13.5px; cursor: pointer; }
+
+  .content { padding: 24px 26px 60px; }
+
+  /* ---------- KPI cards ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 17px 18px; position: relative; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(31,41,55,.04);
+  }
+  .kpi .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 12px; }
+  .kpi .ic svg { width: 19px; height: 19px; }
+  .kpi .val { font-size: 27px; font-weight: 750; letter-spacing: -.5px; line-height: 1; }
+  .kpi .lab { font-size: 12.5px; color: var(--txt-2); margin-top: 6px; }
+  .kpi .trend { position: absolute; top: 16px; right: 16px; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 20px; display: flex; align-items: center; gap: 3px; }
+  .trend.up { color: var(--mint); background: rgba(13,148,136,.1); }
+  .trend.down { color: var(--rose); background: rgba(225,29,72,.1); }
+  .trend.flat { color: var(--amber); background: rgba(217,119,6,.1); }
+  .kpi .spark { margin-top: 12px; height: 30px; }
+
+  /* ---------- Layout split ---------- */
+  .split { display: grid; grid-template-columns: 1.55fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 1180px) { .split { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2,1fr); } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(31,41,55,.04); }
+  .card-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line-soft); }
+  .card-head h2 { font-size: 14.5px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .card-head .sub { font-size: 11.5px; color: var(--txt-3); }
+  .card-head .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+  .tab { padding: 6px 13px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--txt-2); cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+  .tab:hover { color: var(--txt); }
+  .tab.active { background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(2,132,199,.3); }
+  .tab .n { opacity: .8; margin-left: 4px; font-weight: 700; }
+
+  /* ---------- Ticket list ---------- */
+  .ticket-list { padding: 6px; max-height: 620px; overflow-y: auto; }
+  .ticket {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+    padding: 13px 13px; border-radius: 12px; cursor: pointer; border: 1px solid transparent;
+    transition: background .14s, border-color .14s;
+  }
+  .ticket:hover { background: var(--panel-2); }
+  .ticket.sel { background: rgba(2,132,199,.07); border-color: rgba(2,132,199,.4); }
+  .ticket .who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .ticket .id-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ticket .tid { font-size: 11px; color: var(--txt-3); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .ticket .subj { font-size: 13.5px; font-weight: 600; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+  .ticket .meta { font-size: 11.5px; color: var(--txt-3); display: flex; align-items: center; gap: 8px; }
+  .ticket .meta .cust { color: var(--txt-2); font-weight: 500; }
+  .ava-sm { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 12.5px; flex: 0 0 auto; }
+  .ticket .end { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .ticket .conf { font-size: 11px; color: var(--txt-3); font-variant-numeric: tabular-nums; }
+
+  /* chips / pills */
+  .pill { font-size: 11px; font-weight: 700; padding: 2.5px 9px; border-radius: 20px; white-space: nowrap; letter-spacing: .2px; }
+  .pill.urgent { color: #fff; background: var(--rose); }
+  .pill.high { color: var(--rose); background: rgba(225,29,72,.1); border: 1px solid rgba(225,29,72,.28); }
+  .pill.medium { color: var(--amber); background: rgba(217,119,6,.1); border: 1px solid rgba(217,119,6,.28); }
+  .pill.low { color: var(--mint); background: rgba(13,148,136,.1); border: 1px solid rgba(13,148,136,.28); }
+  .tag { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 7px; background: var(--panel-3); color: var(--txt-2); border: 1px solid var(--line); white-space: nowrap; }
+  .tag.billing { color: #6d28d9; border-color: rgba(109,40,217,.28); background: rgba(109,40,217,.09); }
+  .tag.technical { color: var(--accent); border-color: rgba(2,132,199,.28); background: rgba(2,132,199,.09); }
+  .tag.account { color: var(--accent-2); border-color: rgba(3,105,161,.28); background: rgba(3,105,161,.09); }
+  .tag.feedback { color: var(--mint); border-color: rgba(13,148,136,.28); background: rgba(13,148,136,.09); }
+  .tag.refund { color: var(--amber); border-color: rgba(217,119,6,.28); background: rgba(217,119,6,.09); }
+
+  .status { font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+  .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+  .status.auto::before { background: var(--mint); box-shadow: 0 0 0 3px rgba(13,148,136,.18); }
+  .status.review::before { background: var(--amber); box-shadow: 0 0 0 3px rgba(217,119,6,.18); }
+  .status.escalated::before { background: var(--rose); box-shadow: 0 0 0 3px rgba(225,29,72,.18); }
+  .status.resolved::before { background: var(--txt-3); }
+  .status.auto { color: var(--mint); }
+  .status.review { color: var(--amber); }
+  .status.escalated { color: var(--rose); }
+  .status.resolved { color: var(--txt-3); }
+
+  /* confidence ring */
+  .ring { width: 30px; height: 30px; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 4; }
+  .ring .bg { stroke: var(--panel-3); }
+
+  /* ---------- Right column ---------- */
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+
+  /* donut */
+  .donut-wrap { display: flex; align-items: center; gap: 18px; padding: 18px; }
+  .donut { width: 132px; height: 132px; flex: 0 0 auto; position: relative; }
+  .donut .center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .donut .center b { font-size: 24px; font-weight: 750; display: block; line-height: 1; }
+  .donut .center span { font-size: 10.5px; color: var(--txt-3); }
+  .legend { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .legend .row i { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+  .legend .row .lv { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .legend .row .lp { color: var(--txt-3); font-size: 11px; width: 38px; text-align: right; }
+
+  /* activity feed */
+  .feed { padding: 8px 18px 18px; max-height: 340px; overflow-y: auto; }
+  .feed-item { display: flex; gap: 12px; padding: 11px 0; position: relative; }
+  .feed-item:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 34px; bottom: -11px; width: 2px; background: var(--line-soft); }
+  .feed-ic { width: 28px; height: 28px; border-radius: 9px; flex: 0 0 auto; display: grid; place-items: center; z-index: 1; }
+  .feed-ic svg { width: 15px; height: 15px; }
+  .feed-body { font-size: 12.5px; color: var(--txt-2); padding-top: 2px; }
+  .feed-body b { color: var(--txt); font-weight: 600; }
+  .feed-body .t { font-size: 10.5px; color: var(--txt-3); margin-top: 3px; }
+
+  /* ---------- Drawer ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(31,41,55,.32); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 620px; max-width: 94vw; z-index: 50;
+    background: #ffffff; border-left: 1px solid var(--line);
+    box-shadow: -20px 0 60px rgba(31,41,55,.18); transform: translateX(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .dr-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--line-soft); }
+  .dr-top { display: flex; align-items: flex-start; gap: 14px; }
+  .dr-top .x { margin-left: auto; width: 34px; height: 34px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--line); display: grid; place-items: center; cursor: pointer; color: var(--txt-2); flex: 0 0 auto; }
+  .dr-top .x:hover { background: var(--panel-3); color: var(--txt); }
+  .dr-top .x svg { width: 16px; height: 16px; }
+  .dr-title { font-size: 17px; font-weight: 700; line-height: 1.3; margin: 2px 0 6px; }
+  .dr-sub { font-size: 12px; color: var(--txt-3); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .dr-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+
+  .dr-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--txt-3); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .dr-section-title .ai-chip { display: inline-flex; align-items: center; gap: 5px; background: rgba(2,132,199,.1); border: 1px solid rgba(2,132,199,.3); color: var(--accent); border-radius: 20px; padding: 2px 9px; font-size: 9.5px; letter-spacing: .06em; }
+  .dr-section-title .ai-chip svg { width: 11px; height: 11px; }
+
+  .msg-block { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 15px; margin-bottom: 22px; }
+  .msg-block .mh { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .msg-block .mh .nm { font-weight: 600; font-size: 13px; }
+  .msg-block .mh .tm { font-size: 11px; color: var(--txt-3); margin-left: auto; }
+  .msg-block p { margin: 0; font-size: 13px; color: var(--txt-2); line-height: 1.65; }
+
+  /* extracted fields */
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
+  .field {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; position: relative;
+  }
+  .field .fl { font-size: 10.5px; color: var(--txt-3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+  .field .fv { font-size: 13.5px; font-weight: 600; color: var(--txt); }
+  .field .cbadge { position: absolute; top: 10px; right: 11px; font-size: 10px; font-weight: 700; padding: 1.5px 7px; border-radius: 20px; }
+  .cbadge.hi { color: var(--mint); background: rgba(13,148,136,.12); }
+  .cbadge.mid { color: var(--amber); background: rgba(217,119,6,.12); }
+  .cbadge.lo { color: var(--rose); background: rgba(225,29,72,.12); }
+
+  /* routing block */
+  .routing { background: rgba(2,132,199,.06); border: 1px solid rgba(2,132,199,.22); border-radius: 12px; padding: 15px; margin-bottom: 22px; }
+  .routing .rh { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .routing .rh .lab { font-size: 12px; color: var(--txt-2); }
+  .routing .rh .dest { font-weight: 700; font-size: 14px; color: var(--accent-2); margin-left: auto; display: flex; align-items: center; gap: 7px; }
+  .routing .reason { font-size: 12.5px; color: var(--txt-2); line-height: 1.6; border-top: 1px solid rgba(2,132,199,.16); padding-top: 11px; }
+  .routing .reason b { color: var(--accent); }
+
+  /* draft */
+  .draft { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+  .draft .dft-head { display: flex; align-items: center; gap: 9px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); background: rgba(2,132,199,.05); }
+  .draft .dft-head .t { font-size: 12px; font-weight: 700; color: var(--txt); }
+  .draft .dft-head .tone { margin-left: auto; font-size: 11px; color: var(--txt-3); }
+  .draft textarea {
+    width: 100%; border: none; background: none; outline: none; resize: vertical; min-height: 168px;
+    padding: 15px; color: var(--txt); font-family: inherit; font-size: 13px; line-height: 1.7;
+  }
+  .draft .dft-foot { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-top: 1px solid var(--line-soft); }
+  .dft-foot .kb { font-size: 11px; color: var(--txt-3); display: flex; align-items: center; gap: 6px; }
+  .dft-foot .kb svg { width: 13px; height: 13px; color: var(--accent); }
+
+  /* suggested replies */
+  .sugg { display: flex; flex-direction: column; gap: 9px; margin-bottom: 22px; }
+  .sugg-item { display: flex; align-items: center; gap: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; cursor: pointer; transition: border-color .14s, background .14s; }
+  .sugg-item:hover { border-color: rgba(2,132,199,.35); background: var(--panel-3); }
+  .sugg-item .rank { width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); display: grid; place-items: center; font-weight: 700; font-size: 12px; color: var(--txt-2); flex: 0 0 auto; }
+  .sugg-item .sx { flex: 1; min-width: 0; }
+  .sugg-item .st { font-size: 12.5px; font-weight: 600; color: var(--txt); }
+  .sugg-item .sd { font-size: 11px; color: var(--txt-3); margin-top: 2px; }
+  .sugg-item .score { font-size: 11px; font-weight: 700; color: var(--mint); }
+
+  /* buttons */
+  .btn { border: none; border-radius: 10px; padding: 9px 15px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 7px; transition: filter .15s, background .15s, border-color .15s; }
+  .btn svg { width: 15px; height: 15px; }
+  .btn.primary { background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(2,132,199,.28); }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.ghost { background: var(--panel-2); border: 1px solid var(--line); color: var(--txt-2); }
+  .btn.ghost:hover { background: var(--panel-3); color: var(--txt); border-color: #cfd6e0; }
+  .btn.sm { padding: 6px 11px; font-size: 12px; }
+  .btn.mint { background: rgba(13,148,136,.12); color: var(--mint); border: 1px solid rgba(13,148,136,.3); }
+  .btn.mint:hover { background: rgba(13,148,136,.18); }
+
+  .dr-foot { padding: 14px 24px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; background: var(--panel-2); }
+  .dr-foot .btn { flex: 1; justify-content: center; }
+
+  /* empty state */
+  .empty { padding: 60px 20px; text-align: center; color: var(--txt-3); }
+  .empty svg { width: 48px; height: 48px; opacity: .35; margin-bottom: 12px; }
+  .empty b { display: block; color: var(--txt-2); font-size: 14px; margin-bottom: 4px; }
+
+  /* AI run bar */
+  .runbar {
+    display: flex; align-items: center; gap: 14px; background: rgba(2,132,199,.06);
+    border: 1px solid rgba(2,132,199,.22); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 22px;
+  }
+  .runbar .pulse { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; flex: 0 0 auto; box-shadow: 0 6px 16px rgba(2,132,199,.32); }
+  .runbar .pulse svg { width: 22px; height: 22px; }
+  .runbar .rtxt b { font-size: 13.5px; }
+  .runbar .rtxt div { font-size: 12px; color: var(--txt-2); margin-top: 2px; }
+  .runbar .rstat { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+  .runbar .rstat .m { text-align: center; }
+  .runbar .rstat .m b { font-size: 18px; font-weight: 750; display: block; line-height: 1; }
+  .runbar .rstat .m span { font-size: 10.5px; color: var(--txt-3); }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-3); border: 1px solid var(--line); color: var(--txt); padding: 12px 18px; border-radius: 12px;
+    font-size: 13px; font-weight: 600; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .3s; z-index: 80;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 17px; height: 17px; color: var(--mint); }
+
+  .hidden { display: none !important; }
+  .fade-row { animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="10" r="1.4" fill="#fff" stroke="none"/><circle cx="8" cy="10" r="1.4" fill="#fff" stroke="none"/><circle cx="16" cy="10" r="1.4" fill="#fff" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <div class="name">DeskPilot AI</div>
+        <div class="sub">Support Automation</div>
+      </div>
+    </div>
+
+    <div class="nav-label">Workspace</div>
+    <div class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7h18M3 12h18M3 17h12"/></svg>
+      Triage Queue <span class="badge">18</span>
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Live Pulse
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      Knowledge Base
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Agents <span class="badge muted">6</span>
+    </div>
+
+    <div class="nav-label">Insights</div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 9l-5 5-3-3-4 4"/></svg>
+      Analytics
+    </div>
+    <div class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Automation Rules
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="quota">
+      <div class="q-top"><span>AI Resolutions today</span><b>1,284</b></div>
+      <div class="qbar"><i></i></div>
+      <div class="q-note">68% of tickets auto-handled · 412 left for agents</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1>Triage Queue</h1>
+        <div class="crumb">Workspace / Inbound support · Auto-refreshing</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search tickets, customers, intents…" />
+      </div>
+      <div class="icon-btn"><span class="dot"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <div class="avatar">MR</div>
+    </header>
+
+    <div class="content">
+      <!-- KPIS -->
+      <div class="kpis">
+        <div class="kpi">
+          <div class="ic" style="background:rgba(2,132,199,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <div class="trend up">▲ 12%</div>
+          <div class="val">2,041</div>
+          <div class="lab">Tickets received today</div>
+          <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,24 15,20 30,22 45,14 60,16 75,9 90,12 105,6 120,8" fill="none" stroke="#0284c7" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="ic" style="background:rgba(13,148,136,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg></div>
+          <div class="trend up">▲ 6.4%</div>
+          <div class="val">68.2%</div>
+          <div class="lab">Auto-resolved by AI</div>
+          <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,20 15,18 30,15 45,16 60,12 75,11 90,8 105,9 120,5" fill="none" stroke="#0d9488" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="ic" style="background:rgba(217,119,6,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+          <div class="trend down">▼ 31s</div>
+          <div class="val">1m 48s</div>
+          <div class="lab">Avg. first response</div>
+          <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,8 15,10 30,9 45,14 60,12 75,18 90,16 105,21 120,24" fill="none" stroke="#d97706" stroke-width="2"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="ic" style="background:rgba(109,40,217,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <div class="trend up">▲ 2.1</div>
+          <div class="val">4.7<span style="font-size:15px;color:var(--txt-3)">/5</span></div>
+          <div class="lab">CSAT (AI-handled)</div>
+          <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="0,18 15,16 30,17 45,12 60,13 75,10 90,11 105,7 120,6" fill="none" stroke="#6d28d9" stroke-width="2"/></svg>
+        </div>
+      </div>
+
+      <!-- AI RUN BAR -->
+      <div class="runbar">
+        <div class="pulse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4"/><path d="M13 3 16 9l6 1-4.5 4 1 6L13 17l-5.5 3 1-6L4 10l6-1 3-6z"/></svg>
+        </div>
+        <div class="rtxt">
+          <b>AI Triage is live</b>
+          <div>Every inbound message is classified, routed, and drafted automatically. Review the flagged ones below.</div>
+        </div>
+        <div class="rstat">
+          <div class="m"><b style="color:var(--mint)">93.4%</b><span>Routing accuracy</span></div>
+          <div class="m"><b style="color:var(--amber)">37</b><span>Need review</span></div>
+          <div class="m"><b style="color:var(--accent)">0.9s</b><span>Avg. draft time</span></div>
+        </div>
+      </div>
+
+      <!-- SPLIT -->
+      <div class="split">
+        <!-- LEFT: ticket queue -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Inbound Tickets</h2>
+              <div class="sub">Ranked by AI urgency score</div>
+            </div>
+            <div class="right">
+              <div class="tabs" id="statusTabs">
+                <div class="tab active" data-filter="all">All<span class="n">18</span></div>
+                <div class="tab" data-filter="review">Needs review<span class="n">5</span></div>
+                <div class="tab" data-filter="auto">Auto-handled<span class="n">8</span></div>
+                <div class="tab" data-filter="escalated">Escalated<span class="n">3</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="ticket-list" id="ticketList"></div>
+        </div>
+
+        <!-- RIGHT: insight stack -->
+        <div class="stack">
+          <!-- intent donut -->
+          <div class="card">
+            <div class="card-head">
+              <h2>Intent Distribution</h2>
+              <div class="sub" style="margin-left:auto">AI-classified</div>
+            </div>
+            <div class="donut-wrap">
+              <div class="donut">
+                <svg viewBox="0 0 42 42" width="132" height="132">
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#eef1f5" stroke-width="6"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#0284c7" stroke-width="6" stroke-dasharray="31 69" stroke-dashoffset="0" transform="rotate(-90 21 21)"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#0891b2" stroke-width="6" stroke-dasharray="27 73" stroke-dashoffset="-31" transform="rotate(-90 21 21)"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#6d28d9" stroke-width="6" stroke-dasharray="19 81" stroke-dashoffset="-58" transform="rotate(-90 21 21)"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#d97706" stroke-width="6" stroke-dasharray="14 86" stroke-dashoffset="-77" transform="rotate(-90 21 21)"/>
+                  <circle cx="21" cy="21" r="15.915" fill="none" stroke="#0d9488" stroke-width="6" stroke-dasharray="9 91" stroke-dashoffset="-91" transform="rotate(-90 21 21)"/>
+                </svg>
+                <div class="center"><b>2,041</b><span>this period</span></div>
+              </div>
+              <div class="legend">
+                <div class="row"><i style="background:#0284c7"></i> Billing <span class="lv">634</span><span class="lp">31%</span></div>
+                <div class="row"><i style="background:#0891b2"></i> Technical <span class="lv">551</span><span class="lp">27%</span></div>
+                <div class="row"><i style="background:#6d28d9"></i> Account <span class="lv">388</span><span class="lp">19%</span></div>
+                <div class="row"><i style="background:#d97706"></i> Refund <span class="lv">286</span><span class="lp">14%</span></div>
+                <div class="row"><i style="background:#0d9488"></i> Feedback <span class="lv">182</span><span class="lp">9%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- activity feed -->
+          <div class="card">
+            <div class="card-head">
+              <h2>Automation Activity</h2>
+              <div class="sub" style="margin-left:auto">Last 15 min</div>
+            </div>
+            <div class="feed" id="feed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAWER -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head">
+    <div class="dr-top">
+      <div class="ava-sm" id="drAva" style="width:44px;height:44px;border-radius:12px;font-size:15px;background:#0284c7">—</div>
+      <div style="flex:1;min-width:0">
+        <div class="dr-title" id="drTitle">—</div>
+        <div class="dr-sub" id="drSub">—</div>
+      </div>
+      <div class="x" id="drClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+    </div>
+  </div>
+  <div class="dr-body" id="drBody"><!-- filled by JS --></div>
+  <div class="dr-foot">
+    <button class="btn ghost" id="drEscalate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>Escalate to human</button>
+    <button class="btn primary" id="drSend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg>Approve &amp; send reply</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span id="toastMsg">Done</span></div>
+
+<script>
+/* ---------------- Seed data ---------------- */
+const AVA_COLORS = ["#0284c7","#0369a1","#0d9488","#0891b2","#d97706","#e11d48","#c2410c","#6d28d9"];
+function initials(n){return n.split(" ").map(s=>s[0]).slice(0,2).join("").toUpperCase();}
+function avaColor(n){let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))>>>0;return AVA_COLORS[h%AVA_COLORS.length];}
+
+const TICKETS = [
+  {
+    id:"TKT-48201", customer:"Marcus Reyes", company:"Helix Robotics", channel:"Email",
+    subject:"Charged twice for the November invoice", priority:"urgent", category:"billing",
+    status:"review", conf:0.71, time:"3 min ago", sentiment:"Frustrated",
+    message:"Hi — I just noticed two identical charges of $499 on my card for invoice #NV-2231, both dated Nov 3. I only have one active subscription. This is the second billing issue this quarter and I need it fixed before I dispute it with my bank. Please refund the duplicate ASAP.",
+    fields:[
+      {l:"Invoice #",v:"NV-2231",c:0.98},{l:"Amount disputed",v:"$499.00",c:0.96},
+      {l:"Charge dates",v:"Nov 3 (x2)",c:0.92},{l:"Account tier",v:"Business · Annual",c:0.88},
+      {l:"Customer since",v:"Mar 2022",c:0.99},{l:"Detected intent",v:"Duplicate charge / refund",c:0.71}
+    ],
+    routeTo:"Billing · Tier 2", routeReason:"Detected a <b>duplicate-charge</b> pattern with matching amounts on the same date — high refund likelihood. Customer language is escalation-leaning (\"dispute with my bank\"), so routing to a senior billing agent rather than auto-resolving.",
+    draft:"Hi Marcus,\n\nThank you for flagging this, and I'm sorry for the trouble. I can confirm invoice #NV-2231 was charged twice on Nov 3 due to a payment-gateway retry. I've issued a full refund of $499.00 for the duplicate charge — it should land on your card within 3–5 business days.\n\nI've also added a note to prevent gateway retries on your account going forward. You'll receive a confirmation email shortly.\n\nApologies again for the inconvenience.\n\nBest,\nDeskPilot Support",
+    tone:"Apologetic · Resolving",
+    suggestions:[
+      {t:"Issue full refund + retry-block note", d:"Matches 14 similar resolved cases", s:"96%"},
+      {t:"Convert duplicate to account credit", d:"If customer prefers credit over refund", s:"71%"},
+      {t:"Request bank statement screenshot", d:"Only if charge not found in ledger", s:"34%"}
+    ]
+  },
+  {
+    id:"TKT-48198", customer:"Priya Nair", company:"Lumen Health", channel:"Web chat",
+    subject:"Can't reset my password — link expired", priority:"medium", category:"account",
+    status:"auto", conf:0.95, time:"6 min ago", sentiment:"Neutral",
+    message:"The password reset link you sent keeps saying it's expired even though I click it right away. I've tried three times. Can you send a fresh one or reset it manually?",
+    fields:[
+      {l:"Account email",v:"p.nair@lumen.io",c:0.99},{l:"Detected intent",v:"Password reset",c:0.95},
+      {l:"Reset attempts",v:"3 in 10 min",c:0.97},{l:"Account status",v:"Active · Verified",c:0.99},
+      {l:"2FA enabled",v:"Yes (TOTP)",c:0.94},{l:"Risk flag",v:"None",c:0.99}
+    ],
+    routeTo:"Auto-resolved", routeReason:"Standard <b>password-reset</b> flow with no risk flags. AI verified account ownership via session token and triggered a fresh, longer-lived reset link automatically. No agent action needed.",
+    draft:"Hi Priya,\n\nThanks for reaching out! It looks like the previous links expired due to a clock-sync issue on our side. I've just sent a brand-new reset link to p.nair@lumen.io that's valid for 60 minutes.\n\nIf it still gives you trouble, reply here and I'll reset it manually for you.\n\nBest,\nDeskPilot Support",
+    tone:"Friendly · Helpful",
+    suggestions:[
+      {t:"Send fresh 60-min reset link", d:"Auto-sent · verified ownership", s:"95%"},
+      {t:"Walk through manual reset steps", d:"Fallback if link fails again", s:"58%"},
+      {t:"Escalate to security review", d:"Not triggered — no risk flags", s:"8%"}
+    ]
+  },
+  {
+    id:"TKT-48195", customer:"Daniel Okoro", company:"Northwind Logistics", channel:"Email",
+    subject:"API returning 503 errors since this morning", priority:"high", category:"technical",
+    status:"escalated", conf:0.83, time:"11 min ago", sentiment:"Concerned",
+    message:"Our integration started throwing 503s around 08:40 UTC on the /v2/shipments endpoint. Roughly 40% of requests fail. This is blocking our overnight batch and we have customers waiting. Is there an incident? We're on the Enterprise plan.",
+    fields:[
+      {l:"Endpoint",v:"/v2/shipments",c:0.97},{l:"Error code",v:"503 (40% rate)",c:0.94},
+      {l:"Onset time",v:"08:40 UTC",c:0.9},{l:"Plan",v:"Enterprise · SLA 99.95%",c:0.99},
+      {l:"Detected intent",v:"API outage / incident",c:0.83},{l:"SLA breach risk",v:"High",c:0.88}
+    ],
+    routeTo:"Engineering On-call", routeReason:"Correlated with an <b>active platform incident</b> (INC-7742) affecting the shipments service. Enterprise SLA at risk, so this is escalated to on-call engineering and the customer is linked to the live status page. AI did not auto-close.",
+    draft:"Hi Daniel,\n\nThank you for the detailed report — you're right, we're tracking an active incident (INC-7742) affecting /v2/shipments since ~08:40 UTC. Our engineering team is already mitigating and elevated error rates should recover shortly.\n\nGiven your Enterprise SLA, I've flagged your account for a follow-up once resolved. You can track live progress here: status.deskpilot.io/INC-7742\n\nWe'll update you the moment it's cleared.\n\nBest,\nDeskPilot Support",
+    tone:"Urgent · Transparent",
+    suggestions:[
+      {t:"Link to incident INC-7742 + status page", d:"Active incident matched", s:"91%"},
+      {t:"Offer retry-with-backoff guidance", d:"Mitigates while service recovers", s:"64%"},
+      {t:"Schedule post-incident SLA review", d:"Enterprise follow-up", s:"52%"}
+    ]
+  },
+  {
+    id:"TKT-48190", customer:"Sofia Bianchi", company:"Atlas Studios", channel:"Email",
+    subject:"Love the new dashboard — one feature request", priority:"low", category:"feedback",
+    status:"auto", conf:0.92, time:"18 min ago", sentiment:"Positive",
+    message:"Just wanted to say the redesigned analytics dashboard is fantastic, way faster than before. One small thing: it'd be great to export the cohort chart as a PNG. Keep up the great work!",
+    fields:[
+      {l:"Detected intent",v:"Feature request + praise",c:0.92},{l:"Sentiment",v:"Positive (0.88)",c:0.96},
+      {l:"Feature area",v:"Analytics export",c:0.9},{l:"Existing request",v:"FR-318 (+1)",c:0.85},
+      {l:"Plan",v:"Pro · Monthly",c:0.99},{l:"NPS cohort",v:"Promoter",c:0.87}
+    ],
+    routeTo:"Auto-resolved + Product log", routeReason:"Positive <b>feedback with a feature request</b>. AI logged a +1 vote to the existing roadmap item FR-318 (PNG export) and sent a warm acknowledgement. No human action required.",
+    draft:"Hi Sofia,\n\nThank you so much — this made our day! I've passed your praise along to the team that rebuilt the analytics dashboard.\n\nGreat news on the PNG export idea: it's already on our roadmap (FR-318), and I've added your vote to bump its priority. I'll make sure you're notified the moment it ships.\n\nThanks for being such a thoughtful user!\n\nBest,\nDeskPilot Support",
+    tone:"Warm · Appreciative",
+    suggestions:[
+      {t:"Acknowledge + log +1 to FR-318", d:"Roadmap item matched", s:"94%"},
+      {t:"Invite to beta tester program", d:"Promoter cohort — good fit", s:"61%"},
+      {t:"Request a public review/testimonial", d:"High CSAT signal", s:"47%"}
+    ]
+  },
+  {
+    id:"TKT-48184", customer:"Liam Foster", company:"Greentree Retail", channel:"Phone callback", subject:"Want to cancel — found it too expensive", priority:"high", category:"account",
+    status:"review", conf:0.68, time:"22 min ago", sentiment:"Negative",
+    message:"I've decided to cancel my plan at the end of this cycle. Honestly it's gotten too expensive for what we use and a competitor offered us a better deal. Please confirm the cancellation and that I won't be charged again.",
+    fields:[
+      {l:"Detected intent",v:"Cancellation / churn",c:0.93},{l:"Churn risk",v:"High (0.81)",c:0.89},
+      {l:"Reason",v:"Price · competitor",c:0.79},{l:"MRR at risk",v:"$320/mo",c:0.99},
+      {l:"Tenure",v:"2.5 years",c:0.99},{l:"Save-offer eligible",v:"Yes",c:0.68}
+    ],
+    routeTo:"Retention · Save Desk", routeReason:"High-value <b>cancellation</b> citing price. Customer is a long-tenured account ($320 MRR, 2.5 yrs) eligible for a retention offer, so AI routed to the Save Desk instead of processing the cancel. A discount + downgrade path is suggested below.",
+    draft:"Hi Liam,\n\nI'm sorry to hear that, and I completely understand wanting the right value. Before I process anything, I'd love to make this work for you.\n\nGiven your 2.5 years with us, I can offer a 20% loyalty discount, or move you to our Core plan which covers your current usage at a lower price point. Either keeps everything you've set up intact.\n\nWould one of those help? If you'd still prefer to cancel, just say the word and I'll confirm right away with no further charges.\n\nBest,\nDeskPilot Support",
+    tone:"Empathetic · Retention",
+    suggestions:[
+      {t:"Offer 20% loyalty discount", d:"Within retention budget", s:"73%"},
+      {t:"Propose downgrade to Core plan", d:"Matches actual usage", s:"69%"},
+      {t:"Confirm cancellation as requested", d:"If save offer declined", s:"40%"}
+    ]
+  },
+  {
+    id:"TKT-48180", customer:"Ava Schmidt", company:"Bright Labs", channel:"Web chat", subject:"How do I add a teammate to my workspace?", priority:"low", category:"account",
+    status:"auto", conf:0.97, time:"27 min ago", sentiment:"Neutral",
+    message:"Quick question — where do I go to invite a colleague to my workspace? I'm the admin.",
+    fields:[
+      {l:"Detected intent",v:"How-to · invite member",c:0.97},{l:"User role",v:"Admin",c:0.99},
+      {l:"KB article match",v:"KB-104 (0.94)",c:0.94},{l:"Plan seats",v:"3 of 10 used",c:0.96},
+      {l:"Self-serve eligible",v:"Yes",c:0.98},{l:"Risk flag",v:"None",c:0.99}
+    ],
+    routeTo:"Auto-resolved", routeReason:"Simple <b>how-to</b> question with a strong knowledge-base match (KB-104, 0.94). AI replied with the exact steps and a deep link. Resolved without an agent.",
+    draft:"Hi Ava,\n\nHappy to help! Since you're an admin, here's the quickest way:\n\n1. Go to Settings → Members\n2. Click \"Invite teammate\" (top right)\n3. Enter their email and pick a role\n4. They'll get an invite link instantly\n\nYou're using 3 of your 10 seats, so there's plenty of room. Here's a direct link: app.deskpilot.io/settings/members\n\nLet me know if anything's unclear!\n\nBest,\nDeskPilot Support",
+    tone:"Friendly · Instructional",
+    suggestions:[
+      {t:"Send KB-104 steps + deep link", d:"Strong article match (0.94)", s:"97%"},
+      {t:"Offer to send invite on their behalf", d:"If they share the email", s:"42%"},
+      {t:"Suggest bulk CSV invite", d:"For many teammates at once", s:"29%"}
+    ]
+  },
+  {
+    id:"TKT-48176", customer:"Noah Williams", company:"Vertex Capital", channel:"Email", subject:"Refund still not received after 10 days", priority:"high", category:"refund",
+    status:"review", conf:0.74, time:"34 min ago", sentiment:"Frustrated",
+    message:"I was told my refund of $1,200 would arrive in 5–7 business days. It's now been 10 and nothing has shown up. Reference RF-9087. This is getting ridiculous — can someone actually look into where the money is?",
+    fields:[
+      {l:"Refund ref",v:"RF-9087",c:0.98},{l:"Amount",v:"$1,200.00",c:0.97},
+      {l:"Days elapsed",v:"10 (SLA: 7)",c:0.95},{l:"Refund status",v:"Processing · stuck",c:0.81},
+      {l:"Detected intent",v:"Refund delay / chase",c:0.74},{l:"Escalation signal",v:"Moderate",c:0.79}
+    ],
+    routeTo:"Billing · Tier 2", routeReason:"<b>Refund past SLA</b> (10 of 7 days). AI traced RF-9087 to a stuck processor batch and flagged it for manual re-submission. Routed to a billing specialist to confirm the resend and apologize.",
+    draft:"Hi Noah,\n\nYou're absolutely right to chase this, and I apologize for the delay. I looked into refund RF-9087 ($1,200.00) and found it was caught in a processor batch that didn't clear — that's on us.\n\nI've manually re-submitted it on a priority lane, and it should reach your account within 2 business days. I'll personally watch this one and confirm the moment it settles.\n\nThank you for your patience.\n\nBest,\nDeskPilot Support",
+    tone:"Apologetic · Accountable",
+    suggestions:[
+      {t:"Re-submit refund on priority lane", d:"Stuck batch detected", s:"88%"},
+      {t:"Offer goodwill credit for delay", d:"SLA breach — retention gesture", s:"57%"},
+      {t:"Escalate to finance manager", d:"If priority resend also fails", s:"36%"}
+    ]
+  },
+  {
+    id:"TKT-48171", customer:"Emma Larsson", company:"Polar Media", channel:"Email", subject:"Mobile app crashes when uploading large files", priority:"medium", category:"technical",
+    status:"escalated", conf:0.79, time:"41 min ago", sentiment:"Concerned",
+    message:"The iOS app crashes every time I try to upload a video over ~200MB. It just closes with no error. Smaller files are fine. I'm on the latest version (4.2.1), iPhone 14, iOS 17.4.",
+    fields:[
+      {l:"Platform",v:"iOS 17.4 · iPhone 14",c:0.96},{l:"App version",v:"4.2.1 (latest)",c:0.98},
+      {l:"Repro",v:"Upload >200MB",c:0.91},{l:"Detected intent",v:"Bug report · crash",c:0.79},
+      {l:"Matching reports",v:"7 in 24h",c:0.85},{l:"Severity",v:"Medium",c:0.82}
+    ],
+    routeTo:"Mobile Engineering", routeReason:"Reproducible <b>crash on large uploads</b> matching 7 recent reports. AI clustered these into a likely memory-handling bug and attached the device/version details. Escalated to mobile engineering with a draft acknowledgement.",
+    draft:"Hi Emma,\n\nThanks for the precise details — that really helps. We've had a few similar reports of the iOS app closing on large uploads (>200MB), and it looks like a memory-handling issue our mobile team is now investigating.\n\nAs a temporary workaround, uploads from the web app at app.deskpilot.io handle large files reliably. I've attached your report to the bug ticket so you'll be notified when the fix ships in an upcoming release.\n\nThanks for helping us catch this!\n\nBest,\nDeskPilot Support",
+    tone:"Helpful · Technical",
+    suggestions:[
+      {t:"Acknowledge + attach to bug cluster", d:"7 matching reports", s:"90%"},
+      {t:"Suggest web-upload workaround", d:"Unblocks the user now", s:"72%"},
+      {t:"Request crash log via diagnostics", d:"If repro needs more data", s:"45%"}
+    ]
+  },
+  {
+    id:"TKT-48165", customer:"James Carter", company:"Foxtrot Audio", channel:"Email", subject:"Need an invoice with my updated company VAT number", priority:"low", category:"billing",
+    status:"auto", conf:0.93, time:"52 min ago", sentiment:"Neutral",
+    message:"Could you re-issue my last invoice with our new VAT number GB-447821990? Everything else stays the same. Thanks.",
+    fields:[
+      {l:"Detected intent",v:"Invoice re-issue · VAT",c:0.93},{l:"New VAT #",v:"GB-447821990",c:0.95},
+      {l:"Invoice ref",v:"NV-2188",c:0.96},{l:"Amount",v:"$240.00",c:0.99},
+      {l:"Self-serve eligible",v:"Yes",c:0.91},{l:"Risk flag",v:"None",c:0.99}
+    ],
+    routeTo:"Auto-resolved", routeReason:"Routine <b>invoice re-issue</b> with a new VAT number. AI validated the VAT format, updated the billing profile, and regenerated invoice NV-2188 as a PDF automatically.",
+    draft:"Hi James,\n\nDone! I've updated your billing profile with VAT number GB-447821990 and re-issued invoice NV-2188 ($240.00) with the new details. The updated PDF is attached and also available in your billing portal.\n\nLet me know if you need anything else adjusted.\n\nBest,\nDeskPilot Support",
+    tone:"Efficient · Friendly",
+    suggestions:[
+      {t:"Re-issue NV-2188 with new VAT", d:"VAT format validated", s:"93%"},
+      {t:"Update all future invoices default", d:"Apply VAT to billing profile", s:"68%"},
+      {t:"Send VAT exemption guidance", d:"Not applicable — standard rate", s:"19%"}
+    ]
+  },
+  {
+    id:"TKT-48160", customer:"Olivia Brooks", company:"Sundial Tours", channel:"Web chat", subject:"Double-booked seats on my team plan", priority:"medium", category:"account",
+    status:"review", conf:0.7, time:"1 hr ago", sentiment:"Neutral",
+    message:"It looks like two of my team members are sharing one seat and a third invite is pending but already counted. My usage page says 11/10 seats which shouldn't be possible. Can you sort out the seat count?",
+    fields:[
+      {l:"Detected intent",v:"Seat-count discrepancy",c:0.86},{l:"Reported seats",v:"11 of 10",c:0.93},
+      {l:"Pending invites",v:"1",c:0.9},{l:"Plan",v:"Team · 10 seats",c:0.99},
+      {l:"Billing impact",v:"Possible overage",c:0.7},{l:"Risk flag",v:"None",c:0.98}
+    ],
+    routeTo:"Account · Tier 1", routeReason:"<b>Seat-count discrepancy</b> (11/10) likely caused by a pending invite being pre-counted — a known edge case. AI flagged it for an agent to recount and waive any overage before it bills.",
+    draft:"Hi Olivia,\n\nThanks for catching that. I looked at your Team plan and the 11/10 count is from a pending invite being counted before it's accepted — a known display quirk we're fixing.\n\nYou currently have 10 active members, so you're within your limit and no overage will be charged. I've cleared the stuck pending invite; your usage page should read 10/10 within a few minutes.\n\nLet me know if it doesn't update!\n\nBest,\nDeskPilot Support",
+    tone:"Clear · Reassuring",
+    suggestions:[
+      {t:"Recount seats + clear stuck invite", d:"Known pre-count edge case", s:"82%"},
+      {t:"Waive any pending overage charge", d:"Prevents wrong billing", s:"66%"},
+      {t:"Offer seat add-on if genuinely over", d:"Only if 11 are truly active", s:"31%"}
+    ]
+  },
+  {
+    id:"TKT-48154", customer:"Hiroshi Tanaka", company:"Kaze Systems", channel:"Email", subject:"SSO login fails for our Okta integration", priority:"high", category:"technical",
+    status:"escalated", conf:0.81, time:"1 hr ago", sentiment:"Concerned",
+    message:"Since we rotated our Okta certificate yesterday, none of our users can log in via SSO — they get \"SAML response invalid\". We have 80 people locked out. Can you help us re-establish the trust?",
+    fields:[
+      {l:"Detected intent",v:"SSO / SAML failure",c:0.88},{l:"Error",v:"SAML response invalid",c:0.93},
+      {l:"Root cause hint",v:"Cert rotation",c:0.84},{l:"Users affected",v:"~80",c:0.92},
+      {l:"IdP",v:"Okta",c:0.97},{l:"Plan",v:"Enterprise · SSO",c:0.99}
+    ],
+    routeTo:"Identity / Security Eng", routeReason:"<b>SSO outage</b> immediately after an Okta cert rotation — the new IdP signing certificate needs to be re-uploaded to the SAML config. 80 users locked out makes this high priority; routed to identity engineering with the likely fix pre-identified.",
+    draft:"Hi Hiroshi,\n\nThanks for the quick report. The \"SAML response invalid\" error right after a certificate rotation almost always means our SAML config still trusts the old Okta signing certificate.\n\nTo restore access, we'll need the new IdP metadata or X.509 certificate from your Okta admin console (Applications → your app → Sign-On → SAML signing certificates). Reply with that and our identity team will re-establish trust right away — usually under 15 minutes.\n\nWe've prioritized this given the 80 users affected.\n\nBest,\nDeskPilot Support",
+    tone:"Urgent · Expert",
+    suggestions:[
+      {t:"Request new Okta signing certificate", d:"Most likely root cause", s:"89%"},
+      {t:"Walk through SAML metadata re-upload", d:"Step-by-step recovery", s:"70%"},
+      {t:"Enable temporary password fallback", d:"Unblock users during fix", s:"53%"}
+    ]
+  },
+  {
+    id:"TKT-48149", customer:"Grace Mwangi", company:"Savanna Foods", channel:"Email", subject:"Thanks for the fast help yesterday!", priority:"low", category:"feedback",
+    status:"auto", conf:0.94, time:"2 hr ago", sentiment:"Positive",
+    message:"Just a quick note to say the agent who helped me yesterday was wonderful and solved my problem in minutes. Great service, thank you!",
+    fields:[
+      {l:"Detected intent",v:"Praise / thanks",c:0.96},{l:"Sentiment",v:"Positive (0.93)",c:0.97},
+      {l:"Prior ticket",v:"TKT-48012",c:0.9},{l:"NPS cohort",v:"Promoter",c:0.89},
+      {l:"Action needed",v:"Acknowledge only",c:0.94},{l:"Risk flag",v:"None",c:0.99}
+    ],
+    routeTo:"Auto-resolved", routeReason:"Pure <b>thank-you message</b>. AI sent a warm acknowledgement, logged the positive sentiment against the prior ticket, and closed it. No follow-up required.",
+    draft:"Hi Grace,\n\nThank you so much for taking the time to share this — it genuinely made our team smile! I've passed your kind words along to the agent who helped you.\n\nWe're always here if you need anything. Wishing you a great week!\n\nBest,\nDeskPilot Support",
+    tone:"Warm · Brief",
+    suggestions:[
+      {t:"Send warm acknowledgement + close", d:"No action needed", s:"95%"},
+      {t:"Log CSAT against TKT-48012", d:"Auto-attributed", s:"80%"},
+      {t:"Invite to referral program", d:"Promoter — optional outreach", s:"38%"}
+    ]
+  },
+  {
+    id:"TKT-48142", customer:"Ethan Park", company:"Cobalt Games", channel:"Email", subject:"Webhook deliveries stopped overnight", priority:"medium", category:"technical",
+    status:"review", conf:0.76, time:"2 hr ago", sentiment:"Concerned",
+    message:"Our webhook endpoint stopped receiving events around midnight. The endpoint is up and returns 200 for our own tests. Nothing changed on our side. Can you check if deliveries are being retried or dropped?",
+    fields:[
+      {l:"Detected intent",v:"Webhook delivery failure",c:0.85},{l:"Onset",v:"~00:00 UTC",c:0.88},
+      {l:"Endpoint health",v:"200 OK (self-test)",c:0.9},{l:"Last delivery",v:"23:58 UTC",c:0.82},
+      {l:"Retry queue",v:"Backed up (412)",c:0.76},{l:"Plan",v:"Pro · Webhooks",c:0.99}
+    ],
+    routeTo:"Platform · Tier 2", routeReason:"<b>Webhook delivery stoppage</b> with a healthy customer endpoint points to a backed-up retry queue on our side (412 pending). AI flagged for a platform agent to replay the queue rather than auto-replying.",
+    draft:"Hi Ethan,\n\nThanks for the clear report. Your endpoint looks healthy on our checks, and I can see your webhook deliveries paused at 23:58 UTC — there's a backlog of 412 events in our retry queue from a brief internal hiccup.\n\nI've requested a queue replay so the pending events will be delivered in order shortly. No events were dropped — they're all retained and will flow through within the next few minutes.\n\nI'll confirm once the queue is drained.\n\nBest,\nDeskPilot Support",
+    tone:"Reassuring · Technical",
+    suggestions:[
+      {t:"Trigger webhook queue replay", d:"412 events pending", s:"86%"},
+      {t:"Confirm no events were dropped", d:"Retention guaranteed", s:"74%"},
+      {t:"Suggest idempotency key check", d:"Avoid duplicate processing", s:"49%"}
+    ]
+  },
+  {
+    id:"TKT-48137", customer:"Isabella Rossi", company:"Verde Design", channel:"Web chat", subject:"Want to upgrade to annual billing — any discount?", priority:"low", category:"billing",
+    status:"auto", conf:0.91, time:"3 hr ago", sentiment:"Positive",
+    message:"We're happy with the product and thinking of switching from monthly to annual. Is there a discount for paying yearly? We have 8 seats on the Pro plan.",
+    fields:[
+      {l:"Detected intent",v:"Upgrade · annual billing",c:0.93},{l:"Current plan",v:"Pro · Monthly · 8 seats",c:0.98},
+      {l:"Annual discount",v:"2 months free",c:0.95},{l:"Est. annual value",v:"$3,840",c:0.92},
+      {l:"Upsell signal",v:"Strong",c:0.88},{l:"Risk flag",v:"None",c:0.99}
+    ],
+    routeTo:"Auto-resolved + Sales log", routeReason:"<b>Upgrade intent</b> with a clear discount answer. AI quoted the standard annual offer (2 months free) with the exact pricing for 8 seats and logged a warm upsell lead for the sales team.",
+    draft:"Hi Isabella,\n\nGreat to hear you're enjoying it! Yes — switching to annual billing gives you 2 months free, effectively ~17% off.\n\nFor your 8 Pro seats, that works out to $3,840/year instead of $4,608 paying monthly. Everything transfers over instantly and your current setup stays exactly as-is.\n\nWant me to apply the annual plan now, or send a quote to share with your team first?\n\nBest,\nDeskPilot Support",
+    tone:"Friendly · Sales-aware",
+    suggestions:[
+      {t:"Quote annual (2 months free) for 8 seats", d:"Standard discount applied", s:"92%"},
+      {t:"Offer to apply upgrade immediately", d:"Reduce friction to convert", s:"75%"},
+      {t:"Send shareable quote PDF", d:"For team approval", s:"60%"}
+    ]
+  },
+  {
+    id:"TKT-48131", customer:"William Chen", company:"Drift Analytics", channel:"Email", subject:"Data export is missing the last 3 days", priority:"medium", category:"technical",
+    status:"review", conf:0.73, time:"3 hr ago", sentiment:"Neutral",
+    message:"I exported our full dataset as CSV this morning but the rows for the last 3 days are missing. The data shows fine in the dashboard, just not in the export. Is the export job lagging?",
+    fields:[
+      {l:"Detected intent",v:"Export data gap",c:0.84},{l:"Missing range",v:"Last 3 days",c:0.91},
+      {l:"Export format",v:"CSV (full)",c:0.95},{l:"Dashboard data",v:"Complete",c:0.88},
+      {l:"Likely cause",v:"Warehouse sync lag",c:0.73},{l:"Plan",v:"Business · Exports",c:0.99}
+    ],
+    routeTo:"Data Platform · Tier 2", routeReason:"<b>Export gap</b> where the dashboard (real-time) shows data the warehouse-backed export doesn't — classic sync lag. AI flagged it for a data agent to force a warehouse refresh and re-run the export.",
+    draft:"Hi William,\n\nGood catch. The dashboard reads from our live store while CSV exports are built from our data warehouse, which had a sync lag over the last few days — that's why the recent rows are missing from the file.\n\nI've requested a forced warehouse refresh; once it completes (typically within the hour) a fresh export will include the full date range. I'll let you know the moment it's ready to re-download.\n\nThanks for your patience!\n\nBest,\nDeskPilot Support",
+    tone:"Clear · Technical",
+    suggestions:[
+      {t:"Force warehouse refresh + re-export", d:"Sync lag detected", s:"85%"},
+      {t:"Offer live API pull for recent data", d:"Bridge until export catches up", s:"63%"},
+      {t:"Set up scheduled export reminder", d:"Avoid future lag surprises", s:"40%"}
+    ]
+  },
+  {
+    id:"TKT-48126", customer:"Mia Johansson", company:"Frostline Apparel", channel:"Email", subject:"Discount code from your email didn't work", priority:"low", category:"billing",
+    status:"auto", conf:0.9, time:"4 hr ago", sentiment:"Neutral",
+    message:"I tried the SPRING25 code from your newsletter at checkout but it said \"invalid code\". Has it expired? I'd still like to use the offer if possible.",
+    fields:[
+      {l:"Detected intent",v:"Promo code issue",c:0.92},{l:"Code",v:"SPRING25",c:0.97},
+      {l:"Code status",v:"Expired (3 days)",c:0.94},{l:"Campaign",v:"Spring Newsletter",c:0.89},
+      {l:"Goodwill eligible",v:"Yes",c:0.9},{l:"Risk flag",v:"None",c:0.99}
+    ],
+    routeTo:"Auto-resolved", routeReason:"<b>Expired promo code</b> from a recent campaign. Within goodwill policy, AI generated a fresh single-use code at the same value and sent it, so the customer still gets the intended offer.",
+    draft:"Hi Mia,\n\nThanks for letting me know! The SPRING25 code expired a few days ago, but since it came from our newsletter I'm happy to honor the offer.\n\nHere's a fresh single-use code for the same 25% off: SPRING25-MJ7Q. It's valid for the next 14 days — just apply it at checkout.\n\nEnjoy, and let me know if it gives you any trouble!\n\nBest,\nDeskPilot Support",
+    tone:"Friendly · Goodwill",
+    suggestions:[
+      {t:"Issue fresh single-use 25% code", d:"Within goodwill policy", s:"91%"},
+      {t:"Extend original campaign window", d:"If many customers affected", s:"44%"},
+      {t:"Apply discount to next invoice instead", d:"Alternative to code", s:"33%"}
+    ]
+  },
+  {
+    id:"TKT-48119", customer:"Lucas Martin", company:"Orbit Freight", channel:"Email", subject:"GDPR — please delete my personal data", priority:"high", category:"account",
+    status:"escalated", conf:0.86, time:"5 hr ago", sentiment:"Neutral",
+    message:"Under GDPR I am requesting the deletion of all personal data associated with my account, including any backups. Please confirm completion in writing within the statutory timeframe.",
+    fields:[
+      {l:"Detected intent",v:"GDPR erasure request",c:0.95},{l:"Regulation",v:"GDPR Art. 17",c:0.93},
+      {l:"SLA",v:"30 days statutory",c:0.96},{l:"Identity verified",v:"Pending",c:0.8},
+      {l:"Scope",v:"Account + backups",c:0.88},{l:"Compliance routing",v:"Required",c:0.86}
+    ],
+    routeTo:"Privacy / Compliance", routeReason:"A formal <b>GDPR right-to-erasure</b> request. By policy this must be handled by the compliance team with identity verification and a written confirmation — AI did not auto-action it and routed it with the statutory deadline attached.",
+    draft:"Hi Lucas,\n\nThank you for your request. We take data-privacy rights seriously and will process your erasure request under GDPR Article 17.\n\nTo proceed securely, we first need to verify your identity — please reply confirming the email on file and the account name. Once verified, our compliance team will delete your personal data, including backups, and send written confirmation well within the 30-day statutory timeframe.\n\nWe'll keep you updated at each step.\n\nBest,\nDeskPilot Privacy Team",
+    tone:"Formal · Compliant",
+    suggestions:[
+      {t:"Begin identity verification step", d:"Required before erasure", s:"93%"},
+      {t:"Route to compliance with 30-day SLA", d:"Statutory deadline attached", s:"88%"},
+      {t:"Provide data-export option first", d:"Offer portability before delete", s:"51%"}
+    ]
+  },
+  {
+    id:"TKT-48110", customer:"Charlotte Dubois", company:"Lighthouse Media", channel:"Web chat", subject:"Which plan supports custom branding?", priority:"low", category:"account",
+    status:"auto", conf:0.96, time:"6 hr ago", sentiment:"Neutral",
+    message:"We'd like to add our own logo and colors to the customer portal. Which plan includes custom branding, and is it available on monthly billing?",
+    fields:[
+      {l:"Detected intent",v:"Plan / feature inquiry",c:0.96},{l:"Feature",v:"Custom branding",c:0.94},
+      {l:"Available on",v:"Business+ plans",c:0.95},{l:"Current plan",v:"Pro · Monthly",c:0.98},
+      {l:"KB article match",v:"KB-220 (0.9)",c:0.9},{l:"Upsell signal",v:"Moderate",c:0.82}
+    ],
+    routeTo:"Auto-resolved + Sales log", routeReason:"A <b>feature-availability question</b> with a clear answer (branding ships on Business and above). AI replied with the plan details and logged a soft upsell, since the customer is currently on Pro.",
+    draft:"Hi Charlotte,\n\nGreat question! Custom branding — your logo, colors, and a custom domain for the portal — is included on our Business plan and above, and yes, it's available on both monthly and annual billing.\n\nYou're currently on Pro Monthly; upgrading to Business would unlock branding instantly with no setup needed. Want me to show you a quick before/after of how it'd look, or share Business pricing for your team size?\n\nBest,\nDeskPilot Support",
+    tone:"Informative · Friendly",
+    suggestions:[
+      {t:"Explain branding on Business+ (KB-220)", d:"Strong article match", s:"96%"},
+      {t:"Offer Business plan upgrade quote", d:"Moderate upsell signal", s:"70%"},
+      {t:"Send branding before/after preview", d:"Visual aid to convert", s:"55%"}
+    ]
+  }
+];
+
+const FEED = [
+  {ic:"check", color:"#0d9488", text:"<b>Auto-resolved</b> TKT-48198 · password reset for Priya Nair", t:"just now"},
+  {ic:"route", color:"#0284c7", text:"<b>Routed</b> TKT-48201 to Billing · Tier 2 (duplicate charge)", t:"3 min ago"},
+  {ic:"alert", color:"#e11d48", text:"<b>Escalated</b> TKT-48195 to Engineering — linked to INC-7742", t:"11 min ago"},
+  {ic:"draft", color:"#6d28d9", text:"<b>Drafted</b> retention reply for TKT-48184 (churn risk)", t:"22 min ago"},
+  {ic:"check", color:"#0d9488", text:"<b>Logged</b> feature vote FR-318 from TKT-48190", t:"18 min ago"},
+  {ic:"route", color:"#0891b2", text:"<b>Re-issued</b> invoice NV-2188 with new VAT (TKT-48165)", t:"52 min ago"},
+  {ic:"alert", color:"#d97706", text:"<b>Flagged</b> TKT-48119 to Compliance (GDPR erasure)", t:"5 hr ago"},
+  {ic:"check", color:"#0d9488", text:"<b>Sent</b> goodwill promo code for TKT-48126", t:"4 hr ago"}
+];
+
+const FEED_ICONS = {
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  route:'<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
+  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  draft:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'
+};
+
+/* ---------------- Render ---------------- */
+const statusLabel = {auto:"Auto-handled", review:"Needs review", escalated:"Escalated", resolved:"Resolved"};
+let activeFilter = "all";
+let searchTerm = "";
+
+function confClass(c){ return c>=0.9?"hi":(c>=0.78?"mid":"lo"); }
+
+function ringColor(c){ return c>=0.85?"#0d9488":(c>=0.7?"#d97706":"#e11d48"); }
+
+function renderTickets(){
+  const list = document.getElementById("ticketList");
+  const items = TICKETS.filter(t=>{
+    const fOk = activeFilter==="all" || t.status===activeFilter;
+    const s = searchTerm.toLowerCase();
+    const sOk = !s || (t.subject+t.customer+t.company+t.category+t.id+t.fields.map(f=>f.v).join(" ")).toLowerCase().includes(s);
+    return fOk && sOk;
+  });
+  if(!items.length){
+    list.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <b>No tickets match</b>Try a different filter or search term.</div>`;
+    return;
+  }
+  list.innerHTML = items.map(t=>{
+    const pct = Math.round(t.conf*100);
+    const dash = (t.conf*87.96).toFixed(1);
+    return `<div class="ticket fade-row" data-id="${t.id}">
+      <div class="ava-sm" style="background:${avaColor(t.customer)}">${initials(t.customer)}</div>
+      <div class="who">
+        <div class="id-row">
+          <span class="tid">${t.id}</span>
+          <span class="pill ${t.priority}">${t.priority.toUpperCase()}</span>
+          <span class="tag ${t.category}">${t.category}</span>
+        </div>
+        <div class="subj">${t.subject}</div>
+        <div class="meta"><span class="cust">${t.customer}</span> · ${t.company} · ${t.channel} · ${t.time}</div>
+      </div>
+      <div class="end">
+        <span class="status ${t.status}">${statusLabel[t.status]}</span>
+        <div style="display:flex;align-items:center;gap:7px">
+          <svg class="ring" viewBox="0 0 30 30"><circle class="bg" cx="15" cy="15" r="14"/><circle cx="15" cy="15" r="14" stroke="${ringColor(t.conf)}" stroke-dasharray="${dash} 87.96" stroke-linecap="round"/></svg>
+          <span class="conf">${pct}%<br><span style="color:var(--txt-3);font-size:9.5px">conf.</span></span>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll(".ticket").forEach(el=>{
+    el.addEventListener("click", ()=>openDrawer(el.dataset.id));
+  });
+}
+
+function renderFeed(){
+  document.getElementById("feed").innerHTML = FEED.map(f=>`
+    <div class="feed-item">
+      <div class="feed-ic" style="background:${f.color}22">
+        <svg viewBox="0 0 24 24" fill="none" stroke="${f.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${FEED_ICONS[f.ic]}</svg>
+      </div>
+      <div class="feed-body">${f.text}<div class="t">${f.t}</div></div>
+    </div>`).join("");
+}
+
+/* ---------------- Drawer ---------------- */
+let currentId = null;
+function openDrawer(id){
+  const t = TICKETS.find(x=>x.id===id);
+  if(!t) return;
+  currentId = id;
+  document.querySelectorAll(".ticket").forEach(el=>el.classList.toggle("sel", el.dataset.id===id));
+
+  document.getElementById("drAva").textContent = initials(t.customer);
+  document.getElementById("drAva").style.background = avaColor(t.customer);
+  document.getElementById("drTitle").textContent = t.subject;
+  document.getElementById("drSub").innerHTML =
+    `<span class="tid">${t.id}</span> · <b style="color:var(--txt-2)">${t.customer}</b> · ${t.company} `+
+    `<span class="pill ${t.priority}">${t.priority.toUpperCase()}</span> `+
+    `<span class="tag ${t.category}">${t.category}</span> `+
+    `<span class="status ${t.status}">${statusLabel[t.status]}</span>`;
+
+  const aiChip = `<span class="ai-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 16 9l6 1-4.5 4 1 6L13 17l-5.5 3 1-6L4 10l6-1 3-6z"/></svg>AI</span>`;
+
+  const fieldsHtml = t.fields.map(f=>{
+    const cc = confClass(f.c);
+    return `<div class="field">
+      <span class="cbadge ${cc}">${Math.round(f.c*100)}%</span>
+      <div class="fl">${f.l}</div>
+      <div class="fv">${f.v}</div>
+    </div>`;
+  }).join("");
+
+  const suggHtml = t.suggestions.map((s,i)=>`
+    <div class="sugg-item" data-sg="${i}">
+      <div class="rank">${i+1}</div>
+      <div class="sx"><div class="st">${s.t}</div><div class="sd">${s.d}</div></div>
+      <div class="score">${s.s}</div>
+    </div>`).join("");
+
+  document.getElementById("drBody").innerHTML = `
+    <div class="msg-block">
+      <div class="mh">
+        <div class="ava-sm" style="width:26px;height:26px;border-radius:8px;font-size:10px;background:${avaColor(t.customer)}">${initials(t.customer)}</div>
+        <div class="nm">${t.customer}</div>
+        <div class="tm">${t.channel} · ${t.time}</div>
+      </div>
+      <p>${t.message}</p>
+    </div>
+
+    <div class="dr-section-title">Extracted Fields ${aiChip}</div>
+    <div class="fields">${fieldsHtml}</div>
+
+    <div class="dr-section-title">Classification &amp; Routing ${aiChip}</div>
+    <div class="routing">
+      <div class="rh">
+        <span class="lab">Routed to</span>
+        <span class="dest"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><path d="M5 12h14M12 5l7 7-7 7"/></svg>${t.routeTo}</span>
+      </div>
+      <div class="reason">${t.routeReason}</div>
+    </div>
+
+    <div class="dr-section-title">Generated Reply Draft ${aiChip}</div>
+    <div class="draft">
+      <div class="dft-head">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--accent-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        <span class="t">AI Draft</span>
+        <span class="tone">Tone: ${t.tone}</span>
+      </div>
+      <textarea id="draftArea" spellcheck="false">${t.draft}</textarea>
+      <div class="dft-foot">
+        <button class="btn ghost sm" id="regenBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Regenerate</button>
+        <button class="btn ghost sm" id="shortenBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 6H3M15 12H3M17 18H3"/></svg>Shorten</button>
+        <span class="kb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Grounded in 3 KB articles</span>
+      </div>
+    </div>
+
+    <div class="dr-section-title" style="margin-top:22px">Ranked Next Actions ${aiChip}</div>
+    <div class="sugg">${suggHtml}</div>
+  `;
+
+  document.getElementById("regenBtn").addEventListener("click", ()=>{
+    const btn = document.getElementById("regenBtn");
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>Generating…`;
+    setTimeout(()=>{ btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Regenerate`; toast("Draft regenerated with a fresh variation"); }, 850);
+  });
+  document.getElementById("shortenBtn").addEventListener("click", ()=>{
+    const ta = document.getElementById("draftArea");
+    const lines = ta.value.split("\n").filter(l=>l.trim());
+    ta.value = lines.slice(0, Math.max(3, Math.ceil(lines.length/2))).join("\n\n");
+    toast("Draft shortened");
+  });
+  document.querySelectorAll(".sugg-item").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const s = t.suggestions[+el.dataset.sg];
+      toast(`Applied action: ${s.t}`);
+    });
+  });
+
+  document.getElementById("scrim").classList.add("open");
+  document.getElementById("drawer").classList.add("open");
+}
+
+function closeDrawer(){
+  document.getElementById("scrim").classList.remove("open");
+  document.getElementById("drawer").classList.remove("open");
+  document.querySelectorAll(".ticket").forEach(el=>el.classList.remove("sel"));
+  currentId = null;
+}
+
+/* ---------------- Toast ---------------- */
+let toastTimer;
+function toast(msg){
+  const el = document.getElementById("toast");
+  document.getElementById("toastMsg").textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove("show"), 2600);
+}
+
+/* ---------------- Wire up ---------------- */
+document.getElementById("statusTabs").addEventListener("click", e=>{
+  const tab = e.target.closest(".tab"); if(!tab) return;
+  document.querySelectorAll("#statusTabs .tab").forEach(t=>t.classList.remove("active"));
+  tab.classList.add("active");
+  activeFilter = tab.dataset.filter;
+  renderTickets();
+});
+document.getElementById("searchInput").addEventListener("input", e=>{
+  searchTerm = e.target.value;
+  renderTickets();
+});
+document.getElementById("drClose").addEventListener("click", closeDrawer);
+document.getElementById("scrim").addEventListener("click", closeDrawer);
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+document.getElementById("drSend").addEventListener("click", ()=>{
+  const t = TICKETS.find(x=>x.id===currentId);
+  if(t){ t.status="resolved"; renderTickets(); }
+  toast("Reply approved and sent ✓");
+  setTimeout(closeDrawer, 500);
+});
+document.getElementById("drEscalate").addEventListener("click", ()=>{
+  const t = TICKETS.find(x=>x.id===currentId);
+  if(t){ t.status="escalated"; renderTickets(); }
+  toast("Escalated to a human agent");
+  setTimeout(closeDrawer, 500);
+});
+
+/* nav cosmetics */
+document.querySelectorAll(".nav-item").forEach(n=>{
+  n.addEventListener("click", ()=>{
+    document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active"));
+    n.classList.add("active");
+  });
+});
+
+renderTickets();
+renderFeed();
+</script>
+</body>
+</html>

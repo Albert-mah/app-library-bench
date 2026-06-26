@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Report Generator</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --bg-2: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f1f3f6;
+    --line: #d9dee6;
+    --line-soft: #e7eaef;
+    --text: #1f2937;
+    --text-dim: #55606f;
+    --text-faint: #8a93a3;
+    --accent: #d97706;
+    --accent-2: #b45309;
+    --accent-soft: rgba(217,119,6,0.12);
+    --green: #15803d;
+    --green-soft: rgba(21,128,61,0.11);
+    --amber: #b45309;
+    --amber-soft: rgba(217,119,6,0.13);
+    --red: #dc2626;
+    --red-soft: rgba(220,38,38,0.10);
+    --cyan: #0369a1;
+    --pink: #be185d;
+    --shadow: 0 8px 24px -10px rgba(31,41,55,0.18);
+    --r: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c7cdd6; border-radius: 8px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #b0b7c2; }
+
+  /* ===== Layout shell ===== */
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    background: var(--bg-2);
+    border-right: 1px solid var(--line-soft);
+    padding: 20px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 18px; }
+  .brand .logo {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; flex: none;
+    box-shadow: 0 6px 16px -6px rgba(217,119,6,0.5);
+  }
+  .brand .logo svg { width: 20px; height: 20px; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: 0.2px; }
+  .brand .sub { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+
+  .nav-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); padding: 14px 10px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 11px; border-radius: 10px; color: var(--text-dim);
+    cursor: pointer; font-weight: 500; font-size: 13.5px;
+    transition: background .15s, color .15s;
+    position: relative;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  .nav-item:hover { background: var(--panel-2); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-item.active::before { content: ""; position: absolute; left: -14px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+  .nav-item .badge { margin-left: auto; font-size: 11px; background: var(--panel-2); color: var(--text-dim); padding: 1px 8px; border-radius: 20px; }
+  .nav-item.active .badge { background: rgba(217,119,6,0.18); color: var(--accent); }
+
+  .sidebar .spacer { flex: 1; }
+  .quota {
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 12px;
+    padding: 13px; margin-top: 8px;
+  }
+  .quota .qt { font-size: 11px; color: var(--text-faint); display:flex; justify-content:space-between; }
+  .quota .qbar { height: 6px; background: #eceff3; border-radius: 6px; margin: 9px 0 7px; overflow: hidden; }
+  .quota .qfill { height: 100%; width: 64%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); border-radius: 6px; }
+  .quota .qn { font-size: 12px; color: var(--text-dim); }
+  .quota .qn b { color: var(--text); }
+
+  /* ===== Main ===== */
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 28px; border-bottom: 1px solid var(--line-soft);
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
+  }
+  .topbar h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .topbar .crumb { color: var(--text-faint); font-size: 12.5px; margin-top: 2px; }
+  .search {
+    margin-left: auto; position: relative; width: 280px;
+  }
+  .search input {
+    width: 100%; background: var(--panel); border: 1px solid var(--line);
+    color: var(--text); border-radius: 10px; padding: 9px 12px 9px 34px;
+    font-size: 13px; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search svg { position: absolute; left: 11px; top: 9px; width: 15px; height: 15px; color: var(--text-faint); }
+  .topbar .avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex: none;
+    background: linear-gradient(135deg, #f59e0b, #b45309);
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
+  }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text-dim); display: grid; place-items: center; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .icon-btn:hover { background: var(--panel-2); color: var(--text); }
+  .icon-btn svg { width: 17px; height: 17px; }
+
+  .content { padding: 24px 28px 40px; }
+
+  /* ===== Composer ===== */
+  .composer {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: 18px;
+    padding: 20px; margin-bottom: 22px; box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .composer .glow { display: none; }
+  .composer-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .composer-head .ai-chip {
+    display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600;
+    background: var(--accent-soft); color: var(--accent); padding: 5px 11px; border-radius: 20px;
+    border: 1px solid rgba(217,119,6,0.3);
+  }
+  .composer-head .ai-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 rgba(217,119,6,0.6); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(217,119,6,0.5);} 70%{box-shadow:0 0 0 8px rgba(217,119,6,0);} 100%{box-shadow:0 0 0 0 rgba(217,119,6,0);} }
+  .composer-head h2 { font-size: 16px; margin: 0; font-weight: 700; }
+  .composer-head p { margin: 1px 0 0; font-size: 12.5px; color: var(--text-dim); }
+
+  .composer-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; position: relative; z-index: 1; }
+  .field-label { font-size: 11.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 7px; display: block; }
+  .composer textarea {
+    width: 100%; min-height: 96px; resize: vertical; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 12px; color: var(--text);
+    padding: 13px 14px; font-size: 13.5px; font-family: inherit; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .composer textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .source-list { display: flex; flex-direction: column; gap: 8px; }
+  .source-item {
+    display: flex; align-items: center; gap: 11px; padding: 9px 11px;
+    background: var(--bg); border: 1px solid var(--line-soft); border-radius: 10px; font-size: 12.5px;
+  }
+  .source-item .fi { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+  .source-item .fi svg { width: 15px; height: 15px; }
+  .fi.pdf { background: var(--red-soft); color: var(--red); }
+  .fi.xls { background: var(--green-soft); color: var(--green); }
+  .fi.doc { background: rgba(56,189,248,0.13); color: var(--cyan); }
+  .fi.api { background: var(--accent-soft); color: var(--accent); }
+  .source-item .meta { min-width: 0; }
+  .source-item .meta b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .source-item .meta span { color: var(--text-faint); font-size: 11.5px; }
+  .source-item .ok { margin-left: auto; color: var(--green); display: flex; align-items: center; gap: 4px; font-size: 11.5px; }
+  .source-item .ok svg { width: 13px; height: 13px; }
+  .add-source { border: 1px dashed var(--line); color: var(--text-faint); justify-content: center; cursor: pointer; }
+  .add-source:hover { color: var(--text); border-color: var(--accent); }
+
+  .composer-foot { display: flex; align-items: center; gap: 12px; margin-top: 16px; position: relative; z-index: 1; flex-wrap: wrap; }
+  .chip-toggle { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tchip {
+    font-size: 12px; padding: 7px 13px; border-radius: 9px; cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    transition: all .15s; font-weight: 500; user-select: none;
+  }
+  .tchip:hover { color: var(--text); border-color: #c2c9d3; }
+  .tchip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .gen-btn {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; border: none; border-radius: 11px; padding: 12px 22px;
+    font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: .2px;
+    box-shadow: 0 8px 20px -8px rgba(217,119,6,0.55); transition: transform .12s, box-shadow .12s;
+  }
+  .gen-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 26px -8px rgba(217,119,6,0.6); }
+  .gen-btn:active { transform: translateY(0); }
+  .gen-btn svg { width: 17px; height: 17px; }
+
+  /* Generating overlay */
+  .gen-progress { display: none; margin-top: 16px; position: relative; z-index: 1; }
+  .gen-progress.show { display: block; animation: fadein .25s; }
+  .gp-bar { height: 6px; background: #eceff3; border-radius: 6px; overflow: hidden; }
+  .gp-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); border-radius: 6px; transition: width .3s; }
+  .gp-steps { display: flex; gap: 18px; margin-top: 11px; font-size: 12px; color: var(--text-faint); flex-wrap: wrap; }
+  .gp-steps .s { display: flex; align-items: center; gap: 7px; transition: color .3s; }
+  .gp-steps .s.done { color: var(--green); }
+  .gp-steps .s.active { color: var(--cyan); }
+  .gp-steps .s .ring { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; display: grid; place-items: center; flex: none; }
+  .gp-steps .s.done .ring { background: var(--green); border-color: var(--green); }
+  .gp-steps .s.done .ring svg { width: 9px; height: 9px; color: #fff; }
+  .gp-steps .s.active .ring { border-color: var(--cyan); border-top-color: transparent; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity:1; transform:none; } }
+
+  /* ===== Stats row ===== */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+  .stat {
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border: 1px solid var(--line-soft); border-radius: 14px; padding: 16px 17px;
+    position: relative; overflow: hidden;
+  }
+  .stat .lab { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 7px; }
+  .stat .lab .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; }
+  .stat .lab .ic svg { width: 15px; height: 15px; }
+  .stat .val { font-size: 27px; font-weight: 750; margin-top: 10px; letter-spacing: -.5px; }
+  .stat .delta { font-size: 12px; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+  .delta.up { color: var(--green); } .delta.down { color: var(--red); }
+  .stat .spark { position: absolute; right: 14px; bottom: 12px; width: 78px; height: 34px; opacity: .9; }
+
+  /* ===== Section header ===== */
+  .section-head { display: flex; align-items: center; gap: 14px; margin: 6px 0 16px; }
+  .section-head h3 { font-size: 16px; margin: 0; font-weight: 700; }
+  .section-head .count { color: var(--text-faint); font-size: 13px; font-weight: 500; }
+  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line-soft); border-radius: 11px; padding: 4px; }
+  .tab { padding: 7px 15px; border-radius: 8px; font-size: 13px; cursor: pointer; color: var(--text-dim); font-weight: 600; transition: all .15s; user-select: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: #fff; color: var(--accent); box-shadow: 0 1px 2px rgba(31,41,55,0.08); border: 1px solid var(--line-soft); }
+  .tab .n { font-size: 11px; opacity: .6; margin-left: 5px; }
+  .seg-right { margin-left: auto; display: flex; gap: 8px; }
+  .filter-sel {
+    background: var(--panel); border: 1px solid var(--line); color: var(--text-dim);
+    border-radius: 10px; padding: 8px 12px; font-size: 12.5px; cursor: pointer; outline: none; font-family: inherit;
+  }
+  .filter-sel:hover { color: var(--text); }
+
+  /* ===== Report cards grid ===== */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  .card {
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border: 1px solid var(--line-soft); border-radius: 15px; padding: 17px;
+    cursor: pointer; transition: transform .14s, border-color .14s, box-shadow .14s;
+    position: relative; display: flex; flex-direction: column;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--shadow); }
+  .card-top { display: flex; align-items: flex-start; gap: 12px; }
+  .card-thumb {
+    width: 46px; height: 46px; border-radius: 11px; flex: none; display: grid; place-items: center;
+  }
+  .card-thumb svg { width: 22px; height: 22px; }
+  .thumb-fin { background: linear-gradient(135deg, rgba(21,128,61,0.16), rgba(21,128,61,0.04)); color: var(--green); }
+  .thumb-mkt { background: linear-gradient(135deg, rgba(190,24,93,0.16), rgba(190,24,93,0.04)); color: var(--pink); }
+  .thumb-ops { background: linear-gradient(135deg, rgba(3,105,161,0.16), rgba(3,105,161,0.04)); color: var(--cyan); }
+  .thumb-sec { background: linear-gradient(135deg, rgba(217,119,6,0.18), rgba(217,119,6,0.05)); color: var(--amber); }
+  .thumb-prod { background: linear-gradient(135deg, rgba(124,58,237,0.16), rgba(124,58,237,0.04)); color: #6d28d9; }
+  .card-title { font-size: 14.5px; font-weight: 700; margin: 0; line-height: 1.3; }
+  .card-meta { font-size: 12px; color: var(--text-faint); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .card-meta .dotsep { width: 3px; height: 3px; border-radius: 50%; background: var(--text-faint); }
+
+  .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; letter-spacing: .3px; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+  .pill .pd { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ready { background: var(--green-soft); color: var(--green); }
+  .pill.review { background: var(--amber-soft); color: var(--amber); }
+  .pill.gen { background: rgba(56,189,248,0.13); color: var(--cyan); }
+  .pill.draft { background: var(--panel-2); color: var(--text-dim); }
+  .pill.fail { background: var(--red-soft); color: var(--red); }
+
+  .card-excerpt { font-size: 12.5px; color: var(--text-dim); margin: 13px 0; line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-foot { display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 13px; border-top: 1px solid var(--line-soft); }
+  .conf { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-dim); }
+  .conf .cbar { width: 56px; height: 5px; border-radius: 4px; background: #e7eaef; overflow: hidden; }
+  .conf .cfill { height: 100%; border-radius: 4px; }
+  .conf-hi .cfill { background: var(--green); } .conf-mid .cfill { background: var(--amber); } .conf-lo .cfill { background: var(--red); }
+  .card-foot .pages { margin-left: auto; font-size: 11.5px; color: var(--text-faint); display: flex; align-items: center; gap: 5px; }
+  .card-foot .pages svg { width: 13px; height: 13px; }
+
+  .empty { display: none; text-align: center; padding: 60px 20px; color: var(--text-faint); }
+  .empty.show { display: block; }
+  .empty svg { width: 46px; height: 46px; opacity: .4; margin-bottom: 12px; }
+  .empty b { display: block; color: var(--text-dim); font-size: 15px; margin-bottom: 4px; }
+
+  /* ===== Drawer ===== */
+  .scrim { position: fixed; inset: 0; background: rgba(31,41,55,0.32); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40; }
+  .scrim.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 620px; max-width: 94vw;
+    background: var(--bg);
+    border-left: 1px solid var(--line); z-index: 50; transform: translateX(100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1); display: flex; flex-direction: column;
+    box-shadow: -24px 0 50px -24px rgba(31,41,55,0.25);
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-head { padding: 20px 24px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: flex-start; gap: 14px; }
+  .drawer-head .x { margin-left: auto; }
+  .drawer-title { font-size: 18px; font-weight: 750; margin: 0; line-height: 1.25; }
+  .drawer-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 5px; display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+  .drawer-body { overflow-y: auto; padding: 22px 24px 32px; flex: 1; }
+
+  .dk-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line-soft); margin: 0 24px; padding-bottom: 0; }
+  .dk-tab { padding: 11px 4px; margin-right: 18px; font-size: 13px; color: var(--text-dim); cursor: pointer; font-weight: 600; border-bottom: 2px solid transparent; transition: all .15s; }
+  .dk-tab:hover { color: var(--text); }
+  .dk-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .dpane { display: none; }
+  .dpane.active { display: block; animation: fadein .2s; }
+
+  .ai-summary {
+    background: var(--accent-soft); border: 1px solid rgba(217,119,6,0.25);
+    border-radius: 13px; padding: 15px 16px; margin-bottom: 20px;
+  }
+  .ai-summary .h { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 9px; text-transform: uppercase; letter-spacing: .5px; }
+  .ai-summary .h svg { width: 15px; height: 15px; }
+  .ai-summary p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text); }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 22px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 11px; padding: 13px 14px; }
+  .kpi .l { font-size: 11.5px; color: var(--text-faint); }
+  .kpi .v { font-size: 21px; font-weight: 750; margin-top: 5px; letter-spacing: -.5px; }
+  .kpi .d { font-size: 11.5px; margin-top: 2px; }
+
+  .block-h { font-size: 13px; font-weight: 700; margin: 22px 0 11px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+  .block-h .ai-tag { font-size: 10px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 2px 7px; border-radius: 12px; letter-spacing: .4px; }
+
+  /* extracted fields */
+  .fields { display: flex; flex-direction: column; gap: 9px; }
+  .frow {
+    display: grid; grid-template-columns: 150px 1fr auto; align-items: center; gap: 12px;
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 13px;
+  }
+  .frow .fk { font-size: 12px; color: var(--text-dim); }
+  .frow .fv { font-size: 13.5px; font-weight: 600; }
+  .cbadge { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .cbadge.hi { background: var(--green-soft); color: var(--green); }
+  .cbadge.mid { background: var(--amber-soft); color: var(--amber); }
+  .cbadge.lo { background: var(--red-soft); color: var(--red); }
+
+  /* chart in drawer */
+  .chart-box { background: var(--panel); border: 1px solid var(--line-soft); border-radius: 13px; padding: 16px; }
+  .chart-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+  .chart-legend .lg { display: flex; align-items: center; gap: 6px; }
+  .chart-legend .sw { width: 11px; height: 11px; border-radius: 3px; }
+
+  /* draft text */
+  .draft {
+    background: var(--panel); border: 1px solid var(--line-soft); border-radius: 13px;
+    padding: 18px 20px; font-size: 13.5px; line-height: 1.72; color: var(--text-dim);
+  }
+  .draft h4 { font-size: 15px; color: var(--text); margin: 0 0 10px; }
+  .draft h5 { font-size: 13px; color: var(--text); margin: 18px 0 8px; }
+  .draft p { margin: 0 0 12px; }
+  .draft ul { margin: 0 0 12px; padding-left: 20px; }
+  .draft li { margin-bottom: 6px; }
+  .draft mark { background: var(--accent-soft); color: var(--accent-2); font-weight: 600; padding: 1px 4px; border-radius: 4px; }
+
+  /* findings list */
+  .finding { display: flex; gap: 12px; padding: 13px; background: var(--panel); border: 1px solid var(--line-soft); border-radius: 11px; margin-bottom: 10px; }
+  .finding .fic { width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center; }
+  .finding .fic svg { width: 16px; height: 16px; }
+  .fic.crit { background: var(--red-soft); color: var(--red); }
+  .fic.warn { background: var(--amber-soft); color: var(--amber); }
+  .fic.good { background: var(--green-soft); color: var(--green); }
+  .finding b { font-size: 13.5px; }
+  .finding p { margin: 4px 0 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+
+  /* activity feed */
+  .feed { position: relative; padding-left: 8px; }
+  .feed .fe { display: flex; gap: 13px; padding-bottom: 18px; position: relative; }
+  .feed .fe:not(:last-child)::before { content: ""; position: absolute; left: 9px; top: 22px; bottom: -4px; width: 2px; background: var(--line); }
+  .feed .fe .fdot { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center; z-index: 1; background: var(--panel-2); border: 2px solid var(--line); }
+  .feed .fe .fdot svg { width: 11px; height: 11px; }
+  .feed .fe.ai .fdot { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .feed .fe .ft { font-size: 13px; }
+  .feed .fe .ft b { font-weight: 600; }
+  .feed .fe .fts { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+
+  .drawer-foot { padding: 16px 24px; border-top: 1px solid var(--line-soft); display: flex; gap: 11px; align-items: center; background: var(--bg-2); }
+  .btn { padding: 11px 18px; border-radius: 11px; font-size: 13.5px; font-weight: 700; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text); transition: all .15s; display: inline-flex; align-items: center; gap: 8px; }
+  .btn:hover { background: var(--panel-2); }
+  .btn svg { width: 16px; height: 16px; }
+  .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #fff; box-shadow: 0 6px 18px -8px rgba(217,119,6,0.5); }
+  .btn.primary:hover { transform: translateY(-1px); }
+  .btn.ghost { background: transparent; }
+  .drawer-foot .right { margin-left: auto; display: flex; gap: 11px; }
+
+  /* review/correct inline */
+  .correct-banner { display: flex; align-items: center; gap: 11px; background: var(--amber-soft); border: 1px solid rgba(217,119,6,0.3); border-radius: 11px; padding: 11px 14px; margin-bottom: 18px; font-size: 12.5px; color: #92500a; }
+  .correct-banner svg { width: 18px; height: 18px; flex: none; }
+  .correct-banner b { color: var(--accent-2); }
+
+  @media (max-width: 1050px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .composer-grid { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+      </div>
+      <div>
+        <div class="name">Reportly AI</div>
+        <div class="sub">Report Studio</div>
+      </div>
+    </div>
+
+    <div class="nav-group-label">Workspace</div>
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>Reports<span class="badge">24</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>Templates<span class="badge">9</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>Review Queue<span class="badge">5</span></div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>Data Sources</div>
+
+    <div class="nav-group-label">Insights</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Analytics</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>Settings</div>
+
+    <div class="spacer"></div>
+    <div class="quota">
+      <div class="qt"><span>AI Generation Credits</span><span>Team plan</span></div>
+      <div class="qbar"><div class="qfill"></div></div>
+      <div class="qn"><b>1,284</b> / 2,000 this month</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1>AI Report Generator</h1>
+        <div class="crumb">Workspace / Dashboard · Q2 reporting cycle</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search reports, sources, owners…" />
+      </div>
+      <button class="icon-btn" title="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
+      <div class="avatar">AM</div>
+    </header>
+
+    <div class="content">
+      <!-- Composer -->
+      <section class="composer">
+        <div class="glow"></div>
+        <div class="composer-head">
+          <div class="ai-chip"><span class="dot"></span>AI Engine · GPT-grade</div>
+          <div>
+            <h2>Generate a new report</h2>
+            <p>Describe what you need and attach sources — the AI drafts, extracts, and scores it for you.</p>
+          </div>
+        </div>
+        <div class="composer-grid">
+          <div>
+            <label class="field-label">Prompt</label>
+            <textarea id="promptArea">Write a Q2 financial performance summary for the Northeast region. Highlight revenue vs. forecast, top 3 risk drivers, and an executive recommendation. Tone: concise, board-ready.</textarea>
+          </div>
+          <div>
+            <label class="field-label">Attached sources</label>
+            <div class="source-list">
+              <div class="source-item">
+                <div class="fi xls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m9 13 3 3m0-3-3 3"/></svg></div>
+                <div class="meta"><b>Q2_revenue_actuals.xlsx</b><span>3.2 MB · 14 sheets</span></div>
+                <div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>Parsed</div>
+              </div>
+              <div class="source-item">
+                <div class="fi pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+                <div class="meta"><b>NE_forecast_board.pdf</b><span>880 KB · 12 pages</span></div>
+                <div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>Parsed</div>
+              </div>
+              <div class="source-item">
+                <div class="fi api"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg></div>
+                <div class="meta"><b>Salesforce · Opportunities</b><span>Live connection · synced 4m ago</span></div>
+                <div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>Linked</div>
+              </div>
+              <div class="source-item add-source" id="addSource">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg> Add file or data source
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="composer-foot">
+          <div class="chip-toggle" id="formatChips">
+            <span class="tchip on" data-fmt="Executive brief">Executive brief</span>
+            <span class="tchip" data-fmt="Full report">Full report</span>
+            <span class="tchip" data-fmt="Slide deck">Slide deck</span>
+            <span class="tchip" data-fmt="Email digest">Email digest</span>
+          </div>
+          <button class="gen-btn" id="generateBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5Z"/></svg>
+            Generate report
+          </button>
+        </div>
+        <div class="gen-progress" id="genProgress">
+          <div class="gp-bar"><div class="gp-fill" id="gpFill"></div></div>
+          <div class="gp-steps" id="gpSteps">
+            <div class="s" data-step="0"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Reading sources</div>
+            <div class="s" data-step="1"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Extracting metrics</div>
+            <div class="s" data-step="2"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Drafting narrative</div>
+            <div class="s" data-step="3"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></span>Scoring &amp; QA</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stats -->
+      <section class="stats">
+        <div class="stat">
+          <div class="lab"><span class="ic" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></span>Reports generated</div>
+          <div class="val">142</div>
+          <div class="delta up">▲ 18% vs last month</div>
+          <svg class="spark" viewBox="0 0 78 34" preserveAspectRatio="none"><polyline fill="none" stroke="#d97706" stroke-width="2" points="0,28 11,24 22,26 33,18 44,20 55,11 66,13 78,5"/></svg>
+        </div>
+        <div class="stat">
+          <div class="lab"><span class="ic" style="background:var(--green-soft);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Avg. confidence</div>
+          <div class="val">91.4%</div>
+          <div class="delta up">▲ 3.2 pts</div>
+          <svg class="spark" viewBox="0 0 78 34" preserveAspectRatio="none"><polyline fill="none" stroke="#15803d" stroke-width="2" points="0,20 11,18 22,14 33,16 44,10 55,12 66,7 78,6"/></svg>
+        </div>
+        <div class="stat">
+          <div class="lab"><span class="ic" style="background:var(--amber-soft);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>Hours saved</div>
+          <div class="val">318</div>
+          <div class="delta up">▲ this quarter</div>
+          <svg class="spark" viewBox="0 0 78 34" preserveAspectRatio="none"><polyline fill="none" stroke="#b45309" stroke-width="2" points="0,30 11,27 22,28 33,22 44,19 55,16 66,12 78,8"/></svg>
+        </div>
+        <div class="stat">
+          <div class="lab"><span class="ic" style="background:var(--cyan-soft,rgba(56,189,248,0.13));color:var(--cyan)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span>Awaiting review</div>
+          <div class="val">5</div>
+          <div class="delta down">▼ 2 since yesterday</div>
+          <svg class="spark" viewBox="0 0 78 34" preserveAspectRatio="none"><polyline fill="none" stroke="#0369a1" stroke-width="2" points="0,8 11,12 22,10 33,15 44,13 55,20 66,18 78,24"/></svg>
+        </div>
+      </section>
+
+      <!-- Section: reports -->
+      <div class="section-head">
+        <h3>Recent reports</h3>
+        <span class="count" id="resultCount">24 reports</span>
+        <div class="seg-right">
+          <select class="filter-sel" id="catFilter">
+            <option value="all">All categories</option>
+            <option value="fin">Financial</option>
+            <option value="mkt">Marketing</option>
+            <option value="ops">Operations</option>
+            <option value="sec">Security</option>
+            <option value="prod">Product</option>
+          </select>
+          <select class="filter-sel" id="sortSel">
+            <option value="recent">Sort: Most recent</option>
+            <option value="conf">Sort: Confidence</option>
+            <option value="title">Sort: Title</option>
+          </select>
+        </div>
+      </div>
+      <div class="tabs" id="statusTabs" style="margin-bottom:18px;width:max-content">
+        <div class="tab active" data-status="all">All<span class="n" id="tab-all"></span></div>
+        <div class="tab" data-status="review">Needs review<span class="n" id="tab-review"></span></div>
+        <div class="tab" data-status="ready">Ready<span class="n" id="tab-ready"></span></div>
+        <div class="tab" data-status="gen">Generating<span class="n" id="tab-gen"></span></div>
+        <div class="tab" data-status="draft">Draft<span class="n" id="tab-draft"></span></div>
+      </div>
+
+      <div class="grid" id="grid"></div>
+      <div class="empty" id="emptyState">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <b>No reports match your filters</b>
+        Try a different status, category, or search term.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="card-thumb" id="dThumb" style="width:50px;height:50px"></div>
+    <div style="min-width:0">
+      <h2 class="drawer-title" id="dTitle">Report title</h2>
+      <div class="drawer-sub" id="dSub"></div>
+    </div>
+    <button class="icon-btn x" id="closeDrawer" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <div class="dk-tabs" id="dkTabs">
+    <div class="dk-tab active" data-pane="overview">Overview</div>
+    <div class="dk-tab" data-pane="draft">Generated draft</div>
+    <div class="dk-tab" data-pane="extract">Extracted data</div>
+    <div class="dk-tab" data-pane="activity">Activity</div>
+  </div>
+
+  <div class="drawer-body">
+    <!-- Overview -->
+    <div class="dpane active" data-pane="overview" id="paneOverview"></div>
+    <!-- Draft -->
+    <div class="dpane" data-pane="draft" id="paneDraft"></div>
+    <!-- Extract -->
+    <div class="dpane" data-pane="extract" id="paneExtract"></div>
+    <!-- Activity -->
+    <div class="dpane" data-pane="activity" id="paneActivity"></div>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="btn ghost" id="regenBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>Regenerate</button>
+    <div class="right">
+      <button class="btn" id="exportBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Export</button>
+      <button class="btn primary" id="approveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Approve &amp; publish</button>
+    </div>
+  </div>
+</aside>
+
+<script>
+/* ============ Seed data ============ */
+const CAT = {
+  fin:  { label:"Financial",   thumb:"thumb-fin",  conf:"hi", icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>' },
+  mkt:  { label:"Marketing",   thumb:"thumb-mkt",  conf:"hi", icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 11 18-5v12L3 14v-3Z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>' },
+  ops:  { label:"Operations",  thumb:"thumb-ops",  conf:"hi", icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>' },
+  sec:  { label:"Security",    thumb:"thumb-sec",  conf:"mid",icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>' },
+  prod: { label:"Product",     thumb:"thumb-prod", conf:"hi", icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>' },
+};
+const STATUS = {
+  ready:  { label:"Ready",        cls:"ready"  },
+  review: { label:"Needs review", cls:"review" },
+  gen:    { label:"Generating",   cls:"gen"    },
+  draft:  { label:"Draft",        cls:"draft"  },
+  fail:   { label:"Failed",       cls:"fail"   },
+};
+
+const REPORTS = [
+  { id:1, title:"Q2 Financial Performance — Northeast", cat:"fin", status:"review", conf:88, owner:"Amara Okafor", date:"Jun 23, 2026", time:"2h ago", pages:14, format:"Executive brief", sources:["Q2_revenue_actuals.xlsx","NE_forecast_board.pdf","Salesforce · Opportunities"],
+    excerpt:"Revenue reached $48.2M, 6.1% above forecast, but margin compression in two product lines warrants board attention.",
+    summary:"Northeast closed Q2 at $48.2M revenue, beating the board forecast by 6.1%. Growth was led by Enterprise renewals (+22% YoY), offset by gross-margin compression in Hardware and Field Services. The AI flags supplier price volatility and a widening DSO as the two highest-impact risks for Q3.",
+    kpis:[ {l:"Revenue",v:"$48.2M",d:"▲ 6.1% vs forecast",dc:"up"}, {l:"Gross margin",v:"41.8%",d:"▼ 1.4 pts QoQ",dc:"down"}, {l:"DSO",v:"52 days",d:"▲ 7 days",dc:"down"} ],
+    fields:[ {k:"Reporting period",v:"Apr 1 – Jun 30, 2026",c:"hi",cv:99}, {k:"Total revenue",v:"$48,214,900",c:"hi",cv:97}, {k:"Forecast variance",v:"+6.1%",c:"hi",cv:95}, {k:"Top region",v:"Boston metro",c:"hi",cv:93}, {k:"Largest deal",v:"Halcyon Group — $2.1M",c:"mid",cv:81}, {k:"Days sales outstanding",v:"52 days",c:"mid",cv:78} ],
+    chart:[42,44,41,45,46,48], chartF:[40,42,42,43,44,45],
+    findings:[ {t:"warn",h:"Margin compression in Hardware (-3.1 pts)",p:"Supplier cost increases on two SKUs were not passed through to pricing. Estimated $640K margin impact."}, {t:"crit",h:"DSO trending up to 52 days",p:"Three enterprise accounts past 60-day terms account for 71% of the increase. Recommend collections escalation."}, {t:"good",h:"Enterprise renewals up 22% YoY",p:"Net revenue retention reached 114%, the strongest quarter on record for the region."} ],
+    draft:`<h4>Executive Summary — Q2 Financial Performance, Northeast Region</h4>
+<p>The Northeast region closed the second quarter with <mark>$48.2M in revenue</mark>, exceeding the board forecast of $45.4M by 6.1%. Performance was anchored by a strong Enterprise renewal cycle, with net revenue retention reaching 114% — the highest on record for the region.</p>
+<h5>Revenue vs. Forecast</h5>
+<p>Actuals outpaced forecast in four of six product lines. The variance was driven primarily by the early close of the Halcyon Group expansion ($2.1M) and accelerated Field Services bookings in the Boston metro.</p>
+<h5>Top 3 Risk Drivers</h5>
+<ul>
+<li><b>Margin compression in Hardware (-3.1 pts):</b> supplier cost increases were not passed through to list pricing.</li>
+<li><b>Rising DSO (52 days, +7):</b> concentrated in three enterprise accounts past 60-day terms.</li>
+<li><b>Field Services capacity:</b> utilization at 94% leaves little headroom for Q3 demand.</li>
+</ul>
+<h5>Recommendation</h5>
+<p>Approve a targeted Hardware price adjustment effective Q3 and initiate a collections escalation on the three flagged accounts. With these actions, the AI projects margin recovery of ~1.1 pts and a return to a 45-day DSO by quarter end.</p>` },
+
+  { id:2, title:"Marketing Funnel & Attribution — June", cat:"mkt", status:"ready", conf:94, owner:"Diego Marín", date:"Jun 22, 2026", time:"yesterday", pages:9, format:"Full report", sources:["HubSpot · Campaigns","GA4 export.csv"],
+    excerpt:"Paid social CAC fell 19% while organic share of pipeline hit 38% — the channel mix shift is now self-sustaining.",
+    summary:"June delivered 1,840 MQLs at a blended CAC of $214, down 19% MoM. The AI attributes the improvement to a rebalanced channel mix: paid social efficiency rose while organic and referral grew to 38% of sourced pipeline. Webinar follow-up remains the weakest conversion stage.",
+    kpis:[ {l:"MQLs",v:"1,840",d:"▲ 12% MoM",dc:"up"}, {l:"Blended CAC",v:"$214",d:"▼ 19% MoM",dc:"up"}, {l:"Pipeline sourced",v:"$6.4M",d:"▲ 9%",dc:"up"} ],
+    fields:[ {k:"Reporting month",v:"June 2026",c:"hi",cv:99}, {k:"Total MQLs",v:"1,840",c:"hi",cv:96}, {k:"Blended CAC",v:"$214",c:"hi",cv:94}, {k:"Top channel",v:"Organic search",c:"hi",cv:92}, {k:"Best campaign",v:"'Scale Smarter' webinar",c:"mid",cv:84}, {k:"Worst stage",v:"Webinar → demo (8%)",c:"mid",cv:79} ],
+    chart:[28,31,34,33,36,38], chartF:[30,30,31,32,33,34],
+    findings:[ {t:"good",h:"Paid social CAC down 19%",p:"Creative refresh on the 'Scale Smarter' set lifted CTR from 1.1% to 2.4%, lowering cost per MQL substantially."}, {t:"warn",h:"Webinar→demo conversion stuck at 8%",p:"Follow-up emails fire 3 days late on average. The AI recommends a same-day automated sequence."}, {t:"good",h:"Organic now 38% of pipeline",p:"Content cluster on 'reporting automation' ranks page-one for 14 target terms."} ],
+    draft:`<h4>Marketing Funnel & Attribution — June 2026</h4>
+<p>June generated <mark>1,840 marketing-qualified leads</mark> at a blended CAC of $214, a 19% improvement month-over-month. The headline story is a durable shift in channel mix toward lower-cost organic and referral sources.</p>
+<h5>What Worked</h5>
+<ul><li>Creative refresh on paid social more than doubled click-through rate.</li><li>The 'reporting automation' content cluster now ranks page-one for 14 target keywords.</li></ul>
+<h5>What Needs Attention</h5>
+<p>The webinar-to-demo stage converts at just 8%. Root-cause analysis points to delayed follow-up; an automated same-day sequence is recommended for July.</p>` },
+
+  { id:3, title:"SOC 2 Control Gap Assessment", cat:"sec", status:"review", conf:73, owner:"Priya Nair", date:"Jun 21, 2026", time:"2 days ago", pages:21, format:"Full report", sources:["Vanta export.json","Access_review_Q2.csv","Incident_log.pdf"],
+    excerpt:"4 controls drifted out of compliance since the last audit; access reviews are the dominant gap and need owner sign-off.",
+    summary:"The AI scanned 184 controls against the SOC 2 Type II framework and found 4 in a drifted state, down from 9 last quarter. Access-review timeliness is the primary residual gap. Confidence is moderate because two evidence artifacts could not be automatically verified and need manual review.",
+    kpis:[ {l:"Controls passing",v:"180 / 184",d:"▲ from 175",dc:"up"}, {l:"Open gaps",v:"4",d:"▼ from 9",dc:"up"}, {l:"Evidence coverage",v:"89%",d:"2 items manual",dc:"down"} ],
+    fields:[ {k:"Framework",v:"SOC 2 Type II",c:"hi",cv:99}, {k:"Controls evaluated",v:"184",c:"hi",cv:98}, {k:"Failing controls",v:"4",c:"hi",cv:90}, {k:"Highest-risk gap",v:"CC6.2 Access reviews",c:"mid",cv:77}, {k:"Last incident",v:"None in period",c:"mid",cv:72}, {k:"Evidence auto-verified",v:"89%",c:"lo",cv:64} ],
+    chart:[9,8,7,6,5,4], chartF:[9,9,8,8,7,7],
+    findings:[ {t:"crit",h:"CC6.2 — quarterly access reviews overdue",p:"Reviews for 3 production systems are 18 days past due. Owner sign-off required to clear the gap."}, {t:"warn",h:"2 evidence artifacts unverified",p:"Vanta could not match the incident log and one change-management record. Manual confirmation needed before publish."}, {t:"good",h:"Encryption-at-rest fully compliant",p:"All data stores confirmed AES-256; no action required."} ],
+    draft:`<h4>SOC 2 Control Gap Assessment — Q2 2026</h4>
+<p>Of <mark>184 evaluated controls</mark>, 180 are passing and 4 require remediation. Overall posture improved from 9 open gaps last quarter.</p>
+<h5>Priority Gap</h5>
+<p>Control CC6.2 (quarterly access reviews) is the highest-risk open item, with reviews for three production systems overdue by 18 days. This blocks audit readiness and should be cleared this week.</p>
+<h5>Confidence Note</h5>
+<p>Two evidence artifacts could not be automatically verified. Manual confirmation is recommended before this report is published to the auditor.</p>` },
+
+  { id:4, title:"Weekly Operations Health — Logistics", cat:"ops", status:"ready", conf:96, owner:"Tomás Reyes", date:"Jun 20, 2026", time:"3 days ago", pages:7, format:"Email digest", sources:["WMS feed (live)","Carrier_SLA.xlsx"],
+    excerpt:"On-time delivery climbed to 97.3% and warehouse throughput is steady; one carrier lane is trending toward SLA breach.",
+    summary:"Network-wide on-time delivery reached 97.3% this week, above the 96% target. Throughput held steady at 18.4K units/day. The AI flagged a single carrier lane (Midwest → Mountain) trending toward an SLA breach and recommends pre-emptive rerouting.",
+    kpis:[ {l:"On-time delivery",v:"97.3%",d:"▲ 0.8 pts",dc:"up"}, {l:"Throughput",v:"18.4K/day",d:"steady",dc:"up"}, {l:"Cost / shipment",v:"$11.40",d:"▼ $0.30",dc:"up"} ],
+    fields:[ {k:"Reporting week",v:"Jun 14 – Jun 20",c:"hi",cv:99}, {k:"On-time delivery",v:"97.3%",c:"hi",cv:97}, {k:"Total shipments",v:"128,900",c:"hi",cv:96}, {k:"At-risk lane",v:"Midwest → Mountain",c:"hi",cv:91}, {k:"Avg. cost/shipment",v:"$11.40",c:"hi",cv:90}, {k:"Returns rate",v:"1.9%",c:"mid",cv:83} ],
+    chart:[95,96,96,97,97,97], chartF:[96,96,96,96,96,96],
+    findings:[ {t:"good",h:"On-time delivery above target",p:"Network performance exceeded the 96% SLA threshold for the fourth consecutive week."}, {t:"warn",h:"Midwest → Mountain lane at risk",p:"Transit times rose 11% after a carrier hub closure. Recommend shifting 20% of volume to the secondary carrier."}, {t:"good",h:"Cost per shipment down $0.30",p:"Consolidation of LTL freight reduced per-unit cost without affecting transit times."} ],
+    draft:`<h4>Weekly Operations Health — Logistics</h4>
+<p>The network delivered <mark>97.3% on-time</mark> this week, comfortably above the 96% target and the fourth consecutive week above SLA.</p>
+<h5>Watch Item</h5>
+<p>The Midwest → Mountain lane is trending toward an SLA breach after a carrier hub closure raised transit times by 11%. The AI recommends pre-emptively shifting 20% of volume to the secondary carrier.</p>` },
+
+  { id:5, title:"Product Usage & Retention — Mobile App", cat:"prod", status:"gen", conf:0, owner:"Hana Kim", date:"Jun 23, 2026", time:"generating…", pages:0, format:"Full report", sources:["Amplitude export","App_Store_reviews.csv"],
+    excerpt:"The AI is analyzing 2.1M sessions to surface activation, retention, and feature-adoption insights for the mobile app.",
+    summary:"This report is being generated. The AI is processing 2.1M sessions across the last 90 days to compute activation, D30 retention, and feature-adoption cohorts.",
+    kpis:[ {l:"Sessions",v:"—",d:"processing",dc:"up"}, {l:"D30 retention",v:"—",d:"processing",dc:"up"}, {l:"Adoption",v:"—",d:"processing",dc:"up"} ],
+    fields:[], chart:[], chartF:[], findings:[], draft:`<p style="color:var(--text-faint)">The draft will appear here once generation completes.</p>` },
+
+  { id:6, title:"Quarterly Board Deck — Company Overview", cat:"fin", status:"ready", conf:92, owner:"Amara Okafor", date:"Jun 19, 2026", time:"4 days ago", pages:18, format:"Slide deck", sources:["Q2_consolidated.xlsx","Board_template.pptx"],
+    excerpt:"Consolidated ARR crossed $190M with rule-of-40 at 47; the AI assembled an 18-slide board narrative from source financials.",
+    summary:"Company-wide ARR reached $191.3M with a Rule-of-40 score of 47, balancing 31% growth against a 16% free-cash-flow margin. The AI assembled an 18-slide board deck including waterfall, cohort, and segment views directly from the consolidated financials.",
+    kpis:[ {l:"ARR",v:"$191.3M",d:"▲ 31% YoY",dc:"up"}, {l:"Rule of 40",v:"47",d:"▲ from 43",dc:"up"}, {l:"FCF margin",v:"16%",d:"▲ 2 pts",dc:"up"} ],
+    fields:[ {k:"Period",v:"Q2 FY2026",c:"hi",cv:99}, {k:"ARR",v:"$191,300,000",c:"hi",cv:96}, {k:"YoY growth",v:"31%",c:"hi",cv:95}, {k:"Net retention",v:"118%",c:"hi",cv:92}, {k:"Rule of 40",v:"47",c:"hi",cv:90}, {k:"Cash runway",v:"38 months",c:"mid",cv:85} ],
+    chart:[140,152,165,174,182,191], chartF:[138,150,160,170,178,186],
+    findings:[ {t:"good",h:"Rule-of-40 improved to 47",p:"Disciplined hiring and expansion revenue lifted the efficiency score four points above last quarter."}, {t:"good",h:"Net retention at 118%",p:"Expansion outpaced churn across all three customer segments."}, {t:"warn",h:"Enterprise sales cycle lengthening",p:"Average days-to-close rose from 71 to 84; worth a board-level note on pipeline conversion timing."} ],
+    draft:`<h4>Quarterly Board Deck — Company Overview</h4>
+<p>The company closed Q2 with <mark>$191.3M ARR</mark>, up 31% year-over-year, and a Rule-of-40 score of 47. Net revenue retention reached 118%.</p>
+<h5>Narrative Highlights</h5>
+<ul><li>Expansion revenue outpaced churn across all segments.</li><li>Free-cash-flow margin improved to 16% with 38 months of runway.</li><li>Enterprise sales cycles lengthened to 84 days — flagged for board discussion.</li></ul>` },
+
+  { id:7, title:"Customer Churn Risk Scoring — Q2", cat:"ops", status:"review", conf:81, owner:"Diego Marín", date:"Jun 18, 2026", time:"5 days ago", pages:11, format:"Full report", sources:["CRM accounts","Support_tickets.csv","Usage_metrics"],
+    excerpt:"34 accounts scored high churn-risk, concentrated in mid-market; the AI ranks them by ARR at stake with reasons.",
+    summary:"The AI scored 612 active accounts and classified 34 as high churn-risk, representing $4.1M ARR at stake. Risk concentrates in mid-market accounts onboarded over 18 months ago. Declining feature adoption and rising support volume are the strongest predictors.",
+    kpis:[ {l:"Accounts scored",v:"612",d:"full base",dc:"up"}, {l:"High-risk",v:"34",d:"$4.1M ARR",dc:"down"}, {l:"Model precision",v:"81%",d:"holdout set",dc:"up"} ],
+    fields:[ {k:"Accounts evaluated",v:"612",c:"hi",cv:99}, {k:"High-risk accounts",v:"34",c:"hi",cv:93}, {k:"ARR at risk",v:"$4,090,000",c:"hi",cv:88}, {k:"Top predictor",v:"Feature adoption ▼",c:"mid",cv:82}, {k:"Segment most at risk",v:"Mid-market",c:"mid",cv:80}, {k:"Model precision",v:"81%",c:"mid",cv:81} ],
+    chart:[22,25,28,30,33,34], chartF:[24,25,26,27,28,29],
+    findings:[ {t:"crit",h:"Northwind Logistics — $620K at risk",p:"Logins down 64% over 60 days, two unresolved P1 tickets. The AI recommends an executive touch this week."}, {t:"warn",h:"Adoption decay in mid-market cohort",p:"Accounts past 18 months show a consistent drop in core-feature usage before churn."}, {t:"good",h:"Enterprise segment stable",p:"Only 2 of 88 enterprise accounts flagged; retention motion is working."} ],
+    draft:`<h4>Customer Churn Risk Scoring — Q2 2026</h4>
+<p>The model scored <mark>612 active accounts</mark> and flagged 34 as high-risk, representing $4.1M of ARR at stake. Risk is concentrated in the mid-market segment.</p>
+<h5>Top Drivers</h5>
+<ul><li>Declining core-feature adoption (strongest signal).</li><li>Rising unresolved support volume.</li><li>Reduced executive engagement on the account.</li></ul>
+<h5>Recommended Plays</h5>
+<p>Prioritize the 8 accounts above $300K ARR for an executive outreach motion within the next 10 days.</p>` },
+
+  { id:8, title:"Annual ESG & Sustainability Summary", cat:"ops", status:"draft", conf:67, owner:"Priya Nair", date:"Jun 16, 2026", time:"1 week ago", pages:0, format:"Full report", sources:["Energy_usage.xlsx","Supplier_survey.csv"],
+    excerpt:"Draft in progress — emissions data is parsed but two supplier surveys are incomplete, lowering overall confidence.",
+    summary:"A working draft. Scope 1 and 2 emissions are computed, but Scope 3 supplier data is only 71% complete, which lowers confidence. The AI recommends collecting two outstanding supplier surveys before finalizing.",
+    kpis:[ {l:"Scope 1+2",v:"4,210 tCO₂e",d:"▼ 8% YoY",dc:"up"}, {l:"Scope 3 coverage",v:"71%",d:"incomplete",dc:"down"}, {l:"Renewable mix",v:"54%",d:"▲ 11 pts",dc:"up"} ],
+    fields:[ {k:"Reporting year",v:"FY2025",c:"hi",cv:97}, {k:"Scope 1+2 emissions",v:"4,210 tCO₂e",c:"hi",cv:90}, {k:"Scope 3 coverage",v:"71%",c:"lo",cv:61}, {k:"Renewable energy mix",v:"54%",c:"mid",cv:84}, {k:"Missing surveys",v:"2 suppliers",c:"lo",cv:58} ],
+    chart:[5,4.8,4.6,4.5,4.3,4.2], chartF:[5,4.9,4.8,4.7,4.6,4.5],
+    findings:[ {t:"warn",h:"Scope 3 data incomplete (71%)",p:"Two key suppliers have not returned emissions surveys. Confidence will rise above 85% once collected."}, {t:"good",h:"Renewable mix up 11 points",p:"On-site solar and a green tariff lifted the renewable share to 54%."} ],
+    draft:`<h4>Annual ESG & Sustainability Summary — DRAFT</h4>
+<p>Scope 1 and 2 emissions totaled <mark>4,210 tCO₂e</mark>, an 8% year-over-year reduction. Renewable energy now makes up 54% of consumption.</p>
+<h5>Outstanding Before Finalizing</h5>
+<p>Scope 3 supplier coverage is only 71%. Two outstanding surveys must be collected to raise report confidence above the publishing threshold.</p>` },
+
+  { id:9, title:"Sales Pipeline Forecast — H2", cat:"fin", status:"ready", conf:90, owner:"Tomás Reyes", date:"Jun 15, 2026", time:"1 week ago", pages:10, format:"Executive brief", sources:["Salesforce · Opportunities","Historical_close.csv"],
+    excerpt:"Weighted pipeline supports a $112M H2 target with 84% coverage; the AI flags Q4 as the conversion risk window.",
+    summary:"Weighted pipeline of $94M supports the $112M H2 commit at 84% coverage. The AI's win-rate model projects an 88% probability of hitting target if Q3 conversion holds, with Q4 identified as the primary risk window due to seasonal slowdown.",
+    kpis:[ {l:"Weighted pipeline",v:"$94M",d:"84% coverage",dc:"up"}, {l:"H2 target",v:"$112M",d:"committed",dc:"up"}, {l:"Win-rate (model)",v:"24%",d:"▲ 2 pts",dc:"up"} ],
+    fields:[ {k:"Forecast horizon",v:"Jul – Dec 2026",c:"hi",cv:98}, {k:"Weighted pipeline",v:"$94,200,000",c:"hi",cv:93}, {k:"Coverage ratio",v:"84%",c:"hi",cv:91}, {k:"Modeled win-rate",v:"24%",c:"mid",cv:86}, {k:"Risk window",v:"Q4 conversion",c:"mid",cv:80} ],
+    chart:[68,74,80,85,90,94], chartF:[70,76,82,88,94,100],
+    findings:[ {t:"good",h:"Coverage above the 80% threshold",p:"Pipeline coverage of 84% gives the H2 commit a healthy buffer entering Q3."}, {t:"warn",h:"Q4 conversion risk",p:"Historical close rates dip 6 points in December. The AI recommends pulling 2-3 large deals into Q3 where feasible."} ],
+    draft:`<h4>Sales Pipeline Forecast — H2 2026</h4>
+<p>Weighted pipeline of <mark>$94M</mark> backs the $112M H2 commitment at 84% coverage. The model projects an 88% probability of hitting target.</p>
+<h5>Primary Risk</h5>
+<p>Q4 conversion is the watch window; historical close rates fall ~6 points in December. Pulling forward two to three large deals would de-risk the commit.</p>` },
+
+  { id:10, title:"IT Incident Postmortem — Auth Outage", cat:"sec", status:"ready", conf:95, owner:"Hana Kim", date:"Jun 13, 2026", time:"10 days ago", pages:6, format:"Full report", sources:["PagerDuty_timeline","Datadog_traces.json"],
+    excerpt:"42-minute auth outage traced to a token-cache eviction bug; the AI assembled a blameless timeline with 4 action items.",
+    summary:"A 42-minute authentication outage affected 14% of users. Root cause was a token-cache eviction bug triggered under high load. The AI reconstructed a blameless timeline from monitoring traces and proposed four prioritized action items to prevent recurrence.",
+    kpis:[ {l:"Duration",v:"42 min",d:"contained",dc:"up"}, {l:"Users affected",v:"14%",d:"~38K",dc:"down"}, {l:"Action items",v:"4",d:"2 owners assigned",dc:"up"} ],
+    fields:[ {k:"Incident date",v:"Jun 12, 2026",c:"hi",cv:99}, {k:"Severity",v:"SEV-2",c:"hi",cv:96}, {k:"Duration",v:"42 minutes",c:"hi",cv:98}, {k:"Root cause",v:"Token-cache eviction",c:"hi",cv:93}, {k:"Users affected",v:"~38,000 (14%)",c:"hi",cv:92}, {k:"MTTR",v:"42 min",c:"hi",cv:95} ],
+    chart:[0,38,42,30,5,0], chartF:[0,0,0,0,0,0],
+    findings:[ {t:"crit",h:"Token-cache eviction under load",p:"A cache eviction policy purged valid tokens during a traffic spike, causing cascading re-auth failures."}, {t:"good",h:"Detection within 3 minutes",p:"Alerting fired promptly; the delay was in rollback, not detection."}, {t:"warn",h:"No automated rollback path",p:"Recovery required manual intervention. Action item: add an automated circuit breaker."} ],
+    draft:`<h4>IT Incident Postmortem — Authentication Outage</h4>
+<p>On June 12, a <mark>42-minute SEV-2 outage</mark> affected roughly 14% of users. Root cause was a token-cache eviction bug surfaced under peak load.</p>
+<h5>Action Items</h5>
+<ul><li>Add an automated circuit breaker for re-auth storms (owner: Platform).</li><li>Adjust cache eviction policy to protect active tokens.</li><li>Add load-test coverage for the auth path.</li><li>Document the manual rollback runbook.</li></ul>` },
+
+  { id:11, title:"Regional Expansion Feasibility — DACH", cat:"mkt", status:"review", conf:79, owner:"Amara Okafor", date:"Jun 11, 2026", time:"12 days ago", pages:16, format:"Full report", sources:["Market_sizing.xlsx","Competitor_scan.pdf"],
+    excerpt:"TAM estimated at €420M with moderate competitive density; the AI rates Germany-first entry as the strongest path.",
+    summary:"The AI assessed DACH market entry across sizing, competition, and regulatory factors. TAM is estimated at €420M with moderate competitive density. A Germany-first entry scores highest on a weighted feasibility index, though localization and GDPR readiness add 4-6 months to timeline.",
+    kpis:[ {l:"TAM",v:"€420M",d:"3-yr horizon",dc:"up"}, {l:"Feasibility score",v:"72/100",d:"Germany-first",dc:"up"}, {l:"Time to launch",v:"9 mo",d:"est.",dc:"down"} ],
+    fields:[ {k:"Target market",v:"DACH region",c:"hi",cv:97}, {k:"Estimated TAM",v:"€420,000,000",c:"mid",cv:82}, {k:"Competitive density",v:"Moderate",c:"mid",cv:78}, {k:"Recommended entry",v:"Germany-first",c:"mid",cv:80}, {k:"Regulatory load",v:"High (GDPR)",c:"hi",cv:88}, {k:"Est. time-to-launch",v:"9 months",c:"lo",cv:66} ],
+    chart:[0,90,180,290,360,420], chartF:[0,80,160,250,330,400],
+    findings:[ {t:"good",h:"TAM supports investment case",p:"At €420M, the addressable market clears the internal threshold for a new-region investment."}, {t:"warn",h:"Localization adds 4-6 months",p:"Full German localization plus GDPR data-residency requirements extend the timeline meaningfully."}, {t:"warn",h:"Two incumbents hold 40% share",p:"Competitive density is moderate but concentrated; differentiation on automation is the recommended wedge."} ],
+    draft:`<h4>Regional Expansion Feasibility — DACH</h4>
+<p>The DACH region presents a <mark>€420M TAM</mark> with moderate competitive density. A Germany-first entry scores 72/100 on the weighted feasibility index, the highest of the evaluated paths.</p>
+<h5>Key Considerations</h5>
+<p>GDPR data-residency and full localization add an estimated 4-6 months to launch. Differentiation on reporting automation is recommended as the competitive wedge.</p>` },
+
+  { id:12, title:"Feature Adoption Deep-Dive — Reporting v3", cat:"prod", status:"ready", conf:89, owner:"Hana Kim", date:"Jun 9, 2026", time:"2 weeks ago", pages:12, format:"Full report", sources:["Amplitude export","NPS_responses.csv"],
+    excerpt:"Reporting v3 adoption hit 61% of active accounts in 30 days; scheduled exports drive the strongest retention lift.",
+    summary:"Reporting v3 reached 61% adoption among active accounts within 30 days of GA. The AI identifies scheduled exports as the feature most correlated with retention. NPS among adopters is +14 points higher than non-adopters.",
+    kpis:[ {l:"Adoption",v:"61%",d:"in 30 days",dc:"up"}, {l:"Retention lift",v:"+9 pts",dc:"up",d:"adopters"}, {l:"NPS delta",v:"+14",d:"vs non-adopters",dc:"up"} ],
+    fields:[ {k:"Feature",v:"Reporting v3",c:"hi",cv:99}, {k:"30-day adoption",v:"61%",c:"hi",cv:94}, {k:"Stickiest sub-feature",v:"Scheduled exports",c:"hi",cv:90}, {k:"Retention lift",v:"+9 pts",c:"mid",cv:85}, {k:"NPS delta",v:"+14",c:"mid",cv:83} ],
+    chart:[12,28,41,52,57,61], chartF:[10,22,33,42,48,52],
+    findings:[ {t:"good",h:"Scheduled exports drive retention",p:"Accounts using scheduled exports retain 9 points higher than the baseline. Strong candidate for onboarding emphasis."}, {t:"good",h:"Adoption ahead of plan",p:"61% in 30 days exceeded the 45% GA target."}, {t:"warn",h:"Mobile adoption lagging",p:"Only 23% of v3 usage is on mobile; the AI suggests a guided mobile tour."} ],
+    draft:`<h4>Feature Adoption Deep-Dive — Reporting v3</h4>
+<p>Reporting v3 reached <mark>61% adoption</mark> among active accounts within 30 days of general availability, well ahead of the 45% target.</p>
+<h5>Retention Signal</h5>
+<p>Scheduled exports is the stickiest sub-feature, correlating with a 9-point retention lift. The AI recommends featuring it prominently in onboarding.</p>` },
+
+  { id:13, title:"Procurement Spend Analysis — Q2", cat:"ops", status:"ready", conf:93, owner:"Tomás Reyes", date:"Jun 6, 2026", time:"2 weeks ago", pages:9, format:"Executive brief", sources:["ERP_PO_export.xlsx","Vendor_master.csv"],
+    excerpt:"$12.8M total spend with 22% concentrated in three vendors; the AI surfaces $410K in consolidation savings.",
+    summary:"Q2 procurement spend totaled $12.8M across 240 vendors, with 22% concentrated in the top three. The AI identified $410K in potential savings through contract consolidation and flagged six off-contract purchases for review.",
+    kpis:[ {l:"Total spend",v:"$12.8M",d:"240 vendors",dc:"up"}, {l:"Savings found",v:"$410K",d:"consolidation",dc:"up"}, {l:"Off-contract",v:"6 POs",d:"flagged",dc:"down"} ],
+    fields:[ {k:"Reporting period",v:"Q2 2026",c:"hi",cv:99}, {k:"Total spend",v:"$12,800,000",c:"hi",cv:96}, {k:"Active vendors",v:"240",c:"hi",cv:95}, {k:"Top-3 concentration",v:"22%",c:"hi",cv:91}, {k:"Identified savings",v:"$410,000",c:"mid",cv:84}, {k:"Off-contract POs",v:"6",c:"hi",cv:88} ],
+    chart:[10.5,11.2,11.8,12.1,12.5,12.8], chartF:[11,11,12,12,13,13],
+    findings:[ {t:"good",h:"$410K consolidation opportunity",p:"Three overlapping software contracts can be merged at renewal for an estimated $410K annual saving."}, {t:"warn",h:"6 off-contract purchases",p:"These bypassed the preferred-vendor catalog and should be reviewed for compliance."} ],
+    draft:`<h4>Procurement Spend Analysis — Q2 2026</h4>
+<p>Total procurement spend reached <mark>$12.8M</mark> across 240 vendors, with the top three accounting for 22% of the total.</p>
+<h5>Opportunity</h5>
+<p>The AI identified $410K in annual savings by consolidating three overlapping software contracts at renewal, and flagged six off-contract purchases for compliance review.</p>` },
+
+  { id:14, title:"Brand Sentiment Tracker — June", cat:"mkt", status:"review", conf:76, owner:"Diego Marín", date:"Jun 4, 2026", time:"3 weeks ago", pages:8, format:"Email digest", sources:["Social_listening.json","Review_sites.csv"],
+    excerpt:"Net sentiment rose to +38 driven by the v3 launch, though a support-wait-time theme is gaining negative momentum.",
+    summary:"Net brand sentiment improved to +38 in June, lifted by positive reception of the Reporting v3 launch. The AI surfaced an emerging negative theme around support wait times that is gaining momentum and warrants attention.",
+    kpis:[ {l:"Net sentiment",v:"+38",d:"▲ 9 pts MoM",dc:"up"}, {l:"Mentions",v:"12,400",d:"▲ 21%",dc:"up"}, {l:"Negative themes",v:"2",d:"1 emerging",dc:"down"} ],
+    fields:[ {k:"Reporting month",v:"June 2026",c:"hi",cv:98}, {k:"Net sentiment",v:"+38",c:"hi",cv:88}, {k:"Total mentions",v:"12,400",c:"hi",cv:92}, {k:"Top positive theme",v:"Reporting v3 launch",c:"mid",cv:82}, {k:"Emerging risk theme",v:"Support wait times",c:"mid",cv:74}, {k:"Share of voice",v:"19%",c:"lo",cv:68} ],
+    chart:[22,25,29,31,34,38], chartF:[24,26,28,30,32,34],
+    findings:[ {t:"good",h:"v3 launch drove positive lift",p:"Mentions of the new reporting features skewed 82% positive across social and review channels."}, {t:"warn",h:"Support wait-time theme rising",p:"Negative mentions of support response time grew 3x MoM. The AI recommends monitoring closely next month."} ],
+    draft:`<h4>Brand Sentiment Tracker — June 2026</h4>
+<p>Net sentiment climbed to <mark>+38</mark>, up 9 points month-over-month, largely on the strength of the Reporting v3 launch reception.</p>
+<h5>Emerging Risk</h5>
+<p>A negative theme around support wait times grew threefold this month. While still small, the AI recommends close monitoring to prevent it from offsetting product goodwill.</p>` },
+
+  { id:15, title:"Headcount & Compensation Review — Q2", cat:"fin", status:"draft", conf:71, owner:"Priya Nair", date:"Jun 2, 2026", time:"3 weeks ago", pages:0, format:"Full report", sources:["HRIS_export.csv","Comp_bands.xlsx"],
+    excerpt:"Draft — headcount and attrition are computed, but pay-equity analysis is pending two missing demographic fields.",
+    summary:"A working draft. Headcount stands at 612 with 9.4% annualized attrition. Pay-equity analysis is pending because two demographic fields are missing from the HRIS export, capping confidence until resolved.",
+    kpis:[ {l:"Headcount",v:"612",d:"▲ 34 QoQ",dc:"up"}, {l:"Attrition",v:"9.4%",d:"annualized",dc:"down"}, {l:"Comp ratio",v:"0.98",d:"to band mid",dc:"up"} ],
+    fields:[ {k:"Reporting period",v:"Q2 2026",c:"hi",cv:97}, {k:"Total headcount",v:"612",c:"hi",cv:95}, {k:"Annualized attrition",v:"9.4%",c:"hi",cv:90}, {k:"Compa-ratio",v:"0.98",c:"mid",cv:83}, {k:"Pay-equity status",v:"Pending data",c:"lo",cv:55} ],
+    chart:[560,572,584,595,604,612], chartF:[558,570,580,590,600,610],
+    findings:[ {t:"warn",h:"Pay-equity analysis incomplete",p:"Two demographic fields are missing from the HRIS export, blocking the equity computation."}, {t:"good",h:"Attrition below industry benchmark",p:"9.4% annualized attrition is roughly 4 points under the SaaS industry median."} ],
+    draft:`<h4>Headcount & Compensation Review — Q2 2026 — DRAFT</h4>
+<p>Headcount reached <mark>612</mark> with 9.4% annualized attrition, comfortably below the industry benchmark.</p>
+<h5>Blocked</h5>
+<p>The pay-equity analysis cannot be completed until two missing demographic fields are added to the HRIS export.</p>` },
+
+  { id:16, title:"Cloud Cost Optimization Report — Q2", cat:"ops", status:"ready", conf:94, owner:"Hana Kim", date:"May 30, 2026", time:"4 weeks ago", pages:11, format:"Executive brief", sources:["AWS_CUR.parquet","K8s_metrics.json"],
+    excerpt:"Monthly cloud spend down 14% after rightsizing; the AI flags $38K/mo of idle resources still recoverable.",
+    summary:"Cloud spend fell 14% month-over-month following a rightsizing initiative. The AI identified an additional $38K/month of idle and over-provisioned resources still recoverable, with no expected performance impact.",
+    kpis:[ {l:"Monthly spend",v:"$214K",d:"▼ 14% MoM",dc:"up"}, {l:"Recoverable",v:"$38K/mo",d:"idle resources",dc:"up"}, {l:"Utilization",v:"68%",d:"▲ 9 pts",dc:"up"} ],
+    fields:[ {k:"Reporting period",v:"Q2 2026",c:"hi",cv:99}, {k:"Monthly cloud spend",v:"$214,000",c:"hi",cv:97}, {k:"MoM change",v:"-14%",c:"hi",cv:95}, {k:"Recoverable spend",v:"$38,000/mo",c:"hi",cv:91}, {k:"Avg. utilization",v:"68%",c:"hi",cv:90}, {k:"Top cost driver",v:"Compute (EC2)",c:"mid",cv:86} ],
+    chart:[260,252,244,236,228,214], chartF:[255,250,245,240,235,230],
+    findings:[ {t:"good",h:"14% spend reduction achieved",p:"Rightsizing of compute and storage delivered the planned savings without performance regression."}, {t:"good",h:"$38K/mo still recoverable",p:"Idle load balancers and over-provisioned databases remain. Cleanup is low-risk."} ],
+    draft:`<h4>Cloud Cost Optimization Report — Q2 2026</h4>
+<p>Cloud spend dropped <mark>14% month-over-month</mark> to $214K following the rightsizing initiative, with no performance regression.</p>
+<h5>Remaining Opportunity</h5>
+<p>An additional $38K/month of idle and over-provisioned resources is still recoverable at low risk. The AI recommends a cleanup sprint in July.</p>` },
+];
+
+/* ============ Render ============ */
+const grid = document.getElementById("grid");
+const emptyState = document.getElementById("emptyState");
+let state = { status:"all", cat:"all", q:"", sort:"recent" };
+
+function confClass(c){ return c>=88 ? "conf-hi" : c>=75 ? "conf-mid" : "conf-lo"; }
+function cardHTML(r){
+  const cat = CAT[r.cat], st = STATUS[r.status];
+  const showConf = r.status!=="gen" && r.status!=="draft" ? true : (r.status==="draft");
+  let confBlock;
+  if(r.status==="gen"){
+    confBlock = `<div class="conf"><span style="color:var(--cyan)">Analyzing sources…</span></div>`;
+  } else {
+    confBlock = `<div class="conf ${confClass(r.conf)}"><span>Confidence ${r.conf}%</span><span class="cbar"><span class="cfill" style="width:${r.conf}%"></span></span></div>`;
+  }
+  return `<div class="card" data-id="${r.id}">
+    <div class="card-top">
+      <div class="card-thumb ${cat.thumb}">${cat.icon}</div>
+      <div style="flex:1;min-width:0">
+        <h4 class="card-title">${r.title}</h4>
+        <div class="card-meta">${cat.label}<span class="dotsep"></span>${r.owner}<span class="dotsep"></span>${r.time}</div>
+      </div>
+      <span class="pill ${st.cls}"><span class="pd"></span>${st.label}</span>
+    </div>
+    <p class="card-excerpt">${r.excerpt}</p>
+    <div class="card-foot">
+      ${confBlock}
+      <span class="pages">${r.status==="gen"||r.status==="draft"?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'+(r.status==="gen"?"~40s":"in progress"):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>'+r.pages+' pages'}</span>
+    </div>
+  </div>`;
+}
+
+function applyFilters(){
+  let rows = REPORTS.filter(r=>{
+    if(state.status!=="all" && r.status!==state.status) return false;
+    if(state.cat!=="all" && r.cat!==state.cat) return false;
+    if(state.q){
+      const hay = (r.title+" "+r.owner+" "+r.excerpt+" "+CAT[r.cat].label+" "+r.sources.join(" ")).toLowerCase();
+      if(!hay.includes(state.q)) return false;
+    }
+    return true;
+  });
+  if(state.sort==="conf") rows.sort((a,b)=>b.conf-a.conf);
+  else if(state.sort==="title") rows.sort((a,b)=>a.title.localeCompare(b.title));
+  // recent = original order (already recent-first)
+  grid.innerHTML = rows.map(cardHTML).join("");
+  emptyState.classList.toggle("show", rows.length===0);
+  document.getElementById("resultCount").textContent = rows.length + (rows.length===1?" report":" reports");
+  // re-bind
+  grid.querySelectorAll(".card").forEach(c=>c.addEventListener("click",()=>openDrawer(+c.dataset.id)));
+}
+
+function updateTabCounts(){
+  const c = s => REPORTS.filter(r=> s==="all"?true:r.status===s).length;
+  document.getElementById("tab-all").textContent = c("all");
+  document.getElementById("tab-review").textContent = c("review");
+  document.getElementById("tab-ready").textContent = c("ready");
+  document.getElementById("tab-gen").textContent = c("gen");
+  document.getElementById("tab-draft").textContent = c("draft");
+}
+
+/* tabs */
+document.querySelectorAll("#statusTabs .tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll("#statusTabs .tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    state.status = t.dataset.status;
+    applyFilters();
+  });
+});
+document.getElementById("catFilter").addEventListener("change",e=>{ state.cat=e.target.value; applyFilters(); });
+document.getElementById("sortSel").addEventListener("change",e=>{ state.sort=e.target.value; applyFilters(); });
+document.getElementById("searchInput").addEventListener("input",e=>{ state.q=e.target.value.trim().toLowerCase(); applyFilters(); });
+
+/* format chips */
+document.querySelectorAll("#formatChips .tchip").forEach(c=>{
+  c.addEventListener("click",()=>{ document.querySelectorAll("#formatChips .tchip").forEach(x=>x.classList.remove("on")); c.classList.add("on"); });
+});
+document.getElementById("addSource").addEventListener("click",()=>{
+  const list = document.getElementById("addSource").parentElement;
+  const el = document.createElement("div");
+  el.className="source-item";
+  el.style.opacity=0;
+  el.innerHTML=`<div class="fi doc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div><div class="meta"><b>market_notes.docx</b><span>1.1 MB · uploading…</span></div>`;
+  list.insertBefore(el, document.getElementById("addSource"));
+  requestAnimationFrame(()=>{ el.style.transition="opacity .3s"; el.style.opacity=1; });
+  setTimeout(()=>{ el.querySelector(".meta span").textContent="1.1 MB · 6 pages"; el.insertAdjacentHTML("beforeend",`<div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>Parsed</div>`); },1400);
+});
+
+/* ============ Generate flow ============ */
+const genBtn = document.getElementById("generateBtn");
+const genProgress = document.getElementById("genProgress");
+const gpFill = document.getElementById("gpFill");
+const gpSteps = [...document.querySelectorAll("#gpSteps .s")];
+let generating=false;
+genBtn.addEventListener("click",()=>{
+  if(generating) return;
+  generating=true;
+  genProgress.classList.add("show");
+  gpFill.style.width="0%";
+  gpSteps.forEach(s=>s.classList.remove("done","active"));
+  genBtn.style.opacity=.6; genBtn.style.pointerEvents="none";
+  const widths=[22,52,80,100];
+  let i=0;
+  const run=()=>{
+    if(i>0) gpSteps[i-1].classList.remove("active"), gpSteps[i-1].classList.add("done");
+    if(i<gpSteps.length){
+      gpSteps[i].classList.add("active");
+      gpFill.style.width=widths[i]+"%";
+      i++;
+      setTimeout(run, 950);
+    } else {
+      // done
+      setTimeout(()=>{
+        genProgress.classList.remove("show");
+        genBtn.style.opacity=1; genBtn.style.pointerEvents="auto";
+        generating=false;
+        // flip the generating report to ready, open it
+        const gen = REPORTS.find(r=>r.id===5);
+        if(gen && gen.status==="gen"){
+          gen.status="review"; gen.conf=86; gen.pages=13; gen.time="just now";
+          gen.excerpt="Activation rose to 47% and D30 retention to 38%; the onboarding checklist is the strongest activation lever.";
+          gen.kpis=[ {l:"Sessions",v:"2.1M",d:"90-day window",dc:"up"}, {l:"D30 retention",v:"38%",d:"▲ 4 pts",dc:"up"}, {l:"Activation",v:"47%",d:"▲ 6 pts",dc:"up"} ];
+          gen.fields=[ {k:"Window",v:"Last 90 days",c:"hi",cv:99}, {k:"Total sessions",v:"2,140,000",c:"hi",cv:95}, {k:"D30 retention",v:"38%",c:"hi",cv:90}, {k:"Activation rate",v:"47%",c:"hi",cv:88}, {k:"Top activation lever",v:"Onboarding checklist",c:"mid",cv:82} ];
+          gen.chart=[30,32,34,35,37,38]; gen.chartF=[31,32,32,33,34,35];
+          gen.findings=[ {t:"good",h:"Onboarding checklist lifts activation",p:"Users completing the checklist activate at 71% vs 28% otherwise. The AI suggests making it the default first-run flow."}, {t:"warn",h:"D7→D30 drop-off in free tier",p:"Free-tier users churn most between day 7 and 30; a value-reminder push is recommended."} ];
+          gen.draft=`<h4>Product Usage & Retention — Mobile App</h4><p>Across <mark>2.1M sessions</mark> in the last 90 days, activation rose to 47% and D30 retention to 38%. The onboarding checklist is the single strongest activation lever.</p><h5>Recommendation</h5><p>Promote the onboarding checklist to the default first-run experience and add a day-7 value-reminder push for free-tier users.</p>`;
+          updateTabCounts(); applyFilters();
+          openDrawer(5);
+        }
+      },700);
+    }
+  };
+  run();
+});
+
+/* ============ Drawer ============ */
+const drawer = document.getElementById("drawer");
+const scrim = document.getElementById("scrim");
+function sparkPath(arr, w, h, max, min){
+  if(!arr||!arr.length) return "";
+  const mx = max ?? Math.max(...arr), mn = min ?? Math.min(...arr);
+  const rng = (mx-mn)||1;
+  return arr.map((v,i)=>{ const x=(i/(arr.length-1))*w; const y=h-((v-mn)/rng)*h; return `${x.toFixed(1)},${y.toFixed(1)}`; }).join(" ");
+}
+function areaPath(arr, w, h, max, min){
+  const line = sparkPath(arr,w,h,max,min);
+  if(!line) return "";
+  return `M0,${h} L${line.split(" ").join(" L")} L${w},${h} Z`;
+}
+
+function chartSVG(r){
+  if(!r.chart||!r.chart.length) return "<p style='color:var(--text-faint)'>Trend will be available once analysis completes.</p>";
+  const W=480,H=140;
+  const all=[...r.chart,...r.chartF];
+  const mx=Math.max(...all), mn=Math.min(...all);
+  const actual=sparkPath(r.chart,W,H,mx,mn);
+  const fc=sparkPath(r.chartF,W,H,mx,mn);
+  const area=`M0,${H} L${actual.split(" ").join(" L")} L${W},${H} Z`;
+  // gridlines
+  let grid="";
+  for(let g=0;g<=3;g++){ const y=(g/3)*H; grid+=`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#e7eaef" stroke-width="1"/>`; }
+  // points
+  let pts="";
+  r.chart.forEach((v,i)=>{ const x=(i/(r.chart.length-1))*W; const y=H-((v-mn)/((mx-mn)||1))*H; pts+=`<circle cx="${x}" cy="${y}" r="3.5" fill="#d97706" stroke="#ffffff" stroke-width="2"/>`; });
+  return `<div class="chart-box">
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="150" preserveAspectRatio="none">
+      <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d97706" stop-opacity="0.22"/><stop offset="100%" stop-color="#d97706" stop-opacity="0"/></linearGradient></defs>
+      ${grid}
+      <path d="${area}" fill="url(#ag)"/>
+      <polyline fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" points="${fc}"/>
+      <polyline fill="none" stroke="#d97706" stroke-width="2.5" points="${actual}"/>
+      ${pts}
+    </svg>
+    <div class="chart-legend">
+      <div class="lg"><span class="sw" style="background:#d97706"></span>Actual</div>
+      <div class="lg"><span class="sw" style="background:#94a3b8"></span>Forecast / baseline</div>
+    </div>
+  </div>`;
+}
+
+function findingIcon(t){
+  if(t==="crit") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  if(t==="warn") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>';
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>';
+}
+
+function openDrawer(id){
+  const r = REPORTS.find(x=>x.id===id);
+  if(!r) return;
+  const cat=CAT[r.cat], st=STATUS[r.status];
+  // head
+  const thumb = document.getElementById("dThumb");
+  thumb.className = "card-thumb "+cat.thumb; thumb.style.width="50px"; thumb.style.height="50px";
+  thumb.innerHTML = cat.icon;
+  document.getElementById("dTitle").textContent = r.title;
+  document.getElementById("dSub").innerHTML = `<span class="pill ${st.cls}"><span class="pd"></span>${st.label}</span> <span>${cat.label}</span><span class="dotsep" style="width:3px;height:3px;border-radius:50%;background:var(--text-faint)"></span><span>${r.owner}</span><span class="dotsep" style="width:3px;height:3px;border-radius:50%;background:var(--text-faint)"></span><span>${r.date}</span><span class="dotsep" style="width:3px;height:3px;border-radius:50%;background:var(--text-faint)"></span><span>${r.format}</span>`;
+
+  // Overview pane
+  const reviewBanner = (r.status==="review") ? `<div class="correct-banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg><div><b>This report needs human review.</b> The AI flagged ${r.findings.filter(f=>f.t!=="good").length} item(s) below confidence threshold — verify, then approve to publish.</div></div>` : "";
+  const kpiHTML = r.kpis.map(k=>`<div class="kpi"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="d ${k.dc==='up'?'delta up':'delta down'}" style="display:inline-flex">${k.d}</div></div>`).join("");
+  const findingsHTML = r.findings.length ? r.findings.map(f=>`<div class="finding"><div class="fic ${f.t==='crit'?'crit':f.t==='warn'?'warn':'good'}">${findingIcon(f.t)}</div><div><b>${f.h}</b><p>${f.p}</p></div></div>`).join("") : "<p style='color:var(--text-faint)'>No findings yet.</p>";
+  document.getElementById("paneOverview").innerHTML = `
+    ${reviewBanner}
+    <div class="ai-summary">
+      <div class="h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5Z"/></svg>AI executive summary</div>
+      <p>${r.summary}</p>
+    </div>
+    <div class="kpi-row">${kpiHTML}</div>
+    <div class="block-h">Trend vs. baseline <span class="ai-tag">AI VISUAL</span></div>
+    ${chartSVG(r)}
+    <div class="block-h">Key findings <span class="ai-tag">AI REASONING</span></div>
+    ${findingsHTML}
+  `;
+
+  // Draft pane
+  document.getElementById("paneDraft").innerHTML = `
+    <div class="block-h">Generated draft <span class="ai-tag">EDITABLE</span></div>
+    <div class="draft">${r.draft}</div>
+  `;
+
+  // Extract pane
+  const extractHTML = r.fields.length ? `
+    <div class="correct-banner" style="background:var(--accent-soft);border-color:rgba(217,119,6,0.3);color:var(--accent-2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><div>The AI extracted <b>${r.fields.length} fields</b> from ${r.sources.length} source(s). Low-confidence values are flagged for your review — click any value to correct it.</div></div>
+    <div class="fields">${r.fields.map(f=>`<div class="frow"><span class="fk">${f.k}</span><span class="fv" title="click to edit">${f.v}</span><span class="cbadge ${f.c}">${f.c==='hi'?'●':f.c==='mid'?'◐':'○'} ${f.cv}%</span></div>`).join("")}</div>
+    <div class="block-h" style="margin-top:24px">Sources used</div>
+    ${r.sources.map(s=>`<div class="source-item" style="margin-bottom:8px"><div class="fi ${s.includes('xlsx')||s.includes('csv')||s.includes('parquet')?'xls':s.includes('pdf')?'pdf':s.includes('·')?'api':'doc'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div><div class="meta"><b>${s}</b><span>Analyzed by AI</span></div><div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></div></div>`).join("")}
+  ` : "<p style='color:var(--text-faint)'>No fields extracted yet — generation is still in progress.</p>";
+  document.getElementById("paneExtract").innerHTML = extractHTML;
+
+  // Activity pane
+  document.getElementById("paneActivity").innerHTML = `
+    <div class="feed">
+      <div class="fe ai"><div class="fdot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg></div><div><div class="ft"><b>AI</b> completed generation and scored confidence at <b>${r.status==='gen'?'—':r.conf+'%'}</b></div><div class="fts">${r.time}</div></div></div>
+      <div class="fe ai"><div class="fdot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg></div><div><div class="ft"><b>AI</b> flagged ${r.findings.filter(f=>f.t!=='good').length} item(s) for human review</div><div class="fts">${r.time}</div></div></div>
+      <div class="fe ai"><div class="fdot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><div><div class="ft"><b>AI</b> extracted ${r.fields.length||'metrics'} fields from ${r.sources.length} source${r.sources.length>1?'s':''}</div><div class="fts">moments earlier</div></div></div>
+      <div class="fe"><div class="fdot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div><div><div class="ft"><b>${r.owner}</b> created this report from a prompt</div><div class="fts">${r.date}</div></div></div>
+    </div>
+  `;
+
+  // reset tabs to overview
+  document.querySelectorAll("#dkTabs .dk-tab").forEach(t=>t.classList.toggle("active", t.dataset.pane==="overview"));
+  document.querySelectorAll(".dpane").forEach(p=>p.classList.toggle("active", p.dataset.pane==="overview"));
+  drawer.querySelector(".drawer-body").scrollTop=0;
+
+  // approve button label
+  const approveBtn=document.getElementById("approveBtn");
+  if(r.status==="ready"){ approveBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Publish'; }
+  else { approveBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Approve &amp; publish'; }
+  approveBtn.dataset.id = r.id;
+
+  scrim.classList.add("show");
+  drawer.classList.add("show");
+
+  // field click to "correct"
+  document.querySelectorAll("#paneExtract .fv").forEach(fv=>{
+    fv.style.cursor="text";
+    fv.addEventListener("click",()=>{
+      const cur=fv.textContent;
+      const inp=document.createElement("input");
+      inp.value=cur; inp.style.cssText="background:#fff;border:1px solid var(--accent);color:var(--text);border-radius:6px;padding:3px 7px;font-size:13px;width:100%;font-family:inherit;outline:none";
+      fv.replaceWith(inp); inp.focus(); inp.select();
+      const commit=()=>{ const span=document.createElement("span"); span.className="fv"; span.textContent=inp.value||cur; span.title="edited"; inp.replaceWith(span); span.style.color="var(--green)"; };
+      inp.addEventListener("blur",commit);
+      inp.addEventListener("keydown",e=>{ if(e.key==="Enter") commit(); });
+    });
+  });
+}
+
+function closeDrawer(){ drawer.classList.remove("show"); scrim.classList.remove("show"); }
+document.getElementById("closeDrawer").addEventListener("click",closeDrawer);
+scrim.addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+
+/* drawer tabs */
+document.querySelectorAll("#dkTabs .dk-tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll("#dkTabs .dk-tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    document.querySelectorAll(".dpane").forEach(p=>p.classList.toggle("active", p.dataset.pane===t.dataset.pane));
+  });
+});
+
+/* approve action */
+document.getElementById("approveBtn").addEventListener("click",function(){
+  const id=+this.dataset.id; const r=REPORTS.find(x=>x.id===id);
+  if(r){ r.status="ready"; r.time="just now"; updateTabCounts(); applyFilters(); }
+  this.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Published';
+  this.style.background="linear-gradient(135deg,#34d399,#10b981)";
+  setTimeout(closeDrawer, 650);
+});
+document.getElementById("regenBtn").addEventListener("click",function(){
+  const old=this.innerHTML;
+  this.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin .7s linear infinite"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Regenerating…';
+  this.style.pointerEvents="none";
+  setTimeout(()=>{ this.innerHTML=old; this.style.pointerEvents="auto"; },1800);
+});
+document.getElementById("exportBtn").addEventListener("click",function(){
+  const old=this.innerHTML; this.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>Exported PDF';
+  setTimeout(()=>{ this.innerHTML=old; },1500);
+});
+
+/* init */
+updateTabCounts();
+applyFilters();
+</script>
+</body>
+</html>

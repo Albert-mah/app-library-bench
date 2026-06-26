@@ -1,0 +1,2207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowMind — AI Workflow Automation</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --text-primary: rgba(0,0,0,.88);
+    --text-secondary: rgba(0,0,0,.65);
+    --text-tertiary: rgba(0,0,0,.45);
+    --border: #d9d9d9;
+    --bg-layout: #f0f2f5;
+    --bg-container: #ffffff;
+    --bg-fill: #f5f5f5;
+    --bg-fill-secondary: #fafafa;
+    --radius: 8px;
+    --shadow-card: 0 1px 2px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04);
+    --shadow-popup: 0 6px 16px rgba(0,0,0,.08), 0 3px 6px rgba(0,0,0,.04);
+
+    /* Primary: violet — energetic, AI-native, not generic blue */
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --primary-light: #ede9fe;
+    --primary-border: #c4b5fd;
+
+    /* Node type colors */
+    --c-trigger: #f59e0b;
+    --c-trigger-bg: #fffbeb;
+    --c-trigger-border: #fcd34d;
+    --c-condition: #3b82f6;
+    --c-condition-bg: #eff6ff;
+    --c-condition-border: #93c5fd;
+    --c-ai: #8b5cf6;
+    --c-ai-bg: #f5f3ff;
+    --c-ai-border: #c4b5fd;
+    --c-email: #10b981;
+    --c-email-bg: #ecfdf5;
+    --c-email-border: #6ee7b7;
+    --c-approval: #f97316;
+    --c-approval-bg: #fff7ed;
+    --c-approval-border: #fdba74;
+    --c-webhook: #ec4899;
+    --c-webhook-bg: #fdf2f8;
+    --c-webhook-border: #f9a8d4;
+
+    --sidebar-w: 220px;
+    --panel-w: 320px;
+    --topbar-h: 52px;
+    --canvas-bg: #f8f8fc;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-layout);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    height: var(--topbar-h);
+    background: var(--bg-container);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  .topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--primary);
+    margin-right: 8px;
+  }
+  .topbar-logo svg { flex-shrink: 0; }
+  .topbar-divider { width: 1px; height: 20px; background: var(--border); }
+  .flow-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .15s;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .flow-name:hover { background: var(--bg-fill); }
+  .flow-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+  .flow-breadcrumb a { color: var(--text-tertiary); text-decoration: none; }
+  .flow-breadcrumb a:hover { color: var(--primary); }
+
+  .topbar-spacer { flex: 1; }
+
+  .run-status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #059669;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .run-status-badge:hover { background: #d1fae5; }
+  .run-status-badge .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: pulse 2s infinite;
+  }
+
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .toggle {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    cursor: pointer;
+  }
+  .toggle input { display: none; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    transition: background .2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: var(--primary); }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(16px); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn-default {
+    background: var(--bg-container);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  .btn-default:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── LEFT SIDEBAR (Node Library) ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--bg-container);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 12px 14px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 8px;
+  }
+  .search-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    background: var(--bg-fill);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    cursor: text;
+  }
+  .search-input svg { flex-shrink: 0; }
+
+  .sidebar-body { overflow-y: auto; padding: 8px 0; flex: 1; }
+
+  .node-group-label {
+    padding: 6px 14px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+
+  .node-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    cursor: grab;
+    border-radius: 0;
+    transition: background .12s;
+    user-select: none;
+  }
+  .node-pill:hover { background: var(--bg-fill-secondary); }
+  .node-pill:active { cursor: grabbing; }
+  .node-pill-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .node-pill-info { min-width: 0; }
+  .node-pill-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .node-pill-desc {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── CANVAS ── */
+  .canvas-wrap {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: var(--canvas-bg);
+    background-image:
+      radial-gradient(circle, #d0d0e0 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .canvas-toolbar {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    gap: 4px;
+    background: var(--bg-container);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: var(--shadow-card);
+    z-index: 10;
+  }
+  .canvas-tool-btn {
+    width: 28px; height: 28px;
+    border-radius: 5px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: all .12s;
+  }
+  .canvas-tool-btn:hover { background: var(--bg-fill); color: var(--primary); }
+  .canvas-tool-btn.active { background: var(--primary-light); color: var(--primary); }
+
+  .canvas-zoom {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-container);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-card);
+    z-index: 10;
+  }
+  .zoom-btn {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1;
+    transition: all .12s;
+  }
+  .zoom-btn:hover { background: var(--bg-fill); border-color: var(--primary); color: var(--primary); }
+
+  /* SVG canvas */
+  #flow-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  /* Flow nodes */
+  .flow-node {
+    position: absolute;
+    width: 200px;
+    background: var(--bg-container);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    transition: box-shadow .15s, transform .15s;
+    user-select: none;
+    border: 1.5px solid var(--border);
+  }
+  .flow-node:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,.1);
+    transform: translateY(-1px);
+  }
+  .flow-node.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light), 0 4px 16px rgba(99,102,241,.15);
+  }
+  .flow-node.running {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px #d1fae5, 0 4px 12px rgba(16,185,129,.12);
+  }
+  .flow-node.error {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px #fee2e2;
+  }
+
+  .node-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .node-icon {
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .node-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .node-status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .node-body {
+    padding: 8px 12px 10px;
+  }
+  .node-summary {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .node-tag {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .node-meta-row {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+
+  /* connector port */
+  .node-port {
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--bg-container);
+    border: 2px solid var(--border);
+    cursor: crosshair;
+    transition: all .12s;
+  }
+  .node-port:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    transform: scale(1.3);
+  }
+  .node-port-top { top: -6px; left: 50%; transform: translateX(-50%); }
+  .node-port-bottom { bottom: -6px; left: 50%; transform: translateX(-50%); }
+
+  /* Add node button on connector */
+  .add-node-btn {
+    position: absolute;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--bg-container);
+    border: 1.5px solid var(--primary);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: all .15s;
+    z-index: 5;
+  }
+  .add-node-btn:hover {
+    background: var(--primary);
+    color: #fff;
+    transform: scale(1.15);
+  }
+
+  /* ── EXECUTION LOG DRAWER ── */
+  .log-drawer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-container);
+    border-top: 1px solid var(--border);
+    transform: translateY(100%);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    z-index: 20;
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+  }
+  .log-drawer.open { transform: translateY(0); }
+  .log-drawer-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .log-drawer-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+  }
+  .log-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    padding: 2px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    transition: color .12s;
+  }
+  .log-close:hover { color: var(--text-primary); }
+  .log-body { overflow-y: auto; padding: 8px 0; }
+
+  .log-run {
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background .1s;
+  }
+  .log-run:hover { background: var(--bg-fill-secondary); }
+  .log-run-icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 13px;
+  }
+  .log-run-info { flex: 1; min-width: 0; }
+  .log-run-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .log-run-meta {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 1px;
+  }
+  .log-run-dur {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+  .log-badge {
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  /* ── RIGHT PANEL (Config) ── */
+  .config-panel {
+    width: var(--panel-w);
+    background: var(--bg-container);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: width .2s;
+  }
+  .config-panel.collapsed { width: 0; }
+
+  .panel-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-node-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    margin-bottom: 6px;
+  }
+  .panel-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+  .panel-subtitle {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px;
+  }
+
+  .panel-section {
+    margin-bottom: 20px;
+  }
+  .panel-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 10px;
+  }
+
+  .form-field { margin-bottom: 12px; }
+  .form-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .form-label .required { color: #ef4444; font-size: 11px; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-primary);
+    background: var(--bg-container);
+    outline: none;
+    transition: border-color .15s;
+    font-family: inherit;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-light);
+  }
+  .form-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .form-input-mono {
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 11px;
+    background: var(--bg-fill);
+  }
+
+  .tag-input-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-container);
+  }
+  .tag-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px 2px 8px;
+    background: var(--primary-light);
+    color: var(--primary);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tag-remove {
+    cursor: pointer;
+    opacity: .6;
+    line-height: 1;
+    font-size: 12px;
+  }
+  .tag-remove:hover { opacity: 1; }
+
+  .kv-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .kv-remove {
+    width: 22px; height: 22px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    display: flex; align-items: center; justify-content: center;
+    transition: all .12s;
+    font-size: 14px;
+  }
+  .kv-remove:hover { border-color: #ef4444; color: #ef4444; }
+  .add-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--primary);
+    cursor: pointer;
+    padding: 2px 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    transition: opacity .12s;
+  }
+  .add-link:hover { opacity: .75; }
+
+  .model-card {
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all .15s;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .model-card:hover { border-color: var(--primary); background: var(--primary-light); }
+  .model-card.selected { border-color: var(--primary); background: var(--primary-light); }
+  .model-card-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: #fff;
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .model-card-info { flex: 1; min-width: 0; }
+  .model-card-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .model-card-meta { font-size: 10px; color: var(--text-tertiary); }
+  .model-card-check { color: var(--primary); font-size: 14px; }
+
+  .panel-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── MINIMAP ── */
+  .minimap {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    width: 140px;
+    height: 90px;
+    background: rgba(255,255,255,.92);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    cursor: pointer;
+    z-index: 10;
+  }
+  .minimap canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .minimap-label {
+    position: absolute;
+    bottom: 3px;
+    right: 6px;
+    font-size: 9px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+  }
+
+  /* ── EXECUTION STATS BAR ── */
+  .stats-bar {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+  }
+  .stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: var(--bg-container);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-card);
+  }
+  .stat-chip .val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* ── EMPTY CANVAS HINT ── */
+  .canvas-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--text-tertiary);
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  /* Tooltips */
+  .tooltip-wrap { position: relative; }
+  .tooltip-wrap .tooltip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,.8);
+    color: #fff;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .tooltip-wrap:hover .tooltip { opacity: 1; }
+
+  /* Scroll */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d9d9d9; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+  /* Animations */
+  @keyframes flow-pulse {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -48; }
+  }
+
+  .flow-edge-active {
+    stroke-dasharray: 8 4;
+    animation: flow-pulse .8s linear infinite;
+  }
+
+  /* Run indicator on running node */
+  @keyframes spin-ring {
+    to { transform: rotate(360deg); }
+  }
+  .spin { animation: spin-ring .8s linear infinite; display: inline-block; }
+
+  /* Test run overlay */
+  .test-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(248,248,252,.7);
+    backdrop-filter: blur(2px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+  }
+  .test-overlay.show { display: flex; }
+  .test-card {
+    background: var(--bg-container);
+    border-radius: 12px;
+    padding: 28px 32px;
+    box-shadow: var(--shadow-popup);
+    border: 1px solid var(--border);
+    max-width: 360px;
+    width: 90%;
+    text-align: center;
+  }
+  .test-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+  }
+  .test-card-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+  }
+  .progress-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+    margin-bottom: 20px;
+  }
+  .progress-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .progress-step.done { color: #059669; }
+  .progress-step.running { color: var(--primary); font-weight: 500; }
+  .step-icon {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .step-icon.done { background: #059669; border-color: #059669; color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <rect width="22" height="22" rx="6" fill="#6366f1"/>
+      <path d="M6 11 L10 7 L14 11 L10 15 Z" fill="white" opacity=".9"/>
+      <circle cx="15.5" cy="7.5" r="2.5" fill="white"/>
+      <circle cx="6.5" cy="14.5" r="1.5" fill="white" opacity=".6"/>
+    </svg>
+    FlowMind
+  </div>
+  <div class="topbar-divider"></div>
+  <div class="flow-breadcrumb">
+    <a href="#">Workflows</a>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+  </div>
+  <div class="flow-name" id="flow-name">Lead Qualification → AI Scoring → Notify</div>
+  <div class="topbar-spacer"></div>
+
+  <div class="run-status-badge" onclick="openLogDrawer()">
+    <div class="dot"></div>
+    3 runs today
+  </div>
+
+  <div class="toggle-wrap">
+    <span>Active</span>
+    <label class="toggle">
+      <input type="checkbox" checked id="flow-toggle">
+      <div class="toggle-track"></div>
+      <div class="toggle-thumb"></div>
+    </label>
+  </div>
+
+  <button class="btn btn-default" onclick="showTestRun()">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><polygon points="3,2 11,6.5 3,11" fill="currentColor"/></svg>
+    Test Run
+  </button>
+  <button class="btn btn-primary">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 2h9v9H2z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M5 5h3v3H5z" fill="currentColor"/></svg>
+    Deploy
+  </button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Node Library</div>
+      <div class="search-input">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.5"/><line x1="7.8" y1="7.8" x2="10.5" y2="10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Search nodes...
+      </div>
+    </div>
+    <div class="sidebar-body">
+
+      <div class="node-group-label">Triggers</div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'trigger-form')" title="Drag to canvas">
+        <div class="node-pill-icon" style="background:var(--c-trigger-bg); color:var(--c-trigger);">📋</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Form Submit</div>
+          <div class="node-pill-desc">New form response</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'trigger-schedule')">
+        <div class="node-pill-icon" style="background:var(--c-trigger-bg); color:var(--c-trigger);">⏰</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Schedule</div>
+          <div class="node-pill-desc">Cron / time-based</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'trigger-webhook')">
+        <div class="node-pill-icon" style="background:var(--c-webhook-bg); color:var(--c-webhook);">🔗</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Webhook</div>
+          <div class="node-pill-desc">HTTP POST endpoint</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'trigger-email')">
+        <div class="node-pill-icon" style="background:var(--c-trigger-bg); color:var(--c-trigger);">📧</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Email Received</div>
+          <div class="node-pill-desc">IMAP / Gmail watch</div>
+        </div>
+      </div>
+
+      <div class="node-group-label" style="margin-top:4px;">Logic</div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'condition')">
+        <div class="node-pill-icon" style="background:var(--c-condition-bg); color:var(--c-condition);">⚡</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Condition</div>
+          <div class="node-pill-desc">If / else branching</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'filter')">
+        <div class="node-pill-icon" style="background:var(--c-condition-bg); color:var(--c-condition);">🔍</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Filter</div>
+          <div class="node-pill-desc">Skip if not match</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'loop')">
+        <div class="node-pill-icon" style="background:var(--c-condition-bg); color:var(--c-condition);">🔄</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Loop</div>
+          <div class="node-pill-desc">Iterate over array</div>
+        </div>
+      </div>
+
+      <div class="node-group-label" style="margin-top:4px;">AI Actions</div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'ai-score')">
+        <div class="node-pill-icon" style="background:var(--c-ai-bg); color:var(--c-ai);">🧠</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">AI Score / Classify</div>
+          <div class="node-pill-desc">LLM structured output</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'ai-summarize')">
+        <div class="node-pill-icon" style="background:var(--c-ai-bg); color:var(--c-ai);">✍️</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">AI Summarize</div>
+          <div class="node-pill-desc">Extract key points</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'ai-reply')">
+        <div class="node-pill-icon" style="background:var(--c-ai-bg); color:var(--c-ai);">💬</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">AI Draft Reply</div>
+          <div class="node-pill-desc">Compose from context</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'ai-extract')">
+        <div class="node-pill-icon" style="background:var(--c-ai-bg); color:var(--c-ai);">📄</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">AI Extract Fields</div>
+          <div class="node-pill-desc">Parse unstructured text</div>
+        </div>
+      </div>
+
+      <div class="node-group-label" style="margin-top:4px;">Notify & Act</div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'send-email')">
+        <div class="node-pill-icon" style="background:var(--c-email-bg); color:var(--c-email);">📨</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Send Email</div>
+          <div class="node-pill-desc">SMTP / transactional</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'send-slack')">
+        <div class="node-pill-icon" style="background:var(--c-email-bg); color:var(--c-email);">💬</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Slack Message</div>
+          <div class="node-pill-desc">Post to channel/DM</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'approval')">
+        <div class="node-pill-icon" style="background:var(--c-approval-bg); color:var(--c-approval);">✅</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Approval Gate</div>
+          <div class="node-pill-desc">Human-in-the-loop</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'http')">
+        <div class="node-pill-icon" style="background:var(--c-webhook-bg); color:var(--c-webhook);">🌐</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">HTTP Request</div>
+          <div class="node-pill-desc">REST / GraphQL call</div>
+        </div>
+      </div>
+      <div class="node-pill" draggable="true" ondragstart="dragStart(event,'update-crm')">
+        <div class="node-pill-icon" style="background:var(--c-webhook-bg); color:var(--c-webhook);">🗂️</div>
+        <div class="node-pill-info">
+          <div class="node-pill-name">Update CRM Record</div>
+          <div class="node-pill-desc">Salesforce / HubSpot</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap" id="canvas"
+       ondragover="event.preventDefault()"
+       ondrop="canvasDrop(event)">
+
+    <svg id="flow-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+
+    <!-- Canvas toolbar -->
+    <div class="canvas-toolbar">
+      <div class="tooltip-wrap">
+        <button class="canvas-tool-btn active" title="Select" onclick="setTool('select')">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l4 10 2-4 4-2L2 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="tooltip">Select (V)</span>
+      </div>
+      <div class="tooltip-wrap">
+        <button class="canvas-tool-btn" title="Hand" onclick="setTool('hand')">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2v6M7 1v7M9 2v6M11 4v4a3 3 0 01-6 0V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <span class="tooltip">Pan (H)</span>
+      </div>
+      <div style="width:1px;height:18px;background:var(--border);margin:1px 2px;"></div>
+      <div class="tooltip-wrap">
+        <button class="canvas-tool-btn" title="Fit" onclick="fitCanvas()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8" y="2" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="8" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8" y="8" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+        </button>
+        <span class="tooltip">Fit (F)</span>
+      </div>
+      <div class="tooltip-wrap">
+        <button class="canvas-tool-btn" title="Auto-layout" onclick="autoLayout()">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="3" y1="4" x2="11" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="10" x2="8" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <span class="tooltip">Auto-layout</span>
+      </div>
+    </div>
+
+    <!-- Execution stats -->
+    <div class="stats-bar">
+      <div class="stat-chip">
+        <span style="color:#10b981">●</span>
+        <span class="val">47</span> runs / 7d
+      </div>
+      <div class="stat-chip">
+        <span style="color:#6366f1">◆</span>
+        <span class="val">98.2%</span> success
+      </div>
+      <div class="stat-chip">
+        <span style="color:#f59e0b">⏱</span>
+        avg <span class="val" style="margin-left:3px;">3.1s</span>
+      </div>
+    </div>
+
+    <!-- Zoom bar -->
+    <div class="canvas-zoom">
+      <button class="zoom-btn" onclick="zoom(-10)">−</button>
+      <span id="zoom-label">100%</span>
+      <button class="zoom-btn" onclick="zoom(10)">+</button>
+    </div>
+
+    <!-- Minimap -->
+    <div class="minimap" id="minimap">
+      <canvas id="minimap-canvas" width="140" height="90"></canvas>
+      <div class="minimap-label">minimap</div>
+    </div>
+
+    <!-- Log drawer -->
+    <div class="log-drawer" id="log-drawer">
+      <div class="log-drawer-header">
+        <div class="log-drawer-title">Execution History</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--text-tertiary)">Last 7 days</span>
+          <button class="log-close" onclick="closeLogDrawer()">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="log-body" id="log-body"></div>
+    </div>
+
+    <!-- Test run overlay -->
+    <div class="test-overlay" id="test-overlay" onclick="closeTestOverlay(event)">
+      <div class="test-card">
+        <div class="test-card-title">🚀 Test Run</div>
+        <div class="test-card-sub" id="test-sub">Running flow with sample lead data...</div>
+        <div class="progress-steps" id="test-steps"></div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" id="test-btn" onclick="closeTestOverlay(null)">Close</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT CONFIG PANEL -->
+  <div class="config-panel" id="config-panel">
+    <div class="panel-header" id="panel-header">
+      <div id="panel-type-badge"></div>
+      <div class="panel-title" id="panel-title">Select a node</div>
+      <div class="panel-subtitle" id="panel-subtitle">Click any node to configure it</div>
+    </div>
+    <div class="panel-body" id="panel-body">
+      <div style="text-align:center;padding:48px 0;color:var(--text-tertiary);">
+        <div style="font-size:32px;margin-bottom:12px;">🎯</div>
+        <div style="font-size:13px;font-weight:500;margin-bottom:6px;">No node selected</div>
+        <div style="font-size:12px;">Click a node on the canvas<br>to view its settings</div>
+      </div>
+    </div>
+    <div class="panel-footer" id="panel-footer" style="display:none">
+      <button class="btn btn-default" style="flex:1;justify-content:center;" onclick="duplicateNode()">Duplicate</button>
+      <button class="btn btn-default" onclick="deleteNode()" style="color:#ef4444;border-color:#fca5a5;">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 3h9M5 3V2h3v1M4 3l.5 7h4L9 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// DATA MODEL
+// ──────────────────────────────────────────────
+let zoomLevel = 100;
+let selectedNodeId = null;
+let currentTool = 'select';
+
+const NODE_TYPES = {
+  trigger:   { color: 'var(--c-trigger)',   bg: 'var(--c-trigger-bg)',   border: 'var(--c-trigger-border)'   },
+  condition: { color: 'var(--c-condition)', bg: 'var(--c-condition-bg)', border: 'var(--c-condition-border)' },
+  ai:        { color: 'var(--c-ai)',        bg: 'var(--c-ai-bg)',        border: 'var(--c-ai-border)'        },
+  email:     { color: 'var(--c-email)',     bg: 'var(--c-email-bg)',     border: 'var(--c-email-border)'     },
+  approval:  { color: 'var(--c-approval)',  bg: 'var(--c-approval-bg)', border: 'var(--c-approval-border)'  },
+  webhook:   { color: 'var(--c-webhook)',   bg: 'var(--c-webhook-bg)',   border: 'var(--c-webhook-border)'   },
+};
+
+const nodes = [
+  {
+    id: 'n1',
+    type: 'trigger',
+    label: 'Typeform: Lead Intake',
+    icon: '📋',
+    summary: 'Fires when a new submission arrives on "Q4 Lead Form"',
+    tag: 'TRIGGER',
+    tagColor: '#f59e0b',
+    status: 'idle',
+    x: 100, y: 80,
+    config: {
+      kind: 'trigger-form',
+      formId: 'typeform_q4_lead_2026',
+      formName: 'Q4 Lead Intake Form',
+      fields: ['name','email','company','use_case','budget'],
+      dedup: true,
+    }
+  },
+  {
+    id: 'n2',
+    type: 'ai',
+    label: 'AI Lead Scoring',
+    icon: '🧠',
+    summary: 'GPT-4o scores lead quality 1–10, extracts intent & budget tier',
+    tag: 'AI ACTION',
+    tagColor: '#8b5cf6',
+    status: 'running',
+    x: 100, y: 240,
+    config: {
+      kind: 'ai-score',
+      model: 'gpt-4o',
+      prompt: 'You are a B2B lead qualification expert. Given this form submission, return a JSON object with:\n- score (1-10)\n- intent (high/medium/low)\n- budget_tier (enterprise/smb/startup)\n- summary (one sentence)\n\nForm data: {{trigger.fields}}',
+      temperature: 0.2,
+      maxTokens: 400,
+      outputSchema: {score:'number', intent:'string', budget_tier:'string', summary:'string'},
+    }
+  },
+  {
+    id: 'n3',
+    type: 'condition',
+    label: 'Score ≥ 7?',
+    icon: '⚡',
+    summary: 'Routes hot leads (score ≥ 7) to fast-track vs. nurture sequence',
+    tag: 'CONDITION',
+    tagColor: '#3b82f6',
+    status: 'idle',
+    x: 100, y: 400,
+    config: {
+      kind: 'condition',
+      rules: [{ field: '{{ai.score}}', op: '≥', value: '7', label: 'Hot lead path' }],
+      elseLabel: 'Nurture path'
+    }
+  },
+  {
+    id: 'n4',
+    type: 'approval',
+    label: 'Sales Review Gate',
+    icon: '✅',
+    summary: 'Pings #sales-ops Slack, waits up to 2h for approval before handoff',
+    tag: 'APPROVAL',
+    tagColor: '#f97316',
+    status: 'idle',
+    x: -130, y: 560,
+    config: {
+      kind: 'approval',
+      assignees: ['alice@corp.io','bob@corp.io'],
+      channel: '#sales-ops',
+      timeout: '2h',
+      onTimeout: 'auto-approve',
+    }
+  },
+  {
+    id: 'n5',
+    type: 'email',
+    label: 'Assign to AE + Notify',
+    icon: '📨',
+    summary: 'Sends enriched lead card to assigned AE with score & AI summary',
+    tag: 'SEND EMAIL',
+    tagColor: '#10b981',
+    status: 'idle',
+    x: -130, y: 720,
+    config: {
+      kind: 'send-email',
+      to: '{{lead.assigned_ae}}',
+      subject: '[{{ai.budget_tier|upper}}] New hot lead: {{trigger.company}}',
+      template: 'lead-handoff-v2',
+      replyTo: 'noreply@flowmind.io',
+    }
+  },
+  {
+    id: 'n6',
+    type: 'email',
+    label: 'Nurture Sequence Start',
+    icon: '💌',
+    summary: 'Adds contact to "Low-intent drip v3" sequence in HubSpot',
+    tag: 'UPDATE CRM',
+    tagColor: '#10b981',
+    status: 'idle',
+    x: 340, y: 560,
+    config: {
+      kind: 'update-crm',
+      crm: 'HubSpot',
+      action: 'Enroll in sequence',
+      sequenceId: 'drip_low_intent_v3',
+      mapping: { email: '{{trigger.email}}', company: '{{trigger.company}}' },
+    }
+  },
+];
+
+const edges = [
+  { id: 'e1', from: 'n1', to: 'n2' },
+  { id: 'e2', from: 'n2', to: 'n3' },
+  { id: 'e3', from: 'n3', to: 'n4', label: 'Yes (hot)' },
+  { id: 'e4', from: 'n3', to: 'n6', label: 'No (nurture)' },
+  { id: 'e5', from: 'n4', to: 'n5', label: 'Approved' },
+];
+
+const EXEC_LOG = [
+  { id: 'r1', status: 'success', trigger: 'Form: Alicia Huang @ Acme Corp', time: '2 min ago', duration: '2.8s', score: 9 },
+  { id: 'r2', status: 'success', trigger: 'Form: James Park @ Notion', time: '1h 14m ago', duration: '3.2s', score: 6 },
+  { id: 'r3', status: 'failed',  trigger: 'Form: Wei Zhang @ TechStart', time: '3h 8m ago',  duration: '1.1s', score: null, error: 'OpenAI rate limit (429)' },
+  { id: 'r4', status: 'success', trigger: 'Form: Maria Reyes @ Shopify', time: 'Yesterday 4:21 PM', duration: '4.1s', score: 8 },
+  { id: 'r5', status: 'success', trigger: 'Form: Ryo Tanaka @ Stripe', time: 'Yesterday 11:02 AM', duration: '2.6s', score: 7 },
+  { id: 'r6', status: 'skipped', trigger: 'Form: Test Submission', time: 'Jun 2, 09:15 AM', duration: '0.3s', score: null, note: 'Filtered: test@example.com' },
+];
+
+// ──────────────────────────────────────────────
+// CANVAS RENDERING
+// ──────────────────────────────────────────────
+function getCanvas() { return document.getElementById('canvas'); }
+function getSvg() { return document.getElementById('flow-svg'); }
+
+function nodeTypeStyle(type) {
+  return NODE_TYPES[type] || NODE_TYPES.webhook;
+}
+
+function renderAll() {
+  renderEdges();
+  renderNodes();
+  renderMinimap();
+}
+
+function nodeEl(id) { return document.getElementById('node-' + id); }
+
+function getNodeCenter(node) {
+  const el = nodeEl(node.id);
+  if (!el) return { x: node.x + 100, y: node.y + 50 };
+  const w = el.offsetWidth || 200;
+  const h = el.offsetHeight || 100;
+  return { x: node.x + w / 2, y: node.y + h / 2 };
+}
+
+function getNodeBottom(node) {
+  const el = nodeEl(node.id);
+  const w = el ? el.offsetWidth : 200;
+  const h = el ? el.offsetHeight : 100;
+  return { x: node.x + w / 2, y: node.y + h };
+}
+function getNodeTop(node) {
+  const el = nodeEl(node.id);
+  const w = el ? el.offsetWidth : 200;
+  return { x: node.x + w / 2, y: node.y };
+}
+
+function cubicPath(x1, y1, x2, y2) {
+  const dy = Math.abs(y2 - y1);
+  const cp = Math.min(dy * 0.5, 80);
+  return `M ${x1} ${y1} C ${x1} ${y1 + cp}, ${x2} ${y2 - cp}, ${x2} ${y2}`;
+}
+
+function renderEdges() {
+  const svg = getSvg();
+  svg.innerHTML = '';
+
+  // Defs for arrowhead
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  ['default','active','error'].forEach(t => {
+    const colors = { default: '#d9d9d9', active: '#6366f1', error: '#ef4444' };
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'arrow-' + t);
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '8');
+    marker.setAttribute('refX', '6');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', '0 0, 8 3, 0 6');
+    poly.setAttribute('fill', colors[t]);
+    marker.appendChild(poly);
+    defs.appendChild(marker);
+  });
+  svg.appendChild(defs);
+
+  edges.forEach(edge => {
+    const fromNode = nodes.find(n => n.id === edge.from);
+    const toNode   = nodes.find(n => n.id === edge.to);
+    if (!fromNode || !toNode) return;
+
+    const from = getNodeBottom(fromNode);
+    const to   = getNodeTop(toNode);
+
+    const isActive = fromNode.status === 'running';
+    const strokeColor = isActive ? '#6366f1' : '#c4c4d4';
+    const markerType  = isActive ? 'active'  : 'default';
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', cubicPath(from.x, from.y, to.x, to.y));
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', strokeColor);
+    path.setAttribute('stroke-width', isActive ? '2' : '1.5');
+    path.setAttribute('marker-end', `url(#arrow-${markerType})`);
+    if (isActive) {
+      path.setAttribute('stroke-dasharray', '8 4');
+      path.setAttribute('class', 'flow-edge-active');
+    }
+    svg.appendChild(path);
+
+    // Edge label
+    if (edge.label) {
+      const mx = (from.x + to.x) / 2;
+      const my = (from.y + to.y) / 2;
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      const lw = edge.label.length * 6.5 + 14;
+      rect.setAttribute('x', mx - lw/2);
+      rect.setAttribute('y', my - 9);
+      rect.setAttribute('width', lw);
+      rect.setAttribute('height', 16);
+      rect.setAttribute('rx', '4');
+      rect.setAttribute('fill', '#fff');
+      rect.setAttribute('stroke', strokeColor);
+      rect.setAttribute('stroke-width', '1');
+      textEl.setAttribute('x', mx);
+      textEl.setAttribute('y', my + 3);
+      textEl.setAttribute('text-anchor', 'middle');
+      textEl.setAttribute('fill', isActive ? '#6366f1' : '#888');
+      textEl.setAttribute('font-size', '10');
+      textEl.setAttribute('font-family', '-apple-system, sans-serif');
+      textEl.setAttribute('font-weight', '500');
+      textEl.textContent = edge.label;
+      svg.appendChild(rect);
+      svg.appendChild(textEl);
+    }
+
+    // Mid-point "+" button
+    const mx = (from.x + to.x) / 2;
+    const my2 = (from.y + to.y) / 2;
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.setAttribute('x', mx - 11);
+    fo.setAttribute('y', my2 + (edge.label ? 14 : 0) - 11);
+    fo.setAttribute('width', '22');
+    fo.setAttribute('height', '22');
+    fo.style.pointerEvents = 'all';
+    fo.innerHTML = `<div class="add-node-btn" xmlns="http://www.w3.org/1999/xhtml" title="Insert node" onclick="insertBetween('${edge.id}')">+</div>`;
+    svg.appendChild(fo);
+  });
+}
+
+function renderNodes() {
+  // Remove old node els
+  document.querySelectorAll('.flow-node').forEach(el => el.remove());
+
+  const canvas = getCanvas();
+  nodes.forEach(node => {
+    const ts = nodeTypeStyle(node.type);
+    const div = document.createElement('div');
+    div.className = 'flow-node' + (node.status === 'running' ? ' running' : '') + (node.status === 'error' ? ' error' : '') + (selectedNodeId === node.id ? ' selected' : '');
+    div.id = 'node-' + node.id;
+    div.style.left = node.x + 'px';
+    div.style.top  = node.y + 'px';
+
+    const statusDotColor = {
+      idle:    '#d9d9d9',
+      running: '#10b981',
+      error:   '#ef4444',
+      done:    '#6366f1',
+    }[node.status] || '#d9d9d9';
+
+    const statusDotAnim = node.status === 'running' ? 'animation:pulse 1.2s infinite;' : '';
+
+    div.innerHTML = `
+      <div class="node-port node-port-top"></div>
+      <div class="node-head">
+        <div class="node-icon" style="background:${ts.bg};color:${ts.color};">${node.icon}</div>
+        <div class="node-title">${node.label}</div>
+        <div class="node-status-dot" style="background:${statusDotColor};${statusDotAnim}"></div>
+      </div>
+      <div class="node-body">
+        <div class="node-summary">${node.summary}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+          <span class="node-tag" style="background:${ts.bg};color:${ts.color};">${node.tag}</span>
+          ${node.status === 'running' ? '<span style="font-size:10px;color:#10b981;font-weight:600;"><span class="spin">⟳</span> Running</span>' : ''}
+          ${node.status === 'error'   ? '<span style="font-size:10px;color:#ef4444;font-weight:600;">✗ Error</span>' : ''}
+        </div>
+      </div>
+      <div class="node-port node-port-bottom"></div>
+    `;
+
+    div.addEventListener('click', (e) => { e.stopPropagation(); selectNode(node.id); });
+    makeDraggable(div, node);
+    canvas.appendChild(div);
+  });
+}
+
+function makeDraggable(el, node) {
+  let startX, startY, startNX, startNY, dragging = false;
+
+  el.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('node-port')) return;
+    if (currentTool !== 'select') return;
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startNX = node.x;
+    startNY = node.y;
+    el.style.zIndex = 100;
+
+    const onMove = (e2) => {
+      if (!dragging) return;
+      const dx = e2.clientX - startX;
+      const dy = e2.clientY - startY;
+      node.x = startNX + dx;
+      node.y = startNY + dy;
+      el.style.left = node.x + 'px';
+      el.style.top  = node.y + 'px';
+      renderEdges();
+    };
+    const onUp = () => {
+      dragging = false;
+      el.style.zIndex = '';
+      renderMinimap();
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// ──────────────────────────────────────────────
+// SELECTION & CONFIG PANEL
+// ──────────────────────────────────────────────
+function selectNode(id) {
+  selectedNodeId = id;
+  renderNodes();
+  const node = nodes.find(n => n.id === id);
+  if (node) showPanel(node);
+}
+
+document.getElementById('canvas').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget || e.target.id === 'flow-svg') {
+    selectedNodeId = null;
+    renderNodes();
+    clearPanel();
+  }
+});
+
+function clearPanel() {
+  document.getElementById('panel-type-badge').innerHTML = '';
+  document.getElementById('panel-title').textContent = 'Select a node';
+  document.getElementById('panel-subtitle').textContent = 'Click any node to configure it';
+  document.getElementById('panel-footer').style.display = 'none';
+  document.getElementById('panel-body').innerHTML = `
+    <div style="text-align:center;padding:48px 0;color:var(--text-tertiary);">
+      <div style="font-size:32px;margin-bottom:12px;">🎯</div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:6px;">No node selected</div>
+      <div style="font-size:12px;">Click a node on the canvas<br>to view its settings</div>
+    </div>`;
+}
+
+function showPanel(node) {
+  const ts = nodeTypeStyle(node.type);
+  const badge = document.getElementById('panel-type-badge');
+  badge.innerHTML = `<div class="panel-node-type" style="background:${ts.bg};color:${ts.color};">${node.icon} ${node.tag}</div>`;
+
+  document.getElementById('panel-title').textContent = node.label;
+  document.getElementById('panel-subtitle').textContent = 'Node ID: ' + node.id;
+  document.getElementById('panel-footer').style.display = 'flex';
+
+  const body = document.getElementById('panel-body');
+  body.innerHTML = '';
+
+  // Build config form based on node type
+  const cfg = node.config;
+  let html = '';
+
+  if (cfg.kind === 'trigger-form') {
+    html = `
+      <div class="panel-section">
+        <div class="panel-section-title">Trigger Source</div>
+        <div class="form-field">
+          <div class="form-label">Provider</div>
+          <select class="form-select"><option selected>Typeform</option><option>Tally</option><option>Google Forms</option><option>Custom Endpoint</option></select>
+        </div>
+        <div class="form-field">
+          <div class="form-label">Form ID <span class="required">*</span></div>
+          <input class="form-input form-input-mono" value="${cfg.formId}" />
+        </div>
+        <div class="form-field">
+          <div class="form-label">Form Name</div>
+          <input class="form-input" value="${cfg.formName}" />
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Output Fields</div>
+        <div class="tag-input-wrap">
+          ${cfg.fields.map(f => `<div class="tag-item">${f} <span class="tag-remove">×</span></div>`).join('')}
+          <span style="font-size:11px;color:var(--text-tertiary);padding:2px 4px;cursor:text;">+ add field</span>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Options</div>
+        <div class="form-field" style="display:flex;align-items:center;justify-content:space-between;">
+          <div class="form-label" style="margin-bottom:0;">Deduplicate submissions</div>
+          <label class="toggle" style="flex-shrink:0;">
+            <input type="checkbox" ${cfg.dedup ? 'checked' : ''}>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+      </div>
+    `;
+  } else if (cfg.kind === 'ai-score') {
+    html = `
+      <div class="panel-section">
+        <div class="panel-section-title">Model</div>
+        <div class="model-card selected">
+          <div class="model-card-icon">🤖</div>
+          <div class="model-card-info">
+            <div class="model-card-name">GPT-4o</div>
+            <div class="model-card-meta">OpenAI · Fast · JSON mode</div>
+          </div>
+          <div class="model-card-check">✓</div>
+        </div>
+        <div class="model-card">
+          <div class="model-card-icon">🔮</div>
+          <div class="model-card-info">
+            <div class="model-card-name">Claude 3.5 Sonnet</div>
+            <div class="model-card-meta">Anthropic · Context-rich</div>
+          </div>
+        </div>
+        <div class="model-card">
+          <div class="model-card-icon">⚡</div>
+          <div class="model-card-info">
+            <div class="model-card-name">Gemini 1.5 Flash</div>
+            <div class="model-card-meta">Google · Budget-friendly</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">System Prompt</div>
+        <div class="form-field">
+          <textarea class="form-textarea" style="min-height:100px;font-family:monospace;font-size:11px;">${cfg.prompt}</textarea>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Parameters</div>
+        <div class="form-field">
+          <div class="form-label">Temperature</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="range" min="0" max="2" step="0.05" value="${cfg.temperature}" style="flex:1;accent-color:var(--primary);" id="temp-slider">
+            <span id="temp-val" style="font-size:12px;color:var(--text-secondary);min-width:28px;">${cfg.temperature}</span>
+          </div>
+        </div>
+        <div class="form-field">
+          <div class="form-label">Max tokens</div>
+          <input class="form-input" type="number" value="${cfg.maxTokens}" min="50" max="4000" />
+        </div>
+        <div class="form-field">
+          <div class="form-label">Output mode</div>
+          <select class="form-select"><option selected>JSON schema</option><option>Free text</option><option>Structured (function call)</option></select>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Output Schema</div>
+        <textarea class="form-textarea form-input-mono" style="min-height:90px;">${JSON.stringify(cfg.outputSchema, null, 2)}</textarea>
+      </div>
+    `;
+  } else if (cfg.kind === 'condition') {
+    html = `
+      <div class="panel-section">
+        <div class="panel-section-title">Conditions</div>
+        ${cfg.rules.map((r,i) => `
+        <div style="background:var(--bg-fill-secondary);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:8px;">RULE ${i+1} — <span style="color:#3b82f6;">${r.label}</span></div>
+          <div class="form-field">
+            <div class="form-label">Field / Variable</div>
+            <input class="form-input form-input-mono" value="${r.field}" />
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="form-field">
+              <div class="form-label">Operator</div>
+              <select class="form-select"><option>≥</option><option>≤</option><option>=</option><option>contains</option><option>is empty</option></select>
+            </div>
+            <div class="form-field">
+              <div class="form-label">Value</div>
+              <input class="form-input" value="${r.value}" />
+            </div>
+          </div>
+        </div>`).join('')}
+        <button class="add-link">+ Add rule</button>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Else Branch</div>
+        <div class="form-field">
+          <div class="form-label">Branch label</div>
+          <input class="form-input" value="${cfg.elseLabel}" />
+        </div>
+      </div>
+    `;
+  } else if (cfg.kind === 'approval') {
+    html = `
+      <div class="panel-section">
+        <div class="panel-section-title">Reviewers</div>
+        <div class="form-field">
+          <div class="form-label">Assign to <span class="required">*</span></div>
+          <div class="tag-input-wrap">
+            ${cfg.assignees.map(a => `<div class="tag-item">${a} <span class="tag-remove">×</span></div>`).join('')}
+            <span style="font-size:11px;color:var(--text-tertiary);padding:2px 4px;cursor:text;">+ add assignee</span>
+          </div>
+        </div>
+        <div class="form-field">
+          <div class="form-label">Notify in Slack channel</div>
+          <input class="form-input" value="${cfg.channel}" placeholder="#channel-name" />
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Timeout</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="form-field">
+            <div class="form-label">Timeout after</div>
+            <input class="form-input" value="${cfg.timeout}" placeholder="e.g. 24h" />
+          </div>
+          <div class="form-field">
+            <div class="form-label">On timeout</div>
+            <select class="form-select"><option ${cfg.onTimeout==='auto-approve'?'selected':''}>auto-approve</option><option ${cfg.onTimeout==='reject'?'selected':''}>reject</option><option ${cfg.onTimeout==='escalate'?'selected':''}>escalate</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Approval Message Preview</div>
+        <div style="background:var(--bg-fill);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
+          🔔 <strong>New lead requires review</strong><br>
+          <span style="color:var(--text-tertiary);">Company:</span> {{trigger.company}}<br>
+          <span style="color:var(--text-tertiary);">AI Score:</span> {{ai.score}}/10 · {{ai.budget_tier}}<br>
+          <span style="color:var(--text-tertiary);">Summary:</span> {{ai.summary}}<br><br>
+          <span style="color:#10b981;">✅ Approve</span> &nbsp; <span style="color:#ef4444;">✗ Reject</span>
+        </div>
+      </div>
+    `;
+  } else if (cfg.kind === 'send-email') {
+    html = `
+      <div class="panel-section">
+        <div class="panel-section-title">Recipients</div>
+        <div class="form-field">
+          <div class="form-label">To <span class="required">*</span></div>
+          <input class="form-input form-input-mono" value="${cfg.to}" />
+        </div>
+        <div class="form-field">
+          <div class="form-label">Reply-To</div>
+          <input class="form-input" value="${cfg.replyTo}" />
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Content</div>
+        <div class="form-field">
+          <div class="form-label">Subject <span class="required">*</span></div>
+          <input class="form-input form-input-mono" value="${cfg.subject}" />
+        </div>
+        <div class="form-field">
+          <div class="form-label">Template</div>
+          <select class="form-select"><option selected>lead-handoff-v2</option><option>lead-handoff-v1 (deprecated)</option><option>plain-text-v1</option></select>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Preview Variables</div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;">Available from upstream nodes:</div>
+        ${[
+          ['{{trigger.company}}','Acme Corp'],
+          ['{{trigger.email}}','alicia@acme.io'],
+          ['{{ai.score}}','9'],
+          ['{{ai.budget_tier}}','enterprise'],
+          ['{{ai.summary}}','High-intent buyer, actively evaluating tools'],
+          ['{{lead.assigned_ae}}','bob@corp.io'],
+        ].map(([k,v]) => `
+        <div class="kv-row" style="grid-template-columns:auto 1fr;">
+          <code style="font-size:10px;color:var(--primary);background:var(--primary-light);padding:2px 5px;border-radius:3px;">${k}</code>
+          <span style="font-size:11px;color:var(--text-secondary);">${v}</span>
+        </div>`).join('')}
+      </div>
+    `;
+  } else if (cfg.kind === 'update-crm') {
+    html = `
+      <div class="panel-section">
+        <div class="panel-section-title">CRM Integration</div>
+        <div class="form-field">
+          <div class="form-label">Platform</div>
+          <select class="form-select"><option ${cfg.crm==='HubSpot'?'selected':''}>HubSpot</option><option>Salesforce</option><option>Pipedrive</option><option>Attio</option></select>
+        </div>
+        <div class="form-field">
+          <div class="form-label">Action</div>
+          <select class="form-select"><option selected>Enroll in sequence</option><option>Create contact</option><option>Update deal stage</option><option>Add note</option></select>
+        </div>
+        <div class="form-field">
+          <div class="form-label">Sequence ID</div>
+          <input class="form-input form-input-mono" value="${cfg.sequenceId}" />
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title">Field Mapping</div>
+        ${Object.entries(cfg.mapping).map(([k,v]) => `
+        <div class="kv-row">
+          <input class="form-input form-input-mono" value="${k}" style="font-size:11px;" />
+          <input class="form-input form-input-mono" value="${v}" style="font-size:11px;" />
+          <button class="kv-remove">×</button>
+        </div>`).join('')}
+        <button class="add-link">+ Add mapping</button>
+      </div>
+    `;
+  }
+
+  body.innerHTML = html;
+
+  // Wire up temp slider if present
+  const slider = document.getElementById('temp-slider');
+  const tempVal = document.getElementById('temp-val');
+  if (slider && tempVal) {
+    slider.addEventListener('input', () => { tempVal.textContent = slider.value; });
+  }
+
+  // Model card selection
+  document.querySelectorAll('.model-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+  });
+}
+
+// ──────────────────────────────────────────────
+// EXECUTION LOG
+// ──────────────────────────────────────────────
+function openLogDrawer() {
+  const drawer = document.getElementById('log-drawer');
+  drawer.classList.add('open');
+  populateLogs();
+}
+function closeLogDrawer() {
+  document.getElementById('log-drawer').classList.remove('open');
+}
+
+function populateLogs() {
+  const body = document.getElementById('log-body');
+  const statusMap = {
+    success: { icon: '✓', bg: '#ecfdf5', color: '#059669', label: 'Success' },
+    failed:  { icon: '✗', bg: '#fee2e2', color: '#dc2626', label: 'Failed'  },
+    skipped: { icon: '–', bg: '#f5f5f5', color: '#6b7280', label: 'Skipped' },
+  };
+  body.innerHTML = EXEC_LOG.map(run => {
+    const s = statusMap[run.status];
+    return `
+    <div class="log-run">
+      <div class="log-run-icon" style="background:${s.bg};color:${s.color};">${s.icon}</div>
+      <div class="log-run-info">
+        <div class="log-run-title">${run.trigger}${run.score !== null ? ` <span style="font-size:10px;font-weight:700;color:var(--primary);background:var(--primary-light);padding:1px 5px;border-radius:3px;margin-left:4px;">Score ${run.score}</span>` : ''}</div>
+        <div class="log-run-meta">${run.time} ${run.error ? '· <span style="color:#dc2626;">'+run.error+'</span>' : ''} ${run.note ? '· <span style="color:var(--text-tertiary);">'+run.note+'</span>' : ''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+        <span class="log-badge" style="background:${s.bg};color:${s.color};">${s.label}</span>
+        <span class="log-run-dur">${run.duration}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ──────────────────────────────────────────────
+// TEST RUN SIMULATION
+// ──────────────────────────────────────────────
+const TEST_STEPS = [
+  { label: 'Receiving form payload', delay: 400 },
+  { label: 'Validating trigger conditions', delay: 600 },
+  { label: 'Calling GPT-4o (AI Lead Scoring)', delay: 1800 },
+  { label: 'Evaluating condition: Score ≥ 7', delay: 300 },
+  { label: 'Queuing approval notification', delay: 400 },
+  { label: 'Sending email to AE', delay: 600 },
+];
+
+function showTestRun() {
+  const overlay = document.getElementById('test-overlay');
+  const stepsEl = document.getElementById('test-steps');
+  const subEl   = document.getElementById('test-sub');
+  const btn     = document.getElementById('test-btn');
+  overlay.classList.add('show');
+  stepsEl.innerHTML = TEST_STEPS.map(s => `
+    <div class="progress-step" id="ts-${TEST_STEPS.indexOf(s)}">
+      <div class="step-icon">○</div>
+      <span>${s.label}</span>
+    </div>`).join('');
+  btn.style.display = 'none';
+  subEl.textContent = 'Running flow with sample payload: Alicia Huang @ Acme Corp...';
+
+  let i = 0;
+  function runStep() {
+    if (i >= TEST_STEPS.length) {
+      subEl.textContent = '✓ Test completed successfully in 4.1s — 5/5 nodes passed';
+      btn.style.display = '';
+      // Animate running node back to idle
+      const runningNode = nodes.find(n => n.status === 'running');
+      if (runningNode) { runningNode.status = 'idle'; renderNodes(); }
+      return;
+    }
+    // Set current as running
+    const el = document.getElementById('ts-' + i);
+    if (el) {
+      el.classList.add('running');
+      el.querySelector('.step-icon').innerHTML = '<span class="spin">⟳</span>';
+    }
+    // Set prev as done
+    if (i > 0) {
+      const prev = document.getElementById('ts-' + (i-1));
+      if (prev) {
+        prev.classList.remove('running');
+        prev.classList.add('done');
+        prev.querySelector('.step-icon').innerHTML = '✓';
+        prev.querySelector('.step-icon').classList.add('done');
+      }
+    }
+    i++;
+    setTimeout(runStep, TEST_STEPS[i-1] ? TEST_STEPS[i-1].delay : 400);
+  }
+  runStep();
+}
+
+function closeTestOverlay(e) {
+  if (e && e.target !== document.getElementById('test-overlay')) return;
+  document.getElementById('test-overlay').classList.remove('show');
+  document.getElementById('test-btn').style.display = '';
+}
+
+// ──────────────────────────────────────────────
+// CANVAS TOOLS
+// ──────────────────────────────────────────────
+function setTool(t) {
+  currentTool = t;
+  document.querySelectorAll('.canvas-tool-btn').forEach((b, i) => {
+    b.classList.toggle('active', i === (t === 'select' ? 0 : 1));
+  });
+}
+
+function zoom(delta) {
+  zoomLevel = Math.max(40, Math.min(200, zoomLevel + delta));
+  document.getElementById('zoom-label').textContent = zoomLevel + '%';
+  // In a real impl we'd transform the canvas viewport
+}
+
+function fitCanvas() {
+  zoomLevel = 100;
+  document.getElementById('zoom-label').textContent = '100%';
+}
+
+function autoLayout() {
+  // Simple vertical auto-layout for the main chain
+  const mainChain = ['n1','n2','n3'];
+  let y = 80;
+  mainChain.forEach(id => {
+    const node = nodes.find(n => n.id === id);
+    if (node) { node.x = 100; node.y = y; y += 170; }
+  });
+  // Branches
+  const n4 = nodes.find(n => n.id === 'n4'); if (n4) { n4.x = -140; n4.y = y; }
+  const n6 = nodes.find(n => n.id === 'n6'); if (n6) { n6.x = 340; n6.y = y; }
+  const n5 = nodes.find(n => n.id === 'n5'); if (n5) { n5.x = -140; n5.y = y + 170; }
+  renderAll();
+}
+
+function insertBetween(edgeId) {
+  // Could show a node picker here; for demo just alert
+  alert('Insert node between connected steps — node picker coming soon.');
+}
+
+// ──────────────────────────────────────────────
+// DRAG FROM SIDEBAR
+// ──────────────────────────────────────────────
+let dragNodeKind = null;
+function dragStart(e, kind) {
+  dragNodeKind = kind;
+  e.dataTransfer.effectAllowed = 'copy';
+}
+function canvasDrop(e) {
+  if (!dragNodeKind) return;
+  const rect = getCanvas().getBoundingClientRect();
+  const x = e.clientX - rect.left - 100;
+  const y = e.clientY - rect.top  - 40;
+  addNode(dragNodeKind, x, y);
+  dragNodeKind = null;
+}
+
+function addNode(kind, x, y) {
+  const templates = {
+    'trigger-form':     { type:'trigger',  label:'New Form Trigger',    icon:'📋', tag:'TRIGGER',    summary:'Configure form source and output fields.' },
+    'trigger-schedule': { type:'trigger',  label:'Scheduled Trigger',   icon:'⏰', tag:'TRIGGER',    summary:'Set cron expression or interval.' },
+    'trigger-webhook':  { type:'webhook',  label:'Webhook Trigger',     icon:'🔗', tag:'TRIGGER',    summary:'Incoming HTTP POST endpoint.' },
+    'trigger-email':    { type:'trigger',  label:'Email Received',      icon:'📧', tag:'TRIGGER',    summary:'Watches inbox for matching messages.' },
+    'condition':        { type:'condition',label:'Condition',           icon:'⚡', tag:'CONDITION',  summary:'Define if/else branching logic.' },
+    'filter':           { type:'condition',label:'Filter',              icon:'🔍', tag:'FILTER',     summary:'Skip execution if criteria not met.' },
+    'loop':             { type:'condition',label:'Loop',                icon:'🔄', tag:'LOOP',       summary:'Iterate over an array of items.' },
+    'ai-score':         { type:'ai',       label:'AI Score / Classify', icon:'🧠', tag:'AI ACTION',  summary:'Structured LLM output with JSON schema.' },
+    'ai-summarize':     { type:'ai',       label:'AI Summarize',        icon:'✍️', tag:'AI ACTION',  summary:'Condense content into key points.' },
+    'ai-reply':         { type:'ai',       label:'AI Draft Reply',      icon:'💬', tag:'AI ACTION',  summary:'Generate contextual response draft.' },
+    'ai-extract':       { type:'ai',       label:'AI Extract Fields',   icon:'📄', tag:'AI ACTION',  summary:'Parse and extract from unstructured text.' },
+    'send-email':       { type:'email',    label:'Send Email',          icon:'📨', tag:'SEND EMAIL', summary:'Configure recipients and template.' },
+    'send-slack':       { type:'email',    label:'Slack Message',       icon:'💬', tag:'SEND MESSAGE',summary:'Post to Slack channel or DM.' },
+    'approval':         { type:'approval', label:'Approval Gate',       icon:'✅', tag:'APPROVAL',   summary:'Pause flow until human reviews.' },
+    'http':             { type:'webhook',  label:'HTTP Request',        icon:'🌐', tag:'HTTP',       summary:'Call any REST or GraphQL endpoint.' },
+    'update-crm':       { type:'webhook',  label:'Update CRM Record',   icon:'🗂️', tag:'UPDATE CRM', summary:'Sync data with CRM platform.' },
+  };
+  const t = templates[kind] || { type:'webhook', label: kind, icon:'◼', tag:'ACTION', summary:'Configure this node.' };
+  const id = 'n' + Date.now();
+  nodes.push({ id, x, y, status:'idle', config:{ kind }, ...t });
+  renderAll();
+  selectNode(id);
+}
+
+// ──────────────────────────────────────────────
+// NODE ACTIONS
+// ──────────────────────────────────────────────
+function deleteNode() {
+  if (!selectedNodeId) return;
+  const idx = nodes.findIndex(n => n.id === selectedNodeId);
+  if (idx !== -1) nodes.splice(idx, 1);
+  // Remove connected edges
+  const toRemove = edges.filter(e => e.from === selectedNodeId || e.to === selectedNodeId);
+  toRemove.forEach(e => { const i = edges.indexOf(e); if (i !== -1) edges.splice(i,1); });
+  selectedNodeId = null;
+  clearPanel();
+  renderAll();
+}
+
+function duplicateNode() {
+  if (!selectedNodeId) return;
+  const orig = nodes.find(n => n.id === selectedNodeId);
+  if (!orig) return;
+  const newNode = JSON.parse(JSON.stringify(orig));
+  newNode.id = 'n' + Date.now();
+  newNode.x += 220;
+  newNode.label += ' (copy)';
+  nodes.push(newNode);
+  renderAll();
+  selectNode(newNode.id);
+}
+
+// ──────────────────────────────────────────────
+// MINIMAP
+// ──────────────────────────────────────────────
+function renderMinimap() {
+  const canvas = document.getElementById('minimap-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  if (!nodes.length) return;
+  const xs = nodes.map(n => n.x);
+  const ys = nodes.map(n => n.y);
+  const minX = Math.min(...xs) - 30, maxX = Math.max(...xs) + 200 + 30;
+  const minY = Math.min(...ys) - 20, maxY = Math.max(...ys) + 120 + 20;
+  const scaleX = W / (maxX - minX);
+  const scaleY = H / (maxY - minY);
+  const scale = Math.min(scaleX, scaleY) * 0.85;
+
+  const mapX = (x) => (x - minX) * scale + (W - (maxX-minX)*scale) / 2;
+  const mapY = (y) => (y - minY) * scale + (H - (maxY-minY)*scale) / 2;
+
+  // Draw edges
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 1;
+  edges.forEach(edge => {
+    const fn = nodes.find(n => n.id === edge.from);
+    const tn = nodes.find(n => n.id === edge.to);
+    if (!fn || !tn) return;
+    ctx.beginPath();
+    ctx.moveTo(mapX(fn.x + 100), mapY(fn.y + 50));
+    ctx.lineTo(mapX(tn.x + 100), mapY(tn.y + 20));
+    ctx.stroke();
+  });
+
+  // Draw nodes
+  nodes.forEach(node => {
+    const ts = NODE_TYPES[node.type] || NODE_TYPES.webhook;
+    ctx.fillStyle = node.id === selectedNodeId ? '#6366f1' : ts.color.replace('var(--c-','').replace(')','');
+    // just draw colored rects
+    ctx.fillStyle = node.status === 'running' ? '#10b981' : (node.id === selectedNodeId ? '#6366f1' : '#aaa');
+    ctx.beginPath();
+    ctx.roundRect(mapX(node.x), mapY(node.y), 200*scale, 80*scale, 2);
+    ctx.fill();
+  });
+}
+
+// ──────────────────────────────────────────────
+// KEYBOARD SHORTCUTS
+// ──────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (document.activeElement === document.body && selectedNodeId) deleteNode();
+  }
+  if (e.key === 'v' || e.key === 'V') setTool('select');
+  if (e.key === 'h' || e.key === 'H') setTool('hand');
+  if (e.key === 'f' || e.key === 'F') fitCanvas();
+  if (e.key === 'Escape') {
+    selectedNodeId = null;
+    renderNodes();
+    clearPanel();
+    closeLogDrawer();
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+    e.preventDefault();
+    duplicateNode();
+  }
+});
+
+// ──────────────────────────────────────────────
+// INIT
+// ──────────────────────────────────────────────
+window.addEventListener('load', () => {
+  renderAll();
+  // Auto-select first node after a tick so heights are measured
+  setTimeout(() => {
+    renderEdges();
+    renderMinimap();
+  }, 100);
+});
+
+// Minimap roundRect polyfill
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r) {
+    this.beginPath();
+    this.moveTo(x+r,y);
+    this.arcTo(x+w,y,x+w,y+h,r);
+    this.arcTo(x+w,y+h,x,y+h,r);
+    this.arcTo(x,y+h,x,y,r);
+    this.arcTo(x,y,x+w,y,r);
+    this.closePath();
+  };
+}
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — AI Workflows: native workflows with AI-employee nodes and an execution flow. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/11-ai-workflow-automation.html
+</script>
+</body>
+</html>

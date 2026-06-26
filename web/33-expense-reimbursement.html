@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reimburse — Submit &amp; Track</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Expense Reimbursement — Employee Self-Service (Reimburse)",
+  "prefix": "ers_",
+  "viewpoint": "APPLICANT / claimant self-service — submit a claim, watch my claims, follow each approval. NOT the finance/back-office workbench (that is module exp / #20, single-report editor + team analytics). Here the user is an employee, sees only their own claims, and the core verbs are 'submit', 'track', 'see where my money is'.",
+  "collections": {
+    "ers_categories": {"titleField":"name","fields":{"name":"input","icon":"input","day_cap":"number (per-item soft cap, USD)","needs_receipt":"boolean","gl_code":"input"}},
+    "ers_policies": {"titleField":"title","fields":{"title":"input","body":"textarea","category":"select:meals|travel|lodging|supplies|software|mileage|other","cap_note":"input"}},
+    "ers_claims": {"titleField":"title","fields":{"claim_no":"input (auto, RB-YYYY-####)","title":"input","purpose":"textarea","cost_center":"select:sales_apac|engineering|marketing|ga|support","total_amount":"number (rolled from items)","currency":"select:usd|jpy|eur|cny","status":"select:draft|submitted|in_review|needs_info|approved|reimbursed|rejected","submitted_at":"datetime","reimbursed_at":"datetime"},"relations":{"claimant":"m2o ers_employees (fk claimant_id)","approver":"m2o ers_employees (fk approver_id)","items":"o2m ers_items (fk claim_id)"}},
+    "ers_items": {"titleField":"merchant","fields":{"spent_on":"date","merchant":"input","description":"input","amount":"number","has_receipt":"boolean","receipt_note":"input","over_cap":"boolean (derived vs category.day_cap)"},"relations":{"claim":"m2o ers_claims (fk claim_id)","category":"m2o ers_categories (fk category_id)"}},
+    "ers_approvals": {"titleField":"step_label","fields":{"step_label":"input","stage":"select:submitted|manager|finance|payout","decision":"select:pending|approved|returned|rejected","decided_at":"datetime","comment":"textarea","order":"integer"},"relations":{"claim":"m2o ers_claims (fk claim_id)","actor":"m2o ers_employees (fk actor_id)"}},
+    "ers_employees": {"titleField":"name","fields":{"name":"input","title":"input","department":"input","email":"input"}}
+  },
+  "page": {
+    "name": "My Reimbursements",
+    "layout": "left rail nav (My Claims / New Claim / Policies) | center = either the submit Wizard (Form, create mode) OR the My-Claims List depending on rail tab | right = approval-status timeline (Details + JS item) for the selected claim",
+    "regions": [
+      {"id":"wizard","block":"native Form block (ers_claims create mode) rendered as a 3-step wizard — NOT a freestanding JSBlock","intent":"applicant submits a new claim in guided steps","content":["Step 1 Trip details = title + purpose + cost_center + currency fields","Step 2 Add expenses = nested o2m ers_items sub-table rendered as JS item (date/category/merchant/amount/receipt rows) with running total + per-item over-cap flag from category.day_cap","Step 3 Review & submit = JS item summary card reading ctx.form.getFieldsValue()"],"actions":["Next/Back = JS actions stepping the wizard","Save draft = JS action (status=draft)","Submit claim = submit/JS action (status=submitted, writes ers_approvals seed rows)"]},
+      {"id":"myclaims","block":"native List + JS item card","collection":"ers_claims","intent":"the claimant's own reimbursement history","scope":"claimant_id = current user","sort":"submitted_at desc","group":"by status bucket (Action needed / In progress / Paid & closed)","card":["claim_no + title","status pill with stage","total_amount + currency","submitted date + items count","mini progress bar = approval stage"]},
+      {"id":"timeline","block":"Details (single ers_claims) + JS item vertical stepper","collection":"ers_approvals","intent":"where exactly is THIS claim in approval","binds":"selected claim from myclaims / just-submitted from wizard","shows":["claim header (no, total, status)","vertical stepper: Submitted → Manager → Finance → Payout, each with actor, timestamp, comment","needs-info callout when status=needs_info","payout summary when reimbursed"]},
+      {"id":"summary","block":"JSBlock — 3 KPI stat tiles (data-less header strip)","intent":"applicant glance: awaiting me / in review / reimbursed YTD","shows":["count needs_info","count in_review+submitted","sum reimbursed this year"]}
+    ]
+  },
+  "interactions": [
+    "rail tab switches center between Wizard and My-Claims list",
+    "wizard step nav (1 Trip / 2 Expenses / 3 Review) with validation gate",
+    "sub-table add/remove item recomputes total live + flags over-cap vs category.day_cap",
+    "Submit writes ers_claims(status=submitted) + seeds ers_approvals stepper rows",
+    "selecting a My-Claims card loads its approval timeline on the right",
+    "My-Claims grouped by action-needed / in-progress / paid"
+  ],
+  "jsKernels": [
+    "wizard stepper + per-step validation (Form JS actions)",
+    "expense sub-table JS item with live total + over-cap badge",
+    "review summary JS item bound to form values",
+    "approval vertical-stepper JS item (Details)",
+    "My-Claims JS list card with stage progress bar"
+  ],
+  "notes": "Container/content rule: data containers are NATIVE blocks — the wizard is a native ers_claims create Form (steps + sub-table + review are JS items INSIDE it, NOT a freestanding JSBlock), My-Claims is a real native List of ers_claims scoped to the current user, the right timeline is a native Details of the selected claim with a JS stepper item over ers_approvals. Only the 3 KPI tiles are a data-less JSBlock strip. Do NOT rebuild the wizard as one big JS block. This is the APPLICANT surface: scope every claim list to claimant=current user and never expose a team/all-claims table (that belongs to the finance module exp/#20)."
+}
+</script>
+<style>
+  :root{
+    --brand:#722ed1; --brand-soft:#f9f0ff; --brand-line:#d3adf7; --brand-2:#9254de;
+    --ink:#1f1f1f; --ink-2:#595959; --ink-3:#8c8c8c; --ink-4:#bfbfbf;
+    --line:#f0f0f0; --line-2:#e8e8e8; --line-3:#d9d9d9; --bg:#f4f5f7; --card:#fff;
+    --green:#52c41a; --green-bg:#f6ffed; --green-line:#b7eb8f;
+    --gold:#faad14; --gold-bg:#fffbe6; --gold-line:#ffe58f;
+    --blue:#1677ff; --blue-bg:#e6f4ff; --blue-line:#91caff;
+    --red:#ff4d4f; --red-bg:#fff1f0; --red-line:#ffccc7;
+    --gray-bg:#fafafa;
+    --r:10px;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 6px 18px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit}
+  input,select,textarea{font-family:inherit}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 24px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:8px;
+    background:linear-gradient(135deg,var(--brand),#b37feb);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 2px 8px rgba(114,46,209,.35);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:1px}
+  .topnav{display:flex;gap:4px;margin-left:10px}
+  .topnav a{padding:7px 13px;border-radius:7px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500}
+  .topnav a.on{background:var(--brand-soft);color:var(--brand)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .icon-btn{width:34px;height:34px;border-radius:8px;border:1px solid var(--line-2);background:#fff;color:var(--ink-2);
+    display:grid;place-items:center;font-size:15px;cursor:pointer;position:relative}
+  .icon-btn:hover{border-color:var(--line-3);color:var(--ink)}
+  .icon-btn .dot{position:absolute;top:6px;right:7px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#722ed1,#b37feb);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- shell ---------- */
+  .shell{display:grid; grid-template-columns:212px minmax(0,1fr) 360px; height:calc(100vh - 56px)}
+
+  /* ---------- left rail ---------- */
+  .rail{background:var(--card);border-right:1px solid var(--line-2);padding:18px 14px;overflow:auto;display:flex;flex-direction:column}
+  .rail-cta{
+    width:100%;border:none;border-radius:9px;padding:11px 14px;font-size:13.5px;font-weight:600;cursor:pointer;
+    background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(114,46,209,.3);display:flex;align-items:center;gap:8px;justify-content:center;
+    transition:.13s;margin-bottom:18px;
+  }
+  .rail-cta:hover{background:#6322bf}
+  .rail-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-4);margin:6px 8px 7px}
+  .rail-item{
+    display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;cursor:pointer;
+    font-size:13.5px;font-weight:500;color:var(--ink-2);margin-bottom:2px;transition:.12s;
+  }
+  .rail-item .ic{width:18px;text-align:center;font-size:15px;flex:none}
+  .rail-item .rc{margin-left:auto;font-size:11px;font-weight:700;background:var(--line);color:var(--ink-3);border-radius:10px;padding:1px 7px}
+  .rail-item:hover{background:var(--gray-bg)}
+  .rail-item.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+  .rail-item.on .rc{background:var(--brand-line);color:var(--brand)}
+  .rail-foot{margin-top:auto;padding:12px;border:1px solid var(--line-2);border-radius:9px;background:var(--gray-bg)}
+  .rail-foot .rf-bar{height:7px;border-radius:5px;background:var(--line-2);overflow:hidden;margin:8px 0 6px}
+  .rail-foot .rf-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2));border-radius:5px}
+  .rail-foot b{font-size:12px}
+  .rail-foot p{font-size:11px;color:var(--ink-3);line-height:1.4}
+
+  /* ---------- center ---------- */
+  .center{overflow:auto;padding:22px 26px}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;gap:16px}
+  .page-head h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .page-head p{color:var(--ink-3);font-size:12.5px;margin-top:3px}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+  .kpi .k-ic{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:16px}
+  .kpi .k-label{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px}
+  .kpi .k-val{font-size:26px;font-weight:700;letter-spacing:-.5px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .kpi .k-sub{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+  .kpi.gold .k-ic{background:var(--gold-bg);color:#d48806}
+  .kpi.blue .k-ic{background:var(--blue-bg);color:var(--blue)}
+  .kpi.green .k-ic{background:var(--green-bg);color:#389e0d}
+  .kpi.gold{border-top:2px solid var(--gold)}
+  .kpi.blue{border-top:2px solid var(--blue)}
+  .kpi.green{border-top:2px solid var(--green)}
+
+  /* ===== WIZARD ===== */
+  .wizard{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .wiz-steps{display:flex;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line);background:var(--gray-bg)}
+  .wstep{display:flex;align-items:center;gap:10px;flex:none}
+  .wstep .num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;font-weight:700;
+    background:#fff;border:1.5px solid var(--line-3);color:var(--ink-3);transition:.15s}
+  .wstep .wt{line-height:1.2}
+  .wstep .wt b{font-size:13px;color:var(--ink-3);font-weight:600;display:block}
+  .wstep .wt span{font-size:11px;color:var(--ink-4)}
+  .wstep.active .num{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 2px 6px rgba(114,46,209,.3)}
+  .wstep.active .wt b{color:var(--ink)}
+  .wstep.done .num{background:var(--green);border-color:var(--green);color:#fff}
+  .wstep.done .wt b{color:var(--ink-2)}
+  .wbar{flex:1;height:2px;background:var(--line-2);margin:0 14px;border-radius:2px;position:relative;top:1px}
+  .wbar i{display:block;height:100%;background:var(--green);border-radius:2px;width:0;transition:.3s}
+
+  .wiz-body{padding:22px 24px;min-height:330px}
+  .wpane{display:none;animation:fade .25s ease}
+  .wpane.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .pane-title{font-size:15px;font-weight:700;margin-bottom:3px}
+  .pane-hint{font-size:12.5px;color:var(--ink-3);margin-bottom:18px}
+
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px}
+  .fld{display:flex;flex-direction:column;gap:6px}
+  .fld.full{grid-column:1/-1}
+  .fld label{font-size:12px;font-weight:600;color:var(--ink-2)}
+  .fld label .req{color:var(--red);margin-left:2px}
+  .fld input,.fld select,.fld textarea{
+    border:1.5px solid var(--line-2);border-radius:8px;padding:9px 11px;font-size:13.5px;color:var(--ink);outline:none;transition:.13s;background:#fff;width:100%;
+  }
+  .fld textarea{resize:vertical;min-height:64px;line-height:1.5}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--brand-line);box-shadow:0 0 0 3px var(--brand-soft)}
+  .fld .help{font-size:11px;color:var(--ink-4)}
+  .chip-row{display:flex;gap:8px;flex-wrap:wrap}
+  .cc-chip{border:1.5px solid var(--line-2);background:#fff;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:500;color:var(--ink-2);cursor:pointer;transition:.12s;display:flex;align-items:center;gap:7px}
+  .cc-chip .ic{font-size:14px}
+  .cc-chip:hover{border-color:var(--line-3)}
+  .cc-chip.sel{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);font-weight:600}
+
+  /* expense sub-table */
+  .items-tbl{width:100%;border:1px solid var(--line-2);border-radius:9px;overflow:hidden;border-collapse:separate;border-spacing:0}
+  .items-tbl thead th{background:var(--gray-bg);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);
+    text-align:left;padding:9px 11px;border-bottom:1px solid var(--line-2)}
+  .items-tbl thead th.r{text-align:right}
+  .items-tbl tbody td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .items-tbl tbody tr:last-child td{border-bottom:none}
+  .items-tbl input,.items-tbl select{border:1px solid transparent;border-radius:6px;padding:7px 8px;font-size:12.5px;width:100%;background:transparent;color:var(--ink)}
+  .items-tbl input:hover,.items-tbl select:hover{border-color:var(--line-2);background:#fff}
+  .items-tbl input:focus,.items-tbl select:focus{border-color:var(--brand-line);box-shadow:0 0 0 2px var(--brand-soft);background:#fff}
+  .items-tbl td.amt{text-align:right}
+  .items-tbl input.amt-in{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .rcpt-cell{display:flex;align-items:center;justify-content:center}
+  .rcpt-toggle{width:30px;height:24px;border-radius:6px;border:1px solid var(--line-2);background:#fff;cursor:pointer;font-size:12px;color:var(--ink-3);display:grid;place-items:center}
+  .rcpt-toggle.has{background:var(--green-bg);border-color:var(--green-line);color:#389e0d}
+  .row-del{border:none;background:none;color:var(--ink-4);cursor:pointer;font-size:14px;padding:4px;border-radius:6px}
+  .row-del:hover{background:var(--red-bg);color:var(--red)}
+  .cap-flag{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:#d48806;background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:8px;padding:0 6px;margin-left:6px;white-space:nowrap}
+  .items-foot{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+  .add-item{border:1.5px dashed var(--line-3);background:#fff;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;color:var(--brand);cursor:pointer;transition:.12s}
+  .add-item:hover{border-color:var(--brand-line);background:var(--brand-soft)}
+  .run-total{display:flex;align-items:baseline;gap:8px}
+  .run-total .lbl{font-size:12px;color:var(--ink-3);font-weight:500}
+  .run-total .amt{font-size:22px;font-weight:700;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+  .run-total .cur{font-size:13px;color:var(--ink-3);font-weight:600}
+
+  .policy-note{display:flex;gap:10px;align-items:flex-start;background:var(--blue-bg);border:1px solid var(--blue-line);border-radius:9px;padding:11px 13px;margin-top:16px;font-size:12.5px;color:#0958d9;line-height:1.5}
+  .policy-note .pn-ic{flex:none;font-size:15px}
+
+  /* review */
+  .rev-card{border:1px solid var(--line-2);border-radius:10px;overflow:hidden}
+  .rev-head{padding:16px 18px;background:linear-gradient(135deg,var(--brand-soft),#fff);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .rev-head .rh-l h3{font-size:16px;font-weight:700}
+  .rev-head .rh-l p{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .rev-head .rh-total{text-align:right}
+  .rev-head .rh-total .lbl{font-size:11px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .rev-head .rh-total .v{font-size:24px;font-weight:700;letter-spacing:-.5px}
+  .rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .rev-cell{padding:12px 18px;border-bottom:1px solid var(--line);border-right:1px solid var(--line)}
+  .rev-cell:nth-child(2n){border-right:none}
+  .rev-cell .l{font-size:11px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .rev-cell .v{font-size:13.5px;margin-top:3px;font-weight:500}
+  .rev-items{padding:6px 8px}
+  .rev-line{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px}
+  .rev-line:hover{background:var(--gray-bg)}
+  .rev-line .ri-ic{width:30px;height:30px;border-radius:8px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-size:14px;flex:none}
+  .rev-line .ri-m{flex:1;min-width:0}
+  .rev-line .ri-m b{font-size:13px;display:block}
+  .rev-line .ri-m span{font-size:11.5px;color:var(--ink-3)}
+  .rev-line .ri-amt{font-weight:700;font-variant-numeric:tabular-nums}
+  .rev-line .ri-no{font-size:10px;color:var(--ink-4)}
+  .confirm-box{display:flex;align-items:flex-start;gap:10px;padding:13px 16px;border-top:1px solid var(--line);background:var(--gray-bg)}
+  .confirm-box input{margin-top:2px;width:16px;height:16px;accent-color:var(--brand)}
+  .confirm-box label{font-size:12.5px;color:var(--ink-2);line-height:1.5}
+
+  /* wizard footer */
+  .wiz-foot{display:flex;align-items:center;gap:10px;padding:16px 24px;border-top:1px solid var(--line);background:var(--gray-bg)}
+  .btn{border:none;border-radius:8px;padding:10px 18px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.13s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(114,46,209,.3)}
+  .btn-primary:hover{background:#6322bf}
+  .btn-ghost{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:var(--line-3)}
+  .btn-soft{background:var(--brand-soft);color:var(--brand)}
+  .btn-soft:hover{background:#f0e3ff}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .wiz-foot .spacer{margin-left:auto}
+  .wiz-foot .step-meta{font-size:12px;color:var(--ink-3);margin-right:6px}
+
+  /* ===== MY CLAIMS LIST ===== */
+  .claims-view{display:none}
+  .claims-view.on{display:block}
+  .wizard.hidden{display:none}
+  .seg{display:inline-flex;background:var(--line);border-radius:9px;padding:3px;gap:2px}
+  .seg button{border:none;background:none;padding:6px 14px;border-radius:7px;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+  .seg button.on{background:#fff;color:var(--brand);box-shadow:var(--shadow-sm)}
+
+  .group-label{display:flex;align-items:center;gap:10px;margin:18px 0 10px}
+  .group-label .gl-t{font-size:13px;font-weight:700;color:var(--ink)}
+  .group-label .gl-n{font-size:11px;font-weight:700;color:#fff;border-radius:10px;padding:1px 8px}
+  .group-label .gl-line{flex:1;height:1px;background:var(--line-2)}
+  .group-label.action .gl-n{background:var(--gold)}
+  .group-label.progress .gl-n{background:var(--blue)}
+  .group-label.closed .gl-n{background:var(--green)}
+
+  .claim-card{
+    background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:15px 17px;margin-bottom:11px;
+    box-shadow:var(--shadow-sm);cursor:pointer;transition:.14s;border-left:3px solid var(--line-2);position:relative;
+  }
+  .claim-card:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-left-color:var(--brand-line)}
+  .claim-card.sel{border-left-color:var(--brand);box-shadow:0 0 0 2px var(--brand-soft),var(--shadow)}
+  .cc-row1{display:flex;align-items:center;gap:10px;margin-bottom:5px}
+  .cc-no{font-size:11px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums;background:var(--gray-bg);border:1px solid var(--line-2);border-radius:6px;padding:1px 7px}
+  .cc-title{font-size:14.5px;font-weight:600;letter-spacing:-.2px}
+  .cc-amt{margin-left:auto;font-size:16px;font-weight:700;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+  .cc-amt .cur{font-size:11px;color:var(--ink-3);font-weight:600;margin-left:1px}
+  .cc-row2{display:flex;align-items:center;gap:12px;font-size:11.5px;color:var(--ink-3);margin-bottom:11px}
+  .cc-row2 .sep{width:3px;height:3px;border-radius:50%;background:var(--ink-4)}
+  .cc-row2 .cc-status{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:11px;letter-spacing:.2px}
+  .cc-status .sdot{width:6px;height:6px;border-radius:50%}
+  .st-draft{background:var(--line);color:var(--ink-2)} .st-draft .sdot{background:var(--ink-3)}
+  .st-submitted{background:var(--blue-bg);color:#0958d9} .st-submitted .sdot{background:var(--blue)}
+  .st-in_review{background:var(--blue-bg);color:#0958d9} .st-in_review .sdot{background:var(--blue)}
+  .st-needs_info{background:var(--gold-bg);color:#d48806} .st-needs_info .sdot{background:var(--gold)}
+  .st-approved{background:#f9f0ff;color:var(--brand)} .st-approved .sdot{background:var(--brand)}
+  .st-reimbursed{background:var(--green-bg);color:#389e0d} .st-reimbursed .sdot{background:var(--green)}
+  .st-rejected{background:var(--red-bg);color:var(--red)} .st-rejected .sdot{background:var(--red)}
+
+  /* mini stage progress */
+  .stage-mini{display:flex;align-items:center;gap:0}
+  .sm-node{display:flex;align-items:center;flex:1}
+  .sm-node:last-child{flex:none}
+  .sm-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--line-3);background:#fff;flex:none;display:grid;place-items:center;font-size:7px;color:#fff;font-weight:800}
+  .sm-dot.done{background:var(--green);border-color:var(--green)}
+  .sm-dot.cur{border-color:var(--blue);background:var(--blue-bg)}
+  .sm-dot.cur.gold{border-color:var(--gold);background:var(--gold-bg)}
+  .sm-line{flex:1;height:2px;background:var(--line-2);margin:0 1px}
+  .sm-line.done{background:var(--green)}
+  .stage-labels{display:flex;justify-content:space-between;margin-top:5px;font-size:9.5px;color:var(--ink-4);font-weight:600}
+
+  /* ===== RIGHT: TIMELINE ===== */
+  .right{background:linear-gradient(180deg,#fbfbfc,#f5f6f8);border-left:1px solid var(--line-2);overflow:auto;display:flex;flex-direction:column}
+  .right-head{padding:18px 20px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fbfbfc;z-index:5}
+  .rh-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .rh-top .t{font-size:14px;font-weight:700}
+  .rh-top .rh-no{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .rh-card{background:#fff;border:1px solid var(--line-2);border-radius:9px;padding:13px 15px;box-shadow:var(--shadow-sm)}
+  .rh-card .rc-title{font-size:14px;font-weight:700;letter-spacing:-.2px}
+  .rh-card .rc-meta{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+  .rh-card .rc-bot{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+  .rh-card .rc-total{font-size:20px;font-weight:700;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+  .rh-card .rc-total .cur{font-size:11px;color:var(--ink-3);font-weight:600}
+
+  .needs-callout{margin:14px 20px 0;display:flex;gap:10px;align-items:flex-start;background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:9px;padding:11px 13px;font-size:12px;color:#ad6800;line-height:1.5}
+  .needs-callout .nc-ic{flex:none;font-size:15px}
+  .paid-callout{margin:14px 20px 0;display:flex;gap:10px;align-items:center;background:var(--green-bg);border:1px solid var(--green-line);border-radius:9px;padding:12px 14px}
+  .paid-callout .pc-ic{width:34px;height:34px;border-radius:9px;background:#fff;border:1px solid var(--green-line);display:grid;place-items:center;font-size:17px;flex:none}
+  .paid-callout .pc-m b{font-size:13px;color:#389e0d;display:block}
+  .paid-callout .pc-m span{font-size:11.5px;color:var(--ink-3)}
+
+  .timeline{padding:18px 20px 24px}
+  .tl-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-4);margin-bottom:14px}
+  .tl-step{display:flex;gap:13px;position:relative;padding-bottom:18px}
+  .tl-step:last-child{padding-bottom:0}
+  .tl-spine{position:relative;flex:none;width:30px;display:flex;justify-content:center}
+  .tl-line{position:absolute;top:30px;bottom:-4px;width:2px;background:var(--line-2)}
+  .tl-step:last-child .tl-line{display:none}
+  .tl-line.done{background:var(--green)}
+  .tl-icon{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:13px;flex:none;z-index:1;
+    background:#fff;border:2px solid var(--line-3);color:var(--ink-4)}
+  .tl-icon.done{background:var(--green);border-color:var(--green);color:#fff}
+  .tl-icon.cur{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 0 0 4px var(--blue-bg)}
+  .tl-icon.cur.gold{background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 4px var(--gold-bg)}
+  .tl-icon.wait{background:#fff;border-color:var(--line-3);color:var(--ink-4)}
+  .tl-body{flex:1;min-width:0;padding-top:2px}
+  .tl-head{display:flex;align-items:center;gap:8px}
+  .tl-head b{font-size:13px;font-weight:600}
+  .tl-head .ts{margin-left:auto;font-size:10.5px;color:var(--ink-4);font-weight:600;white-space:nowrap}
+  .tl-actor{display:flex;align-items:center;gap:7px;margin-top:5px}
+  .tl-actor .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#9254de,#d3adf7);color:#fff;display:grid;place-items:center;font-size:9.5px;font-weight:700;flex:none}
+  .tl-actor .an{font-size:11.5px;color:var(--ink-2);font-weight:500}
+  .tl-actor .at{font-size:10.5px;color:var(--ink-4)}
+  .tl-comment{margin-top:8px;font-size:12px;color:var(--ink-2);background:#fff;border:1px solid var(--line-2);border-radius:8px;padding:9px 11px;line-height:1.5;position:relative}
+  .tl-comment.warn{background:var(--gold-bg);border-color:var(--gold-line);color:#ad6800}
+  .tl-decision{font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:9px;letter-spacing:.2px}
+  .dc-approved{background:var(--green-bg);color:#389e0d}
+  .dc-returned{background:var(--gold-bg);color:#d48806}
+  .dc-pending{background:var(--blue-bg);color:#0958d9}
+  .dc-wait{background:var(--line);color:var(--ink-3)}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:9px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:9px;pointer-events:none;max-width:380px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:none}
+
+  @media(max-width:1320px){ .shell{grid-template-columns:200px minmax(0,1fr) 320px} }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">R</span>Reimburse <small>self-service</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">My Reimbursements</a>
+    <a href="#">Policies</a>
+    <a href="#">Receipts Wallet</a>
+    <a href="#">Help</a>
+  </nav>
+  <div class="top-right">
+    <button class="icon-btn" title="Notifications"><span>🔔</span><span class="dot"></span></button>
+    <div class="acct">
+      <div class="ava">MA</div>
+      <div class="who"><b>Mara Olsen</b><br><span>Sales — APAC</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ============ LEFT RAIL ============ -->
+  <aside class="rail">
+    <button class="rail-cta" id="railNew"><span>＋</span> New reimbursement</button>
+
+    <div class="rail-sec">My workspace</div>
+    <div class="rail-item on" data-tab="claims" id="railClaims"><span class="ic">🧾</span> My claims <span class="rc" id="railClaimsCount">7</span></div>
+    <div class="rail-item" data-tab="wizard"><span class="ic">✍️</span> Submit a claim</div>
+    <div class="rail-item" data-tab="drafts"><span class="ic">📝</span> Drafts <span class="rc">1</span></div>
+
+    <div class="rail-sec" style="margin-top:14px">Reference</div>
+    <div class="rail-item"><span class="ic">📋</span> Expense policy</div>
+    <div class="rail-item"><span class="ic">💱</span> Mileage &amp; rates</div>
+    <div class="rail-item"><span class="ic">🏦</span> Payout method</div>
+
+    <div class="rail-foot">
+      <b>YTD reimbursed</b>
+      <div class="rf-bar"><i style="width:62%"></i></div>
+      <p>$4,210 of $6,800 annual T&amp;E budget used</p>
+    </div>
+  </aside>
+
+  <!-- ============ CENTER ============ -->
+  <main class="center">
+
+    <!-- KPI strip (data-less JSBlock in nb-spec) -->
+    <div class="kpis">
+      <div class="kpi gold">
+        <div class="k-ic">⚠️</div>
+        <div class="k-label">Action needed</div>
+        <div class="k-val" id="kpiAction">1</div>
+        <div class="k-sub">claim returned for more info</div>
+      </div>
+      <div class="kpi blue">
+        <div class="k-ic">⏳</div>
+        <div class="k-label">In review</div>
+        <div class="k-val" id="kpiReview">2</div>
+        <div class="k-sub">awaiting manager / finance</div>
+      </div>
+      <div class="kpi green">
+        <div class="k-ic">✅</div>
+        <div class="k-label">Reimbursed YTD</div>
+        <div class="k-val">$4,210<span style="font-size:14px;color:var(--ink-3)">.00</span></div>
+        <div class="k-sub">across 4 paid claims</div>
+      </div>
+    </div>
+
+    <!-- ===== WIZARD (Submit a claim) ===== -->
+    <div class="wizard hidden" id="wizard">
+      <div class="page-head" style="padding:18px 22px 0;margin-bottom:0">
+        <div>
+          <h1 style="font-size:17px">New reimbursement</h1>
+          <p>Three quick steps — trip details, your expenses, then submit for approval.</p>
+        </div>
+      </div>
+      <div class="wiz-steps" id="wizSteps">
+        <div class="wstep active" data-s="1"><span class="num">1</span><div class="wt"><b>Trip details</b><span>What &amp; why</span></div></div>
+        <div class="wbar"><i id="wbar1"></i></div>
+        <div class="wstep" data-s="2"><span class="num">2</span><div class="wt"><b>Add expenses</b><span>Line items</span></div></div>
+        <div class="wbar"><i id="wbar2"></i></div>
+        <div class="wstep" data-s="3"><span class="num">3</span><div class="wt"><b>Review &amp; submit</b><span>Confirm</span></div></div>
+      </div>
+
+      <div class="wiz-body">
+        <!-- STEP 1 -->
+        <div class="wpane on" data-p="1">
+          <div class="pane-title">Trip details</div>
+          <div class="pane-hint">Give your claim a clear title so approvers know the context at a glance.</div>
+          <div class="form-grid">
+            <div class="fld full">
+              <label>Claim title <span class="req">*</span></label>
+              <input id="fTitle" value="Singapore Partner Summit — Q2 travel" placeholder="e.g. Tokyo client visit — May" />
+            </div>
+            <div class="fld full">
+              <label>Purpose / business reason <span class="req">*</span></label>
+              <textarea id="fPurpose" placeholder="Why was this spend necessary?">Attended the APAC Partner Summit to close two reseller agreements and run the Q3 roadmap briefing. Pre-approved by R. Vance (PO #SG-2244).</textarea>
+            </div>
+            <div class="fld">
+              <label>Cost center <span class="req">*</span></label>
+              <select id="fCostCenter">
+                <option value="sales_apac" selected>Sales — APAC</option>
+                <option value="engineering">Engineering</option>
+                <option value="marketing">Marketing</option>
+                <option value="ga">G&amp;A</option>
+                <option value="support">Customer Support</option>
+              </select>
+            </div>
+            <div class="fld">
+              <label>Currency</label>
+              <select id="fCurrency">
+                <option value="usd" selected>USD — US Dollar</option>
+                <option value="jpy">JPY — Japanese Yen</option>
+                <option value="eur">EUR — Euro</option>
+                <option value="cny">CNY — Chinese Yuan</option>
+              </select>
+            </div>
+            <div class="fld">
+              <label>Trip start</label>
+              <input type="date" id="fStart" value="2026-05-26" />
+            </div>
+            <div class="fld">
+              <label>Trip end</label>
+              <input type="date" id="fEnd" value="2026-05-29" />
+            </div>
+          </div>
+          <div class="policy-note">
+            <span class="pn-ic">ℹ️</span>
+            <span><b>Policy reminder:</b> Claims must be submitted within 30 days of the trip end date. Receipts are required for any single item over $25. Daily meal cap for APAC travel is $60.</span>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div class="wpane" data-p="2">
+          <div class="pane-title">Add your expenses</div>
+          <div class="pane-hint">Add a line for each receipt. We flag anything above the policy cap so you can add a note before it reaches finance.</div>
+          <table class="items-tbl">
+            <thead>
+              <tr>
+                <th style="width:118px">Date</th>
+                <th style="width:140px">Category</th>
+                <th>Merchant / description</th>
+                <th style="width:54px;text-align:center">Rcpt</th>
+                <th class="r" style="width:120px">Amount</th>
+                <th style="width:34px"></th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"><!-- JS --></tbody>
+          </table>
+          <div class="items-foot">
+            <button class="add-item" id="addItem">＋ Add expense line</button>
+            <div class="run-total">
+              <span class="lbl">Claim total</span>
+              <span class="cur" id="rtCur">USD</span>
+              <span class="amt" id="runTotal">$0.00</span>
+            </div>
+          </div>
+          <div class="policy-note" id="capWarnBox" style="display:none;background:var(--gold-bg);border-color:var(--gold-line);color:#ad6800">
+            <span class="pn-ic">⚠️</span>
+            <span id="capWarnText"></span>
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div class="wpane" data-p="3">
+          <div class="pane-title">Review &amp; submit</div>
+          <div class="pane-hint">Double-check everything below. Once submitted it goes to your manager, then finance.</div>
+          <div class="rev-card">
+            <div class="rev-head">
+              <div class="rh-l">
+                <h3 id="revTitle">Singapore Partner Summit — Q2 travel</h3>
+                <p id="revMeta">Sales — APAC · 4 expenses · trip May 26–29, 2026</p>
+              </div>
+              <div class="rh-total">
+                <div class="lbl">Total claim</div>
+                <div class="v" id="revTotal">$0.00</div>
+              </div>
+            </div>
+            <div class="rev-grid">
+              <div class="rev-cell"><div class="l">Claimant</div><div class="v">Mara Olsen</div></div>
+              <div class="rev-cell"><div class="l">Approver</div><div class="v">Rashida Vance · Regional Director</div></div>
+              <div class="rev-cell"><div class="l">Cost center</div><div class="v" id="revCC">Sales — APAC</div></div>
+              <div class="rev-cell"><div class="l">Payout to</div><div class="v">Direct deposit ••4821</div></div>
+            </div>
+            <div class="rev-items" id="revItems"><!-- JS --></div>
+            <div class="confirm-box">
+              <input type="checkbox" id="confirmChk" />
+              <label for="confirmChk">I confirm these expenses are accurate, business-related, and comply with the company T&amp;E policy. Receipts are attached for all items over $25.</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wiz-foot">
+        <button class="btn btn-ghost" id="btnBack" disabled>← Back</button>
+        <button class="btn btn-soft" id="btnSaveDraft">💾 Save draft</button>
+        <span class="spacer"></span>
+        <span class="step-meta" id="stepMeta">Step 1 of 3</span>
+        <button class="btn btn-primary" id="btnNext">Next →</button>
+      </div>
+    </div>
+
+    <!-- ===== MY CLAIMS LIST ===== -->
+    <div class="claims-view on" id="claimsView">
+      <div class="page-head">
+        <div>
+          <h1>My reimbursements</h1>
+          <p>Every claim you've submitted, grouped by where it stands. Select one to see its approval timeline.</p>
+        </div>
+        <div class="seg" id="claimSeg">
+          <button class="on" data-f="all">All</button>
+          <button data-f="open">Open</button>
+          <button data-f="paid">Paid</button>
+        </div>
+      </div>
+      <div id="claimsList"><!-- JS --></div>
+    </div>
+
+  </main>
+
+  <!-- ============ RIGHT: APPROVAL TIMELINE ============ -->
+  <aside class="right">
+    <div class="right-head">
+      <div class="rh-top">
+        <span class="t">Approval status</span>
+        <span class="rh-no" id="tlNo">RB-2026-0188</span>
+      </div>
+      <div class="rh-card">
+        <div class="rc-title" id="tlTitle">—</div>
+        <div class="rc-meta" id="tlMeta">—</div>
+        <div class="rc-bot">
+          <span class="cc-status st-submitted" id="tlStatus"><span class="sdot"></span>—</span>
+          <span class="rc-total"><span class="cur" id="tlCur">$</span><span id="tlTotal">0.00</span></span>
+        </div>
+      </div>
+    </div>
+    <div id="tlCallouts"></div>
+    <div class="timeline">
+      <div class="tl-title">Approval timeline</div>
+      <div id="timeline"><!-- JS --></div>
+    </div>
+  </aside>
+
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ===================== reference data ===================== */
+  var CATEGORIES = {
+    airfare:  {name:"Airfare",   icon:"✈️", cap:0,   gl:"6100"},
+    lodging:  {name:"Lodging",   icon:"🏨", cap:280, gl:"6110"},
+    meals:    {name:"Meals",     icon:"🍽️", cap:60,  gl:"6120"},
+    transport:{name:"Ground transport", icon:"🚕", cap:50, gl:"6130"},
+    supplies: {name:"Supplies",  icon:"📦", cap:0,   gl:"6140"},
+    software: {name:"Software",  icon:"💻", cap:0,   gl:"6150"},
+    mileage:  {name:"Mileage",   icon:"🚗", cap:0,   gl:"6160"},
+    other:    {name:"Other",     icon:"•",  cap:0,   gl:"6900"}
+  };
+  var CAT_ORDER = ["airfare","lodging","meals","transport","supplies","software","mileage","other"];
+  var CC_LABEL = {sales_apac:"Sales — APAC", engineering:"Engineering", marketing:"Marketing", ga:"G&A", support:"Customer Support"};
+  var CUR_SYM  = {usd:"$", jpy:"¥", eur:"€", cny:"¥"};
+  var CUR_CODE = {usd:"USD", jpy:"JPY", eur:"EUR", cny:"CNY"};
+
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  function money(n){return n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function fmtDate(s){var d=new Date(s+"T00:00:00");return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+
+  /* ===================== existing claims (My Claims list) ===================== */
+  var STATUS_TEXT = {draft:"Draft", submitted:"Submitted", in_review:"In review", needs_info:"Needs info", approved:"Approved", reimbursed:"Reimbursed", rejected:"Rejected"};
+  // stage index: 0 submitted, 1 manager, 2 finance, 3 payout
+  var CLAIMS = [
+    {no:"RB-2026-0188", title:"Singapore Partner Summit", cc:"sales_apac", cur:"usd", total:1842.40, items:4, status:"needs_info", stage:1, submitted:"2026-06-02",
+      meta:"Trip May 26–29 · 4 expenses",
+      approver:"Rashida Vance",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"Jun 2, 9:14 AM", decision:"approved", comment:"Submitted 4 line items totalling $1,842.40."},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"Jun 2, 4:38 PM", decision:"returned", warn:true, comment:"Returned — the $312 hotel night on May 28 is missing a receipt and the dinner on May 27 is $18 over the meal cap. Please attach the receipt and add a justification note."},
+        {stage:"finance", icon:"🏦", title:"Finance approval", role:"Finance team", decision:"wait"},
+        {stage:"payout", icon:"💸", title:"Payout", role:"Payroll", decision:"wait"}
+      ]},
+    {no:"RB-2026-0181", title:"Adobe CC annual license", cc:"marketing", cur:"usd", total:599.88, items:1, status:"in_review", stage:2, submitted:"2026-05-30",
+      meta:"Software · 1 expense",
+      approver:"Tomás Riedel",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"May 30, 11:02 AM", decision:"approved", comment:"Single software renewal, receipt attached."},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"May 30, 2:20 PM", decision:"approved", comment:"Approved — within budget, recurring tool."},
+        {stage:"finance", icon:"🏦", title:"Finance approval", who:"Tomás Riedel", role:"Finance team", ts:"In progress", decision:"pending", comment:"Verifying GL code 6150 against the SaaS budget line."},
+        {stage:"payout", icon:"💸", title:"Payout", role:"Payroll", decision:"wait"}
+      ]},
+    {no:"RB-2026-0175", title:"Team offsite — Kyoto dinner", cc:"sales_apac", cur:"usd", total:428.10, items:2, status:"submitted", stage:0, submitted:"2026-06-04",
+      meta:"Trip Jun 1 · 2 expenses",
+      approver:"Rashida Vance",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"Jun 4, 6:51 PM", decision:"approved", comment:"Awaiting manager pickup."},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"Queued", decision:"pending", comment:"In the approver's queue — typical turnaround 1 business day."},
+        {stage:"finance", icon:"🏦", title:"Finance approval", role:"Finance team", decision:"wait"},
+        {stage:"payout", icon:"💸", title:"Payout", role:"Payroll", decision:"wait"}
+      ]},
+    {no:"RB-2026-0162", title:"Client lunch — Meadowlane Co.", cc:"sales_apac", cur:"usd", total:96.40, items:1, status:"reimbursed", stage:3, submitted:"2026-05-18", reimbursed:"2026-05-23",
+      meta:"Meals · 1 expense · paid May 23",
+      approver:"Rashida Vance",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"May 18, 1:30 PM", decision:"approved", comment:"Lunch with prospect, receipt attached."},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"May 18, 5:10 PM", decision:"approved", comment:"Approved."},
+        {stage:"finance", icon:"🏦", title:"Finance approval", who:"Tomás Riedel", role:"Finance team", ts:"May 21, 10:00 AM", decision:"approved", comment:"Verified and approved for payout."},
+        {stage:"payout", icon:"💸", title:"Reimbursed", who:"Payroll", role:"Direct deposit ••4821", ts:"May 23, 6:00 AM", decision:"approved", comment:"$96.40 paid via direct deposit."}
+      ]},
+    {no:"RB-2026-0149", title:"Conference pass — SaaStr APAC", cc:"sales_apac", cur:"usd", total:790.00, items:1, status:"reimbursed", stage:3, submitted:"2026-04-29", reimbursed:"2026-05-06",
+      meta:"Other · 1 expense · paid May 6",
+      approver:"Rashida Vance",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"Apr 29", decision:"approved"},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"Apr 30", decision:"approved", comment:"Pre-approved event."},
+        {stage:"finance", icon:"🏦", title:"Finance approval", who:"Tomás Riedel", role:"Finance team", ts:"May 4", decision:"approved"},
+        {stage:"payout", icon:"💸", title:"Reimbursed", who:"Payroll", role:"Direct deposit ••4821", ts:"May 6", decision:"approved", comment:"$790.00 paid."}
+      ]},
+    {no:"RB-2026-0140", title:"Mileage — March client visits", cc:"sales_apac", cur:"usd", total:214.20, items:3, status:"reimbursed", stage:3, submitted:"2026-04-02", reimbursed:"2026-04-09",
+      meta:"Mileage · 3 trips · paid Apr 9",
+      approver:"Rashida Vance",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"Apr 2", decision:"approved"},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"Apr 3", decision:"approved"},
+        {stage:"finance", icon:"🏦", title:"Finance approval", who:"Tomás Riedel", role:"Finance team", ts:"Apr 7", decision:"approved"},
+        {stage:"payout", icon:"💸", title:"Reimbursed", who:"Payroll", role:"Direct deposit ••4821", ts:"Apr 9", decision:"approved", comment:"$214.20 paid at $0.67/mi."}
+      ]},
+    {no:"RB-2026-0131", title:"Standing desk — home office", cc:"ga", cur:"usd", total:340.00, items:1, status:"rejected", stage:1, submitted:"2026-03-15",
+      meta:"Supplies · 1 expense · declined",
+      approver:"Rashida Vance",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"Mar 15", decision:"approved"},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"Mar 16", decision:"returned", warn:true, comment:"Declined — home-office furniture is covered by the annual equipment stipend, not T&E. Please file under the IT equipment program instead."},
+        {stage:"finance", icon:"🏦", title:"Finance approval", role:"Finance team", decision:"wait"},
+        {stage:"payout", icon:"💸", title:"Payout", role:"Payroll", decision:"wait"}
+      ]}
+  ];
+
+  /* ===================== center tab switching ===================== */
+  var wizard = document.getElementById("wizard");
+  var claimsView = document.getElementById("claimsView");
+  var railItems = document.querySelectorAll(".rail-item[data-tab]");
+
+  function showWizard(){
+    wizard.classList.remove("hidden");
+    claimsView.classList.remove("on");
+    railItems.forEach(function(r){ r.classList.toggle("on", r.dataset.tab==="wizard"); });
+    gotoStep(1);
+    document.querySelector(".center").scrollTop=0;
+  }
+  function showClaims(){
+    wizard.classList.add("hidden");
+    claimsView.classList.add("on");
+    railItems.forEach(function(r){ r.classList.toggle("on", r.dataset.tab==="claims"); });
+  }
+  railItems.forEach(function(r){
+    r.addEventListener("click", function(){
+      if(r.dataset.tab==="wizard") showWizard();
+      else if(r.dataset.tab==="claims") showClaims();
+      else if(r.dataset.tab==="drafts"){ showClaims(); setFilter("open"); flash("Showing your open claims & drafts"); }
+    });
+  });
+  document.getElementById("railNew").addEventListener("click", showWizard);
+
+  /* ===================== WIZARD: expense sub-table ===================== */
+  var ITEMS = [
+    {date:"2026-05-26", cat:"airfare",   merchant:"Singapore Airlines SQ-12", amount:684.00, rcpt:true},
+    {date:"2026-05-26", cat:"lodging",   merchant:"Marina Bay Suites · 3 nights", amount:840.00, rcpt:true},
+    {date:"2026-05-27", cat:"meals",     merchant:"Client dinner — Lavo", amount:78.40, rcpt:true},
+    {date:"2026-05-28", cat:"transport", merchant:"Airport transfers (Grab)", amount:240.00, rcpt:false}
+  ];
+  var itemsBody = document.getElementById("itemsBody");
+
+  function catOptions(sel){
+    return CAT_ORDER.map(function(k){
+      return '<option value="'+k+'"'+(k===sel?" selected":"")+'>'+CATEGORIES[k].icon+" "+CATEGORIES[k].name+'</option>';
+    }).join("");
+  }
+
+  function renderItems(){
+    itemsBody.innerHTML="";
+    ITEMS.forEach(function(it, i){
+      var cap = CATEGORIES[it.cat].cap;
+      var over = cap>0 && it.amount>cap;
+      it.over = over;
+      var tr=document.createElement("tr");
+      tr.innerHTML =
+        '<td><input type="date" value="'+it.date+'" data-i="'+i+'" data-k="date"></td>'+
+        '<td><select data-i="'+i+'" data-k="cat">'+catOptions(it.cat)+'</select></td>'+
+        '<td><input value="'+esc(it.merchant)+'" placeholder="Merchant or note" data-i="'+i+'" data-k="merchant">'+
+          (over?'<span class="cap-flag" title="Above policy cap of $'+cap+'">⚠ over $'+cap+'</span>':'')+'</td>'+
+        '<td class="rcpt-cell"><button class="rcpt-toggle'+(it.rcpt?" has":"")+'" data-i="'+i+'" data-k="rcpt" title="'+(it.rcpt?"Receipt attached":"No receipt")+'">'+(it.rcpt?"📎":"—")+'</button></td>'+
+        '<td class="amt"><input class="amt-in" type="number" step="0.01" value="'+it.amount.toFixed(2)+'" data-i="'+i+'" data-k="amount"></td>'+
+        '<td><button class="row-del" data-del="'+i+'" title="Remove line">✕</button></td>';
+      itemsBody.appendChild(tr);
+    });
+    recompute();
+  }
+
+  itemsBody.addEventListener("input", function(e){
+    var t=e.target; if(t.dataset.i===undefined) return;
+    var it=ITEMS[+t.dataset.i], k=t.dataset.k;
+    if(k==="amount") it.amount=parseFloat(t.value)||0;
+    else it[k]=t.value;
+    if(k==="amount"||k==="cat") renderItems();
+    else recompute();
+  });
+  itemsBody.addEventListener("click", function(e){
+    var rc=e.target.closest(".rcpt-toggle");
+    if(rc){ var it=ITEMS[+rc.dataset.i]; it.rcpt=!it.rcpt; renderItems(); return; }
+    var del=e.target.closest("[data-del]");
+    if(del){ ITEMS.splice(+del.dataset.del,1); renderItems(); flash("Line removed"); }
+  });
+  document.getElementById("addItem").addEventListener("click", function(){
+    ITEMS.push({date:document.getElementById("fStart").value||"2026-05-26", cat:"meals", merchant:"", amount:0, rcpt:false});
+    renderItems();
+    var ins=itemsBody.querySelectorAll('input[data-k="merchant"]');
+    if(ins.length) ins[ins.length-1].focus();
+  });
+
+  function curSym(){ return CUR_SYM[document.getElementById("fCurrency").value]||"$"; }
+  function curCode(){ return CUR_CODE[document.getElementById("fCurrency").value]||"USD"; }
+
+  function recompute(){
+    var total = ITEMS.reduce(function(s,it){return s+(it.amount||0);},0);
+    var overs = ITEMS.filter(function(it){return it.over;});
+    var noRcpt = ITEMS.filter(function(it){return !it.rcpt && it.amount>25;});
+    document.getElementById("runTotal").textContent = curSym()+money(total);
+    document.getElementById("rtCur").textContent = curCode();
+    // cap warning
+    var box=document.getElementById("capWarnBox"), txt=document.getElementById("capWarnText");
+    var msgs=[];
+    if(overs.length) msgs.push(overs.length+" item"+(overs.length>1?"s":"")+" exceed the policy cap — add a justification note before submitting.");
+    if(noRcpt.length) msgs.push(noRcpt.length+" item"+(noRcpt.length>1?"s":"")+" over $25 "+(noRcpt.length>1?"are":"is")+" missing a receipt.");
+    if(msgs.length){ box.style.display="flex"; txt.innerHTML="<b>Heads up:</b> "+msgs.join(" "); }
+    else box.style.display="none";
+    return total;
+  }
+
+  /* ===================== WIZARD step engine ===================== */
+  var curStep=1;
+  function gotoStep(n){
+    curStep=n;
+    document.querySelectorAll(".wpane").forEach(function(p){ p.classList.toggle("on", +p.dataset.p===n); });
+    document.querySelectorAll(".wstep").forEach(function(s){
+      var si=+s.dataset.s;
+      s.classList.toggle("active", si===n);
+      s.classList.toggle("done", si<n);
+      s.querySelector(".num").innerHTML = si<n ? "✓" : si;
+    });
+    document.getElementById("wbar1").style.width = n>1?"100%":"0";
+    document.getElementById("wbar2").style.width = n>2?"100%":"0";
+    document.getElementById("btnBack").disabled = n===1;
+    document.getElementById("stepMeta").textContent = "Step "+n+" of 3";
+    var next=document.getElementById("btnNext");
+    next.innerHTML = n===3 ? "🚀 Submit claim" : "Next →";
+    if(n===2) renderItems();
+    if(n===3) buildReview();
+    document.querySelector(".center").scrollTop=0;
+  }
+
+  function validateStep(n){
+    if(n===1){
+      if(!document.getElementById("fTitle").value.trim()){ flash("Add a claim title to continue"); return false; }
+      if(!document.getElementById("fPurpose").value.trim()){ flash("Add a business reason to continue"); return false; }
+    }
+    if(n===2){
+      if(ITEMS.length===0){ flash("Add at least one expense line"); return false; }
+      if(recompute()<=0){ flash("Enter an amount for your expenses"); return false; }
+    }
+    return true;
+  }
+
+  document.getElementById("btnNext").addEventListener("click", function(){
+    if(curStep<3){ if(validateStep(curStep)) gotoStep(curStep+1); return; }
+    // submit
+    if(!document.getElementById("confirmChk").checked){ flash("Please confirm the declaration to submit"); return; }
+    submitClaim();
+  });
+  document.getElementById("btnBack").addEventListener("click", function(){ if(curStep>1) gotoStep(curStep-1); });
+  document.getElementById("btnSaveDraft").addEventListener("click", function(){ flash("Draft saved — find it under Drafts"); });
+
+  function buildReview(){
+    document.getElementById("revTitle").textContent = document.getElementById("fTitle").value || "Untitled claim";
+    document.getElementById("revCC").textContent = CC_LABEL[document.getElementById("fCostCenter").value];
+    var total=recompute();
+    document.getElementById("revTotal").textContent = curSym()+money(total);
+    var s=document.getElementById("fStart").value, e=document.getElementById("fEnd").value;
+    document.getElementById("revMeta").textContent = CC_LABEL[document.getElementById("fCostCenter").value]+" · "+ITEMS.length+" expense"+(ITEMS.length===1?"":"s")+" · trip "+fmtDate(s)+"–"+fmtDate(e)+", 2026";
+    var host=document.getElementById("revItems"); host.innerHTML="";
+    ITEMS.forEach(function(it){
+      var c=CATEGORIES[it.cat];
+      var ln=document.createElement("div"); ln.className="rev-line";
+      ln.innerHTML =
+        '<div class="ri-ic">'+c.icon+'</div>'+
+        '<div class="ri-m"><b>'+esc(it.merchant||c.name)+(it.over?' <span class="cap-flag">⚠ over cap</span>':'')+'</b>'+
+          '<span>'+c.name+' · '+fmtDate(it.date)+(it.rcpt?' · 📎 receipt':' · no receipt')+'</span></div>'+
+        '<div class="ri-amt">'+curSym()+money(it.amount||0)+'</div>';
+      host.appendChild(ln);
+    });
+  }
+
+  function submitClaim(){
+    var total=recompute();
+    var no="RB-2026-0"+(189+Math.floor(Math.random()*9));
+    var newClaim={
+      no:no, title:document.getElementById("fTitle").value || "New claim", cc:document.getElementById("fCostCenter").value,
+      cur:document.getElementById("fCurrency").value, total:total, items:ITEMS.length, status:"submitted", stage:0,
+      submitted:"2026-06-07", meta:CC_LABEL[document.getElementById("fCostCenter").value]+" · "+ITEMS.length+" expenses · just now",
+      approver:"Rashida Vance",
+      steps:[
+        {stage:"submitted", icon:"📤", title:"Claim submitted", who:"Mara Olsen", role:"Sales — APAC", ts:"Just now", decision:"approved", comment:"Submitted "+ITEMS.length+" line items totalling "+curSym()+money(total)+"."},
+        {stage:"manager", icon:"👤", title:"Manager review", who:"Rashida Vance", role:"Regional Director", ts:"Queued", decision:"pending", comment:"In your approver's queue — typical turnaround 1 business day."},
+        {stage:"finance", icon:"🏦", title:"Finance approval", role:"Finance team", decision:"wait"},
+        {stage:"payout", icon:"💸", title:"Payout", role:"Payroll", decision:"wait"}
+      ]
+    };
+    CLAIMS.unshift(newClaim);
+    showClaims(); setFilter("all"); renderClaims();
+    selectClaim(no);
+    flash("Claim "+no+" submitted — sent to "+newClaim.approver+" for approval");
+    // reset wizard for next time
+    ITEMS=[
+      {date:"2026-06-07", cat:"meals", merchant:"", amount:0, rcpt:false}
+    ];
+    document.getElementById("confirmChk").checked=false;
+  }
+
+  /* ===================== MY CLAIMS render ===================== */
+  var currentFilter="all";
+  var selectedNo=null;
+
+  function setFilter(f){
+    currentFilter=f;
+    document.querySelectorAll("#claimSeg button").forEach(function(b){ b.classList.toggle("on", b.dataset.f===f); });
+    renderClaims();
+  }
+  document.getElementById("claimSeg").addEventListener("click", function(e){
+    var b=e.target.closest("button"); if(b) setFilter(b.dataset.f);
+  });
+
+  var GROUPS = [
+    {key:"action",   label:"Action needed", test:function(c){return c.status==="needs_info"||c.status==="rejected";}},
+    {key:"progress", label:"In progress",   test:function(c){return c.status==="submitted"||c.status==="in_review"||c.status==="approved";}},
+    {key:"closed",   label:"Paid & closed", test:function(c){return c.status==="reimbursed";}}
+  ];
+
+  function passesFilter(c){
+    if(currentFilter==="all") return true;
+    if(currentFilter==="open") return c.status!=="reimbursed" && c.status!=="rejected";
+    if(currentFilter==="paid") return c.status==="reimbursed";
+    return true;
+  }
+
+  function stageMini(stage, status){
+    var labels=["Submitted","Manager","Finance","Payout"];
+    var done = status==="reimbursed" ? 4 : (status==="needs_info"||status==="rejected") ? stage : stage;
+    var html='<div class="stage-mini">';
+    for(var i=0;i<4;i++){
+      var cls="sm-dot";
+      var isWarn=(status==="needs_info"||status==="rejected");
+      if(i<stage || status==="reimbursed" && i<4){ cls+=" done"; }
+      else if(i===stage && status!=="reimbursed"){ cls+=" cur"+(isWarn?" gold":""); }
+      var inner=(i<stage||status==="reimbursed")?"✓":"";
+      html+='<div class="sm-node"><span class="'+cls+'">'+inner+'</span>';
+      if(i<3){ html+='<span class="sm-line'+((i<stage||status==="reimbursed")?" done":"")+'"></span>'; }
+      html+='</div>';
+    }
+    html+='</div><div class="stage-labels">'+labels.map(function(l){return "<span>"+l+"</span>";}).join("")+'</div>';
+    return html;
+  }
+
+  function renderClaims(){
+    var host=document.getElementById("claimsList"); host.innerHTML="";
+    var visible=CLAIMS.filter(passesFilter);
+    document.getElementById("railClaimsCount").textContent=CLAIMS.length;
+    // KPIs
+    document.getElementById("kpiAction").textContent=CLAIMS.filter(function(c){return c.status==="needs_info";}).length;
+    document.getElementById("kpiReview").textContent=CLAIMS.filter(function(c){return c.status==="submitted"||c.status==="in_review";}).length;
+
+    var any=false;
+    GROUPS.forEach(function(g){
+      var rows=visible.filter(g.test);
+      if(!rows.length) return;
+      any=true;
+      var gl=document.createElement("div"); gl.className="group-label "+g.key;
+      gl.innerHTML='<span class="gl-t">'+g.label+'</span><span class="gl-n">'+rows.length+'</span><span class="gl-line"></span>';
+      host.appendChild(gl);
+      rows.forEach(function(c){
+        var card=document.createElement("div");
+        card.className="claim-card"+(c.no===selectedNo?" sel":"");
+        card.dataset.no=c.no;
+        card.innerHTML=
+          '<div class="cc-row1">'+
+            '<span class="cc-no">'+c.no+'</span>'+
+            '<span class="cc-title">'+esc(c.title)+'</span>'+
+            '<span class="cc-amt">'+CUR_SYM[c.cur]+money(c.total)+'<span class="cur">'+CUR_CODE[c.cur]+'</span></span>'+
+          '</div>'+
+          '<div class="cc-row2">'+
+            '<span>'+CC_LABEL[c.cc]+'</span><span class="sep"></span>'+
+            '<span>'+c.items+' item'+(c.items>1?"s":"")+'</span><span class="sep"></span>'+
+            '<span>'+c.meta+'</span>'+
+            '<span class="cc-status st-'+c.status+'"><span class="sdot"></span>'+STATUS_TEXT[c.status]+'</span>'+
+          '</div>'+
+          stageMini(c.stage, c.status);
+        card.addEventListener("click", function(){ selectClaim(c.no); });
+        host.appendChild(card);
+      });
+    });
+    if(!any){
+      host.innerHTML='<div style="text-align:center;color:var(--ink-3);padding:40px;border:1.5px dashed var(--line-2);border-radius:10px;margin-top:20px">No claims match this filter.</div>';
+    }
+  }
+
+  /* ===================== RIGHT: timeline render ===================== */
+  function decBadge(d){
+    var map={approved:["dc-approved","Approved"],returned:["dc-returned","Returned"],pending:["dc-pending","In progress"],wait:["dc-wait","Waiting"]};
+    var m=map[d]||map.wait;
+    return '<span class="tl-decision '+m[0]+'">'+m[1]+'</span>';
+  }
+
+  function selectClaim(no){
+    selectedNo=no;
+    var c=CLAIMS.filter(function(x){return x.no===no;})[0];
+    document.querySelectorAll(".claim-card").forEach(function(card){ card.classList.toggle("sel", card.dataset.no===no); });
+    if(!c) return;
+
+    document.getElementById("tlNo").textContent=c.no;
+    document.getElementById("tlTitle").textContent=c.title;
+    document.getElementById("tlMeta").textContent=CC_LABEL[c.cc]+" · "+c.meta;
+    var stEl=document.getElementById("tlStatus");
+    stEl.className="cc-status st-"+c.status;
+    stEl.innerHTML='<span class="sdot"></span>'+STATUS_TEXT[c.status];
+    document.getElementById("tlCur").textContent=CUR_SYM[c.cur];
+    document.getElementById("tlTotal").textContent=money(c.total);
+
+    // callouts
+    var co=document.getElementById("tlCallouts"); co.innerHTML="";
+    if(c.status==="needs_info"){
+      var ret=c.steps.filter(function(s){return s.decision==="returned";})[0];
+      co.innerHTML='<div class="needs-callout"><span class="nc-ic">⚠️</span><span><b>Action needed:</b> '+(ret?esc(ret.comment):"Your approver returned this claim for more information.")+'</span></div>';
+    } else if(c.status==="rejected"){
+      var rej=c.steps.filter(function(s){return s.decision==="returned";})[0];
+      co.innerHTML='<div class="needs-callout" style="background:var(--red-bg);border-color:var(--red-line);color:#cf1322"><span class="nc-ic">⛔</span><span><b>Declined:</b> '+(rej?esc(rej.comment):"This claim was not approved.")+'</span></div>';
+    } else if(c.status==="reimbursed"){
+      co.innerHTML='<div class="paid-callout"><span class="pc-ic">💸</span><div class="pc-m"><b>Reimbursed '+CUR_SYM[c.cur]+money(c.total)+'</b><span>Paid '+(c.reimbursed?fmtDate(c.reimbursed)+", 2026":"")+' via direct deposit ••4821</span></div></div>';
+    }
+
+    // timeline
+    var tl=document.getElementById("timeline"); tl.innerHTML="";
+    c.steps.forEach(function(s,i){
+      var done = s.decision==="approved";
+      var cur = s.decision==="pending" || s.decision==="returned";
+      var warn = s.warn || s.decision==="returned";
+      var iconCls="tl-icon "+(done?"done":cur?("cur"+(warn?" gold":"")):"wait");
+      var lineCls="tl-line"+(done?" done":"");
+      var step=document.createElement("div"); step.className="tl-step";
+      step.innerHTML=
+        '<div class="tl-spine"><div class="'+iconCls+'">'+(done?"✓":s.icon)+'</div><div class="'+lineCls+'"></div></div>'+
+        '<div class="tl-body">'+
+          '<div class="tl-head"><b>'+esc(s.title)+'</b><span class="ts">'+esc(s.ts||"")+'</span></div>'+
+          (s.who?'<div class="tl-actor"><span class="av">'+initials(s.who)+'</span><span class="an">'+esc(s.who)+'</span><span class="at">· '+esc(s.role)+'</span></div>':'<div class="tl-actor"><span class="an" style="color:var(--ink-4)">'+esc(s.role)+'</span></div>')+
+          '<div style="margin-top:7px">'+decBadge(s.decision)+'</div>'+
+          (s.comment?'<div class="tl-comment'+(warn?" warn":"")+'">'+esc(s.comment)+'</div>':'')+
+        '</div>';
+      tl.appendChild(step);
+    });
+  }
+  function initials(n){ return n.split(" ").map(function(w){return w[0];}).join("").slice(0,2).toUpperCase(); }
+
+  /* ===================== toast ===================== */
+  var toast=document.getElementById("toast"), toastMsg=document.getElementById("toastMsg"), tT;
+  function flash(m){ toastMsg.textContent=m; toast.classList.add("show"); clearTimeout(tT); tT=setTimeout(function(){toast.classList.remove("show");},2600); }
+
+  /* ===================== init ===================== */
+  renderClaims();
+  selectClaim("RB-2026-0188"); // needs-info claim opens first so applicant sees the action item
+  renderItems();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Expense Reimbursement: a submission wizard, a my-reimbursements view, and approval progress. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/33-expense-reimbursement.html
+</script>
+</body>
+</html>

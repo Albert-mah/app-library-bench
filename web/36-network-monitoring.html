@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NetPulse NOC — Network Monitoring Wallboard</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Network Monitoring Dashboard (NetPulse NOC)",
+  "prefix": "net_",
+  "collections": {
+    "net_sites": {"titleField":"name","fields":{"name":"input","code":"input","region":"select:us-east|us-west|eu-central|apac|latam","city":"input"}},
+    "net_nodes": {"titleField":"hostname","fields":{"hostname":"input","ip":"input","device_type":"select:router|switch|firewall|server|load_balancer|access_point","role":"input","status":"select:up|degraded|down|maintenance","uptime_pct":"number","latency_ms":"integer","packet_loss_pct":"number","cpu_pct":"integer","mem_pct":"integer","last_seen":"datetime","monitored":"boolean"},"relations":{"site":"m2o net_sites (fk site_id)"}},
+    "net_links": {"titleField":"label","fields":{"label":"input","bandwidth_mbps":"integer","util_pct":"integer","status":"select:up|degraded|down"},"relations":{"from_node":"m2o net_nodes (fk from_node_id)","to_node":"m2o net_nodes (fk to_node_id)"}},
+    "net_alerts": {"titleField":"message","fields":{"message":"input","severity":"select:critical|warning|info","kind":"select:node_down|high_latency|packet_loss|cpu_high|mem_high|link_down|cert_expiry|flap","raised_at":"datetime","acknowledged":"boolean"},"relations":{"node":"m2o net_nodes (fk node_id)"}}
+  },
+  "page": {
+    "name": "NOC Wallboard",
+    "layout": "dark big-screen NOC wallboard — KPI strip (net_alerts/net_nodes aggregates) | left: node status grid (GridCard net_nodes + JS status-light card) | center: uptime bars (List net_nodes + JS uptime-bar item) | right: live alert stream (List net_alerts + JS alert-row item)",
+    "regions": [
+      {"id":"kpi","block":"Chart/aggregate KPI strip over net_nodes + net_alerts","intent":"top-line NOC counters","content":["nodes up / total (count where status=up)","degraded count (status=degraded)","down count (status=down)","open critical alerts (net_alerts severity=critical, acknowledged=false)","fleet avg uptime % (avg net_nodes.uptime_pct)"]},
+      {"id":"node-grid","block":"GridCard (net_nodes) + JSField whole-record card — NOT a freestanding JSBlock","collection":"net_nodes","intent":"node status light board grouped by site","sort":"status (down/degraded first), hostname","card":["glowing status light (up=green/degraded=amber/down=red/maintenance=blue, animated pulse)","hostname + ip","device_type icon + role","latency_ms / packet_loss_pct / cpu_pct mini stats","uptime_pct"]},
+      {"id":"uptime","block":"List (net_nodes) + JSField uptime-bar item","collection":"net_nodes","intent":"per-node 30-segment uptime/availability bar (heatmap of recent intervals)","sort":"uptime_pct asc (worst first)","item":["hostname","30-cell availability strip (green/amber/red per interval)","uptime_pct + current latency"]},
+      {"id":"alerts","block":"List (net_alerts) + JSField alert-row item","collection":"net_alerts","intent":"live alert stream feed","sort":"raised_at desc","filter":"acknowledged=false by default","item":["severity dot (critical/warning/info)","kind tag","message","node hostname","relative time","Ack = native UpdateAction (acknowledged=true)"]}
+    ]
+  },
+  "interactions": ["KPI counters derive from net_nodes/net_alerts aggregates","node-grid status light color = net_nodes.status with animated pulse for down/degraded","uptime bar segments are a JS heatmap render per net_nodes row","alert stream filters acknowledged=false; Ack action writes acknowledged=true","click node card → openView node detail (filterByTk)","clock + auto-refresh chrome are presentation only"],
+  "jsKernels": ["status-light GridCard JSField (glowing pulse)","uptime 30-segment availability bar JSField","alert-stream row JSField (severity dot + kind tag + relative time)"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (GridCard for the node board, List for the uptime bars and the alert stream); the dark NOC look + glowing status lights + segmented uptime bars + severity-coded alert rows are reproduced with JS fields nested INSIDE those native blocks. KPI strip is native aggregate/Chart. Do NOT rebuild the whole page as one freestanding JSBlock. Ack is a native UpdateAction writing net_alerts.acknowledged=true. net_links exists for an optional topology view but is not the primary screen."
+}
+</script>
+<style>
+  :root{
+    --bg-base:#070b11; --bg-panel:#0d141e; --bg-card:#101a26; --bg-card-h:#15212f;
+    --border:#1c2c40; --border-b:#243a52;
+    --neon:#22d3ee; --neon-dim:rgba(34,211,238,.12); --neon-glow:0 0 12px rgba(34,211,238,.35);
+    --up:#1fd286; --up-dim:rgba(31,210,134,.15);
+    --warn:#f6a623; --warn-dim:rgba(246,166,35,.15);
+    --crit:#ff3c5c; --crit-dim:rgba(255,60,92,.15);
+    --maint:#7c8cff; --maint-dim:rgba(124,140,255,.15);
+    --text-hi:#e9f5ff; --text-md:#7ba0c0; --text-lo:#3d5872;
+    --r:10px; --r-s:6px;
+    --font:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+    --mono:'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg-base);color:var(--text-hi);font-family:var(--font);
+    min-height:100vh;overflow-x:hidden;font-size:14px;
+    background-image:radial-gradient(circle at 20% -10%,rgba(34,211,238,.06),transparent 45%),
+                     radial-gradient(circle at 90% 0%,rgba(124,140,255,.05),transparent 40%);
+  }
+
+  /* ── Header ── */
+  .header{display:flex;align-items:center;justify-content:space-between;padding:13px 26px;
+    background:var(--bg-panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+  .h-left{display:flex;align-items:center;gap:13px}
+  .h-logo{width:34px;height:34px;background:var(--neon-dim);border:1px solid var(--neon);border-radius:9px;
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--neon-glow)}
+  .h-logo svg{width:19px;height:19px}
+  .h-title{font-size:15px;font-weight:700;letter-spacing:.4px}
+  .h-sub{font-size:10.5px;color:var(--text-md);margin-top:1px;letter-spacing:.4px;text-transform:uppercase}
+  .h-right{display:flex;align-items:center;gap:22px}
+  .seg{display:flex;gap:3px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:3px}
+  .seg button{background:none;border:none;color:var(--text-md);font-family:var(--font);font-size:11.5px;font-weight:600;
+    padding:5px 11px;border-radius:5px;cursor:pointer;letter-spacing:.3px}
+  .seg button.on{background:var(--neon-dim);color:var(--neon);box-shadow:inset 0 0 0 1px rgba(34,211,238,.25)}
+  .live-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--up);letter-spacing:.5px;
+    text-transform:uppercase;font-weight:700}
+  .live-dot{width:7px;height:7px;background:var(--up);border-radius:50%;box-shadow:0 0 7px var(--up);
+    animation:pulse-ok 1.8s ease-in-out infinite}
+  @keyframes pulse-ok{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.7)}}
+  .h-meta{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+  .clock{font-size:14px;color:var(--text-hi);font-variant-numeric:tabular-nums;letter-spacing:.5px;font-weight:600}
+  .h-meta small{font-size:10px;color:var(--text-lo)}
+
+  /* ── KPI strip ── */
+  .kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--border)}
+  .kpi{background:var(--bg-panel);padding:18px 24px;display:flex;align-items:center;gap:16px;
+    border-right:1px solid var(--border);position:relative;overflow:hidden}
+  .kpi:last-child{border-right:none}
+  .kpi::before{content:'';position:absolute;bottom:0;left:0;width:100%;height:2px}
+  .kpi.up::before{background:linear-gradient(90deg,transparent,var(--up),transparent)}
+  .kpi.warn::before{background:linear-gradient(90deg,transparent,var(--warn),transparent)}
+  .kpi.crit::before{background:linear-gradient(90deg,transparent,var(--crit),transparent)}
+  .kpi.info::before{background:linear-gradient(90deg,transparent,var(--neon),transparent)}
+  .kpi-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .kpi-icon.up{background:var(--up-dim);border:1px solid rgba(31,210,134,.3)}
+  .kpi-icon.warn{background:var(--warn-dim);border:1px solid rgba(246,166,35,.3)}
+  .kpi-icon.crit{background:var(--crit-dim);border:1px solid rgba(255,60,92,.3)}
+  .kpi-icon.info{background:var(--neon-dim);border:1px solid rgba(34,211,238,.3)}
+  .kpi-icon svg{width:20px;height:20px}
+  .kpi-body{flex:1;min-width:0}
+  .kpi-val{font-size:32px;font-weight:700;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+  .kpi-val small{font-size:15px;color:var(--text-lo);font-weight:600;letter-spacing:0}
+  .kpi-val.up{color:var(--up)} .kpi-val.warn{color:var(--warn)} .kpi-val.crit{color:var(--crit)} .kpi-val.info{color:var(--neon)}
+  .kpi-label{font-size:10.5px;color:var(--text-md);margin-top:5px;text-transform:uppercase;letter-spacing:.6px;font-weight:500}
+  .kpi-trend{display:flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;margin-top:5px}
+  .t-bad{color:var(--crit)} .t-good{color:var(--up)} .t-neutral{color:var(--text-md)}
+
+  /* ── Main grid ── */
+  .main{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr) 332px;gap:14px;padding:14px 18px}
+  .section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+  .section-title{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-md);font-weight:700;
+    display:flex;align-items:center;gap:8px}
+  .section-title .dot{width:6px;height:6px;border-radius:50%}
+  .section-count{font-size:10.5px;color:var(--text-md);background:var(--bg-panel);border:1px solid var(--border);
+    padding:2px 9px;border-radius:20px;font-variant-numeric:tabular-nums}
+
+  /* ── node status board ── */
+  .site-group{margin-bottom:16px}
+  .site-hdr{display:flex;align-items:center;gap:9px;font-size:10px;text-transform:uppercase;letter-spacing:.8px;
+    color:var(--text-lo);font-weight:700;margin-bottom:9px;padding-left:2px}
+  .site-hdr .region{color:var(--neon);background:var(--neon-dim);border:1px solid rgba(34,211,238,.2);
+    padding:1px 7px;border-radius:3px;letter-spacing:.3px;font-size:9.5px}
+  .site-hdr .ln{flex:1;height:1px;background:var(--border)}
+  .node-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:9px}
+  .node{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:12px 13px;
+    position:relative;overflow:hidden;cursor:pointer;transition:background .15s,transform .12s,border-color .15s}
+  .node:hover{background:var(--bg-card-h);transform:translateY(-1px);border-color:var(--border-b)}
+  .node::after{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+  .node.up::after{background:var(--up)} .node.degraded::after{background:var(--warn)}
+  .node.down::after{background:var(--crit)} .node.maintenance::after{background:var(--maint)}
+  .node.down{border-color:rgba(255,60,92,.3);animation:crit-pulse 2.4s ease-in-out infinite}
+  @keyframes crit-pulse{0%,100%{box-shadow:inset 0 0 36px rgba(255,60,92,.05)}50%{box-shadow:inset 0 0 36px rgba(255,60,92,.13)}}
+  .node-top{display:flex;align-items:flex-start;gap:9px;margin-bottom:9px}
+  .light{width:13px;height:13px;border-radius:50%;flex-shrink:0;margin-top:2px;position:relative}
+  .light.up{background:var(--up);box-shadow:0 0 8px var(--up),0 0 2px var(--up)}
+  .light.degraded{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:blink 1.6s ease-in-out infinite}
+  .light.down{background:var(--crit);box-shadow:0 0 9px var(--crit);animation:blink .9s ease-in-out infinite}
+  .light.maintenance{background:var(--maint);box-shadow:0 0 8px var(--maint)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  .node-id{flex:1;min-width:0}
+  .node-host{font-size:12.5px;font-weight:600;color:var(--text-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    display:flex;align-items:center;gap:5px}
+  .node-host .dev{font-size:11px}
+  .node-ip{font-family:var(--mono);font-size:10px;color:var(--text-lo);margin-top:2px}
+  .node-role{font-size:10px;color:var(--text-md);margin-top:1px}
+  .node-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:4px}
+  .stat{text-align:center}
+  .stat .v{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .stat .v.bad{color:var(--crit)} .stat .v.warn{color:var(--warn)} .stat .v.ok{color:var(--up)}
+  .stat .k{font-size:8.5px;color:var(--text-lo);text-transform:uppercase;letter-spacing:.3px;margin-top:3px}
+  .node-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px;
+    padding-top:8px;border-top:1px solid var(--border)}
+  .node-up{font-size:10.5px;color:var(--text-md)}
+  .node-up b{color:var(--text-hi);font-variant-numeric:tabular-nums}
+  .node-badge{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px}
+  .node-badge.up{background:var(--up-dim);color:var(--up)} .node-badge.degraded{background:var(--warn-dim);color:var(--warn)}
+  .node-badge.down{background:var(--crit-dim);color:var(--crit)} .node-badge.maintenance{background:var(--maint-dim);color:var(--maint)}
+
+  /* ── uptime bars ── */
+  .uptime-list{display:flex;flex-direction:column;gap:8px}
+  .ub-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:11px 13px}
+  .ub-top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .ub-host{font-size:12px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    display:flex;align-items:center;gap:6px}
+  .ub-host .light{width:9px;height:9px;margin-top:0}
+  .ub-pct{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .ub-pct.ok{color:var(--up)} .ub-pct.warn{color:var(--warn)} .ub-pct.bad{color:var(--crit)}
+  .ub-strip{display:flex;gap:2px;height:22px}
+  .seg-cell{flex:1;border-radius:2px;min-width:0}
+  .seg-cell.up{background:var(--up-dim);box-shadow:inset 0 0 0 1px rgba(31,210,134,.4)}
+  .seg-cell.degraded{background:var(--warn);opacity:.85}
+  .seg-cell.down{background:var(--crit)}
+  .seg-cell.maint{background:var(--maint);opacity:.6}
+  .ub-meta{display:flex;align-items:center;justify-content:space-between;margin-top:7px;font-size:10px;color:var(--text-lo)}
+  .ub-meta .lat{font-variant-numeric:tabular-nums}
+
+  /* ── alert stream ── */
+  .alert-panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--r);
+    display:flex;flex-direction:column;max-height:calc(100vh - 270px);overflow:hidden}
+  .alert-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .alert-head .lh{display:flex;align-items:center;gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+    color:var(--text-md);font-weight:700}
+  .alert-head .feed-dot{width:7px;height:7px;border-radius:50%;background:var(--crit);box-shadow:0 0 7px var(--crit);
+    animation:pulse-ok 1.4s ease-in-out infinite}
+  .alert-filters{display:flex;gap:5px;padding:9px 14px;border-bottom:1px solid var(--border)}
+  .af{font-size:10.5px;font-weight:600;color:var(--text-md);cursor:pointer;padding:3px 10px;border-radius:13px;
+    border:1px solid var(--border);background:var(--bg-card)}
+  .af.on{background:var(--neon-dim);color:var(--neon);border-color:rgba(34,211,238,.3)}
+  .alert-list{overflow-y:auto;flex:1}
+  .alert{display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);position:relative;transition:background .15s}
+  .alert:hover{background:var(--bg-card)}
+  .alert.new{animation:flash-in 1.2s ease-out}
+  @keyframes flash-in{0%{background:rgba(34,211,238,.14)}100%{background:transparent}}
+  .a-sev{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:4px}
+  .a-sev.critical{background:var(--crit);box-shadow:0 0 7px var(--crit)}
+  .a-sev.warning{background:var(--warn);box-shadow:0 0 6px var(--warn)}
+  .a-sev.info{background:var(--neon);box-shadow:0 0 6px var(--neon)}
+  .a-body{flex:1;min-width:0}
+  .a-row1{display:flex;align-items:center;gap:7px;margin-bottom:3px}
+  .a-kind{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:1px 6px;border-radius:3px}
+  .a-kind.critical{background:var(--crit-dim);color:var(--crit)}
+  .a-kind.warning{background:var(--warn-dim);color:var(--warn)}
+  .a-kind.info{background:var(--neon-dim);color:var(--neon)}
+  .a-time{margin-left:auto;font-size:10px;color:var(--text-lo);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .a-msg{font-size:12px;color:var(--text-hi);line-height:1.4}
+  .a-node{font-size:10.5px;color:var(--text-md);margin-top:3px;font-family:var(--mono);display:flex;align-items:center;gap:6px}
+  .a-ack{background:var(--bg-card);border:1px solid var(--border);color:var(--text-md);font-family:var(--font);
+    font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:5px;cursor:pointer;margin-top:6px}
+  .a-ack:hover{border-color:var(--up);color:var(--up)}
+  .alert-empty{padding:40px 20px;text-align:center;color:var(--text-lo);font-size:12px}
+
+  /* ── topology mini strip ── */
+  .topo-section{padding:0 18px 18px}
+  .topo-track{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px}
+  .topo-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:11px}
+  .link{display:flex;align-items:center;gap:10px;background:var(--bg-card);border:1px solid var(--border);
+    border-radius:var(--r-s);padding:9px 12px}
+  .link-ends{flex:1;min-width:0}
+  .link-label{font-size:11px;color:var(--text-hi);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .link-bw{font-size:9.5px;color:var(--text-lo);margin-top:2px}
+  .link-util{width:54px;flex-shrink:0;text-align:right}
+  .link-util .uv{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .link-util .uv.ok{color:var(--up)} .link-util .uv.warn{color:var(--warn)} .link-util .uv.bad{color:var(--crit)}
+  .link-bar{height:4px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden}
+  .link-bar i{display:block;height:100%;border-radius:2px}
+
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border-b);border-radius:3px}
+
+  @media(max-width:1360px){
+    .main{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+    .alert-panel{display:none}
+  }
+  @media(max-width:980px){
+    .main{grid-template-columns:1fr}
+    .kpi-strip{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ HEADER ══════════════ -->
+<header class="header">
+  <div class="h-left">
+    <div class="h-logo">
+      <svg viewBox="0 0 19 19" fill="none">
+        <circle cx="9.5" cy="9.5" r="2" fill="#22d3ee"/>
+        <circle cx="3" cy="4" r="1.6" stroke="#22d3ee" stroke-width="1.2"/>
+        <circle cx="16" cy="4" r="1.6" stroke="#22d3ee" stroke-width="1.2"/>
+        <circle cx="3" cy="15" r="1.6" stroke="#22d3ee" stroke-width="1.2"/>
+        <circle cx="16" cy="15" r="1.6" stroke="#22d3ee" stroke-width="1.2"/>
+        <path d="M4.2 5.2 8 8.3M14.8 5.2 11 8.3M4.2 13.8 8 10.7M14.8 13.8 11 10.7" stroke="#22d3ee" stroke-width="1"/>
+      </svg>
+    </div>
+    <div>
+      <div class="h-title">NetPulse NOC</div>
+      <div class="h-sub">Network Operations Wallboard</div>
+    </div>
+  </div>
+  <div class="h-right">
+    <div class="seg" id="scopeSeg">
+      <button class="on" data-scope="all">All Regions</button>
+      <button data-scope="us-east">US-East</button>
+      <button data-scope="us-west">US-West</button>
+      <button data-scope="eu-central">EU-Central</button>
+      <button data-scope="apac">APAC</button>
+    </div>
+    <div class="live-badge"><span class="live-dot"></span>Live Polling</div>
+    <div class="h-meta">
+      <div class="clock" id="clock">--:--:--</div>
+      <small>UTC · SNMP poll 30s</small>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════ KPI STRIP ══════════════ -->
+<div class="kpi-strip">
+  <div class="kpi up">
+    <div class="kpi-icon up">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M3 11l4 4 10-10" stroke="#1fd286" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="kpi-body">
+      <div class="kpi-val up" id="kpi-up">0<small id="kpi-total"> / 0</small></div>
+      <div class="kpi-label">Nodes Online</div>
+      <div class="kpi-trend t-good">
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 3l3 4 3-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        2 recovered · 5m
+      </div>
+    </div>
+  </div>
+  <div class="kpi warn">
+    <div class="kpi-icon warn">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M10 3L2 17h16L10 3z" stroke="#f6a623" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 9v4" stroke="#f6a623" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="15" r=".75" fill="#f6a623"/></svg>
+    </div>
+    <div class="kpi-body">
+      <div class="kpi-val warn" id="kpi-degraded">0</div>
+      <div class="kpi-label">Degraded</div>
+      <div class="kpi-trend t-bad">
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 7l3-4 3 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        +1 vs 1h ago
+      </div>
+    </div>
+  </div>
+  <div class="kpi crit">
+    <div class="kpi-icon crit">
+      <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#ff3c5c" stroke-width="1.5"/><path d="M7 7l6 6M13 7l-6 6" stroke="#ff3c5c" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+    <div class="kpi-body">
+      <div class="kpi-val crit" id="kpi-down">0</div>
+      <div class="kpi-label">Nodes Down</div>
+      <div class="kpi-trend t-bad">
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 7l3-4 3 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        2 since 14:02
+      </div>
+    </div>
+  </div>
+  <div class="kpi crit">
+    <div class="kpi-icon crit">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M10 2a8 8 0 100 16 8 8 0 000-16z" stroke="#ff3c5c" stroke-width="1.4"/><path d="M10 6v4M10 13h.01" stroke="#ff3c5c" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div class="kpi-body">
+      <div class="kpi-val crit" id="kpi-alerts">0</div>
+      <div class="kpi-label">Open Critical Alerts</div>
+      <div class="kpi-trend t-bad">
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 7l3-4 3 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        3 unacknowledged
+      </div>
+    </div>
+  </div>
+  <div class="kpi info">
+    <div class="kpi-icon info">
+      <svg viewBox="0 0 20 20" fill="none"><path d="M2 14l4-5 3 3 4-6 5 4" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="kpi-body">
+      <div class="kpi-val info" id="kpi-uptime">0<small>%</small></div>
+      <div class="kpi-label">Fleet Avg Uptime (30d)</div>
+      <div class="kpi-trend t-neutral">
+        <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="2" fill="currentColor"/></svg>
+        SLA target 99.95%
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<div class="main">
+
+  <!-- ── col 1: node status board ── -->
+  <div>
+    <div class="section-hdr">
+      <span class="section-title"><span class="dot" style="background:var(--up);box-shadow:0 0 6px var(--up)"></span>Node Status Board</span>
+      <span class="section-count" id="board-count">0 nodes</span>
+    </div>
+    <div id="board"></div>
+  </div>
+
+  <!-- ── col 2: uptime bars ── -->
+  <div>
+    <div class="section-hdr">
+      <span class="section-title"><span class="dot" style="background:var(--neon);box-shadow:0 0 6px var(--neon)"></span>Availability — Last 30 Intervals</span>
+      <span class="section-count">worst first</span>
+    </div>
+    <div class="uptime-list" id="uptime"></div>
+  </div>
+
+  <!-- ── col 3: live alert stream ── -->
+  <div class="alert-panel">
+    <div class="alert-head">
+      <span class="lh"><span class="feed-dot"></span>Live Alert Stream</span>
+      <span class="section-count" id="alert-count">0</span>
+    </div>
+    <div class="alert-filters" id="alertFilters">
+      <span class="af on" data-sev="all">All</span>
+      <span class="af" data-sev="critical">Critical</span>
+      <span class="af" data-sev="warning">Warning</span>
+      <span class="af" data-sev="info">Info</span>
+    </div>
+    <div class="alert-list" id="alerts"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TOPOLOGY / LINKS ══════════════ -->
+<div class="topo-section">
+  <div class="topo-track">
+    <span class="section-title" style="margin-bottom:0"><span class="dot" style="background:var(--maint)"></span>Backbone Links — Utilization</span>
+    <div class="topo-links" id="links"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ── clock ── */
+  function tick(){
+    var n=new Date(),p=function(x){return String(x).padStart(2,"0");};
+    document.getElementById("clock").textContent=p(n.getHours())+":"+p(n.getMinutes())+":"+p(n.getSeconds());
+  }
+  tick(); setInterval(tick,1000);
+
+  var DEV_ICON={router:"🛰",switch:"🔀",firewall:"🛡",server:"🖥",load_balancer:"⚖",access_point:"📶"};
+  var DEV_LABEL={router:"Router",switch:"Switch",firewall:"Firewall",server:"Server",load_balancer:"Load Balancer",access_point:"Access Point"};
+
+  /* ── SITES ── */
+  var SITES=[
+    {code:"IAD",name:"Ashburn DC1",region:"us-east",city:"Ashburn, VA"},
+    {code:"SJC",name:"Santa Clara DC2",region:"us-west",city:"Santa Clara, CA"},
+    {code:"FRA",name:"Frankfurt DC3",region:"eu-central",city:"Frankfurt, DE"},
+    {code:"SIN",name:"Singapore DC4",region:"apac",city:"Singapore, SG"}
+  ];
+
+  /* ── NODES ── */
+  var NODES=[
+    // IAD us-east
+    {host:"core-rtr-iad-01",ip:"10.10.0.1",dev:"router",role:"Edge core router",site:"IAD",status:"up",uptime:99.99,lat:3,loss:0,cpu:34,mem:51},
+    {host:"core-rtr-iad-02",ip:"10.10.0.2",dev:"router",role:"Edge core router",site:"IAD",status:"degraded",uptime:99.41,lat:88,loss:1.4,cpu:79,mem:68},
+    {host:"fw-iad-01",ip:"10.10.0.10",dev:"firewall",role:"Perimeter firewall",site:"IAD",status:"up",uptime:99.98,lat:5,loss:0,cpu:42,mem:60},
+    {host:"sw-iad-dist-03",ip:"10.10.2.13",dev:"switch",role:"Distribution switch",site:"IAD",status:"up",uptime:99.97,lat:2,loss:0,cpu:21,mem:38},
+    {host:"lb-iad-web-01",ip:"10.10.4.5",dev:"load_balancer",role:"Web tier LB",site:"IAD",status:"up",uptime:99.95,lat:7,loss:0,cpu:55,mem:62},
+    {host:"app-iad-07",ip:"10.10.8.27",dev:"server",role:"App server",site:"IAD",status:"up",uptime:99.92,lat:6,loss:0,cpu:61,mem:74},
+
+    // SJC us-west
+    {host:"core-rtr-sjc-01",ip:"10.20.0.1",dev:"router",role:"Edge core router",site:"SJC",status:"up",uptime:99.96,lat:4,loss:0,cpu:38,mem:49},
+    {host:"fw-sjc-01",ip:"10.20.0.10",dev:"firewall",role:"Perimeter firewall",site:"SJC",status:"down",uptime:97.12,lat:0,loss:100,cpu:0,mem:0},
+    {host:"sw-sjc-access-12",ip:"10.20.3.42",dev:"switch",role:"Access switch",site:"SJC",status:"up",uptime:99.94,lat:3,loss:0,cpu:18,mem:33},
+    {host:"db-sjc-02",ip:"10.20.9.18",dev:"server",role:"DB replica",site:"SJC",status:"degraded",uptime:99.20,lat:142,loss:2.1,cpu:91,mem:88},
+    {host:"ap-sjc-floor3-08",ip:"10.20.6.88",dev:"access_point",role:"Floor 3 AP",site:"SJC",status:"maintenance",uptime:99.10,lat:0,loss:0,cpu:0,mem:0},
+
+    // FRA eu-central
+    {host:"core-rtr-fra-01",ip:"10.30.0.1",dev:"router",role:"Edge core router",site:"FRA",status:"up",uptime:99.99,lat:9,loss:0,cpu:29,mem:44},
+    {host:"fw-fra-01",ip:"10.30.0.10",dev:"firewall",role:"Perimeter firewall",site:"FRA",status:"up",uptime:99.97,lat:11,loss:0,cpu:47,mem:58},
+    {host:"lb-fra-api-01",ip:"10.30.4.6",dev:"load_balancer",role:"API tier LB",site:"FRA",status:"degraded",uptime:99.55,lat:64,loss:0.7,cpu:72,mem:55},
+    {host:"sw-fra-dist-01",ip:"10.30.2.4",dev:"switch",role:"Distribution switch",site:"FRA",status:"up",uptime:99.96,lat:8,loss:0,cpu:25,mem:41},
+
+    // SIN apac
+    {host:"core-rtr-sin-01",ip:"10.40.0.1",dev:"router",role:"Edge core router",site:"SIN",status:"up",uptime:99.93,lat:14,loss:0,cpu:36,mem:52},
+    {host:"fw-sin-01",ip:"10.40.0.10",dev:"firewall",role:"Perimeter firewall",site:"SIN",status:"up",uptime:99.91,lat:16,loss:0,cpu:50,mem:63},
+    {host:"app-sin-04",ip:"10.40.8.14",dev:"server",role:"App server",site:"SIN",status:"down",uptime:98.40,lat:0,loss:100,cpu:0,mem:0},
+    {host:"sw-sin-access-22",ip:"10.40.3.71",dev:"switch",role:"Access switch",site:"SIN",status:"up",uptime:99.88,lat:13,loss:0,cpu:22,mem:39}
+  ];
+
+  /* deterministic 30-segment availability strip per node */
+  function uptimeSegments(node){
+    var seg=[],i,bad;
+    var dur = node.status==="down"?6:(node.status==="degraded"?5:0);
+    var maint = node.status==="maintenance";
+    // pseudo-random but stable from hostname
+    var seed=0; for(i=0;i<node.host.length;i++) seed=(seed*31+node.host.charCodeAt(i))>>>0;
+    function rnd(){ seed=(seed*1103515245+12345)>>>0; return (seed%1000)/1000; }
+    for(i=0;i<30;i++){
+      if(maint && i>=22){ seg.push("maint"); continue; }
+      var tailDist=29-i; // recent = right
+      if(node.status==="down" && tailDist<dur){ seg.push("down"); continue; }
+      if(node.status==="degraded" && tailDist<dur){ seg.push(rnd()<0.5?"degraded":"down"); continue; }
+      // historical blips scaled by inverse uptime
+      var blipRate=(100-node.uptime)/100*0.9;
+      if(rnd()<blipRate){ seg.push(rnd()<0.6?"degraded":"down"); }
+      else seg.push("up");
+    }
+    return seg;
+  }
+
+  var SCOPE="all";
+
+  /* ── KPIs ── */
+  function renderKPIs(nodes){
+    var up=nodes.filter(function(n){return n.status==="up";}).length;
+    var deg=nodes.filter(function(n){return n.status==="degraded";}).length;
+    var down=nodes.filter(function(n){return n.status==="down";}).length;
+    var total=nodes.length;
+    var crit=ALERTS.filter(function(a){return a.sev==="critical"&&!a.ack&&inScope(a.site);}).length;
+    var avg=nodes.length?(nodes.reduce(function(s,n){return s+n.uptime;},0)/nodes.length):0;
+    document.getElementById("kpi-up").firstChild.nodeValue=up;
+    document.getElementById("kpi-total").textContent=" / "+total;
+    document.getElementById("kpi-degraded").textContent=deg;
+    document.getElementById("kpi-down").textContent=down;
+    document.getElementById("kpi-alerts").textContent=crit;
+    document.getElementById("kpi-uptime").firstChild.nodeValue=avg.toFixed(2);
+  }
+
+  function inScope(region){ return SCOPE==="all"||region===SCOPE; }
+  function scopedNodes(){
+    return NODES.filter(function(n){ var s=siteOf(n); return inScope(s.region); });
+  }
+  function siteOf(n){ for(var i=0;i<SITES.length;i++) if(SITES[i].code===n.site) return SITES[i]; return SITES[0]; }
+
+  var STATUS_RANK={down:0,degraded:1,maintenance:2,up:3};
+
+  /* ── node status board ── */
+  function renderBoard(){
+    var nodes=scopedNodes();
+    document.getElementById("board-count").textContent=nodes.length+" nodes";
+    var host=document.getElementById("board"); host.innerHTML="";
+    SITES.forEach(function(site){
+      if(!inScope(site.region)) return;
+      var sn=nodes.filter(function(n){return n.site===site.code;});
+      if(!sn.length) return;
+      sn.sort(function(a,b){ return STATUS_RANK[a.status]-STATUS_RANK[b.status] || a.host.localeCompare(b.host); });
+      var grp=document.createElement("div"); grp.className="site-group";
+      var down=sn.filter(function(n){return n.status==="down";}).length;
+      var deg=sn.filter(function(n){return n.status==="degraded";}).length;
+      var health=down?'style="color:var(--crit)"':(deg?'style="color:var(--warn)"':'style="color:var(--up)"');
+      grp.innerHTML='<div class="site-hdr"><span class="region">'+site.region+'</span>'+
+        site.name+' · '+site.city+'<span class="ln"></span>'+
+        '<span '+health+'>'+(sn.length-down-deg)+'↑ '+deg+'~ '+down+'↓</span></div>';
+      var gr=document.createElement("div"); gr.className="node-grid";
+      sn.forEach(function(n){
+        var card=document.createElement("div"); card.className="node "+n.status;
+        function cls(v,w,b){return v>=b?"bad":(v>=w?"warn":"ok");}
+        var off=(n.status==="down"||n.status==="maintenance");
+        var lat=off?"—":n.lat, loss=off?"—":(n.loss+"%"), cpu=off?"—":(n.cpu+"%");
+        var latCls=off?"":cls(n.lat,40,80), lossCls=off?"":cls(n.loss,0.5,1.5), cpuCls=off?"":cls(n.cpu,70,85);
+        card.innerHTML=
+          '<div class="node-top">'+
+            '<span class="light '+n.status+'"></span>'+
+            '<div class="node-id">'+
+              '<div class="node-host"><span class="dev">'+DEV_ICON[n.dev]+'</span>'+n.host+'</div>'+
+              '<div class="node-ip">'+n.ip+'</div>'+
+              '<div class="node-role">'+n.role+'</div>'+
+            '</div>'+
+          '</div>'+
+          '<div class="node-stats">'+
+            '<div class="stat"><div class="v '+latCls+'">'+lat+(off?"":"ms")+'</div><div class="k">Latency</div></div>'+
+            '<div class="stat"><div class="v '+lossCls+'">'+loss+'</div><div class="k">Loss</div></div>'+
+            '<div class="stat"><div class="v '+cpuCls+'">'+cpu+'</div><div class="k">CPU</div></div>'+
+          '</div>'+
+          '<div class="node-foot">'+
+            '<span class="node-up">Uptime <b>'+n.uptime.toFixed(2)+'%</b></span>'+
+            '<span class="node-badge '+n.status+'">'+n.status+'</span>'+
+          '</div>';
+        gr.appendChild(card);
+      });
+      grp.appendChild(gr); host.appendChild(grp);
+    });
+  }
+
+  /* ── uptime bars (worst first) ── */
+  function renderUptime(){
+    var nodes=scopedNodes().slice().sort(function(a,b){return a.uptime-b.uptime;});
+    var host=document.getElementById("uptime"); host.innerHTML="";
+    nodes.forEach(function(n){
+      var pctCls=n.uptime>=99.9?"ok":(n.uptime>=99?"warn":"bad");
+      var segs=uptimeSegments(n).map(function(s){return '<span class="seg-cell '+s+'"></span>';}).join("");
+      var off=(n.status==="down"||n.status==="maintenance");
+      var card=document.createElement("div"); card.className="ub-card";
+      card.innerHTML=
+        '<div class="ub-top">'+
+          '<span class="ub-host"><span class="light '+n.status+'"></span>'+n.host+'</span>'+
+          '<span class="ub-pct '+pctCls+'">'+n.uptime.toFixed(2)+'%</span>'+
+        '</div>'+
+        '<div class="ub-strip">'+segs+'</div>'+
+        '<div class="ub-meta"><span>30 × 1m intervals · oldest → now</span>'+
+          '<span class="lat">'+(off?"offline":(n.lat+"ms · "+n.loss+"% loss"))+'</span></div>';
+      host.appendChild(card);
+    });
+  }
+
+  /* ── alert stream ── */
+  var KIND_LABEL={node_down:"NODE DOWN",high_latency:"HIGH LATENCY",packet_loss:"PACKET LOSS",cpu_high:"CPU HIGH",mem_high:"MEM HIGH",link_down:"LINK DOWN",cert_expiry:"CERT EXPIRY",flap:"INTERFACE FLAP"};
+  var ALERTS=[
+    {sev:"critical",kind:"node_down",msg:"Firewall fw-sjc-01 unreachable — 100% packet loss",node:"fw-sjc-01",site:"us-west",ago:142,ack:false},
+    {sev:"critical",kind:"node_down",msg:"App server app-sin-04 down — health check failing",node:"app-sin-04",site:"apac",ago:97,ack:false},
+    {sev:"critical",kind:"cpu_high",msg:"DB replica db-sjc-02 CPU 91% sustained > 10m",node:"db-sjc-02",site:"us-west",ago:64,ack:false},
+    {sev:"warning",kind:"high_latency",msg:"core-rtr-iad-02 latency 88ms — SLA threshold 50ms",node:"core-rtr-iad-02",site:"us-east",ago:51,ack:false},
+    {sev:"warning",kind:"packet_loss",msg:"db-sjc-02 packet loss 2.1% on eth0",node:"db-sjc-02",site:"us-west",ago:38,ack:false},
+    {sev:"warning",kind:"cpu_high",msg:"lb-fra-api-01 CPU 72% — connection backlog rising",node:"lb-fra-api-01",site:"eu-central",ago:22,ack:false},
+    {sev:"warning",kind:"flap",msg:"sw-sin-access-22 port Gi0/14 flapping (4 events / 5m)",node:"sw-sin-access-22",site:"apac",ago:17,ack:false},
+    {sev:"info",kind:"cert_expiry",msg:"TLS cert on lb-iad-web-01 expires in 9 days",node:"lb-iad-web-01",site:"us-east",ago:12,ack:false},
+    {sev:"info",kind:"node_down",msg:"ap-sjc-floor3-08 entered scheduled maintenance window",node:"ap-sjc-floor3-08",site:"us-west",ago:8,ack:false},
+    {sev:"warning",kind:"mem_high",msg:"app-iad-07 memory 74% — GC pause spikes observed",node:"app-iad-07",site:"us-east",ago:5,ack:false},
+    {sev:"info",kind:"flap",msg:"BGP session to peer AS64512 re-established",node:"core-rtr-fra-01",site:"eu-central",ago:2,ack:false}
+  ];
+  var ALERT_FILTER="all";
+
+  function agoText(m){
+    if(m<1) return "just now";
+    if(m<60) return m+"m ago";
+    var h=Math.floor(m/60); return h+"h "+(m%60)+"m ago";
+  }
+
+  function renderAlerts(){
+    var list=ALERTS.filter(function(a){ return !a.ack && inScope(a.site) && (ALERT_FILTER==="all"||a.sev===ALERT_FILTER); });
+    document.getElementById("alert-count").textContent=ALERTS.filter(function(a){return !a.ack&&inScope(a.site);}).length;
+    var host=document.getElementById("alerts"); host.innerHTML="";
+    if(!list.length){ host.innerHTML='<div class="alert-empty">No open alerts in scope.<br>All monitored nodes nominal.</div>'; return; }
+    list.sort(function(a,b){return a.ago-b.ago;});
+    list.forEach(function(a){
+      var el=document.createElement("div"); el.className="alert";
+      el.innerHTML=
+        '<span class="a-sev '+a.sev+'"></span>'+
+        '<div class="a-body">'+
+          '<div class="a-row1">'+
+            '<span class="a-kind '+a.sev+'">'+(KIND_LABEL[a.kind]||a.kind)+'</span>'+
+            '<span class="a-time">'+agoText(a.ago)+'</span>'+
+          '</div>'+
+          '<div class="a-msg">'+a.msg+'</div>'+
+          '<div class="a-node">⌁ '+a.node+'</div>'+
+          '<button class="a-ack">✓ Acknowledge</button>'+
+        '</div>';
+      el.querySelector(".a-ack").addEventListener("click",function(){
+        a.ack=true; el.classList.add("new");
+        renderAlerts(); renderKPIs(scopedNodes());
+      });
+      host.appendChild(el);
+    });
+  }
+
+  /* ── backbone links ── */
+  var LINKS=[
+    {label:"IAD ↔ SJC backbone",bw:100000,util:38,status:"up"},
+    {label:"IAD ↔ FRA transatlantic",bw:40000,util:71,status:"up"},
+    {label:"FRA ↔ SIN transit",bw:40000,util:88,status:"degraded"},
+    {label:"SJC ↔ SIN transpacific",bw:40000,util:96,status:"degraded"},
+    {label:"IAD core ↔ dist",bw:10000,util:24,status:"up"},
+    {label:"SJC edge ↔ fw",bw:10000,util:0,status:"down"}
+  ];
+  function fmtBw(m){ return m>=1000?(m/1000)+" Gbps":m+" Mbps"; }
+  function renderLinks(){
+    var host=document.getElementById("links"); host.innerHTML="";
+    LINKS.forEach(function(l){
+      var cls=l.status==="down"?"bad":(l.util>=85?"bad":(l.util>=65?"warn":"ok"));
+      var barColor=l.status==="down"?"var(--crit)":(l.util>=85?"var(--crit)":(l.util>=65?"var(--warn)":"var(--up)"));
+      var w=l.status==="down"?100:l.util;
+      var uv=l.status==="down"?"DOWN":(l.util+"%");
+      host.innerHTML+=
+        '<div class="link">'+
+          '<span class="light '+l.status+'" style="margin-top:0"></span>'+
+          '<div class="link-ends"><div class="link-label">'+l.label+'</div><div class="link-bw">'+fmtBw(l.bw)+' capacity</div></div>'+
+          '<div class="link-util"><div class="uv '+cls+'">'+uv+'</div>'+
+            '<div class="link-bar"><i style="width:'+w+'%;background:'+barColor+'"></i></div></div>'+
+        '</div>';
+    });
+  }
+
+  /* ── scope switching ── */
+  document.getElementById("scopeSeg").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    document.querySelectorAll("#scopeSeg button").forEach(function(x){x.classList.remove("on");});
+    b.classList.add("on"); SCOPE=b.dataset.scope;
+    renderAll();
+  });
+  document.getElementById("alertFilters").addEventListener("click",function(e){
+    var f=e.target.closest(".af"); if(!f) return;
+    document.querySelectorAll(".af").forEach(function(x){x.classList.remove("on");});
+    f.classList.add("on"); ALERT_FILTER=f.dataset.sev; renderAlerts();
+  });
+
+  function renderAll(){
+    renderKPIs(scopedNodes());
+    renderBoard();
+    renderUptime();
+    renderAlerts();
+  }
+
+  /* ── init ── */
+  renderAll();
+  renderLinks();
+
+  /* ── simulated live alert ticker ── */
+  var FEED=[
+    {sev:"warning",kind:"high_latency",msg:"core-rtr-sin-01 latency spike 31ms → 58ms",node:"core-rtr-sin-01",site:"apac"},
+    {sev:"info",kind:"flap",msg:"sw-iad-dist-03 port Gi0/2 link up",node:"sw-iad-dist-03",site:"us-east"},
+    {sev:"warning",kind:"packet_loss",msg:"lb-fra-api-01 0.7% loss on upstream",node:"lb-fra-api-01",site:"eu-central"},
+    {sev:"critical",kind:"link_down",msg:"SJC edge ↔ fw link DOWN — failover engaged",node:"fw-sjc-01",site:"us-west"}
+  ];
+  var fi=0;
+  setInterval(function(){
+    var f=FEED[fi%FEED.length]; fi++;
+    ALERTS.unshift({sev:f.sev,kind:f.kind,msg:f.msg,node:f.node,site:f.site,ago:0,ack:false});
+    // age existing
+    ALERTS.forEach(function(a){ if(a!==ALERTS[0]) a.ago+=1; });
+    if(ALERTS.length>40) ALERTS.length=40;
+    renderAlerts(); renderKPIs(scopedNodes());
+    // flash the newest in-scope critical/warning row
+    var firstRow=document.querySelector("#alerts .alert");
+    if(firstRow) firstRow.classList.add("new");
+  },9000);
+
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Network Monitoring: a dark NOC wallboard — status lights and a live alert stream. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/36-network-monitoring.html
+</script>
+</body>
+</html>

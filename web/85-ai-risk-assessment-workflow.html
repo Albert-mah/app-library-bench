@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Risk Assessment Workflow</title>
+<style>
+  :root {
+    --bg: #0e131b;
+    --bg-2: #121823;
+    --panel: #18202c;
+    --panel-2: #1d2633;
+    --line: #2a3440;
+    --line-soft: #232c38;
+    --txt: #e9eef4;
+    --txt-dim: #a3afbe;
+    --txt-faint: #6b7888;
+    --accent: #fb7185;
+    --accent-2: #f43f5e;
+    --teal: #2dd4bf;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --orange: #fb923c;
+    --red: #f87171;
+    --pink: #f472b6;
+    --shadow: 0 18px 48px rgba(0,0,0,.45);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--txt);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: #2a3340; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #36414f; background-clip: padding-box; }
+
+  .app { display: grid; grid-template-columns: 240px 1fr; height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: #111721;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+    padding: 18px 14px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 18px; }
+  .brand .logo {
+    width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center;
+  }
+  .brand .logo svg { width: 19px; height: 19px; }
+  .brand .name { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+  .brand .sub { font-size: 11px; color: var(--txt-faint); margin-top: 1px; }
+
+  .nav-group { margin-top: 14px; }
+  .nav-group .lbl { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--txt-faint); padding: 0 10px; margin-bottom: 7px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px;
+    color: var(--txt-dim); cursor: pointer; font-weight: 500; font-size: 13.2px;
+    margin-bottom: 2px; transition: .14s; position: relative;
+  }
+  .nav-item svg { width: 17px; height: 17px; flex: 0 0 auto; opacity: .85; }
+  .nav-item:hover { background: #1a2230; color: var(--txt); }
+  .nav-item.active { background: #2a1d24; color: #fff; }
+  .nav-item.active::before { content: ""; position: absolute; left: -14px; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--accent); }
+  .nav-item .badge { margin-left: auto; background: #2a3445; color: var(--txt-dim); font-size: 10.5px; padding: 1px 7px; border-radius: 20px; font-weight: 600; }
+  .nav-item.active .badge { background: var(--accent); color: #2a0f15; }
+
+  .side-foot { margin-top: auto; }
+  .ai-card {
+    background: #1a2230; border: 1px solid var(--line);
+    border-radius: 12px; padding: 13px; margin-top: 16px;
+  }
+  .ai-card .row { display: flex; align-items: center; gap: 8px; }
+  .ai-card .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  .ai-card .t { font-size: 12px; font-weight: 600; }
+  .ai-card .meter { height: 5px; background: #232c38; border-radius: 4px; margin-top: 10px; overflow: hidden; }
+  .ai-card .meter i { display: block; height: 100%; width: 78%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  .ai-card .cap { font-size: 10.5px; color: var(--txt-faint); margin-top: 7px; }
+  .user { display: flex; align-items: center; gap: 10px; padding: 11px 8px 2px; margin-top: 8px; border-top: 1px solid var(--line-soft); }
+  .user .av { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #f472b6, #fb923c); display: grid; place-items: center; font-weight: 700; font-size: 12px; color: #1a1018; }
+  .user .nm { font-size: 12.5px; font-weight: 600; }
+  .user .rl { font-size: 10.5px; color: var(--txt-faint); }
+
+  /* ---------- Main ---------- */
+  .main { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+  .topbar {
+    display: flex; align-items: center; gap: 16px; padding: 16px 26px; border-bottom: 1px solid var(--line);
+    background: rgba(14,19,27,.72); backdrop-filter: blur(8px); flex: 0 0 auto;
+  }
+  .topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+  .topbar .crumb { font-size: 12px; color: var(--txt-faint); margin-top: 2px; }
+  .search {
+    margin-left: auto; display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 9px; padding: 8px 12px; width: 280px; transition: .15s;
+  }
+  .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(251,113,133,.16); }
+  .search svg { width: 15px; height: 15px; color: var(--txt-faint); }
+  .search input { background: none; border: none; outline: none; color: var(--txt); font-size: 13px; width: 100%; }
+  .search input::placeholder { color: var(--txt-faint); }
+  .icon-btn { width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); display: grid; place-items: center; cursor: pointer; color: var(--txt-dim); transition: .15s; position: relative; }
+  .icon-btn:hover { border-color: #38445a; color: var(--txt); }
+  .icon-btn svg { width: 17px; height: 17px; }
+  .icon-btn .ping { position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--red); border: 2px solid var(--panel); }
+
+  .content { flex: 1 1 auto; overflow-y: auto; padding: 22px 26px 30px; }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 17px; position: relative; overflow: hidden; }
+  .kpi::after { content: ""; position: absolute; right: -20px; top: -20px; width: 90px; height: 90px; border-radius: 50%; opacity: .12; }
+  .kpi.c1::after { background: var(--accent); } .kpi.c2::after { background: var(--amber); }
+  .kpi.c3::after { background: var(--red); } .kpi.c4::after { background: var(--teal); }
+  .kpi .kt { font-size: 12px; color: var(--txt-dim); display: flex; align-items: center; gap: 7px; }
+  .kpi .kt .ic { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; }
+  .kpi.c1 .ic { background: #3a1c24; color: var(--accent); } .kpi.c2 .ic { background: #33290f; color: var(--amber); }
+  .kpi.c3 .ic { background: #341a1a; color: var(--red); } .kpi.c4 .ic { background: #103330; color: var(--teal); }
+  .kpi .ic svg { width: 15px; height: 15px; }
+  .kpi .kv { font-size: 27px; font-weight: 750; margin-top: 11px; letter-spacing: -.5px; }
+  .kpi .kd { font-size: 11.5px; margin-top: 4px; display: flex; align-items: center; gap: 5px; color: var(--txt-faint); }
+  .kpi .kd .up { color: var(--green); } .kpi .kd .down { color: var(--red); }
+
+  /* Layout split */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .panel .ph { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .panel .ph h3 { font-size: 14.5px; font-weight: 700; }
+  .panel .ph .hint { font-size: 11.5px; color: var(--txt-faint); margin-left: auto; }
+
+  /* Gauge */
+  .gauge-wrap { display: flex; align-items: center; gap: 22px; }
+  .gauge { position: relative; width: 168px; height: 168px; flex: 0 0 auto; }
+  .gauge .score { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .gauge .score b { font-size: 40px; font-weight: 800; letter-spacing: -1px; display: block; line-height: 1; }
+  .gauge .score span { font-size: 11px; color: var(--txt-dim); text-transform: uppercase; letter-spacing: 1.4px; }
+  .gauge .score .tier { font-size: 12px; font-weight: 700; color: var(--orange); margin-top: 5px; padding: 2px 10px; border-radius: 20px; background: #2e2113; display: inline-block; }
+  .legend { flex: 1; }
+  .legend .lrow { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line-soft); }
+  .legend .lrow:last-child { border-bottom: none; }
+  .legend .sw { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+  .legend .ln { font-size: 12.5px; color: var(--txt-dim); }
+  .legend .lv { margin-left: auto; font-size: 12.5px; font-weight: 600; }
+  .legend .lbar { width: 64px; height: 5px; border-radius: 4px; background: #232b38; overflow: hidden; }
+  .legend .lbar i { display: block; height: 100%; border-radius: 4px; }
+
+  /* Trend bars */
+  .trend { display: flex; align-items: flex-end; gap: 8px; height: 150px; padding-top: 6px; }
+  .trend .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .trend .stack { width: 100%; max-width: 26px; display: flex; flex-direction: column-reverse; border-radius: 5px 5px 3px 3px; overflow: hidden; transition: .3s; }
+  .trend .col:hover .stack { filter: brightness(1.2); }
+  .trend .stack i { width: 100%; }
+  .trend .lbl { font-size: 10.5px; color: var(--txt-faint); }
+
+  /* AI panel header banner */
+  .ai-banner {
+    background: #1a2230; border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: var(--radius); padding: 18px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 18px;
+    position: relative; overflow: hidden;
+  }
+  .ai-banner .ai-ic { width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; flex: 0 0 auto; }
+  .ai-banner .ai-ic svg { width: 24px; height: 24px; }
+  .ai-banner .at { font-size: 15px; font-weight: 700; }
+  .ai-banner .ad { font-size: 12.5px; color: var(--txt-dim); margin-top: 3px; }
+  .ai-banner .actions { margin-left: auto; display: flex; gap: 10px; z-index: 1; }
+
+  .btn { border: none; cursor: pointer; font-family: inherit; font-weight: 600; font-size: 13px; border-radius: 9px; padding: 10px 16px; display: inline-flex; align-items: center; gap: 8px; transition: .15s; }
+  .btn svg { width: 15px; height: 15px; }
+  .btn-primary { background: var(--accent); color: #2a0f15; box-shadow: 0 4px 14px rgba(251,113,133,.28); }
+  .btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .btn-ghost { background: #1f2734; color: var(--txt); border: 1px solid var(--line); }
+  .btn-ghost:hover { border-color: #3a4656; }
+
+  /* Toolbar */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+  .tab { padding: 7px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--txt-dim); cursor: pointer; transition: .14s; display: flex; align-items: center; gap: 7px; }
+  .tab:hover { color: var(--txt); }
+  .tab.active { background: #2a1d24; color: #fff; }
+  .tab .cnt { font-size: 10.5px; background: #2c3748; padding: 0 6px; border-radius: 10px; }
+  .tab.active .cnt { background: var(--accent); color: #2a0f15; }
+  .chip { padding: 7px 13px; border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--txt-dim); cursor: pointer; border: 1px solid var(--line); background: var(--panel); transition: .14s; }
+  .chip:hover { border-color: #3a4656; color: var(--txt); }
+  .chip.active { background: #2e1a21; border-color: var(--accent); color: #fecdd3; }
+  .spacer { margin-left: auto; }
+
+  /* Cards grid (signature triage gallery) */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  .rcard {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0; cursor: pointer;
+    transition: .16s; overflow: hidden; position: relative; display: flex; flex-direction: column;
+  }
+  .rcard:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .rcard .strip { height: 4px; width: 100%; }
+  .rcard .body { padding: 15px 16px 14px; flex: 1; }
+  .rcard .top { display: flex; align-items: flex-start; gap: 11px; }
+  .rcard .ent { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: 0 0 auto; color: #fff; }
+  .rcard .nm { font-size: 14px; font-weight: 700; line-height: 1.25; }
+  .rcard .id { font-size: 11px; color: var(--txt-faint); margin-top: 3px; }
+  .rcard .scorebox { margin-left: auto; text-align: right; flex: 0 0 auto; }
+  .rcard .scorebox b { font-size: 24px; font-weight: 800; letter-spacing: -.5px; line-height: 1; }
+  .rcard .scorebox span { font-size: 10px; color: var(--txt-faint); text-transform: uppercase; letter-spacing: 1px; }
+  .rcard .meta { display: flex; gap: 14px; margin-top: 14px; }
+  .rcard .meta .m { font-size: 11px; }
+  .rcard .meta .m .k { color: var(--txt-faint); }
+  .rcard .meta .m .v { font-weight: 600; margin-top: 2px; }
+  .rcard .ai-blurb { margin-top: 13px; background: #141b26; border: 1px solid var(--line-soft); border-left: 2px solid var(--accent); border-radius: 8px; padding: 9px 11px; font-size: 11.5px; color: var(--txt-dim); line-height: 1.5; display: flex; gap: 8px; }
+  .rcard .ai-blurb svg { width: 13px; height: 13px; flex: 0 0 auto; margin-top: 2px; color: var(--accent); }
+  .rcard .foot { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-top: 1px solid var(--line-soft); background: #141b26; }
+  .rcard .conf { font-size: 10.5px; color: var(--txt-faint); display: flex; align-items: center; gap: 6px; }
+  .rcard .conf .cbar { width: 46px; height: 4px; border-radius: 3px; background: #232b38; overflow: hidden; }
+  .rcard .conf .cbar i { display: block; height: 100%; background: var(--teal); }
+
+  /* Pills */
+  .pill { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .pill .pd { width: 6px; height: 6px; border-radius: 50%; }
+  .pill.critical { background: #371717; color: #fca5a5; } .pill.critical .pd { background: var(--red); }
+  .pill.high { background: #36230f; color: #fdba74; } .pill.high .pd { background: var(--orange); }
+  .pill.medium { background: #332b0d; color: #fcd34d; } .pill.medium .pd { background: var(--amber); }
+  .pill.low { background: #0f2e26; color: #6ee7b7; } .pill.low .pd { background: var(--green); }
+  .pill.review { background: #3a1c24; color: #fda4af; } .pill.review .pd { background: var(--accent); }
+  .pill.cleared { background: #0f2e26; color: #6ee7b7; } .pill.cleared .pd { background: var(--green); }
+  .pill.escalated { background: #371717; color: #fca5a5; } .pill.escalated .pd { background: var(--red); }
+  .pill.flagged { background: #36230f; color: #fdba74; } .pill.flagged .pd { background: var(--orange); }
+  .pill.pending { background: #232b38; color: var(--txt-dim); } .pill.pending .pd { background: var(--txt-faint); }
+
+  .empty { grid-column: 1 / -1; text-align: center; padding: 56px 20px; color: var(--txt-faint); }
+  .empty svg { width: 46px; height: 46px; opacity: .4; margin-bottom: 12px; }
+  .empty b { display: block; font-size: 15px; color: var(--txt-dim); margin-bottom: 5px; }
+
+  /* Drawer */
+  .scrim { position: fixed; inset: 0; background: rgba(6,9,14,.6); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: .25s; z-index: 50; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 94vw; background: var(--bg-2);
+    border-left: 1px solid var(--line); box-shadow: -20px 0 60px rgba(0,0,0,.5); transform: translateX(100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1); z-index: 51; display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .dh { padding: 20px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; gap: 14px; }
+  .dh .ent { width: 46px; height: 46px; border-radius: 11px; display: grid; place-items: center; font-weight: 700; color: #fff; flex: 0 0 auto; }
+  .dh .dt { font-size: 18px; font-weight: 750; }
+  .dh .ds { font-size: 12px; color: var(--txt-faint); margin-top: 3px; }
+  .dh .x { margin-left: auto; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); display: grid; place-items: center; cursor: pointer; color: var(--txt-dim); }
+  .dh .x:hover { color: var(--txt); border-color: #3a4860; }
+  .dh .x svg { width: 16px; height: 16px; }
+  .db { flex: 1; overflow-y: auto; padding: 22px 24px; }
+
+  .dscore { display: flex; align-items: center; gap: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 20px; }
+  .dscore .ring { width: 92px; height: 92px; flex: 0 0 auto; position: relative; }
+  .dscore .ring .v { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .dscore .ring .v b { font-size: 26px; font-weight: 800; line-height: 1; }
+  .dscore .ring .v span { font-size: 9px; color: var(--txt-faint); letter-spacing: 1px; }
+  .dscore .info b { font-size: 14px; font-weight: 700; }
+  .dscore .info p { font-size: 12px; color: var(--txt-dim); margin-top: 5px; line-height: 1.5; }
+
+  .sect { margin-bottom: 22px; }
+  .sect .st { font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--txt-faint); font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .sect .st .aiTag { background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: #fff; font-size: 9px; padding: 2px 7px; border-radius: 5px; letter-spacing: .5px; }
+
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden; }
+  .fld { background: var(--panel); padding: 11px 13px; }
+  .fld .fk { font-size: 10.5px; color: var(--txt-faint); display: flex; align-items: center; gap: 6px; }
+  .fld .fv { font-size: 13px; font-weight: 600; margin-top: 4px; }
+  .conf-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 5px; margin-left: auto; }
+  .conf-badge.hi { background: #0f2e26; color: #6ee7b7; }
+  .conf-badge.mid { background: #332b0d; color: #fcd34d; }
+  .conf-badge.lo { background: #371717; color: #fca5a5; }
+
+  /* risk factors */
+  .factor { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+  .factor:last-child { border-bottom: none; }
+  .factor .fn { font-size: 13px; font-weight: 600; flex: 0 0 150px; }
+  .factor .fbar { flex: 1; height: 7px; border-radius: 4px; background: #1e2530; overflow: hidden; }
+  .factor .fbar i { display: block; height: 100%; border-radius: 4px; }
+  .factor .fp { font-size: 12px; font-weight: 700; width: 34px; text-align: right; }
+
+  .reason { background: #131a26; border: 1px solid var(--line-soft); border-radius: 10px; padding: 14px; }
+  .reason p { font-size: 12.5px; color: var(--txt-dim); line-height: 1.65; }
+  .reason p + p { margin-top: 9px; }
+  .reason .tag { display: inline-block; background: #1c2433; color: var(--teal); font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; margin: 2px 4px 2px 0; }
+
+  /* timeline / activity */
+  .feed { position: relative; padding-left: 22px; }
+  .feed::before { content: ""; position: absolute; left: 6px; top: 4px; bottom: 4px; width: 2px; background: var(--line); }
+  .feed .ev { position: relative; padding-bottom: 16px; }
+  .feed .ev:last-child { padding-bottom: 0; }
+  .feed .ev .node { position: absolute; left: -22px; top: 2px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--bg-2); }
+  .feed .ev.ai .node { background: var(--accent); }
+  .feed .ev.sys .node { background: var(--teal); }
+  .feed .ev.user .node { background: var(--green); }
+  .feed .ev.alert .node { background: var(--red); }
+  .feed .ev .et { font-size: 12.5px; font-weight: 600; }
+  .feed .ev .et .who { color: var(--accent-2); }
+  .feed .ev .em { font-size: 12px; color: var(--txt-dim); margin-top: 3px; line-height: 1.5; }
+  .feed .ev .tm { font-size: 10.5px; color: var(--txt-faint); margin-top: 4px; }
+
+  .dfoot { padding: 16px 24px; border-top: 1px solid var(--line); display: flex; gap: 10px; background: var(--bg-2); }
+  .dfoot .btn { flex: 1; justify-content: center; }
+  .btn-ok { background: #133227; color: #6ee7b7; border: 1px solid #1d5040; }
+  .btn-ok:hover { background: #18402f; }
+  .btn-danger { background: #331717; color: #fca5a5; border: 1px solid #5a2424; }
+  .btn-danger:hover { background: #401d1d; }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: #1c2433; border: 1px solid #34415a; border-radius: 11px; padding: 13px 18px; display: flex; align-items: center; gap: 11px;
+    box-shadow: var(--shadow); z-index: 80; transition: .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast svg { width: 18px; height: 18px; color: var(--green); }
+  .toast b { font-size: 13px; }
+  .toast span { font-size: 11.5px; color: var(--txt-dim); }
+
+  .scan-overlay { position: fixed; inset: 0; z-index: 70; background: rgba(8,11,17,.78); backdrop-filter: blur(4px); display: none; place-items: center; }
+  .scan-overlay.show { display: grid; }
+  .scan-box { width: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px; text-align: center; box-shadow: var(--shadow); }
+  .scan-box .sp { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 14px; background: linear-gradient(135deg, var(--accent-2), var(--accent)); display: grid; place-items: center; animation: float 1.6s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  .scan-box .sp svg { width: 28px; height: 28px; }
+  .scan-box h3 { font-size: 16px; font-weight: 700; }
+  .scan-box .sl { font-size: 12.5px; color: var(--txt-dim); margin-top: 16px; text-align: left; min-height: 18px; transition: .2s; display: flex; align-items: center; gap: 9px; }
+  .scan-box .sl svg { width: 14px; height: 14px; color: var(--green); }
+  .scan-box .pbar { height: 6px; border-radius: 4px; background: #232b38; margin-top: 18px; overflow: hidden; }
+  .scan-box .pbar i { display: block; height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--teal)); transition: width .3s; }
+
+  @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <div>
+        <div class="name">SentinelRisk</div>
+        <div class="sub">Assessment Console</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="lbl">Workspace</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Risk Overview
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Live Assessments <span class="badge">23</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Escalation Queue <span class="badge">6</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        Audit Trail
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="lbl">Configuration</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-5 0V4.5A2.5 2.5 0 0 1 9.5 2z"/><path d="M14.5 6A2.5 2.5 0 0 1 17 8.5v11a2.5 2.5 0 0 1-5 0"/></svg>
+        Scoring Models
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </div>
+    </div>
+
+    <div class="side-foot">
+      <div class="ai-card">
+        <div class="row">
+          <span class="dot"></span>
+          <span class="t">RiskCore Engine</span>
+        </div>
+        <div class="meter"><i></i></div>
+        <div class="cap">Model v4.2 · 78% capacity · last sync 2m ago</div>
+      </div>
+      <div class="user">
+        <div class="av">AM</div>
+        <div>
+          <div class="nm">Ava Morgan</div>
+          <div class="rl">Risk Analyst · Tier 2</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1>Risk Overview</h1>
+        <div class="crumb">Vendor &amp; Counterparty Risk · Q2 2026 cycle</div>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search entities, IDs, owners…" />
+      </div>
+      <div class="icon-btn" title="Notifications"><span class="ping"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <div class="icon-btn" title="Export">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- AI banner -->
+      <div class="ai-banner">
+        <div class="ai-ic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V11a2 2 0 0 0 2 2 2 2 0 0 1 2 2v1.5c1.2.7 2 2 2 3.5"/><path d="M12 2a4 4 0 0 0-4 4c0 1.5.8 2.8 2 3.5V11a2 2 0 0 1-2 2 2 2 0 0 0-2 2v1.5c-1.2.7-2 2-2 3.5"/><circle cx="12" cy="20" r="2"/></svg>
+        </div>
+        <div>
+          <div class="at">AI Risk Engine ready to assess your portfolio</div>
+          <div class="ad">Upload financials, run a batch evaluation, and get scored risk profiles with reasoning in seconds.</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost" onclick="showToast('Documents queued','3 files added to intake for extraction')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+            Upload Documents
+          </button>
+          <button class="btn btn-primary" onclick="runAssessment()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Run AI Assessment
+          </button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi c1">
+          <div class="kt"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Entities Assessed</div>
+          <div class="kv">248</div>
+          <div class="kd"><span class="up">▲ 18</span> new this cycle</div>
+        </div>
+        <div class="kpi c2">
+          <div class="kt"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></span> Avg Risk Score</div>
+          <div class="kv">61.4</div>
+          <div class="kd"><span class="up">▲ 3.2</span> vs last quarter</div>
+        </div>
+        <div class="kpi c3">
+          <div class="kt"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span> Critical Flags</div>
+          <div class="kv">14</div>
+          <div class="kd"><span class="down">▲ 5</span> require escalation</div>
+        </div>
+        <div class="kpi c4">
+          <div class="kt"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5"/><circle cx="12" cy="20" r="2"/><path d="M8 6c0 1.5.8 2.8 2 3.5"/></svg></span> AI Auto-Cleared</div>
+          <div class="kv">71%</div>
+          <div class="kd"><span class="up">▲ 6%</span> efficiency gain</div>
+        </div>
+      </div>
+
+      <!-- Split: gauge + trend -->
+      <div class="split">
+        <div class="panel">
+          <div class="ph"><h3>Portfolio Risk Distribution</h3><span class="hint">248 entities scored</span></div>
+          <div class="gauge-wrap">
+            <div class="gauge">
+              <svg viewBox="0 0 120 120" style="transform: rotate(-90deg)">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#1e2530" stroke-width="14"/>
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#34d399" stroke-width="14" stroke-dasharray="314" stroke-dashoffset="62.8" stroke-linecap="round"/>
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#fbbf24" stroke-width="14" stroke-dasharray="314" stroke-dashoffset="172.7" stroke-linecap="round" transform="rotate(72 60 60)"/>
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#fb923c" stroke-width="14" stroke-dasharray="314" stroke-dashoffset="232.4" stroke-linecap="round" transform="rotate(166 60 60)"/>
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#f87171" stroke-width="14" stroke-dasharray="314" stroke-dashoffset="270.0" stroke-linecap="round" transform="rotate(217 60 60)"/>
+              </svg>
+              <div class="score">
+                <b>61</b>
+                <span>Index</span>
+                <div class="tier">Elevated</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="lrow"><span class="sw" style="background:var(--green)"></span><span class="ln">Low (0–40)</span><div class="lbar"><i style="width:82%;background:var(--green)"></i></div><span class="lv">98</span></div>
+              <div class="lrow"><span class="sw" style="background:var(--amber)"></span><span class="ln">Medium (41–60)</span><div class="lbar"><i style="width:60%;background:var(--amber)"></i></div><span class="lv">71</span></div>
+              <div class="lrow"><span class="sw" style="background:var(--orange)"></span><span class="ln">High (61–80)</span><div class="lbar"><i style="width:54%;background:var(--orange)"></i></div><span class="lv">65</span></div>
+              <div class="lrow"><span class="sw" style="background:var(--red)"></span><span class="ln">Critical (81–100)</span><div class="lbar"><i style="width:12%;background:var(--red)"></i></div><span class="lv">14</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><h3>Risk Volume — Last 8 Weeks</h3><span class="hint">stacked by tier</span></div>
+          <div class="trend" id="trend"></div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="tabs">
+          <div class="tab active" data-tab="all">All <span class="cnt" id="cAll">0</span></div>
+          <div class="tab" data-tab="review">Needs Review <span class="cnt" id="cReview">0</span></div>
+          <div class="tab" data-tab="escalated">Escalated <span class="cnt" id="cEsc">0</span></div>
+          <div class="tab" data-tab="cleared">Cleared <span class="cnt" id="cClr">0</span></div>
+        </div>
+        <div class="chip active" data-sev="all">All Severities</div>
+        <div class="chip" data-sev="critical">Critical</div>
+        <div class="chip" data-sev="high">High</div>
+        <div class="chip" data-sev="medium">Medium</div>
+        <div class="chip" data-sev="low">Low</div>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost" onclick="showToast('Report generated','Risk summary exported to PDF')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          Generate Report
+        </button>
+      </div>
+
+      <!-- Cards grid -->
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh">
+    <div class="ent" id="dEnt"></div>
+    <div>
+      <div class="dt" id="dName"></div>
+      <div class="ds" id="dSub"></div>
+    </div>
+    <div class="x" onclick="closeDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+  </div>
+  <div class="db" id="dBody"></div>
+  <div class="dfoot">
+    <button class="btn btn-danger" onclick="actDrawer('escalated')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M2 12h4M4.93 19.07l2.83-2.83"/></svg>
+      Escalate
+    </button>
+    <button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="showToast('Sent to analyst','Assigned for manual review')">Reassign</button>
+    <button class="btn btn-ok" onclick="actDrawer('cleared')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+      Clear Risk
+    </button>
+  </div>
+</aside>
+
+<!-- Scan overlay -->
+<div class="scan-overlay" id="scanOverlay">
+  <div class="scan-box">
+    <div class="sp"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5"/><circle cx="12" cy="20" r="2"/><path d="M8 6c0 1.5.8 2.8 2 3.5"/><path d="M2 12h4M18 12h4"/></svg></div>
+    <h3>Running AI Assessment…</h3>
+    <div class="sl" id="scanLine">Initializing RiskCore engine…</div>
+    <div class="pbar"><i id="scanBar"></i></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+  <div><b id="toastT">Done</b><br><span id="toastM">message</span></div>
+</div>
+
+<script>
+const ENT_COLORS = [
+  ['#fb7185','#f43f5e'], ['#2dd4bf','#34d399'], ['#f472b6','#fb923c'],
+  ['#fbbf24','#fb923c'], ['#f43f5e','#fb7185'], ['#34d399','#2dd4bf']
+];
+
+const DATA = [
+  { id:'RA-2041', name:'Meridian Capital Partners', type:'Financial Counterparty', sector:'Investment Banking', country:'United States', score:87, sev:'critical', status:'escalated', owner:'Ava Morgan', updated:'2026-06-22', conf:91,
+    blurb:'Sharp leverage spike and two covenant breaches detected in Q1 filings. Recommends escalation.',
+    factors:[['Financial Leverage',88],['Liquidity Coverage',74],['Compliance History',92],['Market Volatility',61],['Concentration',45]],
+    fields:[['Legal Entity','Meridian Capital Partners LLC',98],['Tax ID','EIN 47-2918340',96],['Annual Revenue','$1.42B',88],['Credit Rating','BB- (downgraded)',82],['Debt/Equity','3.8x',71],['Last Audit','2026-03-14',95]],
+    reason:'The engine flagged Meridian Capital due to a 42% quarter-over-quarter increase in financial leverage, combined with two reported covenant breaches in the March filing. Liquidity coverage dropped below the 1.1x policy threshold. Two adverse media mentions and a recent credit downgrade from BB to BB- compound the exposure.',
+    tags:['Covenant Breach','Leverage Spike','Credit Downgrade','Adverse Media'] },
+  { id:'RA-2038', name:'Northwind Logistics', type:'Vendor', sector:'Supply Chain', country:'Germany', score:54, sev:'medium', status:'review', owner:'Liam Chen', updated:'2026-06-21', conf:84,
+    blurb:'Stable operations but flagged a delayed sanctions screening renewal. Suggests manual review.',
+    factors:[['Financial Leverage',48],['Liquidity Coverage',62],['Compliance History',58],['Market Volatility',40],['Concentration',71]],
+    fields:[['Legal Entity','Northwind Logistics GmbH',97],['Tax ID','DE 814207533',93],['Annual Revenue','€340M',86],['Credit Rating','BBB',90],['Debt/Equity','1.4x',88],['Last Audit','2026-02-09',91]],
+    reason:'Northwind shows healthy fundamentals overall. The primary concern is an expired third-party sanctions screening certificate (lapsed 18 days). Concentration risk is moderate-high since 71% of contracted volume routes through a single port facility. No financial distress indicators present.',
+    tags:['Screening Lapsed','Single-Source Risk'] },
+  { id:'RA-2035', name:'Apex Renewable Energy', type:'Investment', sector:'Clean Energy', country:'Spain', score:38, sev:'low', status:'cleared', owner:'Sofia Reyes', updated:'2026-06-20', conf:95,
+    blurb:'Strong balance sheet and clean compliance record. Auto-cleared with high confidence.',
+    factors:[['Financial Leverage',32],['Liquidity Coverage',24],['Compliance History',18],['Market Volatility',55],['Concentration',38]],
+    fields:[['Legal Entity','Apex Renewable Energy S.A.',99],['Tax ID','ES A87654321',94],['Annual Revenue','€612M',92],['Credit Rating','A-',96],['Debt/Equity','0.9x',93],['Last Audit','2026-04-02',97]],
+    reason:'Apex Renewable presents a low-risk profile with strong liquidity (2.4x coverage) and an A- credit rating. Compliance history is spotless across the last 5 cycles. The only elevated factor is sector market volatility tied to energy subsidy policy, which remains within tolerance.',
+    tags:['Clean Record','Strong Liquidity'] },
+  { id:'RA-2030', name:'Volta Semiconductor', type:'Vendor', sector:'Manufacturing', country:'Taiwan', score:79, sev:'high', status:'escalated', owner:'Ava Morgan', updated:'2026-06-22', conf:88,
+    blurb:'Geopolitical concentration and supply dependency push score into high band.',
+    factors:[['Financial Leverage',58],['Liquidity Coverage',49],['Compliance History',42],['Market Volatility',84],['Concentration',91]],
+    fields:[['Legal Entity','Volta Semiconductor Corp.',96],['Tax ID','TW 28471055',89],['Annual Revenue','$3.1B',90],['Credit Rating','BBB+',91],['Debt/Equity','1.7x',85],['Last Audit','2026-01-28',88]],
+    reason:'Volta is financially sound but carries elevated geopolitical and concentration risk. 91% of critical component supply is sourced from a single region exposed to escalating trade restrictions. Market volatility in the semiconductor sector is at a 5-year high. Recommend contingency sourcing review.',
+    tags:['Geopolitical Exposure','Concentration','Supply Dependency'] },
+  { id:'RA-2027', name:'Cascade Mutual Insurance', type:'Financial Counterparty', sector:'Insurance', country:'Canada', score:46, sev:'medium', status:'review', owner:'Liam Chen', updated:'2026-06-19', conf:80,
+    blurb:'Reserve adequacy within range; AI requests a human check on a recent claims spike.',
+    factors:[['Financial Leverage',41],['Liquidity Coverage',38],['Compliance History',33],['Market Volatility',52],['Concentration',60]],
+    fields:[['Legal Entity','Cascade Mutual Insurance Co.',95],['Tax ID','CA 740129833',88],['Annual Revenue','$890M',84],['Credit Rating','A',93],['Debt/Equity','1.1x',90],['Last Audit','2026-03-30',92]],
+    reason:'Cascade Mutual maintains adequate reserves and an A rating. A 23% spike in catastrophe claims this quarter triggered a review flag — though within stress-test bounds, the engine has lower confidence on the loss-reserve projection and routes this for analyst confirmation.',
+    tags:['Claims Spike','Lower Confidence'] },
+  { id:'RA-2024', name:'Solaris Pharma Group', type:'Vendor', sector:'Pharmaceutical', country:'Switzerland', score:33, sev:'low', status:'cleared', owner:'Sofia Reyes', updated:'2026-06-18', conf:94,
+    blurb:'No adverse findings. Regulatory standing excellent. Auto-cleared.',
+    factors:[['Financial Leverage',28],['Liquidity Coverage',30],['Compliance History',22],['Market Volatility',44],['Concentration',35]],
+    fields:[['Legal Entity','Solaris Pharma Group AG',98],['Tax ID','CH 487102994',95],['Annual Revenue','CHF 2.0B',93],['Credit Rating','A+',97],['Debt/Equity','0.7x',94],['Last Audit','2026-04-11',96]],
+    reason:'Solaris Pharma scores low across every assessed dimension. Excellent regulatory standing with zero open findings from health authorities. Strong cash position and conservative leverage. No watchlist or sanctions matches.',
+    tags:['Excellent Standing','Low Leverage'] },
+  { id:'RA-2019', name:'Granite Construction Holdings', type:'Vendor', sector:'Construction', country:'United States', score:68, sev:'high', status:'review', owner:'Marcus Webb', updated:'2026-06-21', conf:77,
+    blurb:'Project backlog masks margin compression; AI confidence is moderate.',
+    factors:[['Financial Leverage',71],['Liquidity Coverage',66],['Compliance History',48],['Market Volatility',58],['Concentration',64]],
+    fields:[['Legal Entity','Granite Construction Holdings Inc.',94],['Tax ID','EIN 82-4471028',92],['Annual Revenue','$1.1B',85],['Credit Rating','BB+',83],['Debt/Equity','2.6x',79],['Last Audit','2026-02-18',86]],
+    reason:'Granite carries a healthy project backlog but the engine detected margin compression of 310 bps year-over-year and rising working-capital strain. Two minor OSHA citations affect compliance scoring. Source documents had inconsistent revenue recognition notes, lowering extraction confidence.',
+    tags:['Margin Compression','Doc Inconsistency','Working Capital'] },
+  { id:'RA-2015', name:'Helix Biotech Ventures', type:'Investment', sector:'Biotech', country:'United Kingdom', score:72, sev:'high', status:'review', owner:'Marcus Webb', updated:'2026-06-20', conf:73,
+    blurb:'Pre-revenue burn rate and runway concerns drive an elevated score.',
+    factors:[['Financial Leverage',55],['Liquidity Coverage',83],['Compliance History',30],['Market Volatility',76],['Concentration',58]],
+    fields:[['Legal Entity','Helix Biotech Ventures Ltd.',93],['Tax ID','GB 411903287',87],['Annual Revenue','£42M',79],['Credit Rating','Unrated',60],['Debt/Equity','0.4x',81],['Last Audit','2026-03-05',84]],
+    reason:'Helix is a pre-revenue biotech with strong IP but a runway of roughly 11 months at current burn. Liquidity coverage is the dominant risk factor. The entity is unrated, which caps extraction confidence on creditworthiness. Pipeline depends on a single Phase II trial outcome.',
+    tags:['Burn Rate','Single Catalyst','Unrated'] },
+  { id:'RA-2011', name:'Pacific Trade Finance', type:'Financial Counterparty', sector:'Trade Finance', country:'Singapore', score:91, sev:'critical', status:'escalated', owner:'Ava Morgan', updated:'2026-06-22', conf:86,
+    blurb:'Two negative-news matches and a PEP linkage. Strong escalation recommendation.',
+    factors:[['Financial Leverage',64],['Liquidity Coverage',57],['Compliance History',95],['Market Volatility',62],['Concentration',70]],
+    fields:[['Legal Entity','Pacific Trade Finance Pte Ltd',92],['Tax ID','SG 200817744E',88],['Annual Revenue','$520M',81],['Credit Rating','BB',80],['Debt/Equity','2.9x',77],['Last Audit','2026-01-15',83]],
+    reason:'Pacific Trade Finance triggered the highest compliance-risk weight in the portfolio. The engine matched a beneficial owner to a politically exposed person (PEP) list and surfaced two adverse-media articles alleging trade-based money-laundering exposure. These require immediate enhanced due diligence.',
+    tags:['PEP Match','Adverse Media','EDD Required','TBML Risk'] },
+  { id:'RA-2008', name:'Lumen Data Centers', type:'Vendor', sector:'Technology', country:'Ireland', score:42, sev:'medium', status:'cleared', owner:'Sofia Reyes', updated:'2026-06-17', conf:90,
+    blurb:'Solid infrastructure provider; minor ESG note logged but cleared.',
+    factors:[['Financial Leverage',45],['Liquidity Coverage',40],['Compliance History',28],['Market Volatility',38],['Concentration',55]],
+    fields:[['Legal Entity','Lumen Data Centers DAC',96],['Tax ID','IE 6388291K',92],['Annual Revenue','€780M',89],['Credit Rating','BBB+',92],['Debt/Equity','1.9x',87],['Last Audit','2026-03-22',90]],
+    reason:'Lumen Data Centers presents a balanced profile with stable contracted revenue and investment-grade credit. The only note is an ESG observation on energy-mix disclosure, which does not breach policy. Cleared with high confidence after document extraction.',
+    tags:['ESG Note','Investment Grade'] },
+  { id:'RA-2003', name:'Atlas Mining Corporation', type:'Investment', sector:'Mining & Metals', country:'Australia', score:64, sev:'high', status:'review', owner:'Liam Chen', updated:'2026-06-16', conf:82,
+    blurb:'Commodity price exposure and environmental liabilities raise the profile.',
+    factors:[['Financial Leverage',60],['Liquidity Coverage',52],['Compliance History',54],['Market Volatility',79],['Concentration',62]],
+    fields:[['Legal Entity','Atlas Mining Corporation Ltd',95],['Tax ID','AU 51004889720',90],['Annual Revenue','$2.3B',88],['Credit Rating','BBB',89],['Debt/Equity','1.8x',86],['Last Audit','2026-02-27',88]],
+    reason:'Atlas Mining is exposed to significant commodity price volatility and carries contingent environmental remediation liabilities estimated at $140M. Compliance scoring is affected by an open regulatory inquiry into a tailings facility. Otherwise financially resilient with diversified output.',
+    tags:['Commodity Exposure','Environmental Liability','Open Inquiry'] },
+  { id:'RA-1998', name:'Bluepeak Asset Management', type:'Financial Counterparty', sector:'Asset Management', country:'United States', score:29, sev:'low', status:'cleared', owner:'Sofia Reyes', updated:'2026-06-15', conf:96,
+    blurb:'Conservative mandate, excellent controls. Lowest score in the portfolio.',
+    factors:[['Financial Leverage',22],['Liquidity Coverage',18],['Compliance History',15],['Market Volatility',48],['Concentration',30]],
+    fields:[['Legal Entity','Bluepeak Asset Management LP',99],['Tax ID','EIN 35-7740291',97],['Annual Revenue','$410M',91],['Credit Rating','A+',98],['Debt/Equity','0.3x',95],['Last Audit','2026-04-19',97]],
+    reason:'Bluepeak Asset Management earns the lowest risk score in the current cycle. It operates a conservative, fully-collateralized mandate with strong governance and no leverage of concern. Compliance, liquidity, and leverage factors are all in the lowest band.',
+    tags:['Conservative Mandate','Top Controls'] },
+  { id:'RA-1994', name:'Orion Telecom Networks', type:'Vendor', sector:'Telecommunications', country:'Brazil', score:58, sev:'medium', status:'review', owner:'Marcus Webb', updated:'2026-06-14', conf:78,
+    blurb:'FX exposure and regulatory transition flagged for analyst confirmation.',
+    factors:[['Financial Leverage',56],['Liquidity Coverage',60],['Compliance History',49],['Market Volatility',67],['Concentration',53]],
+    fields:[['Legal Entity','Orion Telecom Networks S.A.',93],['Tax ID','BR 47.881.302/0001',85],['Annual Revenue','R$ 5.4B',82],['Credit Rating','BB+',84],['Debt/Equity','2.2x',80],['Last Audit','2026-02-05',83]],
+    reason:'Orion Telecom faces currency-translation exposure on USD-denominated debt and is navigating a national spectrum-licensing transition. The engine has moderate confidence given mixed-quality filings and routes the case for human verification of the FX hedge position.',
+    tags:['FX Exposure','Regulatory Transition'] },
+  { id:'RA-1989', name:'Kestrel Defense Systems', type:'Vendor', sector:'Aerospace & Defense', country:'United States', score:83, sev:'critical', status:'escalated', owner:'Ava Morgan', updated:'2026-06-22', conf:84,
+    blurb:'Export-control sensitivity and a sanctions-adjacency match drive escalation.',
+    factors:[['Financial Leverage',50],['Liquidity Coverage',44],['Compliance History',89],['Market Volatility',46],['Concentration',73]],
+    fields:[['Legal Entity','Kestrel Defense Systems Inc.',94],['Tax ID','EIN 26-9981077',91],['Annual Revenue','$1.8B',87],['Credit Rating','BBB',88],['Debt/Equity','1.5x',86],['Last Audit','2026-01-31',85]],
+    reason:'Kestrel Defense Systems is fundamentally stable but trips a high compliance weight due to export-control (ITAR) sensitivity and a second-degree ownership link to an entity adjacent to a sanctions list. The combination mandates enhanced due diligence and legal review before clearance.',
+    tags:['Export Control','Sanctions Adjacency','EDD Required'] },
+  { id:'RA-1985', name:'Verde Agro Holdings', type:'Investment', sector:'Agriculture', country:'Argentina', score:51, sev:'medium', status:'cleared', owner:'Liam Chen', updated:'2026-06-13', conf:81,
+    blurb:'Weather and FX risk noted but within mandate. Cleared after review.',
+    factors:[['Financial Leverage',47],['Liquidity Coverage',55],['Compliance History',39],['Market Volatility',70],['Concentration',58]],
+    fields:[['Legal Entity','Verde Agro Holdings S.A.',92],['Tax ID','AR 30-71029384',86],['Annual Revenue','$680M',83],['Credit Rating','BB',82],['Debt/Equity','1.6x',84],['Last Audit','2026-03-08',85]],
+    reason:'Verde Agro shows seasonal weather sensitivity and exposure to peso volatility, both inherent to the agriculture sector and within mandate tolerance. After analyst review of hedging arrangements, the case was cleared with documented mitigants.',
+    tags:['Weather Risk','FX Exposure','Cleared w/ Mitigants'] },
+  { id:'RA-1980', name:'Sterling Bridge Bank', type:'Financial Counterparty', sector:'Commercial Banking', country:'United Kingdom', score:76, sev:'high', status:'review', owner:'Marcus Webb', updated:'2026-06-12', conf:79,
+    blurb:'CRE loan concentration and rising NPL ratio flagged for review.',
+    factors:[['Financial Leverage',69],['Liquidity Coverage',58],['Compliance History',44],['Market Volatility',60],['Concentration',81]],
+    fields:[['Legal Entity','Sterling Bridge Bank plc',94],['Tax ID','GB 882047119',89],['Annual Revenue','£1.3B',86],['Credit Rating','BBB-',82],['Debt/Equity','—',70],['Last Audit','2026-02-21',87]],
+    reason:'Sterling Bridge Bank carries elevated commercial real-estate loan concentration (38% of the book) at a time of sector stress. The non-performing-loan ratio rose 80 bps this quarter. Capital ratios remain above regulatory minimums, but the engine routes this for review of provisioning adequacy.',
+    tags:['CRE Concentration','Rising NPLs','Provisioning Review'] },
+];
+
+let activeTab = 'all', activeSev = 'all', searchTerm = '';
+
+function entInitials(name){ return name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function entColor(i){ const c = ENT_COLORS[i % ENT_COLORS.length]; return `linear-gradient(135deg,${c[0]},${c[1]})`; }
+function scoreColor(s){ if(s>=81) return 'var(--red)'; if(s>=61) return 'var(--orange)'; if(s>=41) return 'var(--amber)'; return 'var(--green)'; }
+function sevColor(s){ return {critical:'var(--red)',high:'var(--orange)',medium:'var(--amber)',low:'var(--green)'}[s]; }
+function statusLabel(s){ return {review:'Needs Review',escalated:'Escalated',cleared:'Cleared',flagged:'Flagged'}[s] || s; }
+
+function filtered(){
+  return DATA.filter(d=>{
+    if(activeTab==='review' && d.status!=='review') return false;
+    if(activeTab==='escalated' && d.status!=='escalated') return false;
+    if(activeTab==='cleared' && d.status!=='cleared') return false;
+    if(activeSev!=='all' && d.sev!==activeSev) return false;
+    if(searchTerm){
+      const t = (d.name+' '+d.id+' '+d.owner+' '+d.sector+' '+d.country).toLowerCase();
+      if(!t.includes(searchTerm)) return false;
+    }
+    return true;
+  });
+}
+
+function render(){
+  const g = document.getElementById('grid');
+  const list = filtered();
+  g.innerHTML = '';
+  if(!list.length){
+    g.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+      <b>No assessments match your filters</b>
+      Try a different tab, severity, or clear your search.
+    </div>`;
+    return;
+  }
+  list.forEach(d=>{
+    const i = DATA.indexOf(d);
+    const card = document.createElement('div');
+    card.className = 'rcard';
+    card.onclick = ()=>openDrawer(d.id);
+    card.innerHTML = `
+      <div class="strip" style="background:linear-gradient(90deg,${sevColor(d.sev)},${sevColor(d.sev)}55)"></div>
+      <div class="body">
+        <div class="top">
+          <div class="ent" style="background:${entColor(i)}">${entInitials(d.name)}</div>
+          <div>
+            <div class="nm">${d.name}</div>
+            <div class="id">${d.id} · ${d.type}</div>
+          </div>
+          <div class="scorebox">
+            <b style="color:${scoreColor(d.score)}">${d.score}</b><br>
+            <span>risk</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="pill ${d.sev}"><span class="pd"></span>${d.sev.charAt(0).toUpperCase()+d.sev.slice(1)}</span>
+          <span class="pill ${d.status}"><span class="pd"></span>${statusLabel(d.status)}</span>
+        </div>
+        <div class="ai-blurb">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5"/><circle cx="12" cy="20" r="2"/><path d="M8 6c0 1.5.8 2.8 2 3.5"/></svg>
+          ${d.blurb}
+        </div>
+      </div>
+      <div class="foot">
+        <span style="font-size:11px;color:var(--txt-faint)">${d.country} · ${d.owner}</span>
+        <div class="conf" style="margin-left:auto">AI conf <div class="cbar"><i style="width:${d.conf}%"></i></div> ${d.conf}%</div>
+      </div>`;
+    g.appendChild(card);
+  });
+}
+
+function updateCounts(){
+  document.getElementById('cAll').textContent = DATA.length;
+  document.getElementById('cReview').textContent = DATA.filter(d=>d.status==='review').length;
+  document.getElementById('cEsc').textContent = DATA.filter(d=>d.status==='escalated').length;
+  document.getElementById('cClr').textContent = DATA.filter(d=>d.status==='cleared').length;
+}
+
+let drawerId = null;
+function openDrawer(id){
+  const d = DATA.find(x=>x.id===id); if(!d) return;
+  drawerId = id;
+  const i = DATA.indexOf(d);
+  document.getElementById('dEnt').style.background = entColor(i);
+  document.getElementById('dEnt').textContent = entInitials(d.name);
+  document.getElementById('dName').textContent = d.name;
+  document.getElementById('dSub').textContent = `${d.id} · ${d.type} · ${d.sector} · ${d.country}`;
+
+  const confClass = c => c>=90?'hi':(c>=75?'mid':'lo');
+  const circ = 2*Math.PI*42;
+  const off = circ * (1 - d.score/100);
+
+  let body = `
+    <div class="dscore">
+      <div class="ring">
+        <svg viewBox="0 0 100 100" style="transform:rotate(-90deg)">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#1e2530" stroke-width="9"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="${scoreColor(d.score)}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/>
+        </svg>
+        <div class="v"><b style="color:${scoreColor(d.score)}">${d.score}</b><span>RISK</span></div>
+      </div>
+      <div class="info">
+        <b>${d.sev.charAt(0).toUpperCase()+d.sev.slice(1)} risk · ${statusLabel(d.status)}</b>
+        <p>Scored by RiskCore v4.2 on ${d.updated}. Extraction confidence ${d.conf}%. Owner: ${d.owner}.</p>
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="st">Extracted Entity Profile <span class="aiTag">AI</span></div>
+      <div class="fields">
+        ${d.fields.map(f=>`<div class="fld"><div class="fk">${f[0]}<span class="conf-badge ${confClass(f[2])}">${f[2]}%</span></div><div class="fv">${f[1]}</div></div>`).join('')}
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="st">Risk Factor Breakdown <span class="aiTag">AI</span></div>
+      ${d.factors.map(f=>`<div class="factor"><span class="fn">${f[0]}</span><div class="fbar"><i style="width:${f[1]}%;background:${scoreColor(f[1])}"></i></div><span class="fp" style="color:${scoreColor(f[1])}">${f[1]}</span></div>`).join('')}
+    </div>
+
+    <div class="sect">
+      <div class="st">AI Reasoning <span class="aiTag">AI</span></div>
+      <div class="reason">
+        <p>${d.reason}</p>
+        <p>${d.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</p>
+      </div>
+    </div>
+
+    <div class="sect">
+      <div class="st">Assessment Activity</div>
+      <div class="feed">
+        <div class="ev user"><span class="node"></span><div class="et">${d.owner} <span style="color:var(--txt-faint);font-weight:400">opened the case</span></div><div class="em">Reviewing extracted profile and AI reasoning.</div><div class="tm">${d.updated} · 09:42</div></div>
+        <div class="ev ${d.status==='escalated'?'alert':'ai'}"><span class="node"></span><div class="et"><span class="who">RiskCore Engine</span> ${d.status==='escalated'?'recommended escalation':(d.status==='cleared'?'auto-cleared the entity':'routed for manual review')}</div><div class="em">Final risk score ${d.score} (${d.sev}) computed across 5 weighted factors.</div><div class="tm">${d.updated} · 08:17</div></div>
+        <div class="ev ai"><span class="node"></span><div class="et"><span class="who">RiskCore Engine</span> matched watchlists &amp; adverse media</div><div class="em">Screened against sanctions, PEP, and 14 negative-news sources.</div><div class="tm">${d.updated} · 08:16</div></div>
+        <div class="ev sys"><span class="node"></span><div class="et"><span class="who">Intake</span> extracted ${d.fields.length} fields from 4 documents</div><div class="em">Financial statements and registry filings parsed; confidence ${d.conf}%.</div><div class="tm">${d.updated} · 08:15</div></div>
+      </div>
+    </div>`;
+  document.getElementById('dBody').innerHTML = body;
+  document.getElementById('dBody').scrollTop = 0;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('scrim').classList.add('open');
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('scrim').classList.remove('open');
+  drawerId = null;
+}
+function actDrawer(status){
+  const d = DATA.find(x=>x.id===drawerId); if(!d) return;
+  d.status = status;
+  if(status==='escalated'){ d.sev = d.score>=81?'critical':'high'; }
+  if(status==='cleared'){ /* keep sev */ }
+  updateCounts(); render(); closeDrawer();
+  showToast(status==='escalated'?'Escalated':'Risk cleared', `${d.name} (${d.id}) marked as ${statusLabel(status)}`);
+}
+
+// Tabs & chips
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); activeTab = t.dataset.tab; render();
+}));
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active'); activeSev = c.dataset.sev; render();
+}));
+document.getElementById('searchInput').addEventListener('input',e=>{ searchTerm = e.target.value.toLowerCase().trim(); render(); });
+
+// Toast
+let toastTimer;
+function showToast(t,m){
+  document.getElementById('toastT').textContent = t;
+  document.getElementById('toastM').textContent = m;
+  const el = document.getElementById('toast'); el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove('show'), 3200);
+}
+
+// Trend chart
+const TREND = [
+  [18,9,5,1],[20,8,6,2],[16,11,7,2],[22,10,5,1],[19,12,8,3],[24,11,6,2],[21,13,9,4],[23,11,7,3]
+];
+const WEEKS = ['W19','W20','W21','W22','W23','W24','W25','W26'];
+function buildTrend(){
+  const wrap = document.getElementById('trend');
+  const colors = ['var(--green)','var(--amber)','var(--orange)','var(--red)'];
+  const max = Math.max(...TREND.map(c=>c.reduce((a,b)=>a+b,0)));
+  TREND.forEach((c,idx)=>{
+    const total = c.reduce((a,b)=>a+b,0);
+    const h = (total/max)*100;
+    const col = document.createElement('div');
+    col.className = 'col';
+    let stack = `<div class="stack" style="height:${h}%" title="${WEEKS[idx]}: ${total} assessments">`;
+    c.forEach((v,k)=>{ stack += `<i style="height:${(v/total)*100}%;background:${colors[k]}"></i>`; });
+    stack += `</div><span class="lbl">${WEEKS[idx]}</span>`;
+    col.innerHTML = stack;
+    wrap.appendChild(col);
+  });
+}
+
+// AI run simulation
+const SCAN_STEPS = [
+  'Ingesting uploaded documents…',
+  'Extracting entity fields (OCR + parsing)…',
+  'Screening sanctions, PEP & watchlists…',
+  'Scanning adverse media sources…',
+  'Computing weighted risk factors…',
+  'Generating reasoning & recommendations…',
+  'Finalizing risk scores…'
+];
+function runAssessment(){
+  const ov = document.getElementById('scanOverlay'); ov.classList.add('show');
+  const line = document.getElementById('scanLine'); const bar = document.getElementById('scanBar');
+  let i = 0; bar.style.width = '0%';
+  function next(){
+    if(i < SCAN_STEPS.length){
+      const done = i>0 ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>` : '';
+      line.innerHTML = (i>0? `<span style="color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:14px;height:14px"><path d="M20 6L9 17l-5-5"/></svg></span>`:'') + SCAN_STEPS[i];
+      bar.style.width = Math.round(((i+1)/SCAN_STEPS.length)*100)+'%';
+      i++;
+      setTimeout(next, 460);
+    } else {
+      setTimeout(()=>{ ov.classList.remove('show'); showToast('Assessment complete','18 entities scored · 4 new critical flags surfaced'); }, 400);
+    }
+  }
+  next();
+}
+
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+updateCounts();
+render();
+buildTrend();
+</script>
+</body>
+</html>

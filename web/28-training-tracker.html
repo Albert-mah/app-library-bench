@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LearnLoop — Training Tracker</title>
+<!-- nb-spec: machine-readable NocoBase build spec for AI reproduction (invisible to the rendered page). -->
+<script type="application/nb-spec+json">
+{
+  "module": "Training Tracker (LearnLoop)",
+  "prefix": "trn_",
+  "collections": {
+    "trn_categories": {"titleField":"name","fields":{"name":"input","color":"select","icon":"input"}},
+    "trn_instructors": {"titleField":"name","fields":{"name":"input","email":"input","title":"input","department":"input"}},
+    "trn_courses": {"titleField":"title","fields":{"title":"input","code":"input","summary":"textarea","category":"select","format":"select:online|in_person|blended|self_paced","level":"select:beginner|intermediate|advanced","duration_hours":"number","is_mandatory":"boolean","credits":"number","status":"select:active|draft|retired"},"relations":{"category_rel":"m2o trn_categories (fk category_id)","instructor":"m2o trn_instructors (fk instructor_id)"}},
+    "trn_sessions": {"titleField":"title","fields":{"title":"input","starts_at":"datetime","ends_at":"datetime","location":"input","seats_total":"integer","seats_taken":"integer","status":"select:scheduled|in_progress|completed|cancelled"},"relations":{"course":"m2o trn_courses (fk course_id)","instructor":"m2o trn_instructors (fk instructor_id)"}},
+    "trn_enrollments": {"titleField":"learner_name","fields":{"learner_name":"input","learner_email":"input","department":"input","progress_pct":"integer","status":"select:not_started|in_progress|completed|overdue","score":"integer","enrolled_at":"date","completed_at":"date","due_at":"date"},"relations":{"course":"m2o trn_courses (fk course_id)","session":"m2o trn_sessions (fk session_id)"}}
+  },
+  "page": {
+    "name": "Training Tracker",
+    "layout": "left = course catalog as native GridCard (trn_courses) with JSField card (progress bar + meta) + facet/pill cross-filter | right = training Calendar (trn_sessions, colorField=category) above a native List of upcoming sessions with JS item",
+    "regions": [
+      {"id":"summary","block":"JSBlock (no data container) — KPI stat strip","intent":"top-line training metrics","shows":["active courses","avg completion %","completions this month","overdue learners"]},
+      {"id":"facets","block":"FilterForm + pill JSItemAction (toolbar)","intent":"filter the catalog by category / format / mandatory","drives":"trn_courses GridCard via cross-block addFilterGroup + refresh"},
+      {"id":"catalog","block":"native GridCard (trn_courses) + JSField whole-record card","intent":"course catalog cards with completion progress bars","collection":"trn_courses","card":["category color top accent","title + code","instructor + format + duration","mandatory badge","completion progress bar (avg enrollment progress) + enrolled count","level chip"],"behaviors":["cross-block filter from facets","click card -> ctx.openView(course detail, {filterByTk})"]},
+      {"id":"calendar","block":"native Calendar (trn_sessions)","intent":"training calendar of scheduled sessions","collection":"trn_sessions","colorField":"category","titleField":"title","range":"starts_at..ends_at"},
+      {"id":"upcoming","block":"List + JS item (trn_sessions)","intent":"upcoming sessions timeline under the calendar","sort":"starts_at asc","card":["date block","title + course code","instructor + location","seats filled bar (seats_taken/seats_total)","status pill"]}
+    ]
+  },
+  "interactions": ["facet pills/format push addFilterGroup to trn_courses GridCard + refresh","catalog card click opens course detail popup","calendar day click filters the upcoming list","completion progress bar reflects avg enrollment progress per course","seats bar reflects session capacity"],
+  "jsKernels": ["KPI stat strip JSBlock","course card JSField (progress bar + meta)","upcoming session List JS item (seats bar)"],
+  "notes": "Container/content rule: data containers are NATIVE blocks (GridCard for the catalog, Calendar + List for sessions); reproduce the custom look (progress bars, seats bars, badges) with a JSField card / List JS item nested INSIDE them. The KPI strip and facet pills are JS (no native equivalent). Do NOT rebuild the catalog or session list as a freestanding JSBlock. progress_pct on enrollments is the source for the per-course completion bar (avg); seats_taken/seats_total drive the session seats bar."
+}
+</script>
+<style>
+  :root{
+    --teal:#13a8a8; --teal-soft:#e6fffb; --teal-line:#87e8de; --teal-deep:#08979c;
+    --ink:#1f2329; --ink-2:#576070; --ink-3:#8a93a3;
+    --line:#f0f2f5; --line-2:#e6e9ef; --bg:#f4f6f9; --card:#fff;
+    --green:#52c41a; --gold:#faad14; --red:#ff4d4f; --blue:#2f80ed; --violet:#7265e6;
+    --r:12px;
+    --shadow:0 1px 2px rgba(16,24,40,.04), 0 8px 22px rgba(16,24,40,.06);
+    --cat-comp:#13a8a8; --cat-lead:#722ed1; --cat-tech:#2f80ed; --cat-safe:#fa8c16; --cat-prod:#eb2f96; --cat-onb:#52c41a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- top bar ---------- */
+  .topbar{
+    height:56px; background:var(--card); border-bottom:1px solid var(--line-2);
+    display:flex; align-items:center; gap:18px; padding:0 24px; position:sticky; top:0; z-index:40;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; letter-spacing:-.2px}
+  .brand .glyph{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(135deg,var(--teal),#36cfc9);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 3px 10px rgba(19,168,168,.4);
+  }
+  .brand small{font-weight:500;color:var(--ink-3);font-size:12px;margin-left:2px}
+  .topnav{display:flex;gap:4px;margin-left:10px}
+  .topnav a{
+    padding:7px 13px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:13px;font-weight:500;
+  }
+  .topnav a.on{background:var(--teal-soft);color:var(--teal-deep)}
+  .topnav a:not(.on):hover{background:var(--line)}
+  .top-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .searchbox{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line-2);border-radius:9px;padding:7px 12px;width:236px}
+  .searchbox input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;width:100%;color:var(--ink)}
+  .searchbox span{color:var(--ink-3);font-size:13px}
+  .acct{display:flex;align-items:center;gap:8px}
+  .acct .ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--teal),#5cdbd3);
+    color:#fff;display:grid;place-items:center;font-weight:600;font-size:12px}
+  .acct .who{line-height:1.15}
+  .acct .who b{font-size:13px}
+  .acct .who span{font-size:11px;color:var(--ink-3)}
+
+  /* ---------- shell ---------- */
+  .shell{max-width:1440px;margin:0 auto;padding:22px 24px 40px}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:20px;flex-wrap:wrap}
+  .page-head h1{font-size:22px;font-weight:700;letter-spacing:-.4px}
+  .page-head p{color:var(--ink-3);font-size:13px;margin-top:3px}
+  .btn{border:none;border-radius:9px;padding:10px 16px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:.13s;display:inline-flex;align-items:center;gap:7px}
+  .btn-primary{background:var(--teal);color:#fff;box-shadow:0 2px 10px rgba(19,168,168,.32)}
+  .btn-primary:hover{background:var(--teal-deep)}
+  .btn-ghost{background:#fff;border:1.5px solid var(--line-2);color:var(--ink-2)}
+  .btn-ghost:hover{border-color:#d0d5dd}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+  .kpi{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:18px;margin-bottom:12px}
+  .kpi.k1 .ic{background:var(--teal-soft);color:var(--teal-deep)}
+  .kpi.k2 .ic{background:#f6ffed;color:#389e0d}
+  .kpi.k3 .ic{background:#f0f5ff;color:#2f54eb}
+  .kpi.k4 .ic{background:#fff1f0;color:#cf1322}
+  .kpi .val{font-size:26px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1}
+  .kpi .lbl{font-size:12.5px;color:var(--ink-3);margin-top:6px}
+  .kpi .delta{position:absolute;top:16px;right:18px;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:11px}
+  .kpi .delta.up{background:#f6ffed;color:#389e0d}
+  .kpi .delta.down{background:#fff1f0;color:#cf1322}
+  .kpi .delta.flat{background:var(--line);color:var(--ink-2)}
+
+  /* ---------- main grid ---------- */
+  .main{display:grid;grid-template-columns:minmax(0,1fr) 396px;gap:22px;align-items:start}
+  @media(max-width:1180px){.main{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+
+  /* ---------- catalog ---------- */
+  .panel{background:var(--card);border:1px solid var(--line-2);border-radius:var(--r);box-shadow:var(--shadow)}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line);gap:12px;flex-wrap:wrap}
+  .panel-head h2{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .panel-head h2 .cnt{font-size:11.5px;color:var(--teal-deep);background:var(--teal-soft);border-radius:11px;padding:2px 9px;font-weight:700}
+  .facets{display:flex;gap:7px;flex-wrap:wrap}
+  .facet{font-size:12px;font-weight:600;color:var(--ink-2);cursor:pointer;padding:5px 11px;border-radius:16px;border:1px solid var(--line-2);background:#fff;display:flex;align-items:center;gap:6px;transition:.13s}
+  .facet:hover{border-color:#d0d5dd}
+  .facet.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .facet .dot{width:8px;height:8px;border-radius:50%}
+
+  .catalog-body{padding:16px 18px}
+  .fmt-row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px}
+  .fmt{font-size:11.5px;font-weight:600;color:var(--ink-3);cursor:pointer;padding:4px 11px;border-radius:14px;border:1px dashed var(--line-2);background:#fafbfc}
+  .fmt.on{background:var(--teal-soft);color:var(--teal-deep);border-color:var(--teal-line);border-style:solid}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));gap:14px}
+  .course{
+    border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden;background:#fff;cursor:pointer;
+    transition:.14s;display:flex;flex-direction:column;
+  }
+  .course:hover{box-shadow:var(--shadow);transform:translateY(-2px);border-color:#d8dde6}
+  .course .accent{height:5px}
+  .course-body{padding:14px 15px 15px;display:flex;flex-direction:column;flex:1}
+  .course-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+  .course-ic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:19px;flex:none}
+  .course-titlewrap{flex:1;min-width:0}
+  .course-title{font-size:14.5px;font-weight:700;line-height:1.3;letter-spacing:-.2px}
+  .course-code{font-size:11.5px;color:var(--ink-3);font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+  .mand{font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:3px 7px;border-radius:6px;background:#fff1f0;color:#cf1322;flex:none;text-transform:uppercase}
+  .course-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:13px}
+  .chip{font-size:11px;font-weight:600;color:var(--ink-2);background:var(--bg);border:1px solid var(--line-2);border-radius:7px;padding:3px 8px;display:flex;align-items:center;gap:4px}
+  .chip .mi{font-size:11px;opacity:.7}
+  .lvl{font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px}
+  .lvl.beginner{background:#f6ffed;color:#389e0d}
+  .lvl.intermediate{background:#fffbe6;color:#d48806}
+  .lvl.advanced{background:#fff0f6;color:#c41d7f}
+  .prog-block{margin-top:auto}
+  .prog-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .prog-meta .pl{font-size:11px;color:var(--ink-3);font-weight:600}
+  .prog-meta .pv{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums}
+  .bar{height:7px;border-radius:5px;background:var(--line-2);overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:5px;transition:width .5s ease}
+  .course-foot{display:flex;align-items:center;justify-content:space-between;margin-top:11px;padding-top:11px;border-top:1px solid var(--line)}
+  .enrolled{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2);font-weight:600}
+  .stack{display:flex}
+  .stack .av{width:21px;height:21px;border-radius:50%;border:2px solid #fff;display:grid;place-items:center;color:#fff;font-size:8.5px;font-weight:700;margin-left:-7px}
+  .stack .av:first-child{margin-left:0}
+  .instr{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:5px}
+  .instr .ia{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:8px;font-weight:700;background:var(--violet)}
+
+  /* ---------- right column: calendar + upcoming ---------- */
+  .side{display:flex;flex-direction:column;gap:22px}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line)}
+  .cal-head h2{font-size:15px;font-weight:700}
+  .cal-nav{display:flex;align-items:center;gap:4px}
+  .cal-nav button{border:1px solid var(--line-2);background:#fff;width:28px;height:28px;border-radius:7px;cursor:pointer;color:var(--ink-2);font-size:13px}
+  .cal-nav button:hover{border-color:var(--teal-line);color:var(--teal-deep)}
+  .cal-nav .mo{font-size:13px;font-weight:700;min-width:96px;text-align:center}
+  .cal-body{padding:12px 14px 16px}
+  .dow{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:6px}
+  .dow span{text-align:center;font-size:10.5px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.3px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cell{aspect-ratio:1/1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:5px;font-size:12px;color:var(--ink-2);cursor:pointer;position:relative;transition:.12s;font-variant-numeric:tabular-nums}
+  .cell.pad{color:var(--line-2);cursor:default;pointer-events:none}
+  .cell:not(.pad):hover{background:var(--line)}
+  .cell.today{background:var(--teal-soft);color:var(--teal-deep);font-weight:700}
+  .cell.sel{background:var(--teal);color:#fff;font-weight:700}
+  .cell.sel .dots i{border-color:var(--teal)}
+  .dots{display:flex;gap:2px;margin-top:3px;flex-wrap:wrap;justify-content:center;max-width:32px}
+  .dots i{width:5px;height:5px;border-radius:50%;border:1px solid #fff}
+  .cal-legend{display:flex;gap:12px;flex-wrap:wrap;padding:0 4px;margin-top:14px}
+  .cal-legend span{font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;gap:5px;font-weight:600}
+  .cal-legend i{width:8px;height:8px;border-radius:50%}
+
+  /* upcoming list */
+  .up-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line)}
+  .up-head h2{font-size:15px;font-weight:700}
+  .up-head .sub{font-size:11.5px;color:var(--ink-3)}
+  .up-list{padding:8px 12px 12px}
+  .sess{display:flex;gap:12px;padding:12px 8px;border-radius:10px;cursor:pointer;transition:.12s;border-left:3px solid transparent}
+  .sess:hover{background:var(--bg)}
+  .sess + .sess{border-top:1px solid var(--line)}
+  .sess-date{flex:none;width:46px;text-align:center;background:var(--bg);border:1px solid var(--line-2);border-radius:9px;padding:6px 0;align-self:flex-start}
+  .sess-date .mo{font-size:9.5px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.5px}
+  .sess-date .dy{font-size:18px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .sess-date .wd{font-size:9.5px;color:var(--ink-3);font-weight:600;margin-top:2px}
+  .sess-body{flex:1;min-width:0}
+  .sess-title{font-size:13.5px;font-weight:700;line-height:1.3;display:flex;align-items:center;gap:7px}
+  .sess-cat{width:8px;height:8px;border-radius:50%;flex:none}
+  .sess-sub{font-size:11.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .sess-sub .mi{opacity:.7}
+  .seats{margin-top:9px}
+  .seats-meta{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--ink-3);margin-bottom:4px;font-weight:600}
+  .seats .bar{height:5px}
+  .sess-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:9px;flex:none;align-self:flex-start;white-space:nowrap}
+  .ss-scheduled{background:var(--teal-soft);color:var(--teal-deep)}
+  .ss-progress{background:#f0f5ff;color:#2f54eb}
+  .ss-full{background:#fff1f0;color:#cf1322}
+  .ss-completed{background:#f6ffed;color:#389e0d}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);transition:.25s;z-index:60;display:flex;align-items:center;gap:8px;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="glyph">L</span>LearnLoop <small>training</small></div>
+  <nav class="topnav">
+    <a href="#" class="on">Catalog</a>
+    <a href="#">My Learning</a>
+    <a href="#">Sessions</a>
+    <a href="#">Compliance</a>
+    <a href="#">Reports</a>
+  </nav>
+  <div class="top-right">
+    <div class="searchbox"><span>⌕</span><input placeholder="Search courses, learners…"></div>
+    <div class="acct">
+      <div class="ava">DK</div>
+      <div class="who"><b>Dana Keller</b><br><span>L&amp;D · People Ops</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <div class="page-head">
+    <div>
+      <h1>Training Tracker</h1>
+      <p>Course catalog, learner completion and the live session calendar — one workspace for People Ops.</p>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" id="exportBtn">⭳ Export</button>
+      <button class="btn btn-primary" id="newCourseBtn">＋ New course</button>
+    </div>
+  </div>
+
+  <!-- ===== KPI STRIP (JSBlock) ===== -->
+  <section class="kpis" id="kpis"></section>
+
+  <div class="main">
+
+    <!-- ===== LEFT: COURSE CATALOG (GridCard + JSField) ===== -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Course catalog <span class="cnt" id="catCount">0</span></h2>
+        <div class="facets" id="facets"></div>
+      </div>
+      <div class="catalog-body">
+        <div class="fmt-row" id="fmtRow">
+          <span class="fmt on" data-f="all">All formats</span>
+          <span class="fmt" data-f="online">Online</span>
+          <span class="fmt" data-f="in_person">In-person</span>
+          <span class="fmt" data-f="blended">Blended</span>
+          <span class="fmt" data-f="self_paced">Self-paced</span>
+          <span class="fmt" data-f="mandatory">★ Mandatory only</span>
+        </div>
+        <div class="grid" id="grid"></div>
+      </div>
+    </section>
+
+    <!-- ===== RIGHT: CALENDAR + UPCOMING ===== -->
+    <aside class="side">
+
+      <section class="panel">
+        <div class="cal-head">
+          <h2>Training calendar</h2>
+          <div class="cal-nav">
+            <button id="calPrev">‹</button>
+            <span class="mo" id="calMonth">June 2026</span>
+            <button id="calNext">›</button>
+          </div>
+        </div>
+        <div class="cal-body">
+          <div class="dow"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-legend" id="calLegend"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="up-head">
+          <div><h2>Upcoming sessions</h2></div>
+          <span class="sub" id="upSub">All dates</span>
+        </div>
+        <div class="up-list" id="upList"></div>
+      </section>
+
+    </aside>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- categories ----------
+  var CATS = {
+    compliance:  {name:"Compliance",   color:"var(--cat-comp)", hex:"#13a8a8", icon:"🛡️"},
+    leadership:  {name:"Leadership",   color:"var(--cat-lead)", hex:"#722ed1", icon:"🎯"},
+    technical:   {name:"Technical",    color:"var(--cat-tech)", hex:"#2f80ed", icon:"💻"},
+    safety:      {name:"Safety",       color:"var(--cat-safe)", hex:"#fa8c16", icon:"🦺"},
+    product:     {name:"Product",      color:"var(--cat-prod)", hex:"#eb2f96", icon:"📦"},
+    onboarding:  {name:"Onboarding",   color:"var(--cat-onb)",  hex:"#52c41a", icon:"🌱"}
+  };
+
+  function av(name,hex){var p=name.split(" ");var i=(p[0][0]||"")+((p[1]&&p[1][0])||"");return {i:i.toUpperCase(),hex:hex};}
+  var AVCOLORS=["#13a8a8","#722ed1","#2f80ed","#fa8c16","#eb2f96","#52c41a","#7265e6","#f5222d"];
+
+  // ---------- courses ----------
+  var COURSES = [
+    {cat:"compliance",title:"Data Privacy & GDPR Essentials",code:"CMP-101",fmt:"online",level:"beginner",dur:2,mand:true,credits:2,instr:"Priya Raman",progress:88,enrolled:142,learners:["Ada Liu","Ben Cho","Cara Vela"]},
+    {cat:"safety",title:"Workplace Fire Safety Drill",code:"SAF-204",fmt:"in_person",level:"beginner",dur:1.5,mand:true,credits:1,instr:"Omar Said",progress:73,enrolled:96,learners:["Dev Roy","Eli Tan","Faye Wu"]},
+    {cat:"leadership",title:"First-Time Manager Bootcamp",code:"LDR-310",fmt:"blended",level:"intermediate",dur:16,mand:false,credits:8,instr:"Grace Okoro",progress:54,enrolled:38,learners:["Gus Lee","Hana Ito","Ivy Sun"]},
+    {cat:"technical",title:"Kubernetes for Platform Teams",code:"TEC-420",fmt:"self_paced",level:"advanced",dur:12,mand:false,credits:6,instr:"Lars Møller",progress:41,enrolled:54,learners:["Jay Kim","Kira Voss"]},
+    {cat:"onboarding",title:"New Hire Orientation Day 1",code:"ONB-001",fmt:"in_person",level:"beginner",dur:6,mand:true,credits:0,instr:"Dana Keller",progress:97,enrolled:210,learners:["Lia Wong","Max Berg","Nia Cole"]},
+    {cat:"product",title:"Selling the Q3 Platform Release",code:"PRD-260",fmt:"online",level:"intermediate",dur:3,mand:false,credits:3,instr:"Sofia Marin",progress:62,enrolled:71,learners:["Otto Frey","Pia Ruiz"]},
+    {cat:"compliance",title:"Anti-Harassment & Inclusion",code:"CMP-118",fmt:"online",level:"beginner",dur:1.5,mand:true,credits:2,instr:"Priya Raman",progress:81,enrolled:188,learners:["Rae Dunn","Sam Vega","Tia Loh"]},
+    {cat:"technical",title:"Secure Coding Practices (OWASP)",code:"TEC-355",fmt:"self_paced",level:"intermediate",dur:8,mand:false,credits:5,instr:"Lars Møller",progress:47,enrolled:63,learners:["Uma Nair","Val Ortiz"]},
+    {cat:"leadership",title:"Coaching for High Performance",code:"LDR-340",fmt:"blended",level:"advanced",dur:10,mand:false,credits:6,instr:"Grace Okoro",progress:35,enrolled:24,learners:["Wes Park","Xena Ali"]},
+    {cat:"safety",title:"Ergonomics & Remote Workstations",code:"SAF-112",fmt:"online",level:"beginner",dur:1,mand:false,credits:1,instr:"Omar Said",progress:69,enrolled:134,learners:["Yan Mei","Zoe Bell","Abe Cruz"]},
+    {cat:"product",title:"Customer Success Playbook 2026",code:"PRD-288",fmt:"online",level:"intermediate",dur:4,mand:false,credits:3,instr:"Sofia Marin",progress:58,enrolled:49,learners:["Ben Cho","Cara Vela"]},
+    {cat:"onboarding",title:"Tools & Systems Walkthrough",code:"ONB-014",fmt:"self_paced",level:"beginner",dur:2,mand:true,credits:0,instr:"Dana Keller",progress:91,enrolled:198,learners:["Ada Liu","Eli Tan","Hana Ito"]}
+  ];
+
+  // ---------- sessions (calendar + upcoming) ----------
+  var SESSIONS = [
+    {day:9, mo:"JUN", wd:"Tue", title:"Fire Safety Drill — Bldg A",  code:"SAF-204", cat:"safety",     instr:"Omar Said",   loc:"Atrium, HQ",        taken:42, total:50, status:"scheduled", time:"10:00 AM"},
+    {day:9, mo:"JUN", wd:"Tue", title:"New Hire Orientation — Cohort 12", code:"ONB-001", cat:"onboarding", instr:"Dana Keller", loc:"Training Rm 2",     taken:28, total:30, status:"scheduled", time:"9:00 AM"},
+    {day:11,mo:"JUN", wd:"Thu", title:"GDPR Essentials — Live Q&A",   code:"CMP-101", cat:"compliance", instr:"Priya Raman", loc:"Webinar (Zoom)",    taken:120,total:200,status:"scheduled", time:"2:00 PM"},
+    {day:12,mo:"JUN", wd:"Fri", title:"Manager Bootcamp — Module 3",  code:"LDR-310", cat:"leadership", instr:"Grace Okoro", loc:"Training Rm 1",     taken:18, total:20, status:"scheduled", time:"1:00 PM"},
+    {day:16,mo:"JUN", wd:"Tue", title:"OWASP Workshop — Hands-on",    code:"TEC-355", cat:"technical",  instr:"Lars Møller", loc:"Lab 3",             taken:24, total:24, status:"full",      time:"10:30 AM"},
+    {day:18,mo:"JUN", wd:"Thu", title:"Q3 Release Sales Enablement",  code:"PRD-260", cat:"product",    instr:"Sofia Marin", loc:"Webinar (Teams)",   taken:55, total:80, status:"scheduled", time:"11:00 AM"},
+    {day:18,mo:"JUN", wd:"Thu", title:"Anti-Harassment Session",      code:"CMP-118", cat:"compliance", instr:"Priya Raman", loc:"Training Rm 2",     taken:30, total:40, status:"scheduled", time:"3:30 PM"},
+    {day:23,mo:"JUN", wd:"Tue", title:"Coaching for Performance",     code:"LDR-340", cat:"leadership", instr:"Grace Okoro", loc:"Offsite — Westview",taken:12, total:18, status:"scheduled", time:"9:30 AM"},
+    {day:25,mo:"JUN", wd:"Thu", title:"Kubernetes Deep Dive — Lab",   code:"TEC-420", cat:"technical",  instr:"Lars Møller", loc:"Lab 3",             taken:31, total:40, status:"scheduled", time:"1:00 PM"},
+    {day:5, mo:"JUN", wd:"Thu", title:"Ergonomics Clinic",           code:"SAF-112", cat:"safety",     instr:"Omar Said",   loc:"Wellness Rm",       taken:22, total:25, status:"completed", time:"2:00 PM"}
+  ];
+  var MONTH_DAYS = 30, FIRST_DOW = 1; // June 2026 starts Monday
+  var TODAY = 9;
+
+  // ---------- toast ----------
+  var toast=document.getElementById("toast"),toastMsg=document.getElementById("toastMsg"),tT;
+  function flash(m){toastMsg.textContent=m;toast.classList.add("show");clearTimeout(tT);tT=setTimeout(function(){toast.classList.remove("show");},2200);}
+
+  // ===== KPI STRIP =====
+  function renderKpis(){
+    var active=COURSES.length;
+    var avg=Math.round(COURSES.reduce(function(s,c){return s+c.progress;},0)/COURSES.length);
+    var data=[
+      {cls:"k1",ic:"📚",val:active,lbl:"Active courses",delta:"+3",dir:"up"},
+      {cls:"k2",ic:"✅",val:avg+"%",lbl:"Avg completion",delta:"+4 pts",dir:"up"},
+      {cls:"k3",ic:"🎓",val:"312",lbl:"Completions this month",delta:"+18%",dir:"up"},
+      {cls:"k4",ic:"⏰",val:"27",lbl:"Overdue learners",delta:"-6",dir:"down"}
+    ];
+    document.getElementById("kpis").innerHTML = data.map(function(k){
+      return '<div class="kpi '+k.cls+'">'+
+        '<span class="delta '+k.dir+'">'+k.delta+'</span>'+
+        '<div class="ic">'+k.ic+'</div>'+
+        '<div class="val">'+k.val+'</div>'+
+        '<div class="lbl">'+k.lbl+'</div>'+
+      '</div>';
+    }).join("");
+  }
+
+  // ===== FACETS (cross-filter) =====
+  var activeCat="all", activeFmt="all";
+  function renderFacets(){
+    var host=document.getElementById("facets");
+    var html='<span class="facet'+(activeCat==="all"?" on":"")+'" data-c="all">All categories</span>';
+    Object.keys(CATS).forEach(function(k){
+      var c=CATS[k];
+      html+='<span class="facet'+(activeCat===k?" on":"")+'" data-c="'+k+'"><span class="dot" style="background:'+c.hex+'"></span>'+c.name+'</span>';
+    });
+    host.innerHTML=html;
+  }
+  document.getElementById("facets").addEventListener("click",function(e){
+    var f=e.target.closest(".facet");if(!f)return;
+    activeCat=f.dataset.c;renderFacets();renderGrid();
+  });
+  document.getElementById("fmtRow").addEventListener("click",function(e){
+    var f=e.target.closest(".fmt");if(!f)return;
+    document.querySelectorAll(".fmt").forEach(function(x){x.classList.remove("on");});
+    f.classList.add("on");activeFmt=f.dataset.f;renderGrid();
+  });
+
+  // ===== COURSE CATALOG =====
+  var FMTLABEL={online:"Online",in_person:"In-person",blended:"Blended",self_paced:"Self-paced"};
+  var FMTICON={online:"🌐",in_person:"📍",blended:"🔀",self_paced:"⏱️"};
+  function progColor(p){return p>=80?"#52c41a":p>=50?"#13a8a8":p>=35?"#faad14":"#ff7a45";}
+
+  function renderGrid(){
+    var list=COURSES.filter(function(c){
+      if(activeCat!=="all" && c.cat!==activeCat) return false;
+      if(activeFmt==="all") return true;
+      if(activeFmt==="mandatory") return c.mand;
+      return c.fmt===activeFmt;
+    });
+    document.getElementById("catCount").textContent=list.length;
+    var host=document.getElementById("grid");
+    if(!list.length){host.innerHTML='<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--ink-3);font-size:13px">No courses match these filters.</div>';return;}
+    host.innerHTML=list.map(function(c){
+      var cat=CATS[c.cat];
+      var ia=av(c.instr,"#7265e6");
+      var stack=c.learners.slice(0,3).map(function(n,i){var a=av(n,AVCOLORS[i%AVCOLORS.length]);return '<span class="av" style="background:'+a.hex+'">'+a.i+'</span>';}).join("");
+      var extra=c.enrolled-3;
+      return '<div class="course" data-code="'+c.code+'">'+
+        '<div class="accent" style="background:'+cat.hex+'"></div>'+
+        '<div class="course-body">'+
+          '<div class="course-top">'+
+            '<div class="course-ic" style="background:'+cat.hex+'1a;color:'+cat.hex+'">'+cat.icon+'</div>'+
+            '<div class="course-titlewrap">'+
+              '<div class="course-title">'+c.title+'</div>'+
+              '<div class="course-code">'+c.code+' · '+cat.name+'</div>'+
+            '</div>'+
+            (c.mand?'<span class="mand">Req</span>':'')+
+          '</div>'+
+          '<div class="course-meta">'+
+            '<span class="chip"><span class="mi">'+FMTICON[c.fmt]+'</span>'+FMTLABEL[c.fmt]+'</span>'+
+            '<span class="chip"><span class="mi">🕑</span>'+c.dur+'h</span>'+
+            (c.credits?'<span class="chip"><span class="mi">🏅</span>'+c.credits+' cr</span>':'')+
+            '<span class="lvl '+c.level+'">'+c.level+'</span>'+
+          '</div>'+
+          '<div class="prog-block">'+
+            '<div class="prog-meta"><span class="pl">Avg completion</span><span class="pv" style="color:'+progColor(c.progress)+'">'+c.progress+'%</span></div>'+
+            '<div class="bar"><i style="width:'+c.progress+'%;background:'+progColor(c.progress)+'"></i></div>'+
+          '</div>'+
+          '<div class="course-foot">'+
+            '<div class="enrolled"><span class="stack">'+stack+'</span>'+(extra>0?'<span>+'+extra+' enrolled</span>':'')+'</div>'+
+            '<div class="instr"><span class="ia">'+ia.i+'</span>'+c.instr+'</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join("");
+    host.querySelectorAll(".course").forEach(function(el){
+      el.addEventListener("click",function(){flash("Open course detail · "+el.dataset.code);});
+    });
+  }
+
+  // ===== CALENDAR =====
+  var selDay=null;
+  function sessionsOn(day){return SESSIONS.filter(function(s){return s.day===day;});}
+  function renderCalendar(){
+    var grid=document.getElementById("calGrid");grid.innerHTML="";
+    for(var p=0;p<FIRST_DOW;p++){var pad=document.createElement("div");pad.className="cell pad";grid.appendChild(pad);}
+    for(var d=1;d<=MONTH_DAYS;d++){
+      (function(d){
+        var cell=document.createElement("div");cell.className="cell";
+        if(d===TODAY)cell.classList.add("today");
+        if(d===selDay)cell.classList.add("sel");
+        var on=sessionsOn(d);
+        var dots=on.slice(0,4).map(function(s){return '<i style="background:'+CATS[s.cat].hex+'"></i>';}).join("");
+        cell.innerHTML='<span>'+d+'</span>'+(dots?'<span class="dots">'+dots+'</span>':'');
+        cell.addEventListener("click",function(){
+          selDay=(selDay===d?null:d);renderCalendar();renderUpcoming();
+        });
+        grid.appendChild(cell);
+      })(d);
+    }
+    var leg=document.getElementById("calLegend");
+    leg.innerHTML=Object.keys(CATS).map(function(k){return '<span><i style="background:'+CATS[k].hex+'"></i>'+CATS[k].name+'</span>';}).join("");
+  }
+
+  // ===== UPCOMING SESSIONS LIST =====
+  function seatColor(taken,total){var r=taken/total;return r>=1?"#ff4d4f":r>=0.85?"#faad14":"#13a8a8";}
+  function statusMeta(s){
+    if(s.status==="full")return {cls:"ss-full",txt:"Full"};
+    if(s.status==="completed")return {cls:"ss-completed",txt:"Completed"};
+    if(s.status==="in_progress")return {cls:"ss-progress",txt:"In progress"};
+    return {cls:"ss-scheduled",txt:"Scheduled"};
+  }
+  function renderUpcoming(){
+    var list=SESSIONS.filter(function(s){return s.status!=="completed";});
+    if(selDay!=null){list=list.filter(function(s){return s.day===selDay;});document.getElementById("upSub").textContent="Jun "+selDay;}
+    else{document.getElementById("upSub").textContent="All dates";}
+    list=list.slice().sort(function(a,b){return a.day-b.day;});
+    var host=document.getElementById("upList");
+    if(!list.length){host.innerHTML='<div style="padding:30px;text-align:center;color:var(--ink-3);font-size:12.5px">No sessions on this day. Pick another date on the calendar.</div>';return;}
+    host.innerHTML=list.map(function(s){
+      var cat=CATS[s.cat];var sm=statusMeta(s);var sc=seatColor(s.taken,s.total);
+      return '<div class="sess" style="border-left-color:'+cat.hex+'">'+
+        '<div class="sess-date"><div class="mo">'+s.mo+'</div><div class="dy">'+s.day+'</div><div class="wd">'+s.wd+'</div></div>'+
+        '<div class="sess-body">'+
+          '<div class="sess-title"><span class="sess-cat" style="background:'+cat.hex+'"></span>'+s.title+'</div>'+
+          '<div class="sess-sub"><span><span class="mi">🕑</span>'+s.time+'</span><span><span class="mi">📍</span>'+s.loc+'</span><span><span class="mi">👤</span>'+s.instr+'</span></div>'+
+          '<div class="seats">'+
+            '<div class="seats-meta"><span>'+s.code+'</span><span>'+s.taken+' / '+s.total+' seats</span></div>'+
+            '<div class="bar"><i style="width:'+Math.min(100,Math.round(s.taken/s.total*100))+'%;background:'+sc+'"></i></div>'+
+          '</div>'+
+        '</div>'+
+        '<span class="sess-status '+sm.cls+'">'+sm.txt+'</span>'+
+      '</div>';
+    }).join("");
+    host.querySelectorAll(".sess").forEach(function(el,i){
+      el.addEventListener("click",function(){flash("Open session · "+list[i].code);});
+    });
+  }
+
+  // ===== buttons =====
+  document.getElementById("newCourseBtn").onclick=function(){flash("New course form (trn_courses, create mode)");};
+  document.getElementById("exportBtn").onclick=function(){flash("Exporting completion report…");};
+  document.getElementById("calPrev").onclick=function(){flash("June 2026 — earliest month with sessions");};
+  document.getElementById("calNext").onclick=function(){flash("Loading July 2026…");};
+
+  // ===== init =====
+  renderKpis();renderFacets();renderGrid();renderCalendar();renderUpcoming();
+})();
+</script>
+
+<script type="application/nb-prompt+text">
+Build a NocoBase app — Training Tracker: course cards, completion progress, and a scheduling calendar. Match the layout and signature visuals of this reference prototype: https://static-docs.nocobase.com/solution/templates/28-training-tracker.html
+</script>
+</body>
+</html>
