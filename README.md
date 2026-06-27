@@ -60,15 +60,36 @@ Drives non-Claude models (via an OpenAI-compatible gateway such as
 reproduce the prototypes in real NocoBase instances, then feeds results back into the
 test center.
 
-- `bench-live.py` — reads the opencode SQLite DB, auto-associates each session to a
-  matrix cell; powers `/api/bench-live`.
-- `bench-summary.py` — per-cell tokens / duration / rounds, aggregated by model & flow.
-- `run-bench.sh` / `tui-round.sh` — launch matrix cells (one per `matrix.json` row).
-- `observer.sh` / `bench-watch.sh` — judgment-style watchdogs that nudge stalled runs.
+**One entry, fully config-driven** — `bench.py`, parameterized by a JSON config
+(copy `bench.config.example.json` → `bench.config.json`). Each `run` = one model
+building into one NocoBase env from one prompt:
+
+```bash
+cp tooling/bench/bench.config.example.json tooling/bench/bench.config.json   # edit runs
+npm run bench            # reset env (optional) → launch each opencode TUI → send its prompt
+npm run bench:status     # one-shot state of every run
+npm run bench:monitor    # the supervisor (see below)
+npm run bench:summary    # tokens / rounds / duration per cell (reads the opencode db)
+npm run bench:stop       # kill the tmux sessions
+```
+
+**The supervisor** (`bench:monitor`) is how runs get driven to completion without a
+human babysitting — you pick who watches via `--judge`:
+
+| `--judge` | who decides | behavior |
+|---|---|---|
+| `llm` | the gateway model | autonomous: classifies each pane (working / stalled / permission / done) and **auto-nudges** genuinely-stuck cells. Run it as a loop = a dedicated watchdog. |
+| `agent` | the main AI (you) | prints the classification + a *suggested* nudge but **does not act** — meant to be read each pass (`--once`) by an overseeing agent/human who decides. |
+| `heuristic` | timing/keywords | no LLM calls; cheap, weaker at "stalled vs still thinking". |
+| `heuristic+llm` | both (default) | heuristic fast-path, LLM only for the ambiguous "is it stuck?" call. |
+
+Supporting pieces: `bench-live.py` (db → cell association, powers `/api/bench-live`),
+`bench-summary.py` (aggregation), and the older `run-bench.sh` / `tui-round.sh` /
+`observer.sh` (superseded by `bench.py`, kept for reference).
 
 > **This harness is environment-specific.** It expects a local `opencode`, the `nb`
 > NocoBase CLI with configured instances, and `tmux`. It is provided as-is; the **web
-> app above runs without any of it**. Configure via `.env` (copy `.env.example`).
+> app above runs without any of it**. Configure via `.env` + `bench.config.json`.
 
 ## Configuration
 
