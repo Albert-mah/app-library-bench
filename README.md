@@ -9,12 +9,19 @@ Extracted from a larger Astro site into a standalone Node app so it can be run, 
 and open-sourced on its own.
 
 ```bash
-npm install
+npm install               # server deps
+npm run build:ui          # build the React SPA (app/) → app/dist
 npm start                 # → http://localhost:8080
 ```
 
-- **Gallery** — `/index.html` — the prototype app library.
-- **Test center** — `/test-report.html` — per-module reproduction reports: model/flow
+The frontend is a **React + Vite SPA** in `app/` (one unified shell + top nav); the Express
+server serves its build (`app/dist`) plus the static assets (prototypes, `library.json`,
+images) and the JSON APIs. Routes: `/` gallery · `/runs` run history · `/tests` test center
+· `/live` bench live · `/dashboard`. (Gallery + Runs are native React; the other three embed
+the still-working legacy pages under `web/legacy/` while they are ported.) Dev: `npm run dev:ui`.
+
+- **Gallery** — `/` — the prototype app library.
+- **Test center** — `/tests` — per-module reproduction reports: model/flow
   branches, rounds, AI + human scores, side-by-side compare images.
 - **Live bench** — `/bench-live.html` — real-time view of an in-progress model run
   (reads the local opencode session DB).
