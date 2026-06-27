@@ -25,18 +25,24 @@ export function registerRuns(app, { dir, mountPath = '/api/runs' }) {
   const indexFile = () => path.join(dir, 'index.json');
   const reviewsFile = () => path.join(dir, 'reviews.json');
   const aiReviewsFile = () => path.join(dir, 'ai-reviews.json');
-  const shotsFile = () => path.join(dir, 'screenshots.json');
+  const artifactsFile = () => path.join(dir, 'artifacts.json');
+  const legacyShotsFile = () => path.join(dir, 'screenshots.json');
+  // merged result artifacts for a run: artifacts.json + legacy screenshots.json (→ kind:image)
+  const artsFor = (id, arts, legacy) =>
+    [...(arts[id] || []), ...((legacy[id] || []).map((s) => ({ kind: 'image', ...s })))];
 
   app.get(mountPath, (_req, res) => {
     const index = readJSON(indexFile(), []);
     const reviews = readJSON(reviewsFile(), {});
     const ai = readJSON(aiReviewsFile(), {});
-    const shots = readJSON(shotsFile(), {});
+    const arts = readJSON(artifactsFile(), {});
+    const legacy = readJSON(legacyShotsFile(), {});
     for (const r of index) {
       if (!r || !r.id) continue;
       if (reviews[r.id]) r.review = reviews[r.id];
       if (ai[r.id]) r.aiReview = ai[r.id];
-      if (shots[r.id]) r.screenshots = shots[r.id];
+      const a = artsFor(r.id, arts, legacy);
+      if (a.length) r.artifacts = a;
     }
     res.type('application/json; charset=utf-8').send(JSON.stringify(index));
   });
@@ -49,10 +55,12 @@ export function registerRuns(app, { dir, mountPath = '/api/runs' }) {
     const data = readJSON(f, {});
     const reviews = readJSON(reviewsFile(), {});
     const ai = readJSON(aiReviewsFile(), {});
-    const shots = readJSON(shotsFile(), {});
+    const arts = readJSON(artifactsFile(), {});
+    const legacy = readJSON(legacyShotsFile(), {});
     if (reviews[id]) data.review = reviews[id];
     if (ai[id]) data.aiReview = ai[id];
-    if (shots[id] && data.record) data.record.screenshots = shots[id];
+    const a = artsFor(id, arts, legacy);
+    if (a.length && data.record) data.record.artifacts = a;
     res.type('application/json; charset=utf-8').send(JSON.stringify(data));
   });
 

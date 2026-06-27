@@ -270,18 +270,28 @@ def cmd_brief(cfg, args):
     write_supervise(cfg, briefs)
     print(f"wrote {len(briefs)} brief(s) -> runs/briefs/ + runs/supervise.json")
 
+_IMG = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
+_TXT = {".txt", ".md", ".json", ".log", ".csv", ".js", ".ts", ".py", ".css", ".sql", ".yaml", ".yml", ".sh"}
+def _art_kind(name):
+    e = os.path.splitext(name)[1].lower()
+    if e in _IMG: return "image"
+    if e in (".html", ".htm"): return "html"
+    if e in _TXT: return "text"
+    return "file"
+
 def cmd_attach(cfg, args):
-    """attach build-result screenshots to a run. Stored in screenshots.json (survives re-collect),
-    merged into the record server-side — images are first-class run content."""
+    """attach result ARTIFACTS to a run — any modality: image / html snippet / text / code / file.
+    Kind is inferred from the extension. Stored in artifacts.json + runs/artifacts/ (survives re-collect),
+    merged into the record server-side and displayed by kind in the run-history page."""
     import shutil
     if not args.only or not args.files:
-        sys.exit("attach needs --only <run-id> --files <img1,img2,...>")
+        sys.exit("attach needs --only <run-id> --files <path1,path2,...> (image/html/text/code/any file)")
     rid = args.only.split(",")[0]
-    sf = os.path.join(RUNS_DIR, "screenshots.json")
-    store = json.load(open(sf)) if os.path.exists(sf) else {}
-    shots = store.get(rid, [])
-    have = {s.get("file") for s in shots}
-    dest = os.path.join(RUNS_DIR, "shots", rid)
+    af = os.path.join(RUNS_DIR, "artifacts.json")
+    store = json.load(open(af)) if os.path.exists(af) else {}
+    arts = store.get(rid, [])
+    have = {a.get("file") for a in arts}
+    dest = os.path.join(RUNS_DIR, "artifacts", rid)
     os.makedirs(dest, exist_ok=True)
     for src in [f.strip() for f in args.files.split(",") if f.strip()]:
         src = expand(src)
@@ -290,12 +300,13 @@ def cmd_attach(cfg, args):
         name = os.path.basename(src)
         shutil.copy(src, os.path.join(dest, name))
         rel = f"{rid}/{name}"
+        kind = args.kind or _art_kind(name)
         if rel not in have:
-            shots.append({"file": rel, "label": os.path.splitext(name)[0]}); have.add(rel)
-        print(f"  + {rel}")
-    store[rid] = shots
-    json.dump(store, open(sf, "w"), ensure_ascii=False, indent=1)
-    print(f"{len(shots)} screenshot(s) on {rid}. served at /runs-shots/{rid}/<name>")
+            arts.append({"kind": kind, "file": rel, "label": os.path.splitext(name)[0]}); have.add(rel)
+        print(f"  + [{kind}] {rel}")
+    store[rid] = arts
+    json.dump(store, open(af, "w"), ensure_ascii=False, indent=1)
+    print(f"{len(arts)} artifact(s) on {rid}. served at /runs-artifacts/{rid}/<name>")
 
 def cmd_retry(cfg, args):
     """launch a NEW run as a child (iteration) of an existing one — grows the lineage tree."""
@@ -493,7 +504,8 @@ def main():
     ap.add_argument("--stagger", type=float, default=2.0, help="run: seconds between launches")
     ap.add_argument("--all", action="store_true", help="collect/ai-review: cover ALL runs (else: new ones)")
     ap.add_argument("--note", help="retry: the iteration instruction")
-    ap.add_argument("--files", help="attach: comma-separated image paths")
+    ap.add_argument("--files", help="attach: comma-separated artifact paths (image/html/text/code/file)")
+    ap.add_argument("--kind", choices=["image", "html", "text", "file"], help="attach: force artifact kind (else inferred from extension)")
     args = ap.parse_args()
     cfg = load_config(args.config)
     {"run": cmd_run, "status": cmd_status, "monitor": cmd_monitor, "summary": cmd_summary,
