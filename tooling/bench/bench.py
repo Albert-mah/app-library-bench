@@ -65,41 +65,10 @@ def load_state(cfg):
 def save_state(cfg, st):
     with open(state_file(cfg), "w") as f: json.dump(st, f, indent=1)
 
-# ---------------------------------------------------------------- tmux
-def tmux(*args, check=False):
-    return subprocess.run(["tmux", *args], capture_output=True, text=True, check=check)
-
-def session_exists(s):
-    return tmux("has-session", "-t", s).returncode == 0
-
-def pane(s, lines=60):
-    r = tmux("capture-pane", "-t", s, "-p", "-S", f"-{lines}")
-    return r.stdout if r.returncode == 0 else ""
-
-def send(s, text, enter=True):
-    tmux("send-keys", "-t", s, text)
-    if enter:
-        time.sleep(0.4)
-        tmux("send-keys", "-t", s, "Enter")
-
-def wait_for(s, pattern, timeout=90, interval=2):
-    rx = re.compile(pattern)
-    t0 = time.time()
-    while time.time() - t0 < timeout:
-        if rx.search(pane(s, 40)): return True
-        time.sleep(interval)
-    return False
-
-# ---------------------------------------------------------------- opencode model
-def set_opencode_model(cfg, model):
-    if not model: return
-    p = expand(cfg["opencodeConfig"])
-    try:
-        with open(p) as f: d = json.load(f)
-        d["model"] = model
-        with open(p, "w") as f: json.dump(d, f, indent=2)
-    except Exception as e:
-        print(f"  ! could not set opencode model {model}: {e}")
+# shared tmux helpers + CLI adapters. Launch is opencode-centric; the adapters'
+# main job is INGEST — normalizing each CLI's stored run data (time/rounds/errors/
+# prompt/tokens/transcript) into one common run-record. See adapters.py + `collect`.
+from adapters import tmux, session_exists, pane, send, wait_for, get_adapter, redact
 
 # ---------------------------------------------------------------- nb golden reset
 def reset_env(run):
@@ -124,21 +93,15 @@ def launch_run(cfg, run):
     pf = resolve_prompt(cfg, run)
     cwd = expand(cfg["runCwd"])
     if run.get("reset"): reset_env(run)
-    set_opencode_model(cfg, run.get("model"))
-    tmux("kill-session", "-t", s)
-    tmux("new-session", "-d", "-s", s, "-c", cwd)
-    tmux("set-option", "-t", s, "remain-on-exit", "on")
-    if not wait_for(s, r"代理正常|albert@|\$\s*$|@.*:.*\$", timeout=30):
-        print(f"  ! {s}: shell not ready")
-    send(s, "opencode")
-    if not wait_for(s, r"OpenCode|Qwen3\.7|esc interrupt|Ask anything", timeout=cfg.get("tuiReadyTimeout", 90)):
-        print(f"  ! {s}: opencode TUI not detected (continuing anyway)")
+    ad = get_adapter(run.get("cli", cfg.get("cli", "opencode")))
+    ad.launch(s, run, cfg, cwd)
     instr = (f"Read the file {pf} and execute the task in it completely, end to end, "
              f"with full autonomy and no questions.")
     extra = run.get("instruction")
     if extra: instr += " " + extra
     send(s, instr)
-    print(f"  launched {s}  env={run.get('env','?')}  model={run.get('model','?')}")
+    write_brief(cfg, run, s, pf)
+    print(f"  launched {s}  cli={run.get('cli','opencode')} env={run.get('env','?')} model={run.get('model','?')}")
     return s
 
 # ---------------------------------------------------------------- LLM judge
@@ -239,6 +202,42 @@ def act_on(cfg, run, verdict, st):
         return "auto-approved permission"
     return ""
 
+# ---------------------------------------------------------------- run briefs (driver -> supervisor handoff)
+RUNS_DIR = os.path.join(HERE, "runs")
+
+def _now():
+    return time.strftime("%Y-%m-%dT%H:%M:%S")
+
+def write_brief(cfg, run, session, pf):
+    """One-click background packet so an inspector/supervisor agent can drive + watch a run with full context."""
+    os.makedirs(os.path.join(RUNS_DIR, "briefs"), exist_ok=True)
+    try: prompt_text = open(pf, encoding="utf-8").read()
+    except Exception: prompt_text = ""
+    brief = {
+        "id": run["id"], "cli": run.get("cli", cfg.get("cli", "opencode")), "tmuxSession": session,
+        "model": run.get("model"), "env": run.get("env"), "tags": run.get("tags", []),
+        "goal": run.get("goal"), "successCriteria": run.get("successCriteria", []),
+        "watchFor": run.get("watchFor", cfg.get("watchFor", [])),
+        "promptFile": pf, "promptText": prompt_text,
+        "howToInspect": f"tmux capture-pane -t {session} -p -S -80   (or: bench.py status --only {run['id']})",
+        "howToNudge": f"tmux send-keys -t {session} '<one concrete next step>' Enter",
+        "howToCollect": f"bench.py collect --only {run['id']}",
+        "launchedAt": _now(),
+    }
+    json.dump(brief, open(os.path.join(RUNS_DIR, "briefs", f"{run['id']}.json"), "w"), ensure_ascii=False, indent=1)
+    return brief
+
+def write_supervise(cfg, briefs):
+    os.makedirs(RUNS_DIR, exist_ok=True)
+    sup = {
+        "generatedAt": _now(), "monitor": cfg["monitor"], "runs": briefs,
+        "howTo": ("For each run: read promptText + successCriteria, watch its tmuxSession pane, "
+                  "nudge ONLY genuinely-stalled ones (idle + no spinner + repeating), and run "
+                  "`bench.py collect` once it prints its final report. `bench.py monitor --judge agent --once` "
+                  "gives you a per-pass classification to act on."),
+    }
+    json.dump(sup, open(os.path.join(RUNS_DIR, "supervise.json"), "w"), ensure_ascii=False, indent=1)
+
 # ---------------------------------------------------------------- commands
 def select_runs(cfg, only):
     runs = cfg["runs"]
@@ -250,10 +249,58 @@ def select_runs(cfg, only):
 def cmd_run(cfg, args):
     runs = select_runs(cfg, args.only)
     print(f"launching {len(runs)} run(s)")
+    briefs = []
     for r in runs:
         launch_run(cfg, r)
+        bp = os.path.join(RUNS_DIR, "briefs", f"{r['id']}.json")
+        if os.path.exists(bp):
+            briefs.append(json.load(open(bp)))
         time.sleep(args.stagger)
-    print("done. monitor with:  python3 tooling/bench/bench.py monitor")
+    write_supervise(cfg, briefs)
+    print("done. supervisor briefing -> runs/supervise.json")
+    print("monitor with:  python3 tooling/bench/bench.py monitor   (--judge agent for you to drive)")
+
+def cmd_brief(cfg, args):
+    """(re)generate the background packets without launching — e.g. for already-running sessions."""
+    briefs = []
+    for r in select_runs(cfg, args.only):
+        briefs.append(write_brief(cfg, r, run_session_name(cfg, r), resolve_prompt(cfg, r)))
+    write_supervise(cfg, briefs)
+    print(f"wrote {len(briefs)} brief(s) -> runs/briefs/ + runs/supervise.json")
+
+def cmd_collect(cfg, args):
+    os.makedirs(os.path.join(RUNS_DIR, "transcripts"), exist_ok=True)
+    if args.all:
+        ad = get_adapter(cfg.get("cli", "opencode"))
+        runs = ad.discover(cfg) if hasattr(ad, "discover") else []
+        print(f"discovered {len(runs)} historical session(s) referencing a prompt file")
+    else:
+        runs = select_runs(cfg, args.only)
+    idxp = os.path.join(RUNS_DIR, "index.json")
+    index = json.load(open(idxp)) if os.path.exists(idxp) else []
+    by_id = {r.get("id"): i for i, r in enumerate(index)}
+    n = 0
+    for r in runs:
+        ad = get_adapter(r.get("cli", cfg.get("cli", "opencode")))
+        res = ad.extract(r, cfg)
+        if not res:
+            print(f"  - {r['id']}: no session found"); continue
+        rec, transcript = res
+        # scrub any credentials that leaked into the captured text before persisting
+        rec = json.loads(redact(json.dumps(rec, ensure_ascii=False)))
+        transcript = json.loads(redact(json.dumps(transcript, ensure_ascii=False)))
+        rec["collectedAt"] = _now()
+        tf = os.path.join(RUNS_DIR, "transcripts", f"{rec['id']}.json")
+        json.dump({"record": rec, "transcript": transcript}, open(tf, "w"), ensure_ascii=False, indent=1)
+        rec["transcriptFile"] = os.path.relpath(tf, HERE)
+        if rec["id"] in by_id: index[by_id[rec["id"]]] = rec
+        else: by_id[rec["id"]] = len(index); index.append(rec)
+        tk = rec["tokens"].get("output")
+        print(f"  + {rec['id']:30} {rec['cli']:8} {str(rec.get('model')):16} {rec['outcome']['status']:8} "
+              f"out={tk} tools={rec['toolCalls']} err={rec.get('errors',{}).get('count',0)} dur={rec['timing'].get('durationSec')}s")
+        n += 1
+    json.dump(index, open(idxp, "w"), ensure_ascii=False, indent=1)
+    print(f"collected {n} run-record(s) -> runs/index.json ({len(index)} total)")
 
 def cmd_status(cfg, args):
     st = load_state(cfg)
@@ -303,16 +350,17 @@ def cmd_summary(cfg, args):
 
 def main():
     ap = argparse.ArgumentParser(description="config-driven opencode bench pipeline")
-    ap.add_argument("command", choices=["run", "status", "monitor", "summary", "stop"])
+    ap.add_argument("command", choices=["run", "status", "monitor", "summary", "stop", "collect", "brief"])
     ap.add_argument("--config", default=os.path.join(HERE, "bench.config.json"))
     ap.add_argument("--only", help="comma-separated run ids")
     ap.add_argument("--once", action="store_true", help="monitor: single pass then exit")
     ap.add_argument("--judge", choices=["heuristic", "llm", "heuristic+llm", "agent"], help="monitor: override judge mode")
     ap.add_argument("--stagger", type=float, default=2.0, help="run: seconds between launches")
+    ap.add_argument("--all", action="store_true", help="collect: discover & ingest ALL historical sessions (opencode)")
     args = ap.parse_args()
     cfg = load_config(args.config)
-    {"run": cmd_run, "status": cmd_status, "monitor": cmd_monitor,
-     "summary": cmd_summary, "stop": cmd_stop}[args.command](cfg, args)
+    {"run": cmd_run, "status": cmd_status, "monitor": cmd_monitor, "summary": cmd_summary,
+     "stop": cmd_stop, "collect": cmd_collect, "brief": cmd_brief}[args.command](cfg, args)
 
 if __name__ == "__main__":
     main()

@@ -83,6 +83,31 @@ human babysitting — you pick who watches via `--judge`:
 | `heuristic` | timing/keywords | no LLM calls; cheap, weaker at "stalled vs still thinking". |
 | `heuristic+llm` | both (default) | heuristic fast-path, LLM only for the ambiguous "is it stuck?" call. |
 
+**Run records & history** — `bench.py collect` pulls each run's full detail out of the
+CLI's own store into a persistent, CLI-agnostic record under `runs/` (the source DB is
+ephemeral — this is the durable archive):
+
+```bash
+npm run bench:collect              # ingest the configured runs
+npm run bench:collect -- --all     # discover + ingest ALL historical sessions
+```
+
+Each record carries **prompt (+ sha), model, provider, target env, tags, timing
+(start/end/duration), tokens (in/out/reasoning/cache), rounds, tool calls, error
+count + samples, outcome, and the full transcript** (`runs/transcripts/<id>.json`).
+Credentials are scrubbed at ingest. `runs/index.json` is the rollup.
+
+**CLI adapters** (`adapters.py`) are how that ingest stays CLI-agnostic: each adapter
+**normalizes one CLI's stored run data** into the common record — `opencode` (reads
+`opencode.db`) and `claude` (reads `~/.claude/projects/*.jsonl`) ship; add more by
+implementing `extract()`.
+
+**Driver → supervisor handoff** — on `bench run`, each launch also emits a *brief*
+(`runs/briefs/<id>.json`) and a combined `runs/supervise.json`: the prompt, goal,
+success criteria, tmux session, and how-to-inspect/nudge/collect — a one-click context
+packet an inspector agent reads to drive + watch the runs. Regenerate anytime with
+`npm run bench:brief`.
+
 Supporting pieces: `bench-live.py` (db → cell association, powers `/api/bench-live`),
 `bench-summary.py` (aggregation), and the older `run-bench.sh` / `tui-round.sh` /
 `observer.sh` (superseded by `bench.py`, kept for reference).
