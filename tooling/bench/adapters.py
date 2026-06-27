@@ -121,7 +121,8 @@ class OpencodeAdapter(BaseAdapter):
             envm = re.search(r"-e\s+([a-z0-9_]+)\s+-y|env\s+\*\*([a-z0-9_]+)\*\*", blob)
             env = (envm.group(1) or envm.group(2)) if envm else None
             out.append({"id": f"{stem}-{sid[-6:]}", "sessionId": sid,
-                        "promptFile": pf if os.path.exists(pf) else None, "env": env, "cli": "opencode"})
+                        "promptFile": pf if os.path.exists(pf) else None, "env": env, "cli": "opencode",
+                        "batch": re.sub(r"[-_]?\d+$", "", stem)})
         return out
 
     def extract(self, run, cfg):
@@ -187,6 +188,7 @@ class OpencodeAdapter(BaseAdapter):
             "id": run["id"], "cli": "opencode", "sessionId": sid,
             "model": model, "provider": provider,
             "target": {"env": run.get("env")},
+            "lineage": _lineage(run, os.path.splitext(os.path.basename(run.get("promptFile") or ""))[0].replace(".prompt", "")),
             "prompt": {"file": prompt_file, "sha256": pf_sha,
                        "text": pf_text or prompt_text, "launchInstruction": prompt_text},
             "tags": sorted(set((run.get("tags") or []) + [x for x in [provider, _tier(model), "opencode", run.get("env")] if x])),
@@ -266,6 +268,7 @@ class ClaudeAdapter(BaseAdapter):
             "id": run["id"], "cli": "claude", "sessionId": os.path.basename(path)[:-6],
             "model": run.get("model"), "provider": "anthropic",
             "target": {"env": run.get("env")},
+            "lineage": _lineage(run, os.path.splitext(os.path.basename(run.get("promptFile") or ""))[0].replace(".prompt", "")),
             "prompt": {"file": prompt_file, "sha256": pf_sha, "text": pf_text or prompt_text, "launchInstruction": prompt_text},
             "tags": sorted(set((run.get("tags") or []) + [x for x in ["claude", run.get("env")] if x])),
             "timing": {"startedAt": t0, "endedAt": t1, "durationSec": None},
@@ -278,6 +281,13 @@ class ClaudeAdapter(BaseAdapter):
         return rec, transcript
 
 # ---------------------------------------------------------------- helpers
+def _lineage(run, stem=None):
+    """tree position: a prototype is dispatched as batches; a batch holds runs; a run can be
+    iterated into child runs (parent). depth 0 = first build, >0 = an iteration."""
+    batch = run.get("batch") or (re.sub(r"[-_]?\d+$", "", stem) if stem else None)
+    return {"prototype": run.get("prototype"), "batch": batch,
+            "parent": run.get("parent"), "depth": run.get("depth", 0)}
+
 def _tier(model):
     if not model: return None
     m = re.search(r"(plus|max|pro|flash|mini|opus|sonnet|haiku)", str(model), re.I)

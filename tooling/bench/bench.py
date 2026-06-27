@@ -216,6 +216,8 @@ def write_brief(cfg, run, session, pf):
     brief = {
         "id": run["id"], "cli": run.get("cli", cfg.get("cli", "opencode")), "tmuxSession": session,
         "model": run.get("model"), "env": run.get("env"), "tags": run.get("tags", []),
+        "lineage": {"prototype": run.get("prototype"), "batch": run.get("batch"),
+                    "parent": run.get("parent"), "depth": run.get("depth", 0)},
         "goal": run.get("goal"), "successCriteria": run.get("successCriteria", []),
         "watchFor": run.get("watchFor", cfg.get("watchFor", [])),
         "promptFile": pf, "promptText": prompt_text,
