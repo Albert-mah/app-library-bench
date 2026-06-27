@@ -97,6 +97,20 @@ Each record carries **prompt (+ sha), model, provider, target env, tags, timing
 count + samples, outcome, and the full transcript** (`runs/transcripts/<id>.json`).
 Credentials are scrubbed at ingest. `runs/index.json` is the rollup.
 
+**Review — AI self-review + human verdict.** The run-history page (`/runs.html`) is the
+inspect → verify → score surface: a sortable/filterable table (or a **tree** grouped by
+batch, iterations nested under their parent) → click a run → drawer with its
+**screenshots** (build-result evidence — for a build test the image *is* the result),
+metadata, error samples, prompt, and transcript. Each run can be scored by a human
+(`pass`/`fix`/`redo` + 0–10 + note → `reviews.json`); `bench.py ai-review` pre-fills an
+**AI self-assessment** (`ai-reviews.json`) that the human can **adopt in one click** then
+tweak. Attach result images with `bench.py attach --only <id> --files a.png,b.png`
+(stored in `screenshots.json` + `runs/shots/`, so they survive a re-collect).
+
+**Retry = a child run.** `bench.py retry --only <id> [--note "fix X"]` launches a new run
+as an *iteration* of an existing one (`parent`/`depth+1`), so the lineage grows into the
+tree: prototype → batch → run → iteration → …
+
 **CLI adapters** (`adapters.py`) are how that ingest stays CLI-agnostic: each adapter
 **normalizes one CLI's stored run data** into the common record — `opencode` (reads
 `opencode.db`) and `claude` (reads `~/.claude/projects/*.jsonl`) ship; add more by

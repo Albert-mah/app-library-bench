@@ -24,6 +24,8 @@ app.use(express.json({ limit: '2mb' }));
 registerScores(app, { file: SCORES_FILE });
 registerBenchLive(app, { script: BENCH_LIVE_SCRIPT });
 registerRuns(app, { dir: RUNS_DIR });
+// run screenshots (build-result evidence) — images are first-class run content
+app.use('/runs-shots', express.static(path.join(RUNS_DIR, 'shots'), { maxAge: '1h' }));
 
 // static frontend — index.html is the gallery; test-report.html / bench-live.html / prototypes are siblings
 app.use(express.static(WEB_DIR, { extensions: ['html'], maxAge: '1h' }));

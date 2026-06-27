@@ -52,6 +52,15 @@
   .closex { float:right; cursor:pointer; color:var(--dim); font-size:18px; }
   .errlist div { padding:3px 0; border-bottom:1px solid var(--line); }
   code.k { color:#79c0ff; }
+  .shots { display:flex; gap:10px; flex-wrap:wrap; margin:10px 0; }
+  .shots a { display:block; max-width:100%; }
+  .shots img { max-width:100%; max-height:340px; border:1px solid var(--line); border-radius:6px; display:block; }
+  .shots span { color:var(--dim); font-size:11px; }
+  .aibox { background:rgba(91,140,255,.08); border:1px solid #2b3a5e; border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+  .aihd { display:flex; align-items:center; gap:8px; font-weight:600; }
+  .aihd b { color:var(--acc); }
+  .aicom { margin:6px 0; font-size:12px; }
+  .adopt { margin-left:auto; background:var(--acc); border:none; color:#fff; border-radius:6px; padding:4px 12px; cursor:pointer; font-size:12px; }
 </style>
 </head>
 <body>
@@ -153,10 +162,12 @@ async function openRun(id){
   $('#aside').classList.add('open');
   const d=$('#detail'); d.innerHTML='加载中…';
   const data=await (await fetch('/api/runs/'+encodeURIComponent(id))).json();
-  const r=data.record||{}, tr=data.transcript||[], rev=data.review||r.review||{};
+  const r=data.record||{}, tr=data.transcript||[], rev=data.review||r.review||{}, air=data.aiReview||r.aiReview||{};
   const errs=(r.errors&&r.errors.samples)||[];
+  const shots=r.screenshots||[];
   d.innerHTML = `<span class="closex" onclick="closeAside()">×</span>
-    <h2>${r.id}</h2><div class="muted">${r.model||''} · ${r.cli||''} · ${r.target&&r.target.env||''}</div>
+    <h2>${r.id}</h2><div class="muted">${r.model||''} · ${r.cli||''} · ${r.target&&r.target.env||''}${r.lineage&&r.lineage.batch?' · 批次 '+esc(r.lineage.batch):''}${r.lineage&&r.lineage.parent?' · ↳迭代自 '+esc(r.lineage.parent):''}</div>
+    ${shots.length?`<div class="shots">`+shots.map(s=>`<a href="/runs-shots/${s.file}" target="_blank"><img src="/runs-shots/${s.file}" alt="${esc(s.label||'')}"><span>${esc(s.label||'')}</span></a>`).join('')+`</div>`:''}
     <div class="grid">
       <div>状态</div><div class="s-${st(r)}">${st(r)}</div>
       <div>时间</div><div>${fmtTime(r.timing&&r.timing.startedAt)} → ${fmtTime(r.timing&&r.timing.endedAt)} (${r.timing&&r.timing.durationSec??'?'}s)</div>
@@ -171,7 +182,7 @@ async function openRun(id){
     <div class="sect">对话明细 (${tr.length})</div>
     <div>${tr.map(renderT).join('')}</div>
     <div class="review" id="review"></div>`;
-  renderReview(id, rev);
+  renderReview(id, rev, air);
 }
 function renderT(e){
   if(e.t==='text') return `<div class="t-row t-${e.role||'assistant'}"><b>${e.role||''}</b> ${esc((e.text||'').slice(0,1200))}</div>`;
@@ -179,9 +190,15 @@ function renderT(e){
   if(e.t==='tool') return `<div class="t-row t-tool">▸ <b>${e.tool||''}</b> ${e.status?'· '+e.status:''} <code class="k">${esc((e.cmd||'').slice(0,200))}</code><span class="o">${esc((e.out||'').slice(0,500))}</span></div>`;
   return '';
 }
-function renderReview(id, rev){
+function renderReview(id, rev, air){
+  air=air||{};
   const v=rev.verdict||'';
-  $('#review').innerHTML = `<div class="sect" style="border:0;padding:0">人工核验 · 评分</div>
+  const aiBox = (air.verdict||air.score!=null||air.comment)
+    ? `<div class="aibox"><div class="aihd">🤖 AI 自评 ${air.verdict?`<span class="pill v-${air.verdict}">${air.verdict}</span>`:''} ${air.score!=null?`<b>${air.score}</b>`:''}
+         <button class="adopt" id="adopt">采纳 →</button></div>
+         <div class="aicom">${esc(air.comment||'')}</div>
+         <div class="muted" style="font-size:11px">${esc(air.model||'')} ${air.ts?'· '+fmtTime(air.ts):''}</div></div>` : '';
+  $('#review').innerHTML = `${aiBox}<div class="sect" style="border:0;padding:0">人工核验 · 评分</div>
     <div class="vbtns">
       ${['pass','fix','redo'].map(x=>`<button class="v-${x} ${v===x?'on':''}" data-v="${x}">${x}</button>`).join('')}
       <span style="margin-left:14px">分 <input type="number" id="rscore" min="0" max="10" step="0.5" value="${rev.score??''}"></span>
@@ -190,7 +207,9 @@ function renderReview(id, rev){
     <button class="save" id="rsave">保存</button>
     <span id="rmsg" class="muted" style="margin-left:10px">${rev.ts?'上次 '+fmtTime(rev.ts):''}</span>`;
   let cur=v;
-  $('#review').querySelectorAll('.vbtns button').forEach(b=>b.onclick=()=>{ cur=(cur===b.dataset.v?'':b.dataset.v); $('#review').querySelectorAll('.vbtns button').forEach(x=>x.classList.toggle('on',x.dataset.v===cur)); });
+  const hi=()=>$('#review').querySelectorAll('.vbtns button').forEach(x=>x.classList.toggle('on',x.dataset.v===cur));
+  $('#review').querySelectorAll('.vbtns button').forEach(b=>b.onclick=()=>{ cur=(cur===b.dataset.v?'':b.dataset.v); hi(); });
+  const adopt=$('#adopt'); if(adopt) adopt.onclick=()=>{ cur=air.verdict||cur; if(air.score!=null)$('#rscore').value=air.score; if(air.comment)$('#rnote').value=air.comment; hi(); $('#rmsg').textContent='已填入 AI 自评,确认后点保存'; };
   $('#rsave').onclick=async()=>{
     const sc=$('#rscore').value, note=$('#rnote').value;
     const body={ verdict: cur||null, score: sc===''?null:parseFloat(sc), note: note||null };

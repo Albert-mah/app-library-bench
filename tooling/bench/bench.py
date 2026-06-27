@@ -270,6 +270,67 @@ def cmd_brief(cfg, args):
     write_supervise(cfg, briefs)
     print(f"wrote {len(briefs)} brief(s) -> runs/briefs/ + runs/supervise.json")
 
+def cmd_attach(cfg, args):
+    """attach build-result screenshots to a run. Stored in screenshots.json (survives re-collect),
+    merged into the record server-side — images are first-class run content."""
+    import shutil
+    if not args.only or not args.files:
+        sys.exit("attach needs --only <run-id> --files <img1,img2,...>")
+    rid = args.only.split(",")[0]
+    sf = os.path.join(RUNS_DIR, "screenshots.json")
+    store = json.load(open(sf)) if os.path.exists(sf) else {}
+    shots = store.get(rid, [])
+    have = {s.get("file") for s in shots}
+    dest = os.path.join(RUNS_DIR, "shots", rid)
+    os.makedirs(dest, exist_ok=True)
+    for src in [f.strip() for f in args.files.split(",") if f.strip()]:
+        src = expand(src)
+        if not os.path.exists(src):
+            print(f"  ! not found: {src}"); continue
+        name = os.path.basename(src)
+        shutil.copy(src, os.path.join(dest, name))
+        rel = f"{rid}/{name}"
+        if rel not in have:
+            shots.append({"file": rel, "label": os.path.splitext(name)[0]}); have.add(rel)
+        print(f"  + {rel}")
+    store[rid] = shots
+    json.dump(store, open(sf, "w"), ensure_ascii=False, indent=1)
+    print(f"{len(shots)} screenshot(s) on {rid}. served at /runs-shots/{rid}/<name>")
+
+def cmd_retry(cfg, args):
+    """launch a NEW run as a child (iteration) of an existing one — grows the lineage tree."""
+    if not args.only:
+        sys.exit("retry needs --only <run-id>")
+    src_id = args.only.split(",")[0]
+    cfg_run = next((r for r in cfg["runs"] if r["id"] == src_id), None)
+    idxp = os.path.join(RUNS_DIR, "index.json")
+    rec = None
+    if os.path.exists(idxp):
+        rec = next((r for r in json.load(open(idxp)) if r["id"] == src_id), None)
+    if not cfg_run and not rec:
+        sys.exit(f"run '{src_id}' not found in config or runs/index.json")
+    g = lambda k, d=None: (cfg_run or {}).get(k) or (rec or {}).get(k, d)
+    env = (cfg_run or {}).get("env") or ((rec or {}).get("target") or {}).get("env")
+    model = (cfg_run or {}).get("model") or (rec or {}).get("model")
+    promptfile = (cfg_run or {}).get("promptFile") or ((rec or {}).get("prompt") or {}).get("file")
+    lin = (rec or {}).get("lineage") or {}
+    depth = (lin.get("depth") or 0) + 1
+    child = {
+        "id": f"{src_id}-retry{depth}", "cli": g("cli", "opencode"), "env": env, "model": model,
+        "promptFile": promptfile, "parent": src_id, "depth": depth,
+        "batch": (cfg_run or {}).get("batch") or lin.get("batch"),
+        "prototype": (cfg_run or {}).get("prototype") or lin.get("prototype"),
+        "tags": g("tags", []),
+        "instruction": args.note or "This is a RETRY of a previous attempt. Review what the prior run left broken or missing and fix it; do not rebuild what already works.",
+        "reset": (cfg_run or {}).get("reset"),
+        "goal": (cfg_run or {}).get("goal"), "successCriteria": (cfg_run or {}).get("successCriteria", []),
+    }
+    print(f"retry: {src_id} -> {child['id']} (parent={src_id}, depth={depth}, env={env})")
+    launch_run(cfg, child)
+    bp = os.path.join(RUNS_DIR, "briefs", f"{child['id']}.json")
+    write_supervise(cfg, [json.load(open(bp))] if os.path.exists(bp) else [])
+    print("done. collect it after it finishes:  bench.py collect --only " + child["id"])
+
 def cmd_collect(cfg, args):
     os.makedirs(os.path.join(RUNS_DIR, "transcripts"), exist_ok=True)
     if args.all:
@@ -333,6 +394,78 @@ def cmd_monitor(cfg, args):
             break
         time.sleep(interval)
 
+AI_REVIEW_SYS = (
+    "You are a senior reviewer of AI-built NocoBase apps. Given a build run's prompt, outcome, "
+    "errors and transcript excerpts, judge how well it met the goal. Reply ONLY compact JSON: "
+    '{"score": <0-10 number>, "verdict": "pass|fix|redo", '
+    '"comment": "<2-4 sentences: what it achieved, what is wrong/missing, the single biggest issue>"}. '
+    "pass = meets the goal with minor nits. fix = mostly there, specific fixable gaps. redo = missed the goal / broken."
+)
+
+def _chat(cfg, system, user, max_tokens=500, model=None):
+    """one-shot call to the OpenAI-compatible gateway; returns assistant text or '__ERR__ ...'."""
+    import urllib.request
+    g = cfg["gateway"]
+    key = os.environ.get(g.get("apiKeyEnv", "LLM_API_KEY")) or g.get("apiKey")
+    if not key:
+        return "__ERR__ no LLM key (set LLM_API_KEY)"
+    body = {"model": model or cfg["monitor"]["judgeModel"],
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "max_tokens": max_tokens, "temperature": 0}
+    req = urllib.request.Request(g["baseURL"].rstrip("/") + "/chat/completions",
+        data=json.dumps(body).encode(),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                 "User-Agent": g.get("userAgent", "opencode/1.16.2")})
+    try:
+        with urllib.request.urlopen(req, timeout=70) as r:
+            return json.loads(r.read())["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"__ERR__ {e}"
+
+def _run_digest(rec, transcript):
+    """compact, token-bounded description of a run for the AI reviewer."""
+    p = (rec.get("prompt") or {}).get("text") or ""
+    fin = (rec.get("outcome") or {}).get("finalText") or ""
+    errs = (rec.get("errors") or {}).get("samples") or []
+    says = [t.get("text", "") for t in transcript if t.get("t") == "text" and t.get("role") == "assistant"][-3:]
+    parts = [
+        f"GOAL/PROMPT:\n{p[:1800]}",
+        f"\nOUTCOME status={rec.get('outcome',{}).get('status')} rounds={rec.get('rounds')} tools={rec.get('toolCalls')} errors={rec.get('errors',{}).get('count')}",
+        f"\nFINAL REPORT:\n{fin[:1200]}",
+    ]
+    if errs:
+        parts.append("\nERROR SAMPLES:\n" + "\n".join(f"- [{e.get('tool')}] {e.get('msg','')}" for e in errs[:12]))
+    if says:
+        parts.append("\nLAST ASSISTANT NOTES:\n" + "\n".join(s[:400] for s in says))
+    return "\n".join(parts)
+
+def cmd_ai_review(cfg, args):
+    idxp = os.path.join(RUNS_DIR, "index.json")
+    if not os.path.exists(idxp):
+        print("no runs/index.json — run `collect` first"); return
+    index = json.load(open(idxp))
+    arf = os.path.join(RUNS_DIR, "ai-reviews.json")
+    ai = json.load(open(arf)) if os.path.exists(arf) else {}
+    only = set(args.only.split(",")) if args.only else None
+    targets = [r for r in index if (only and r["id"] in only) or (not only and (args.all or r["id"] not in ai))]
+    print(f"ai-review: {len(targets)} run(s) (model={cfg['monitor']['judgeModel']})")
+    for rec in targets:
+        tf = os.path.join(RUNS_DIR, "transcripts", f"{rec['id']}.json")
+        transcript = json.load(open(tf)).get("transcript", []) if os.path.exists(tf) else []
+        out = _chat(cfg, AI_REVIEW_SYS, _run_digest(rec, transcript))
+        if out.startswith("__ERR__"):
+            print(f"  ! {rec['id']}: {out}"); continue
+        m = re.search(r"\{.*\}", out, re.S)
+        try:
+            j = json.loads(m.group(0)) if m else {}
+        except Exception:
+            j = {"comment": out[:300]}
+        ai[rec["id"]] = {"score": j.get("score"), "verdict": j.get("verdict"),
+                         "comment": j.get("comment"), "model": cfg["monitor"]["judgeModel"], "ts": _now()}
+        print(f"  + {rec['id']:30} ai: {j.get('verdict')} {j.get('score')}  {str(j.get('comment',''))[:70]}")
+    json.dump(ai, open(arf, "w"), ensure_ascii=False, indent=1)
+    print(f"wrote {len(ai)} ai-review(s) -> runs/ai-reviews.json")
+
 def cmd_stop(cfg, args):
     for r in select_runs(cfg, args.only):
         s = run_session_name(cfg, r)
@@ -352,17 +485,20 @@ def cmd_summary(cfg, args):
 
 def main():
     ap = argparse.ArgumentParser(description="config-driven opencode bench pipeline")
-    ap.add_argument("command", choices=["run", "status", "monitor", "summary", "stop", "collect", "brief"])
+    ap.add_argument("command", choices=["run", "status", "monitor", "summary", "stop", "collect", "brief", "ai-review", "retry", "attach"])
     ap.add_argument("--config", default=os.path.join(HERE, "bench.config.json"))
     ap.add_argument("--only", help="comma-separated run ids")
     ap.add_argument("--once", action="store_true", help="monitor: single pass then exit")
     ap.add_argument("--judge", choices=["heuristic", "llm", "heuristic+llm", "agent"], help="monitor: override judge mode")
     ap.add_argument("--stagger", type=float, default=2.0, help="run: seconds between launches")
-    ap.add_argument("--all", action="store_true", help="collect: discover & ingest ALL historical sessions (opencode)")
+    ap.add_argument("--all", action="store_true", help="collect/ai-review: cover ALL runs (else: new ones)")
+    ap.add_argument("--note", help="retry: the iteration instruction")
+    ap.add_argument("--files", help="attach: comma-separated image paths")
     args = ap.parse_args()
     cfg = load_config(args.config)
     {"run": cmd_run, "status": cmd_status, "monitor": cmd_monitor, "summary": cmd_summary,
-     "stop": cmd_stop, "collect": cmd_collect, "brief": cmd_brief}[args.command](cfg, args)
+     "stop": cmd_stop, "collect": cmd_collect, "brief": cmd_brief,
+     "ai-review": cmd_ai_review, "retry": cmd_retry, "attach": cmd_attach}[args.command](cfg, args)
 
 if __name__ == "__main__":
     main()
