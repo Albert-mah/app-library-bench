@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>历次跑测 · Run History</title>
+<link rel="stylesheet" href="shared.css">
 <style>
-  :root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --fg:#e6e9ef; --dim:#8b93a7; --acc:#5b8cff;
-          --pass:#3fb950; --fix:#d29922; --redo:#f85149; --done:#3fb950; --err:#f85149; }
+  /* design tokens from shared.css */
   * { box-sizing:border-box; }
   body { margin:0; font:13px/1.5 -apple-system,Segoe UI,Roboto,system-ui,sans-serif; background:var(--bg); color:var(--fg); }
-  header { padding:14px 18px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .pagehead { padding:10px 18px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
   h1 { font-size:16px; margin:0; }
   a { color:var(--acc); text-decoration:none; }
   .stats { display:flex; gap:14px; color:var(--dim); flex-wrap:wrap; }
@@ -17,20 +17,20 @@
   .bar { padding:10px 18px; display:flex; gap:8px; flex-wrap:wrap; border-bottom:1px solid var(--line); }
   .bar input, .bar select { background:var(--panel); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:5px 8px; font-size:12px; }
   .bar input[type=search] { min-width:220px; }
-  main { display:flex; height:calc(100vh - 110px); }
+  main { display:flex; height:calc(100vh - 150px); }
   .tablewrap { flex:1; overflow:auto; }
   table { border-collapse:collapse; width:100%; font-size:12px; }
   th,td { text-align:left; padding:6px 9px; border-bottom:1px solid var(--line); white-space:nowrap; }
-  th { position:sticky; top:0; background:var(--panel); cursor:pointer; user-select:none; z-index:1; }
+  th { position:sticky; top:0; background:#fafbfc; cursor:pointer; user-select:none; z-index:1; }
   th:hover { color:var(--acc); }
   tbody tr { cursor:pointer; }
-  tbody tr:hover { background:#1c2029; }
-  tbody tr.sel { background:#23314f; }
-  tbody tr.grp { background:#11151c; cursor:default; }
+  tbody tr:hover { background:#f7f9ff; }
+  tbody tr.sel { background:#e6f4ff; }
+  tbody tr.grp { background:#fafbfc; cursor:default; }
   tbody tr.grp td { color:var(--acc); border-bottom:1px solid var(--line); padding-top:9px; }
   .pill { padding:1px 7px; border-radius:10px; font-size:11px; font-weight:600; }
-  .s-done{ color:var(--done); } .s-error{ color:var(--err); } .s-unknown{ color:var(--dim); }
-  .v-pass{ background:rgba(63,185,80,.18); color:var(--pass);} .v-fix{ background:rgba(210,153,34,.18); color:var(--fix);} .v-redo{ background:rgba(248,81,73,.18); color:var(--redo);}
+  .s-done{ color:var(--pass-fg); } .s-error{ color:var(--redo-fg); } .s-unknown{ color:var(--dim); }
+  .v-pass{ background:var(--pass-bg); color:var(--pass-fg); border:1px solid var(--pass-bd);} .v-fix{ background:var(--fix-bg); color:var(--fix-fg); border:1px solid var(--fix-bd);} .v-redo{ background:var(--redo-bg); color:var(--redo-fg); border:1px solid var(--redo-bd);}
   .err-n { color:var(--err); font-weight:600; }
   .muted { color:var(--dim); }
   aside { width:0; transition:width .15s; overflow:hidden; border-left:1px solid var(--line); background:var(--panel); }
@@ -42,8 +42,8 @@
   .sect { margin:14px 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); border-top:1px solid var(--line); padding-top:10px; }
   pre { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:9px; overflow:auto; max-height:240px; font-size:11px; white-space:pre-wrap; }
   .t-row { border-bottom:1px solid var(--line); padding:6px 0; font-size:12px; }
-  .t-user { color:#9ecbff; } .t-assistant { color:var(--fg); } .t-reasoning { color:var(--dim); font-style:italic; }
-  .t-tool { color:#d2a8ff; } .t-tool .o { color:var(--dim); display:block; white-space:pre-wrap; max-height:120px; overflow:auto; }
+  .t-user { color:var(--primary); } .t-assistant { color:var(--fg); } .t-reasoning { color:var(--dim); font-style:italic; }
+  .t-tool { color:#7c3aed; } .t-tool .o { color:var(--dim); display:block; white-space:pre-wrap; max-height:120px; overflow:auto; }
   .review { position:sticky; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:12px 0 4px; margin-top:10px; }
   .vbtns button { background:var(--bg); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:5px 12px; cursor:pointer; margin-right:6px; }
   .vbtns button.on.v-pass{ outline:2px solid var(--pass);} .vbtns button.on.v-fix{ outline:2px solid var(--fix);} .vbtns button.on.v-redo{ outline:2px solid var(--redo);}
@@ -51,7 +51,7 @@
   .save { background:var(--acc); border:none; color:#fff; padding:6px 16px; border-radius:6px; cursor:pointer; margin-top:8px; }
   .closex { float:right; cursor:pointer; color:var(--dim); font-size:18px; }
   .errlist div { padding:3px 0; border-bottom:1px solid var(--line); }
-  code.k { color:#79c0ff; }
+  code.k { color:var(--primary); }
   .shots { display:flex; gap:10px; flex-wrap:wrap; margin:10px 0; }
   .shots a { display:block; max-width:100%; }
   .shots img { max-width:100%; max-height:340px; border:1px solid var(--line); border-radius:6px; display:block; }
@@ -59,7 +59,7 @@
   .art { flex-basis:100%; }
   .art iframe { width:100%; height:320px; border:1px solid var(--line); border-radius:6px; background:#fff; }
   .art pre { max-height:300px; }
-  .aibox { background:rgba(91,140,255,.08); border:1px solid #2b3a5e; border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+  .aibox { background:#f5faff; border:1px solid #bcd6ff; border-radius:8px; padding:10px 12px; margin-bottom:10px; }
   .aihd { display:flex; align-items:center; gap:8px; font-weight:600; }
   .aihd b { color:var(--acc); }
   .aicom { margin:6px 0; font-size:12px; }
@@ -67,11 +67,12 @@
 </style>
 </head>
 <body>
-<header>
-  <h1>历次跑测 · Run History</h1>
-  <a href="index.html">← 示例库</a> <a href="test-report.html">复刻测试报告</a> <a href="bench-live.html">实时看板</a>
-  <div class="stats" id="stats"></div>
-</header>
+<nav class="app-nav">
+  <span class="brand"><span class="dot"></span>企业应用示例库</span>
+  <a href="index.html">画廊</a><a href="test-report.html">测试中心</a>
+  <a href="runs.html" class="cur">历次跑测</a><a href="bench-live.html">实时看板</a><a href="dashboard.html">仪表盘</a>
+</nav>
+<div class="pagehead"><h1>历次跑测 · Run History</h1><div class="stats" id="stats"></div></div>
 <div class="bar">
   <input type="search" id="q" placeholder="搜索 id / 模型 / 标签 / 提示词…">
   <select id="fModel"><option value="">全部模型</option></select>
