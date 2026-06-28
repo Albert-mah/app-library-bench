@@ -48,7 +48,7 @@ export default function Gallery() {
           {rows.map((m) => (
             <div className="card" key={m.slug}>
               <a className="thumb" href={`/${m.slug}.html`} target="_blank" rel="noopener"
-                 style={{ backgroundImage: `url(thumbs/${m.slug}.png)` }}>
+                 style={{ backgroundImage: `url(/thumbs/${String(m.num).padStart(2, '0')}.jpg)` }}>
                 {m.num != null && <span className="num">{String(m.num).padStart(2, '0')}</span>}
                 {m.series === 'v2' && <span className="b" style={{ background: '#7c3aed', position: 'absolute', top: 6, right: 6 }}>v2</span>}
               </a>
