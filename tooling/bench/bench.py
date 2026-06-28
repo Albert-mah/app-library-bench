@@ -454,6 +454,8 @@ def cmd_resume(cfg, args):
         s = run_session_name(cfg, run)
         cwd = expand(run["cwd"])
         get_adapter("claude").launch(s, run, cfg, cwd)   # `claude --continue --dangerously-skip-permissions`
+        # a large/old session shows a "resume from summary? (recommended)" menu — accept the default
+        send(s, "", enter=True); time.sleep(1.2)
         send(s, f"继续完成这个 NocoBase 搭建(从上次中断处续):补齐未完成的招牌区块/视觉自查,"
                 f"始终 -e {e['env']} -y;完成后务必输出一行 Self-Score: X/10 收尾。")
         pf = e.get("promptFile"); pf = pf if (pf and os.path.isabs(pf)) else os.path.join(HERE, pf or "")
