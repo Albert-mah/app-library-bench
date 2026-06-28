@@ -68,7 +68,7 @@ def save_state(cfg, st):
 # shared tmux helpers + CLI adapters. Launch is opencode-centric; the adapters'
 # main job is INGEST — normalizing each CLI's stored run data (time/rounds/errors/
 # prompt/tokens/transcript) into one common run-record. See adapters.py + `collect`.
-from adapters import tmux, session_exists, pane, send, wait_for, get_adapter, redact
+from adapters import tmux, session_exists, pane, send, wait_for, get_adapter, redact, ADAPTERS
 
 # ---------------------------------------------------------------- nb golden reset
 def reset_env(run):
@@ -345,9 +345,18 @@ def cmd_retry(cfg, args):
 def cmd_collect(cfg, args):
     os.makedirs(os.path.join(RUNS_DIR, "transcripts"), exist_ok=True)
     if args.all:
-        ad = get_adapter(cfg.get("cli", "opencode"))
-        runs = ad.discover(cfg) if hasattr(ad, "discover") else []
-        print(f"discovered {len(runs)} historical session(s) referencing a prompt file")
+        # sweep EVERY CLI's store (opencode db + claude ~/.claude/projects), so a single
+        # `collect --all` ingests builds from all CLIs. --cli <name> restricts to one.
+        names = [args.cli] if args.cli else list(ADAPTERS)
+        runs, seen = [], set()
+        for name in names:
+            ad = get_adapter(name)
+            if not hasattr(ad, "discover"): continue
+            got = [r for r in ad.discover(cfg) if r.get("id") not in seen]
+            seen.update(r.get("id") for r in got)
+            print(f"  {name}: discovered {len(got)} historical build session(s)")
+            runs += got
+        print(f"discovered {len(runs)} session(s) total across {len(names)} CLI(s)")
     else:
         runs = select_runs(cfg, args.only)
     idxp = os.path.join(RUNS_DIR, "index.json")
@@ -503,6 +512,7 @@ def main():
     ap.add_argument("--judge", choices=["heuristic", "llm", "heuristic+llm", "agent"], help="monitor: override judge mode")
     ap.add_argument("--stagger", type=float, default=2.0, help="run: seconds between launches")
     ap.add_argument("--all", action="store_true", help="collect/ai-review: cover ALL runs (else: new ones)")
+    ap.add_argument("--cli", choices=list(ADAPTERS), help="collect --all: restrict discovery to one CLI (default: all)")
     ap.add_argument("--note", help="retry: the iteration instruction")
     ap.add_argument("--files", help="attach: comma-separated artifact paths (image/html/text/code/file)")
     ap.add_argument("--kind", choices=["image", "html", "text", "file"], help="attach: force artifact kind (else inferred from extension)")

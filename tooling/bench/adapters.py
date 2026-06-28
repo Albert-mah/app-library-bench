@@ -208,6 +208,31 @@ class OpencodeAdapter(BaseAdapter):
         return rec, transcript
 
 # ---------------------------------------------------------------- claude code
+# a build/repro *dispatch* looks different from KB/doc/chat sessions — match the task language,
+# not just "nocobase" (this very KB repo mentions nocobase constantly and must NOT be ingested).
+CLAUDE_BUILD_SIG = re.compile(
+    r"TASK\.md|SPEC\.md|using the nb cli|pass\s+-e\b|-e\s+\w+\s+-y|"
+    r"build .{0,40}(?:module|app|page|into the nocobase|in nocobase)|"
+    r"reproduce .{0,40}(?:prototype|module|into|in nocobase)|"
+    r"nocobase-prototype-repro|招牌视图|招牌页|视觉(?:环)?自查|"
+    r"端到端.{0,12}(?:搭建|完成|完整)|数据建模.{0,12}(?:种子|列表页|招牌)|"
+    r"搭建.{0,12}(?:模块|应用|页面)|复刻", re.I)
+
+def _claude_module(cwd, first_user):
+    """infer the library scenario a build maps to: a prototype number from the requirement
+    file (pNN.txt), an mNN tag in the cwd, or a 2-digit 0X token in the cwd. → zero-padded 2-digit."""
+    m = (re.search(r"\bp(\d{1,2})(?:\.txt)?\b", first_user or "")
+         or re.search(r"\bm(\d{1,2})\b", cwd or "")
+         or re.search(r"(?:^|[-_/])(0[1-9])(?:[-_/]|$)", cwd or ""))
+    return m.group(1).zfill(2) if m else None
+
+def _claude_label(cwd):
+    """readable, stable slug from the last 2 meaningful path segments (drops tmp/home/user/apps)."""
+    parts = [p for p in (cwd or "").strip("/").split("/")
+             if p and p not in ("tmp", "home", "apps", os.path.basename(os.path.expanduser("~")))]
+    slug = "-".join(parts[-2:]) if parts else "claude"
+    return re.sub(r"[^a-z0-9]+", "-", slug.lower()).strip("-") or "claude", (parts[0] if parts else "claude")
+
 class ClaudeAdapter(BaseAdapter):
     name = "claude"
     ready_pattern = r"esc to interrupt|Claude Code|╭|Welcome|>\s*$"
@@ -220,6 +245,49 @@ class ClaudeAdapter(BaseAdapter):
         cwd = expand(run.get("cwd") or cfg.get("runCwd", "~"))
         slug = cwd.replace("/", "-")
         return os.path.join(os.path.expanduser("~/.claude/projects"), slug)
+
+    def discover(self, cfg, limit=400):
+        """find historical Claude Code build sessions under ~/.claude/projects/*/*.jsonl → synthetic runs
+        for `collect --all`. The .jsonl filename (a session UUID) is the natural id; `module` is inferred
+        from the session cwd (repro-exp/mNN, a 2-digit scenario). Non-build sessions (KB/doc work,
+        anything run from the agent-kb repo) are skipped so only real builds are ingested."""
+        base = os.path.expanduser("~/.claude/projects")
+        if not os.path.isdir(base): return []
+        out = []
+        files = sorted(glob.glob(os.path.join(base, "*", "*.jsonl")), key=os.path.getmtime, reverse=True)[:limit]
+        for path in files:
+            sid = os.path.basename(path)[:-6]
+            cwd, first_user, blob = "", "", ""
+            try:
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    for i, line in enumerate(fh):
+                        if i >= 40: break
+                        line = line.strip()
+                        if not line: continue
+                        try: r = json.loads(line)
+                        except Exception: continue
+                        cwd = cwd or r.get("cwd") or ""
+                        msg = r.get("message") or {}
+                        c = msg.get("content")
+                        txt = c if isinstance(c, str) else (
+                            " ".join(b.get("text", "") for b in c if isinstance(b, dict)) if isinstance(c, list) else "")
+                        if msg.get("role") == "user" and not first_user and txt.strip():
+                            first_user = txt
+                        blob += " " + txt
+            except Exception:
+                continue
+            if "agent-kb" in cwd:  # the KB repo itself — meta/doc sessions, never a build
+                continue
+            if not CLAUDE_BUILD_SIG.search(first_user + " " + blob[:4000]):
+                continue
+            scope = f"{cwd} {first_user}"
+            module = _claude_module(cwd, first_user)
+            envm = re.search(r"-e\s+([a-z0-9_]+)", scope) or re.search(r"env\s+(?:named\s+)?([a-z0-9_]+)", scope)
+            env = envm.group(1) if envm else None
+            label, batch = _claude_label(cwd)
+            out.append({"id": f"cl-{label}-{sid[:6]}", "sessionId": sid, "cwd": cwd or None,
+                        "env": env, "cli": "claude", "batch": batch, "module": module})
+        return out
 
     def extract(self, run, cfg):
         d = self._proj_dir(run, cfg)
@@ -236,13 +304,16 @@ class ClaudeAdapter(BaseAdapter):
                 try: rows.append(json.loads(line))
                 except Exception: pass
         transcript, rounds, tools, final_text, prompt_text, errors = [], 0, 0, "", None, []
-        tin = tout = 0; t0 = t1 = None
+        tin = tout = tcr = tcw = 0; t0 = t1 = None; model = None
         for r in rows:
             ts = r.get("timestamp"); t0 = t0 or ts; t1 = ts or t1
             msg = r.get("message") or {}
             role = msg.get("role") or r.get("type")
+            if msg.get("model"): model = msg["model"]      # claude records the model per assistant turn
             usage = (msg.get("usage") or {})
             tin += usage.get("input_tokens", 0) or 0; tout += usage.get("output_tokens", 0) or 0
+            tcr += usage.get("cache_read_input_tokens", 0) or 0
+            tcw += usage.get("cache_creation_input_tokens", 0) or 0
             content = msg.get("content")
             if isinstance(content, str):
                 if role == "user" and prompt_text is None: prompt_text = content
@@ -269,15 +340,17 @@ class ClaudeAdapter(BaseAdapter):
         if prompt_file:
             pf = prompt_file if os.path.isabs(prompt_file) else os.path.join(os.path.dirname(os.path.abspath(__file__)), prompt_file)
             if os.path.exists(pf): pf_text = open(pf, encoding="utf-8").read(); pf_sha = _sha(pf_text)
+        model = run.get("model") or model
         rec = {
             "id": run["id"], "cli": "claude", "sessionId": os.path.basename(path)[:-6],
-            "model": run.get("model"), "provider": "anthropic",
+            "model": model, "provider": "anthropic",
             "target": {"env": run.get("env")},
             "lineage": _lineage(run, os.path.splitext(os.path.basename(run.get("promptFile") or ""))[0].replace(".prompt", "")),
             "prompt": {"file": prompt_file, "sha256": pf_sha, "text": pf_text or prompt_text, "launchInstruction": prompt_text},
-            "tags": sorted(set((run.get("tags") or []) + [x for x in ["claude", run.get("env")] if x])),
-            "timing": {"startedAt": t0, "endedAt": t1, "durationSec": None},
-            "tokens": {"input": tin, "output": tout, "reasoning": None, "cacheRead": None, "cacheWrite": None},
+            "tags": sorted(set((run.get("tags") or []) + [x for x in ["anthropic", _tier(model), "claude", run.get("env")] if x])),
+            "timing": {"startedAt": t0, "endedAt": t1, "durationSec": _dur_iso(t0, t1)},
+            "tokens": {"input": tin, "output": tout, "reasoning": None,
+                       "cacheRead": tcr or None, "cacheWrite": tcw or None},
             "cost": None, "rounds": rounds, "toolCalls": tools,
             "errors": {"count": len(errors), "samples": errors[:30]},
             "outcome": {"status": _status_from(final_text, transcript), "finalText": final_text[:2000]},
@@ -298,6 +371,15 @@ def _lineage(run, stem=None):
             mod = mm.group(1)
     return {"prototype": run.get("prototype"), "batch": batch,
             "parent": run.get("parent"), "depth": run.get("depth", 0), "module": mod}
+
+def _dur_iso(a, b):
+    """seconds between two ISO-8601 timestamps (claude rows store ISO strings, not epoch ms)."""
+    if not a or not b: return None
+    try:
+        fmt = lambda s: time.mktime(time.strptime(s.split(".")[0].rstrip("Z"), "%Y-%m-%dT%H:%M:%S"))
+        return max(0, round(fmt(b) - fmt(a)))
+    except Exception:
+        return None
 
 def _tier(model):
     if not model: return None
