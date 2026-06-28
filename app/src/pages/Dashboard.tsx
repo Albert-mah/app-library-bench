@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [server, setServer] = useState<any>({});
   const [audit, setAudit] = useState<any>(null);
   const [err, setErr] = useState('');
+  const [cat, setCat] = useState(''); const [tag, setTag] = useState(''); const [dt, setDt] = useState(''); const [round, setRound] = useState('');
 
   useEffect(() => {
     getJSON('/library.json').then((d) => {
@@ -23,26 +24,32 @@ export default function Dashboard() {
     getJSON('/build-audit.json').then(setAudit).catch(() => setAudit(null));
   }, []);
 
+  const tags = useMemo(() => [...new Set(mods.map((m) => m.tag).filter(Boolean))].sort(), [mods]);
+  const fmods = useMemo(() => mods.filter((m) =>
+    (!cat || (m.category || 'build') === cat) && (!tag || m.tag === tag) && (!dt || (m.dataType || 'html') === dt)), [mods, cat, tag, dt]);
+  const allowNums = useMemo(() => new Set(fmods.map((m) => String(m.num).padStart(2, '0'))), [fmods]);
+  const scoped = (a: any) => allowNums.has(String(a.mnum).padStart(2, '0'));
+
   const econ = useMemo(() => {
     if (!audit?.modules) return null;
     const by: Record<string, any> = {};
-    audit.modules.forEach((a: any) => {
+    audit.modules.filter(scoped).forEach((a: any) => {
       const g = (by[a.line] = by[a.line] || { line: a.line, n: 0, min: 0, llm: 0, tool: 0, err: 0, score: 0, sn: 0 });
       g.n++; g.min += +a.minutes || 0; g.llm += +a.llm_calls || 0; g.tool += +a.tool_calls || 0; g.err += +a.errors || 0;
       if (typeof a.self_score === 'number') { g.score += a.self_score; g.sn++; }
     });
     return Object.values(by).sort((a: any, b: any) => b.n - a.n);
-  }, [audit]);
-  const scatter = useMemo(() => (audit?.modules || []).filter((a: any) => +a.minutes && typeof a.self_score === 'number')
-    .map((a: any) => ({ x: +a.minutes, y: a.self_score, line: a.line, m: a.mnum })), [audit]);
+  }, [audit, allowNums]);
+  const scatter = useMemo(() => (audit?.modules || []).filter((a: any) => scoped(a) && +a.minutes && typeof a.self_score === 'number')
+    .map((a: any) => ({ x: +a.minutes, y: a.self_score, line: a.line, m: a.mnum })), [audit, allowNums]);
 
   const curRound = (m: any, b: string) => { for (let i = rounds.length - 1; i >= 0; i--) if (hasData(modBR(m, b, rounds[i].id))) return rounds[i].id; return rounds.length ? rounds[rounds.length - 1].id : ''; };
   const uVerdict = (mid: string, r: string, b: string) => { const e = server?.[b]?.[r]?.[mid]; return e && V.includes(e.verdict) ? e.verdict : null; };
 
   const D = useMemo(() => {
-    if (!mods.length) return null;
-    // main-line current round per module
-    const main = mods.map((m) => { const r = curRound(m, MAIN); const rd = modBR(m, MAIN, r); return { m, r, rd }; }).filter((x) => x.rd);
+    if (!fmods.length) return null;
+    // main-line round per module (a chosen round, else latest with data)
+    const main = fmods.map((m) => { const r = round || curRound(m, MAIN); const rd = modBR(m, MAIN, r); return { m, r, rd }; }).filter((x) => x.rd);
     const vdist: any = { pass: 0, fix: 0, redo: 0, review: 0 };
     let aiSum = 0, aiN = 0, reviewed = 0;
     main.forEach(({ m, r, rd }) => {
@@ -50,29 +57,39 @@ export default function Dashboard() {
       if (uv) { vdist[uv]++; reviewed++; } else vdist.review++;
       if (typeof rd.aiScore === 'number') { aiSum += rd.aiScore; aiN++; }
     });
-    // lines (branches)
     const lineIds: string[] = [];
-    mods.forEach((m) => Object.keys(m.branches).forEach((k) => { if (!lineIds.includes(k)) lineIds.push(k); }));
+    fmods.forEach((m) => Object.keys(m.branches).forEach((k) => { if (!lineIds.includes(k)) lineIds.push(k); }));
     lineIds.sort((a, b) => (a === MAIN ? -1 : b === MAIN ? 1 : 0));
     const lines = lineIds.map((b) => {
       let n = 0, ai = 0, aiN2 = 0, pass = 0, rev = 0;
-      mods.forEach((m) => { if (!branchObj(m, b)) return; const r = curRound(m, b); const rd = modBR(m, b, r); if (!rd) return; n++; if (typeof rd.aiScore === 'number') { ai += rd.aiScore; aiN2++; } const uv = uVerdict(m.id, r, b); if (uv) rev++; if (uv === 'pass') pass++; });
+      fmods.forEach((m) => { if (!branchObj(m, b)) return; const r = round || curRound(m, b); const rd = modBR(m, b, r); if (!rd) return; n++; if (typeof rd.aiScore === 'number') { ai += rd.aiScore; aiN2++; } const uv = uVerdict(m.id, r, b); if (uv) rev++; if (uv === 'pass') pass++; });
       return { b, n, avgAI: aiN2 ? ai / aiN2 : null, pass, rev };
     }).filter((l) => l.n > 0);
-    // rounds (main) avg AI
-    const roundStat = rounds.map((rr) => { let ai = 0, n = 0; mods.forEach((m) => { const rd = modBR(m, MAIN, rr.id); if (rd && typeof rd.aiScore === 'number') { ai += rd.aiScore; n++; } }); return { id: rr.id, label: rr.label, avgAI: n ? ai / n : null, n }; }).filter((x) => x.n);
+    const roundStat = rounds.map((rr) => { let ai = 0, n = 0; fmods.forEach((m) => { const rd = modBR(m, MAIN, rr.id); if (rd && typeof rd.aiScore === 'number') { ai += rd.aiScore; n++; } }); return { id: rr.id, label: rr.label, avgAI: n ? ai / n : null, n }; }).filter((x) => x.n);
     return { main, vdist, avgAI: aiN ? aiSum / aiN : 0, reviewed, lines, roundStat, tested: main.length };
-  }, [mods, rounds, server]);
+  }, [fmods, rounds, server, round]);
 
   if (err) return <div className="loading">加载失败:{err}</div>;
-  if (!D) return <div className="loading">加载中…</div>;
-  const max = Math.max(1, ...Object.values(D.vdist).map(Number));
+  if (!mods.length) return <div className="loading">加载中…</div>;
+  const max = D ? Math.max(1, ...Object.values(D.vdist).map(Number)) : 1;
   const lineLabel = (b: string) => (b === MAIN ? '主应用线' : (mods.find((m) => branchObj(m, b)?.label)?.branches[b].label || b));
+  const filtered = cat || dt || tag || round;
 
   return (
     <>
-      <div className="pagehead"><h1>搭建总览</h1><span className="sub">搭建情况 · 优化效果 · 成果(从 library.json + 评分实时算)</span></div>
+      <div className="pagehead"><h1>搭建总览</h1><span className="sub">搭建情况 · 优化效果 · 成果(随筛选实时计算)</span></div>
+      <div className="bar">
+        <select value={cat} onChange={(e) => setCat(e.target.value)}><option value="">全部场景</option><option value="build">搭建</option><option value="experiment">实验记录</option><option value="other">其他</option></select>
+        <select value={dt} onChange={(e) => setDt(e.target.value)}><option value="">全部类型</option><option value="html">HTML</option><option value="prompt">Prompt/资料</option></select>
+        <select value={tag} onChange={(e) => setTag(e.target.value)}><option value="">全部分类</option>{tags.map((t) => <option key={t}>{t}</option>)}</select>
+        <span className="muted">轮次</span>
+        <button className={'btn' + (round === '' ? ' on' : '')} onClick={() => setRound('')}>最新</button>
+        {rounds.map((r) => <button key={r.id} className={'btn' + (round === r.id ? ' on' : '')} onClick={() => setRound(r.id)}>{r.id.toUpperCase()}</button>)}
+        {filtered && <button className="btn" onClick={() => { setCat(''); setDt(''); setTag(''); setRound(''); }}>清除</button>}
+        <span className="muted" style={{ marginLeft: 'auto' }}>{D ? D.tested : 0} 个模块</span>
+      </div>
       <div className="wrap">
+        {!D ? <div style={{ padding: 48, textAlign: 'center', color: 'var(--text3)' }}>该筛选下没有数据</div> : <>
         <div className="kpis">
           <Kpi label="已测模块" val={D.tested} />
           <Kpi label="已人工评审" val={D.reviewed} />
@@ -169,6 +186,7 @@ export default function Dashboard() {
             <Scatter pts={scatter} />
           </section>
         )}
+        </>}
       </div>
     </>
   );
