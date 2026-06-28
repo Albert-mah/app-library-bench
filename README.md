@@ -1,4 +1,4 @@
-# app-library-bench · AI 搭建流水线
+# app-library-bench · AI Build Pipeline
 
 A self-contained platform for **observing and recording AI-assisted build experiments** —
 a prototype **gallery**, a **review center**, and a **benchmarking pipeline**. It hosts

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getJSON, postJSON } from '../lib/api';
+import { NB_EXPERIMENT } from '../lib/templates';
 
 type Mod = any;
 const pad2 = (n: any) => String(n).padStart(2, '0');
@@ -181,6 +182,16 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m
     const res = await postJSON('/api/prototypes', { kind, category: cat, name, en, desc, tags, content, goal, background, successCriteria: criteria });
     if (res?.ok) onCreated(res.module); else setMsg('失败:' + (res?.error || ''));
   };
+  // one-click: fill the standard NocoBase reproduction *requirement* (goal/background/criteria,
+  // + a ready-to-send build prompt body when the body is still empty).
+  const useNbTemplate = () => {
+    setCat('build');
+    setGoal(NB_EXPERIMENT.goal);
+    setBackground(NB_EXPERIMENT.background);
+    setCriteria(NB_EXPERIMENT.criteria.join('\n'));
+    if (!body.trim() && (kind === 'prompt' || kind === 'info')) setBody(NB_EXPERIMENT.prompt);
+    setMsg('已套用 NocoBase 实验模板 — 按需微调');
+  };
   return (
     <div className="tm-overlay" onClick={onClose}>
       <div className="cf" onClick={(e) => e.stopPropagation()}>
@@ -188,6 +199,7 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m
         <div className="cf-body">
           <div className="cf-prereq">🧱 NocoBase 搭建类实验前置物料:① 已装 <code>nb</code> CLI ② 已装 nocobase skills ③ 本地有 Docker 环境(搭建策略与跑测依赖这些)</div>
           <div className="cf-prereq" style={{ background: '#f6ffed', borderColor: '#b7eb8f', color: '#389e0d' }}>📋 实验平台:信息尽量填全。<b>AI 创建时请把能填的字段都填上</b>(目标/背景材料/成功标准等),便于后续派发与评审。</div>
+          <div style={{ margin: '2px 0 4px' }}><button type="button" className="btn" onClick={useNbTemplate}>🧱 一键填入 NocoBase 实验要求模板</button> <span className="muted" style={{ fontSize: 12 }}>填充目标 / 背景 / 成功标准(+ 复刻提示词)</span></div>
           <label>资料类型<div className="seg">{KINDS.map(([k, l]) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{l}</button>)}</div></label>
           <label>场景<div className="seg">{[['build', '搭建'], ['experiment', '实验记录'], ['other', '其他']].map(([k, l]) => <button key={k} className={cat === k ? 'on' : ''} onClick={() => setCat(k)}>{l}</button>)}</div></label>
           <label>名称<input value={name} onChange={(e) => setName(e.target.value)} placeholder="如:库存管理" /></label>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getJSON, postJSON, fmtTime } from '../lib/api';
+import { nbResultHtml } from '../lib/templates';
 
 const MAIN = 'main';
 const ALL_V = '__all__';
@@ -324,6 +325,7 @@ function ReviewBox({ m, b, r, e, uv, reachable, patch, setSel, hasImage, onResul
       <div><button className="save" disabled={!reachable} onClick={save}>保存评审</button> <span className="muted" style={{ marginLeft: 10 }}>{msg}</span></div>
       {!hasImage && <div className="resbox">
         <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>⚠️ 无结果图:补充 HTML 描述,系统自动截图为封面(规范:结果必须有可视化)</div>
+        <div style={{ marginBottom: 4 }}><button type="button" className="btn" disabled={!reachable} onClick={() => setRhtml(nbResultHtml(m.cn || m.name))}>📋 一键填入 结果呈现模板</button> <span className="muted" style={{ fontSize: 12 }}>产出/自评分/对比观察/gap/截图位</span></div>
         <textarea placeholder="结果 HTML 描述(实验结束后由观察者/人工补充)…" disabled={!reachable} value={rhtml} onChange={(ev) => setRhtml(ev.target.value)} />
         <div><button className="save" disabled={!reachable} onClick={submitResult}>补充结果(转封面)</button></div>
       </div>}

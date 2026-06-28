@@ -44,9 +44,12 @@ def _sha(t):
     return hashlib.sha256(t.encode("utf-8", "replace")).hexdigest()
 
 # scrub credentials that may surface in a transcript (api keys, JWTs, lark ids, known pw)
-SECRET_RE = re.compile(r"sk-[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_.-]{30,}|ou_[0-9a-f]{20,}|Exp_agents_\w+|VKXb#\S+")
+SECRET_RE = re.compile(r"sk-[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_.-]{30,}|ou_[0-9a-f]{20,}|Exp_agents_\w+|VKXb#\S+|Admin@appslib\w*")
+# generic password field: password|passwd|pwd : / = "value" (quoted or bare) — keep the key, redact the value
+PW_KV = re.compile(r"(?i)(\b(?:password|passwd|pwd)\b[\"']?\s*[:=]\s*)([\"']?)([^\"'\s,;{}]{3,80})(\2)")
 def redact(s):
     if not isinstance(s, str): return s
+    s = PW_KV.sub(lambda m: m.group(1) + m.group(2) + "***REDACTED***" + m.group(4), s)
     s = SECRET_RE.sub("***REDACTED***", s)
     home = os.path.expanduser("~")
     if home and home != "~": s = s.replace(home, "~")

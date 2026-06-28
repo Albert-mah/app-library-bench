@@ -18,7 +18,7 @@ const LINKS: [string, string][] = [
 function Nav() {
   return (
     <nav className="app-nav">
-      <span className="brand"><span className="dot" />AI 搭建流水线</span>
+      <span className="brand"><span className="dot" />AI Build Pipeline</span>
       {LINKS.map(([to, label]) => (
         <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'cur' : '')}>
           {label}
