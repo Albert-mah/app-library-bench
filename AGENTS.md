@@ -162,3 +162,35 @@ genuinely-stuck ones moving, do nothing to the healthy ones.
 - Keep prompts in `tooling/bench/prompts/`; keep secrets in `.env`; keep `runs/index.json` +
   `transcripts/` + reviews/ai-reviews/artifacts as the committed archive.
 - New CLI? Add an adapter in `adapters.py` (implement `extract()`, optionally `launch()`).
+
+---
+
+## 8. Experiment model & media spec (platform direction)
+
+This is evolving into a **general AI-assisted experiment pipeline platform**. The first-class
+concept is an **experiment**, converged across what used to be "test center" (build-repro) and
+"runs" (bench):
+
+```
+subject (prototype: kind+content, dataType, category, tags)
+   └─ batch / test line          (a dispatch — model × flow, or a review branch)
+        └─ run                    (one CLI build/exec → record: prompt/time/rounds/errors/chat/artifacts)
+             └─ review            (AI self-review + human verdict/score/note)
+```
+
+- **Subject (prototype)** is multimodal: `kind ∈ html | prompt | info | composite` + `content`;
+  classified by `dataType` (html / prompt+材料) and `category` (build 搭建 / experiment 实验 / other).
+- **/experiments** is the cross-scenario overview (subject → lines → runs → review, with status).
+- **Cross-links everywhere**: gallery → /tests?mod=N, run detail ↔ prototype, test modal → run chat.
+
+### Media spec — HTML-backed, auto cover (REQUIRED)
+- **Every prototype is HTML-backed.** `html` kind supplies the html; `prompt/info/composite` are
+  rendered into a standalone html doc at create time (`server/prototypes.mjs#renderHtml`). So a
+  prototype always has `/<slug>.html`.
+- **Cover image is auto-generated from that html** via a headless screenshot
+  (`npx playwright screenshot` → `web/thumbs/<num>.jpg`), fired non-blocking on create; regenerate
+  via `POST /api/shot {slug,num}`. This is how a prompt-only subject (e.g. #202) gets a cover.
+- **A result must carry an image.** If a run/result has no screenshot, it MUST provide an HTML
+  description instead — which the same screenshot step converts to a cover image, and which the
+  test detail also renders inline (so "what happened" is always visible, image or html).
+- Rationale: uniform visual review across modalities; nothing is reviewable without a visual.
