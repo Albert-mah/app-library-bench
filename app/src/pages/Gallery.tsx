@@ -77,7 +77,7 @@ function ProtoModal({ m, onClose }: { m: Mod; onClose: () => void }) {
 
   return (
     <div className="tm-overlay" onClick={onClose}>
-      <div className="tm" onClick={(e) => e.stopPropagation()}>
+      <div className="tm tm-full" onClick={(e) => e.stopPropagation()}>
         <div className="tm-head">
           <span className="tm-num">#{pad2(m.num)}</span>
           <div><h2>{m.cn || m.name || m.slug}</h2><div className="muted" style={{ fontSize: 12 }}>{m.en} · {m.tags?.join(' / ')}</div></div>
