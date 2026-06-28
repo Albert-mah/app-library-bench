@@ -4,9 +4,11 @@ import Runs from './pages/Runs';
 import BenchLive from './pages/BenchLive';
 import Dashboard from './pages/Dashboard';
 import TestReport from './pages/TestReport';
+import Experiments from './pages/Experiments';
 
 const LINKS: [string, string][] = [
   ['/', '画廊'],
+  ['/experiments', '实验总览'],
   ['/tests', '测试中心'],
   ['/runs', '历次跑测'],
   ['/live', '实时看板'],
@@ -34,6 +36,7 @@ export default function App() {
       <Nav />
       <Routes>
         <Route path="/" element={<Gallery />} />
+        <Route path="/experiments" element={<Experiments />} />
         <Route path="/tests" element={<TestReport />} />
         <Route path="/runs" element={<Runs />} />
         <Route path="/runs/:id" element={<Runs />} />
