@@ -16,9 +16,9 @@ npm start                 # → http://localhost:8080
 
 The frontend is a **React + Vite SPA** in `app/` (one unified shell + top nav); the Express
 server serves its build (`app/dist`) plus the static assets (prototypes, `library.json`,
-images) and the JSON APIs. Routes: `/` gallery · `/runs` run history · `/tests` test center
-· `/live` bench live · `/dashboard`. (Gallery + Runs are native React; the other three embed
-the still-working legacy pages under `web/legacy/` while they are ported.) Dev: `npm run dev:ui`.
+images) and the JSON APIs. Routes (all native React): `/` gallery · `/runs` run history ·
+`/tests` test center · `/live` bench live · `/dashboard`. The original vanilla pages are
+kept under `web/legacy/` for reference only (no longer used by the app). Dev: `npm run dev:ui`.
 
 - **Gallery** — `/` — the prototype app library.
 - **Test center** — `/tests` — per-module reproduction reports: model/flow
