@@ -18,7 +18,7 @@ const LINKS: [string, string][] = [
 function Nav() {
   return (
     <nav className="app-nav">
-      <span className="brand"><span className="dot" />企业应用示例库</span>
+      <span className="brand"><span className="dot" />AI 搭建流水线</span>
       {LINKS.map(([to, label]) => (
         <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'cur' : '')}>
           {label}

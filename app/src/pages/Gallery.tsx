@@ -37,7 +37,7 @@ export default function Gallery() {
 
   return (
     <>
-      <div className="pagehead"><h1>企业应用示例库</h1><span className="sub">{all.length} 个原型 · 点卡片看详情(嵌入原型 / Prompt / 信息 + 侧栏)</span></div>
+      <div className="pagehead"><h1>原型库</h1><span className="sub">{all.length} 个原型 · 点卡片看详情(嵌入原型 / Prompt / 信息 + 侧栏)</span></div>
       <div className="bar">
         <input type="search" placeholder="搜索 名称 / 英文 / 描述 / 标签…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={cat} onChange={(e) => setCat(e.target.value)}><option value="">全部场景</option><option value="build">搭建</option><option value="experiment">实验记录</option><option value="other">其他</option></select>
@@ -123,6 +123,9 @@ function ProtoModal({ m, onClose, onDeleted }: { m: Mod; onClose: () => void; on
             </div>
             {Object.keys(stages).length > 0 && <><div className="sect">阶段</div><div className="pd-stages">{Object.entries(stages).map(([k, v]) => <span key={k} className={'stg stg-' + v}>{k}:{String(v)}</span>)}</div></>}
             {m.desc && <><div className="sect">描述</div><p style={{ fontSize: 13 }}>{m.desc}</p></>}
+            {m.goal && <><div className="sect">🎯 目标</div><p style={{ fontSize: 13 }}>{m.goal}</p></>}
+            {m.background && <><div className="sect">📚 背景 / 材料</div><p style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{m.background}</p></>}
+            {(m.successCriteria || []).length > 0 && <><div className="sect">✅ 成功标准</div><ul style={{ fontSize: 13, paddingLeft: 18 }}>{m.successCriteria.map((c: string, i: number) => <li key={i}>{c}</li>)}</ul></>}
             {(m.content?.prompt || m.prompt) && <><div className="sect">提示词</div><pre>{m.content?.prompt || m.prompt}</pre></>}
             <div className="sect">入口</div>
             <div className="tm-files">
@@ -163,6 +166,7 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m
   const [kind, setKind] = useState('prompt');
   const [cat, setCat] = useState('experiment');
   const [name, setName] = useState(''); const [en, setEn] = useState(''); const [desc, setDesc] = useState(''); const [tags, setTags] = useState('');
+  const [goal, setGoal] = useState(''); const [background, setBackground] = useState(''); const [criteria, setCriteria] = useState('');
   const [body, setBody] = useState('');
   const [msg, setMsg] = useState('');
   const label: any = { html: '粘贴完整 HTML', prompt: '一段提示词 Prompt', info: '信息正文(纯文本/分段)', composite: '组合块 JSON:[{"type":"text|html|prompt|image","value":"..."}]' };
@@ -174,7 +178,7 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m
     else if (kind === 'info') content = { text: body };
     else if (kind === 'composite') { try { content = { blocks: JSON.parse(body) }; } catch { setMsg('组合块 JSON 解析失败'); return; } }
     setMsg('提交中…');
-    const res = await postJSON('/api/prototypes', { kind, category: cat, name, en, desc, tags, content });
+    const res = await postJSON('/api/prototypes', { kind, category: cat, name, en, desc, tags, content, goal, background, successCriteria: criteria });
     if (res?.ok) onCreated(res.module); else setMsg('失败:' + (res?.error || ''));
   };
   return (
@@ -182,11 +186,16 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m
       <div className="cf" onClick={(e) => e.stopPropagation()}>
         <div className="tm-head"><h2>新建原型</h2><span className="spacer" /><span className="closex" onClick={onClose}>×</span></div>
         <div className="cf-body">
+          <div className="cf-prereq">🧱 NocoBase 搭建类实验前置物料:① 已装 <code>nb</code> CLI ② 已装 nocobase skills ③ 本地有 Docker 环境(搭建策略与跑测依赖这些)</div>
+          <div className="cf-prereq" style={{ background: '#f6ffed', borderColor: '#b7eb8f', color: '#389e0d' }}>📋 实验平台:信息尽量填全。<b>AI 创建时请把能填的字段都填上</b>(目标/背景材料/成功标准等),便于后续派发与评审。</div>
           <label>资料类型<div className="seg">{KINDS.map(([k, l]) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{l}</button>)}</div></label>
           <label>场景<div className="seg">{[['build', '搭建'], ['experiment', '实验记录'], ['other', '其他']].map(([k, l]) => <button key={k} className={cat === k ? 'on' : ''} onClick={() => setCat(k)}>{l}</button>)}</div></label>
           <label>名称<input value={name} onChange={(e) => setName(e.target.value)} placeholder="如:库存管理" /></label>
           <div className="cf-row"><label>英文名<input value={en} onChange={(e) => setEn(e.target.value)} /></label><label>标签(逗号分隔)<input value={tags} onChange={(e) => setTags(e.target.value)} /></label></div>
           <label>描述<input value={desc} onChange={(e) => setDesc(e.target.value)} /></label>
+          <label>目标 Goal<input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="这个实验/原型要达成什么" /></label>
+          <label>背景 / 材料 Background<textarea value={background} onChange={(e) => setBackground(e.target.value)} rows={3} placeholder="背景、依赖材料、上下文…" /></label>
+          <label>成功标准 Success criteria<textarea value={criteria} onChange={(e) => setCriteria(e.target.value)} rows={3} placeholder="每行一条;判定通过的标准" /></label>
           <label>{label[kind]}<textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'html' ? 12 : 7} /></label>
           <div><button className="save" onClick={submit}>创建</button> <span className="muted" style={{ marginLeft: 10 }}>{msg}</span></div>
         </div>

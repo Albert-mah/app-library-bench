@@ -46,7 +46,11 @@ def _sha(t):
 # scrub credentials that may surface in a transcript (api keys, JWTs, lark ids, known pw)
 SECRET_RE = re.compile(r"sk-[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_.-]{30,}|ou_[0-9a-f]{20,}|Exp_agents_\w+|VKXb#\S+")
 def redact(s):
-    return SECRET_RE.sub("***REDACTED***", s) if isinstance(s, str) else s
+    if not isinstance(s, str): return s
+    s = SECRET_RE.sub("***REDACTED***", s)
+    home = os.path.expanduser("~")
+    if home and home != "~": s = s.replace(home, "~")
+    return s
 
 def _iso(ms):
     if not ms: return None

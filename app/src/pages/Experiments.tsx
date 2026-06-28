@@ -63,7 +63,7 @@ export default function Experiments() {
 
   return (
     <>
-      <div className="pagehead"><h1>实验总览</h1><span className="sub">实验对象 → 批次/测试线 → 跑测 → 评审 · 跨场景统一视图(prompt 驱动的任何实验)</span></div>
+      <div className="pagehead"><h1>实验总览</h1><span className="sub">实验对象 → 批次/测试线 → 跑测 → 评审 · 跨场景统一视图。NocoBase 搭建实验前置:nb CLI + skills + 本地 Docker</span></div>
       <div className="bar">
         <input type="search" placeholder="搜索 实验对象 / 标签…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={cat} onChange={(e) => setCat(e.target.value)}><option value="">全部场景</option><option value="build">搭建</option><option value="experiment">实验记录</option><option value="other">其他</option></select>

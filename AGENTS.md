@@ -194,3 +194,13 @@ subject (prototype: kind+content, dataType, category, tags)
   description instead — which the same screenshot step converts to a cover image, and which the
   test detail also renders inline (so "what happened" is always visible, image or html).
 - Rationale: uniform visual review across modalities; nothing is reviewable without a visual.
+
+### Roadmap note — create → dispatch (A3, not yet built)
+Wiring "create an experiment → one-click dispatch a bench run" needs existing local
+resources, so it's planned, not auto-run:
+- prereqs for an nb-build experiment: `nb` CLI installed, nocobase skills installed, local Docker.
+- design: a subject (prompt/plan) + a target (env + cli + model) → write a `bench.config.json`
+  run entry → `bench.py run --only <id>` (or a `/api/dispatch` that shells it). The subject's
+  `goal`/`successCriteria`/`background` feed the run brief; results flow back via collect → review.
+- keep it explicit (a "派发" button that previews the command) — never auto-launch builds from the UI
+  without the operator confirming the target env.

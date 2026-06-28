@@ -44,6 +44,9 @@ h1{font-size:26px;margin:0 0 4px} h3{font-size:16px;margin:18px 0 4px}
 <h1>${esc(mod.cn || mod.name)}</h1><p class="lead">${esc(mod.en || '')}</p>
 <div class="tags">${(mod.tags || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div>
 ${mod.desc ? `<p>${esc(mod.desc)}</p>` : ''}
+${mod.goal ? `<h3>🎯 目标</h3><p>${esc(mod.goal)}</p>` : ''}
+${mod.background ? `<h3>📚 背景 / 材料</h3><p style="white-space:pre-wrap">${esc(mod.background)}</p>` : ''}
+${(mod.successCriteria || []).length ? `<h3>✅ 成功标准</h3><ul>${mod.successCriteria.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
 ${main}
 </div></body></html>`;
 }
@@ -78,6 +81,8 @@ export function registerPrototypes(app, { file, webDir, baseUrl }) {
       id: String(num), num, slug, name: b.name, cn: b.cn || b.name, en: b.en || '', desc: b.desc || '',
       tags: Array.isArray(b.tags) ? b.tags : (b.tags ? String(b.tags).split(/[,，]/).map((s) => s.trim()).filter(Boolean) : []),
       kind: b.kind, content, source: 'user', test: 'none',
+      goal: b.goal || '', background: b.background || '',
+      successCriteria: Array.isArray(b.successCriteria) ? b.successCriteria : (b.successCriteria ? String(b.successCriteria).split('\n').map((s) => s.trim()).filter(Boolean) : []),
       dataType: b.kind === 'html' ? 'html' : 'prompt',
       category: ['build', 'experiment', 'other'].includes(b.category) ? b.category : 'other',
       stages: { proto: 'done', spec: 'none', built: 'no', tested: 'none', published: 'no' },

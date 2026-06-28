@@ -6,7 +6,8 @@ const MAIN = 'main';
 const ALL_V = '__all__';
 const MODEL_ORDER = ['Claude', 'DeepSeek-Pro', 'DeepSeek-Flash', 'Qwen', '其他'];
 const VERDICTS = ['pass', 'fix', 'redo'] as const;
-const STATUS: [string, string][] = [['testing', '测试中'], ['review', '审核中'], ['reviewed', '已审核']];
+const STATUS: [string, string][] = [['testing', '测试中'], ['review', '待审核'], ['reviewed', '已审核']];
+const resKey = (mid: string, b: string, r: string) => `${mid}|${b}|${r}`;
 const imgSrc = (s?: string) => (s ? '/' + s.replace(/^\.?\//, '') : '');
 const pad2 = (n: any) => String(n).padStart(2, '0');
 const scenarioOfRun = (id: string) => { const m = /(?:^|[-_])(0[1-9])(?:[-_]|$)/.exec(id); return m ? m[1] : null; };
@@ -31,7 +32,8 @@ const gLabel = (mods: any[], bid: string) => { if (bid === MAIN) return '主应�
 const srvE = (server: any, mid: string, r: string, b: string) => server?.[b]?.[r]?.[mid] || null;
 const uVerdict = (server: any, mid: string, r: string, b: string) => { const e = srvE(server, mid, r, b); return e && VERDICTS.includes(e.verdict) ? e.verdict : null; };
 const aiVerdict = (rd: any) => (rd && VERDICTS.includes(rd.verdict) ? rd.verdict : null);
-const statusOf = (server: any, m: any, r: string, b: string, rd: any) => (uVerdict(server, m.id, r, b) ? 'reviewed' : aiVerdict(rd) ? 'review' : 'testing');
+// 测试中(无结果)→ 待审核(已有结果图/HTML,等人工)→ 已审核(人工已评)
+const statusOf = (server: any, m: any, r: string, b: string, rd: any, hasRes: boolean) => (uVerdict(server, m.id, r, b) ? 'reviewed' : hasRes ? 'review' : 'testing');
 const backupFor = (backups: any[], m: any, b: string) => { const o = branchObj(m, b); return (o && o.backupId && backups.find((x) => x.id === o.backupId)) || null; };
 
 export default function TestReport() {
@@ -41,7 +43,9 @@ export default function TestReport() {
   const [server, setServer] = useState<any>(null);
   const [reachable, setReachable] = useState(false);
   const [runsIdx, setRunsIdx] = useState<any[]>([]);
+  const [results, setResults] = useState<any>({});
   const [err, setErr] = useState('');
+  const loadResults = () => getJSON('/api/test-results').then(setResults).catch(() => {});
   const [round, setRound] = useState('');
   const [ver, setVer] = useState(ALL_V);
   const [tag, setTag] = useState('');
@@ -61,6 +65,7 @@ export default function TestReport() {
     }).catch((e) => setErr(String(e)));
     getJSON('/api/app-library-scores').then((d) => { setServer(d || {}); setReachable(true); }).catch(() => { setServer({}); setReachable(false); });
     getJSON('/api/runs').then(setRunsIdx).catch(() => {});
+    loadResults();
   }, []);
 
   const verActive = ver !== ALL_V;
@@ -81,6 +86,7 @@ export default function TestReport() {
   const viewBranch = branches.length === 1 && branches[0] !== MAIN ? branches[0] : MAIN;
   const curRound = (m: any, b: string) => { for (let i = rounds.length - 1; i >= 0; i--) if (hasData(modBR(m, b, rounds[i].id))) return rounds[i].id; return rounds.length ? rounds[rounds.length - 1].id : ''; };
   const modFor = (mId: string) => mods.find((m) => m.id === mId);
+  const hasRes = (m: any, b: string, r: string, rd: any) => !!(rd && rd.image) || !!results[resKey(m.id, b, r)];
 
   const cards = useMemo(() => {
     const inMod = (m: any) => !modFilter || pad2(m.num) === pad2(modFilter) || m.id === modFilter;
@@ -94,10 +100,10 @@ export default function TestReport() {
     } else {
       list = sel.map((m) => { const b = viewBranch; const r = round || curRound(m, b); return { m, b, r, rd: modBR(m, b, r) }; });
     }
-    return list.filter((c) => c.rd).filter((c) => status.length === 0 || status.includes(statusOf(server, c.m, c.r, c.b, c.rd)));
-  }, [mods, branches, tag, round, ver, server, status, modFilter]);
+    return list.filter((c) => c.rd).filter((c) => status.length === 0 || status.includes(statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd))));
+  }, [mods, branches, tag, round, ver, server, status, modFilter, results]);
 
-  const stats = useMemo(() => { const s: any = { total: cards.length, testing: 0, review: 0, reviewed: 0, ai: 0, aiN: 0 }; cards.forEach((c) => { s[statusOf(server, c.m, c.r, c.b, c.rd)]++; if (typeof c.rd.aiScore === 'number') { s.ai += c.rd.aiScore; s.aiN++; } }); return s; }, [cards, server]);
+  const stats = useMemo(() => { const s: any = { total: cards.length, testing: 0, review: 0, reviewed: 0, ai: 0, aiN: 0 }; cards.forEach((c) => { s[statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd))]++; if (typeof c.rd.aiScore === 'number') { s.ai += c.rd.aiScore; s.aiN++; } }); return s; }, [cards, server, results]);
 
   async function patch(r: string, mid: string, b: string, p: any) { const res = await postJSON('/api/app-library-scores', { round: r, module: mid, branch: b, ...p }); if (res && !res.error) { setServer(res); setReachable(true); } return res; }
 
@@ -126,19 +132,19 @@ export default function TestReport() {
         <LineSelect {...{ open: msOpen, setOpen: setMsOpen, modelGroups, branches, setBranches, mods, label: lineLabel }} />
         <span className="muted" style={{ marginLeft: 'auto' }}>显示 {cards.length}</span>
       </div>
-      <div className="bar"><span className="stats">共 <b>{stats.total}</b> · <span className="pill" style={{ background: '#f0f1f4' }}>测试中 {stats.testing}</span> <span className="pill fix">审核中 {stats.review}</span> <span className="pill pass">已审核 {stats.reviewed}</span>{stats.aiN ? <> · 均 AI <b>{(stats.ai / stats.aiN).toFixed(1)}</b></> : null}</span></div>
+      <div className="bar"><span className="stats">共 <b>{stats.total}</b> · <span className="pill" style={{ background: '#f0f1f4' }}>测试中 {stats.testing}</span> <span className="pill fix">待审核 {stats.review}</span> <span className="pill pass">已审核 {stats.reviewed}</span>{stats.aiN ? <> · 均 AI <b>{(stats.ai / stats.aiN).toFixed(1)}</b></> : null}</span></div>
 
       <div className="wrap">
         <div className="grid tr-grid">
           {cards.map((c) => {
-            const stt = statusOf(server, c.m, c.r, c.b, c.rd);
+            const stt = statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd));
             const uv = uVerdict(server, c.m.id, c.r, c.b);
             return (
               <div className="card tr-card" key={c.m.id + c.b} onClick={() => setSel({ mId: c.m.id, b: c.b, r: c.r })}>
                 <div className="thumb tr-thumb" style={{ backgroundImage: c.rd.image ? `url(${imgSrc(c.rd.image)})` : '' }}>
                   <span className="num">#{pad2(c.m.num)}</span>
                   <span className="rbadge">{c.r.toUpperCase()} · {gLabel(mods, c.b)}</span>
-                  <span className={'stbadge ' + stt}>{stt === 'reviewed' ? '已审核' : stt === 'review' ? '审核中' : '测试中'}</span>
+                  <span className={'stbadge ' + stt}>{stt === 'reviewed' ? '已审核' : stt === 'review' ? '待审核' : '测试中'}</span>
                 </div>
                 <div className="body">
                   <h3>{c.m.cn || c.m.name}</h3>
@@ -156,7 +162,7 @@ export default function TestReport() {
         </div>
       </div>
 
-      {sel && <TestModal {...{ sel, setSel, modFor, mods, rounds, backups, server, reachable, runsIdx, patch, setLight, curRound }} />}
+      {sel && <TestModal {...{ sel, setSel, modFor, mods, rounds, backups, server, reachable, runsIdx, patch, setLight, curRound, results, onResult: loadResults }} />}
       {light && <div className="lightbox" onClick={() => setLight(null)}><span className="lb-close">×</span><img src={light} alt="" onClick={(e) => e.stopPropagation()} /></div>}
     </>
   );
@@ -181,7 +187,7 @@ function LineSelect({ open, setOpen, modelGroups, branches, setBranches, mods, l
   );
 }
 
-function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachable, runsIdx, patch, setLight, curRound }: any) {
+function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachable, runsIdx, patch, setLight, curRound, results, onResult }: any) {
   const m = modFor(sel.mId);
   const [b, setB] = useState(sel.b);
   const [r, setR] = useState(sel.r);
@@ -195,6 +201,8 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
   const bo = branchObj(m, b) || {};
   const uv = uVerdict(server, m.id, r, b);
   const e = srvE(server, m.id, r, b) || {};
+  const rmedia = (results || {})[resKey(m.id, b, r)];
+  const hasImage = !!(rd.image || rmedia?.image);
   const ridSet = new Set([...(rd.runIds || []), ...(bo.runIds || [])]);
   const related = runsIdx.filter((x: any) => ridSet.has(x.id) || x.lineage?.module === pad2(m.num) || scenarioOfRun(x.id) === pad2(m.num));
   const page = bo.pageUid ? (bo.baseUrl || '') + '/admin/' + bo.pageUid : (b === MAIN && m.pageUid ? (bo.baseUrl || '') + '/admin/' + m.pageUid : '');
@@ -247,11 +255,18 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
               {page && <div>🔗 页面:<a href={page} target="_blank" rel="noopener">{page}</a></div>}
             </div>
 
+            <div className="sect">结果说明 {hasImage ? '' : '· ⚠️ 无结果图(评审前需补图或 HTML)'}</div>
+            {rmedia ? <div className="resmedia">
+              <a href={'/' + rmedia.image} target="_blank" rel="noopener"><img src={'/' + rmedia.image} alt="结果" /></a>
+              <div className="muted" style={{ fontSize: 12 }}>结果 HTML 描述:<a href={'/' + rmedia.htmlFile} target="_blank" rel="noopener">查看 ↗</a> · {fmtTime(rmedia.ts)}</div>
+              <iframe className="resframe" src={'/' + rmedia.htmlFile} title="结果说明" />
+            </div> : <div className="muted">{rd.image ? '以对比图为结果' : '尚无结果说明'}</div>}
+
             <div className="sect">关联跑测记录 ({related.length})</div>
             {related.length ? related.map((run: any) => <RelatedRun key={run.id} run={run} />) : <div className="muted">无(此模块未关联到跑测会话;01/02/03 对应 bench inventory/asset/content)</div>}
 
             <div className="sect">人工核验 · 评分</div>
-            <ReviewBox key={m.id + b + r} {...{ m, b, r, e, uv, reachable, patch, setSel }} />
+            <ReviewBox key={m.id + b + r} {...{ m, b, r, e, uv, reachable, patch, setSel, hasImage, onResult }} />
           </div>}
         </div>
       </div>
@@ -282,12 +297,23 @@ function RelatedRun({ run }: { run: any }) {
   );
 }
 
-function ReviewBox({ m, b, r, e, uv, reachable, patch, setSel }: any) {
+function ReviewBox({ m, b, r, e, uv, reachable, patch, setSel, hasImage, onResult }: any) {
   const [verdict, setVerdict] = useState(uv || '');
   const [score, setScore] = useState(e.score != null ? String(e.score) : '');
   const [note, setNote] = useState(e.note || '');
+  const [rhtml, setRhtml] = useState('');
   const [msg, setMsg] = useState('');
-  const save = async () => { const res = await patch(r, m.id, b, { verdict: verdict || null, score: score === '' ? null : parseFloat(score), note: note || null }); setMsg(res?.error ? '失败:' + res.error : '已保存 ✓'); };
+  const submitResult = async () => {
+    if (!rhtml.trim()) { setMsg('请粘贴结果 HTML 描述'); return; }
+    setMsg('提交结果,生成封面图…');
+    const res = await postJSON('/api/test-results', { module: m.id, branch: b, round: r, html: rhtml });
+    if (res?.ok) { setMsg('结果已补充 → 状态转「待审核」'); setRhtml(''); onResult && onResult(); } else setMsg('失败:' + (res?.error || ''));
+  };
+  const save = async () => {
+    if (!hasImage) { setMsg('该结果暂无图片 —— 请先在下方「补充结果 HTML」(自动转封面)再评审'); return; }
+    const res = await patch(r, m.id, b, { verdict: verdict || null, score: score === '' ? null : parseFloat(score), note: note || null });
+    setMsg(res?.error ? '失败:' + res.error : '已保存 ✓');
+  };
   return (
     <div className="review">
       <div className="vbtns">
@@ -295,7 +321,12 @@ function ReviewBox({ m, b, r, e, uv, reachable, patch, setSel }: any) {
         <span style={{ marginLeft: 12 }}>分 <input type="number" min={0} max={10} step={0.5} disabled={!reachable} value={score} onChange={(ev) => setScore(ev.target.value)} /></span>
       </div>
       <textarea placeholder="备注 / 结论…" disabled={!reachable} value={note} onChange={(ev) => setNote(ev.target.value)} />
-      <div><button className="save" disabled={!reachable} onClick={save}>保存</button> <span className="muted" style={{ marginLeft: 10 }}>{msg}</span></div>
+      <div><button className="save" disabled={!reachable} onClick={save}>保存评审</button> <span className="muted" style={{ marginLeft: 10 }}>{msg}</span></div>
+      {!hasImage && <div className="resbox">
+        <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>⚠️ 无结果图:补充 HTML 描述,系统自动截图为封面(规范:结果必须有可视化)</div>
+        <textarea placeholder="结果 HTML 描述(实验结束后由观察者/人工补充)…" disabled={!reachable} value={rhtml} onChange={(ev) => setRhtml(ev.target.value)} />
+        <div><button className="save" disabled={!reachable} onClick={submitResult}>补充结果(转封面)</button></div>
+      </div>}
     </div>
   );
 }

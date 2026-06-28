@@ -16,10 +16,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-iterate-expagents.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-iterate-expagents.prompt.txt",
    "sha256": "22412b79c17a90dc63d54e57cd3c45b054a601bd456d4270cb6acafbc7d5ec9f",
-   "text": "Iterate on the EXISTING NocoBase CRM in env **expagents** — FULL AUTONOMY, no questions, end to end.\n\n>>> nb CLI SYNTAX (READ THIS FIRST — getting it wrong wastes the whole run) <<<\n`nb api` is organized by TOPIC, NOT by `<resource>:<action>`. `nb api collections:list` / `nb api workflows:list` / `nb api ai:listModels` DO NOT EXIST and return \"command not found\". Use the topic subcommands:\n  - Read/write ANY collection's records:  `nb api resource list|get|create|update|destroy --resource <name> [--filter '<json>'] [--values '<json>'] -e expagents -y`\n  - Collections/fields metadata:          `nb api data-modeling ...`\n  - Workflows + nodes:                     `nb api workflow ...`  (subcommand `flow-nodes` for nodes)\n  - Pages / blocks / fields / actions:     `nb api flow-surfaces ...`\nALWAYS pass `-e expagents -y` on every call. When a topic subcommand is missing a feature, fall back to raw curl against http://127.0.0.1:14230/api with the bearer token from `~/.nocobase/config.json` (envs.expagents.auth.accessToken).\n\nCONTEXT — this beta.7 instance ALREADY has (DO NOT rebuild any of it):\n- collections crm_customers / crm_contacts / crm_deals / crm_activities (seeded), with noun-named relations (customer/contact/deal/owner — never *_id).\n- enums: crm_deals.stage = lead/qualified/proposal/negotiation/won/lost ; crm_customers.status = prospect/active/churned ; crm_activities.type = call/email/meeting/task ; crm_activities has a `done` checkbox + `due` date.\n- 5 pages under the \"CRM\" menu group: Dashboard, Pipeline, Customers, Contacts, Activities.\n- AI is ALREADY fully wired: an LLM service \"qwen-zengo\" (model qwen3.7-plus) is configured and all 8 built-in AI employees (atlas, dara, dex, ellis, lexi, nathan, vera, viz) are bound to it and ANSWER. You do NOT touch any LLM / aiEmployees model config — just surface the avatars (Part B).\n\nRead these skills FIRST (opencode does not auto-load them):\n- /home/albert/.claude/skills/nocobase-workflow-manage/SKILL.md   (Part A)\n- /home/albert/.claude/skills/nocobase-ui-builder/SKILL.md        (Part B — editing deployed page blocks)\n\nDo TWO things, in this order.\n\n========================================================================\nPART A — Add 3 CRM workflows (nb api workflow ...). Configure all nodes, ENABLE each, and TRIGGER-TEST each.\n========================================================================\n1. \"Deal Won -> Activate & Onboard\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"won\".\n   - Actions: (a) update the deal's related crm_customers row -> status = \"active\";\n              (b) create a crm_activities row { type:\"task\", subject:\"Kickoff & onboarding\", deal:<the deal>, due: today+3 days, done:false }.\n2. \"New Deal -> First Follow-up\"\n   - Trigger: collection event on crm_deals, AFTER CREATE.\n   - Action: create crm_activities { type:\"call\", subject:\"Initial follow-up call\", deal:<the deal>, contact:<the deal's contact>, due: today+1 day }.\n3. \"Deal Lost -> Post-mortem\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"lost\".\n   - Action: create crm_activities { type:\"task\", subject:\"Post-mortem: why deal was lost\", deal:<the deal>, due: today+2 days }.\n\nTEST (use `nb api resource update/create --resource crm_deals ...` then read back `nb api resource list --resource crm_activities --filter ...`):\n- Set one existing deal stage=\"won\" -> confirm its customer.status flipped to \"active\" AND a \"Kickoff & onboarding\" activity now exists for it.\n- Create one new deal -> confirm an \"Initial follow-up call\" activity appeared.\nReport exactly what you observed.\n\n========================================================================\nPART B — Surface AI employee avatars inside the CRM page blocks\n========================================================================\nThe 8 employees already answer (LLM pre-wired). Put their avatars into the pages so users can chat in-context. Get LIVE page/block uids from `nb api flow-surfaces get ...` (+ desktopRoutes via `nb api resource list --resource desktopRoutes`). Edit deployed flowModels with `nb api flow-surfaces ...`; if a needed AI-employee model is not expressible through flow-surfaces, fall back to raw `flowModels:save` via curl (flat full-field upsert that PRESERVES parentId) — NEVER flowModels:update (it wipes parentId, the node vanishes). After each add, sync the containing block/page layout so it renders.\n\nAI-employee FlowModel facts:\n- Page-level avatar bar: `AIEmployeeShortcutListModel` is the page container (subKey \"ai-shortcuts\", subType \"object\"); each avatar inside is an `AIEmployeeShortcutModel` (subKey \"shortcuts\", subType \"array\") carrying the employee username.\n- Block action-bar button: `AIEmployeeButtonModel` in a data block's actions (subKey \"actions\", subType \"array\"), carrying the employee username + a label.\n\nAdd:\n1. Dashboard page: a page-level AI shortcut bar showing @atlas and @vera (top of page).\n2. Customers page, the customers Table block: an AI button for @dara in the block action bar, label \"Ask AI about this account\".\n3. Pipeline page, the deals block: an AI button for @dex, label \"Draft follow-up\".\n\n========================================================================\nFINAL REPORT (required)\n========================================================================\n- Part A: the 3 workflow keys + node count each + the exact trigger-test results (did the customer flip? which activity rows got created?).\n- Part B: for each of the 3 placements, the flowModel uid you created + which page/block it sits in; confirm via `flow-surfaces get` that it is present in the schema.\n- Call out any step where flow-surfaces could not express the AI-employee model and you had to use raw flowModels:save (this is the main thing we are testing — be specific about what failed and the workaround).\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-iterate-expagents.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions. Remember: nb api is topic-based — use 'nb api resource/workflow/flow-surfaces ...', never '<resource>:list'."
+   "text": "Iterate on the EXISTING NocoBase CRM in env **expagents** — FULL AUTONOMY, no questions, end to end.\n\n>>> nb CLI SYNTAX (READ THIS FIRST — getting it wrong wastes the whole run) <<<\n`nb api` is organized by TOPIC, NOT by `<resource>:<action>`. `nb api collections:list` / `nb api workflows:list` / `nb api ai:listModels` DO NOT EXIST and return \"command not found\". Use the topic subcommands:\n  - Read/write ANY collection's records:  `nb api resource list|get|create|update|destroy --resource <name> [--filter '<json>'] [--values '<json>'] -e expagents -y`\n  - Collections/fields metadata:          `nb api data-modeling ...`\n  - Workflows + nodes:                     `nb api workflow ...`  (subcommand `flow-nodes` for nodes)\n  - Pages / blocks / fields / actions:     `nb api flow-surfaces ...`\nALWAYS pass `-e expagents -y` on every call. When a topic subcommand is missing a feature, fall back to raw curl against http://127.0.0.1:14230/api with the bearer token from `~/.nocobase/config.json` (envs.expagents.auth.accessToken).\n\nCONTEXT — this beta.7 instance ALREADY has (DO NOT rebuild any of it):\n- collections crm_customers / crm_contacts / crm_deals / crm_activities (seeded), with noun-named relations (customer/contact/deal/owner — never *_id).\n- enums: crm_deals.stage = lead/qualified/proposal/negotiation/won/lost ; crm_customers.status = prospect/active/churned ; crm_activities.type = call/email/meeting/task ; crm_activities has a `done` checkbox + `due` date.\n- 5 pages under the \"CRM\" menu group: Dashboard, Pipeline, Customers, Contacts, Activities.\n- AI is ALREADY fully wired: an LLM service \"qwen-zengo\" (model qwen3.7-plus) is configured and all 8 built-in AI employees (atlas, dara, dex, ellis, lexi, nathan, vera, viz) are bound to it and ANSWER. You do NOT touch any LLM / aiEmployees model config — just surface the avatars (Part B).\n\nRead these skills FIRST (opencode does not auto-load them):\n- ~/.claude/skills/nocobase-workflow-manage/SKILL.md   (Part A)\n- ~/.claude/skills/nocobase-ui-builder/SKILL.md        (Part B — editing deployed page blocks)\n\nDo TWO things, in this order.\n\n========================================================================\nPART A — Add 3 CRM workflows (nb api workflow ...). Configure all nodes, ENABLE each, and TRIGGER-TEST each.\n========================================================================\n1. \"Deal Won -> Activate & Onboard\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"won\".\n   - Actions: (a) update the deal's related crm_customers row -> status = \"active\";\n              (b) create a crm_activities row { type:\"task\", subject:\"Kickoff & onboarding\", deal:<the deal>, due: today+3 days, done:false }.\n2. \"New Deal -> First Follow-up\"\n   - Trigger: collection event on crm_deals, AFTER CREATE.\n   - Action: create crm_activities { type:\"call\", subject:\"Initial follow-up call\", deal:<the deal>, contact:<the deal's contact>, due: today+1 day }.\n3. \"Deal Lost -> Post-mortem\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"lost\".\n   - Action: create crm_activities { type:\"task\", subject:\"Post-mortem: why deal was lost\", deal:<the deal>, due: today+2 days }.\n\nTEST (use `nb api resource update/create --resource crm_deals ...` then read back `nb api resource list --resource crm_activities --filter ...`):\n- Set one existing deal stage=\"won\" -> confirm its customer.status flipped to \"active\" AND a \"Kickoff & onboarding\" activity now exists for it.\n- Create one new deal -> confirm an \"Initial follow-up call\" activity appeared.\nReport exactly what you observed.\n\n========================================================================\nPART B — Surface AI employee avatars inside the CRM page blocks\n========================================================================\nThe 8 employees already answer (LLM pre-wired). Put their avatars into the pages so users can chat in-context. Get LIVE page/block uids from `nb api flow-surfaces get ...` (+ desktopRoutes via `nb api resource list --resource desktopRoutes`). Edit deployed flowModels with `nb api flow-surfaces ...`; if a needed AI-employee model is not expressible through flow-surfaces, fall back to raw `flowModels:save` via curl (flat full-field upsert that PRESERVES parentId) — NEVER flowModels:update (it wipes parentId, the node vanishes). After each add, sync the containing block/page layout so it renders.\n\nAI-employee FlowModel facts:\n- Page-level avatar bar: `AIEmployeeShortcutListModel` is the page container (subKey \"ai-shortcuts\", subType \"object\"); each avatar inside is an `AIEmployeeShortcutModel` (subKey \"shortcuts\", subType \"array\") carrying the employee username.\n- Block action-bar button: `AIEmployeeButtonModel` in a data block's actions (subKey \"actions\", subType \"array\"), carrying the employee username + a label.\n\nAdd:\n1. Dashboard page: a page-level AI shortcut bar showing @atlas and @vera (top of page).\n2. Customers page, the customers Table block: an AI button for @dara in the block action bar, label \"Ask AI about this account\".\n3. Pipeline page, the deals block: an AI button for @dex, label \"Draft follow-up\".\n\n========================================================================\nFINAL REPORT (required)\n========================================================================\n- Part A: the 3 workflow keys + node count each + the exact trigger-test results (did the customer flip? which activity rows got created?).\n- Part B: for each of the 3 placements, the flowModel uid you created + which page/block it sits in; confirm via `flow-surfaces get` that it is present in the schema.\n- Call out any step where flow-surfaces could not express the AI-employee model and you had to use raw flowModels:save (this is the main thing we are testing — be specific about what failed and the workaround).\n",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-iterate-expagents.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions. Remember: nb api is topic-based — use 'nb api resource/workflow/flow-surfaces ...', never '<resource>:list'."
   },
   "tags": [
    "bailian-payg",
@@ -47,19 +47,19 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-iterate-expagents.prompt.txt",
+     "cmd": "~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-iterate-expagents.prompt.txt",
      "msg": "command not found\". Use the topic subcommands:",
      "ts": "2026-06-26T21:53:03"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-workflow-manage/SKILL.md",
+     "cmd": "~/.claude/skills/nocobase-workflow-manage/SKILL.md",
      "msg": "error",
      "ts": "2026-06-26T21:53:14"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-ui-builder/SKILL.md",
+     "cmd": "~/.claude/skills/nocobase-ui-builder/SKILL.md",
      "msg": "error",
      "ts": "2026-06-26T21:53:15"
     },
@@ -126,10 +126,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-iterate-expagents.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-iterate-expagents.prompt.txt",
    "sha256": "22412b79c17a90dc63d54e57cd3c45b054a601bd456d4270cb6acafbc7d5ec9f",
-   "text": "Iterate on the EXISTING NocoBase CRM in env **expagents** — FULL AUTONOMY, no questions, end to end.\n\n>>> nb CLI SYNTAX (READ THIS FIRST — getting it wrong wastes the whole run) <<<\n`nb api` is organized by TOPIC, NOT by `<resource>:<action>`. `nb api collections:list` / `nb api workflows:list` / `nb api ai:listModels` DO NOT EXIST and return \"command not found\". Use the topic subcommands:\n  - Read/write ANY collection's records:  `nb api resource list|get|create|update|destroy --resource <name> [--filter '<json>'] [--values '<json>'] -e expagents -y`\n  - Collections/fields metadata:          `nb api data-modeling ...`\n  - Workflows + nodes:                     `nb api workflow ...`  (subcommand `flow-nodes` for nodes)\n  - Pages / blocks / fields / actions:     `nb api flow-surfaces ...`\nALWAYS pass `-e expagents -y` on every call. When a topic subcommand is missing a feature, fall back to raw curl against http://127.0.0.1:14230/api with the bearer token from `~/.nocobase/config.json` (envs.expagents.auth.accessToken).\n\nCONTEXT — this beta.7 instance ALREADY has (DO NOT rebuild any of it):\n- collections crm_customers / crm_contacts / crm_deals / crm_activities (seeded), with noun-named relations (customer/contact/deal/owner — never *_id).\n- enums: crm_deals.stage = lead/qualified/proposal/negotiation/won/lost ; crm_customers.status = prospect/active/churned ; crm_activities.type = call/email/meeting/task ; crm_activities has a `done` checkbox + `due` date.\n- 5 pages under the \"CRM\" menu group: Dashboard, Pipeline, Customers, Contacts, Activities.\n- AI is ALREADY fully wired: an LLM service \"qwen-zengo\" (model qwen3.7-plus) is configured and all 8 built-in AI employees (atlas, dara, dex, ellis, lexi, nathan, vera, viz) are bound to it and ANSWER. You do NOT touch any LLM / aiEmployees model config — just surface the avatars (Part B).\n\nRead these skills FIRST (opencode does not auto-load them):\n- /home/albert/.claude/skills/nocobase-workflow-manage/SKILL.md   (Part A)\n- /home/albert/.claude/skills/nocobase-ui-builder/SKILL.md        (Part B — editing deployed page blocks)\n\nDo TWO things, in this order.\n\n========================================================================\nPART A — Add 3 CRM workflows (nb api workflow ...). Configure all nodes, ENABLE each, and TRIGGER-TEST each.\n========================================================================\n1. \"Deal Won -> Activate & Onboard\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"won\".\n   - Actions: (a) update the deal's related crm_customers row -> status = \"active\";\n              (b) create a crm_activities row { type:\"task\", subject:\"Kickoff & onboarding\", deal:<the deal>, due: today+3 days, done:false }.\n2. \"New Deal -> First Follow-up\"\n   - Trigger: collection event on crm_deals, AFTER CREATE.\n   - Action: create crm_activities { type:\"call\", subject:\"Initial follow-up call\", deal:<the deal>, contact:<the deal's contact>, due: today+1 day }.\n3. \"Deal Lost -> Post-mortem\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"lost\".\n   - Action: create crm_activities { type:\"task\", subject:\"Post-mortem: why deal was lost\", deal:<the deal>, due: today+2 days }.\n\nTEST (use `nb api resource update/create --resource crm_deals ...` then read back `nb api resource list --resource crm_activities --filter ...`):\n- Set one existing deal stage=\"won\" -> confirm its customer.status flipped to \"active\" AND a \"Kickoff & onboarding\" activity now exists for it.\n- Create one new deal -> confirm an \"Initial follow-up call\" activity appeared.\nReport exactly what you observed.\n\n========================================================================\nPART B — Surface AI employee avatars inside the CRM page blocks\n========================================================================\nThe 8 employees already answer (LLM pre-wired). Put their avatars into the pages so users can chat in-context. Get LIVE page/block uids from `nb api flow-surfaces get ...` (+ desktopRoutes via `nb api resource list --resource desktopRoutes`). Edit deployed flowModels with `nb api flow-surfaces ...`; if a needed AI-employee model is not expressible through flow-surfaces, fall back to raw `flowModels:save` via curl (flat full-field upsert that PRESERVES parentId) — NEVER flowModels:update (it wipes parentId, the node vanishes). After each add, sync the containing block/page layout so it renders.\n\nAI-employee FlowModel facts:\n- Page-level avatar bar: `AIEmployeeShortcutListModel` is the page container (subKey \"ai-shortcuts\", subType \"object\"); each avatar inside is an `AIEmployeeShortcutModel` (subKey \"shortcuts\", subType \"array\") carrying the employee username.\n- Block action-bar button: `AIEmployeeButtonModel` in a data block's actions (subKey \"actions\", subType \"array\"), carrying the employee username + a label.\n\nAdd:\n1. Dashboard page: a page-level AI shortcut bar showing @atlas and @vera (top of page).\n2. Customers page, the customers Table block: an AI button for @dara in the block action bar, label \"Ask AI about this account\".\n3. Pipeline page, the deals block: an AI button for @dex, label \"Draft follow-up\".\n\n========================================================================\nFINAL REPORT (required)\n========================================================================\n- Part A: the 3 workflow keys + node count each + the exact trigger-test results (did the customer flip? which activity rows got created?).\n- Part B: for each of the 3 placements, the flowModel uid you created + which page/block it sits in; confirm via `flow-surfaces get` that it is present in the schema.\n- Call out any step where flow-surfaces could not express the AI-employee model and you had to use raw flowModels:save (this is the main thing we are testing — be specific about what failed and the workaround).\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-iterate-expagents.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions. Pass -e expagents -y on every nb api call."
+   "text": "Iterate on the EXISTING NocoBase CRM in env **expagents** — FULL AUTONOMY, no questions, end to end.\n\n>>> nb CLI SYNTAX (READ THIS FIRST — getting it wrong wastes the whole run) <<<\n`nb api` is organized by TOPIC, NOT by `<resource>:<action>`. `nb api collections:list` / `nb api workflows:list` / `nb api ai:listModels` DO NOT EXIST and return \"command not found\". Use the topic subcommands:\n  - Read/write ANY collection's records:  `nb api resource list|get|create|update|destroy --resource <name> [--filter '<json>'] [--values '<json>'] -e expagents -y`\n  - Collections/fields metadata:          `nb api data-modeling ...`\n  - Workflows + nodes:                     `nb api workflow ...`  (subcommand `flow-nodes` for nodes)\n  - Pages / blocks / fields / actions:     `nb api flow-surfaces ...`\nALWAYS pass `-e expagents -y` on every call. When a topic subcommand is missing a feature, fall back to raw curl against http://127.0.0.1:14230/api with the bearer token from `~/.nocobase/config.json` (envs.expagents.auth.accessToken).\n\nCONTEXT — this beta.7 instance ALREADY has (DO NOT rebuild any of it):\n- collections crm_customers / crm_contacts / crm_deals / crm_activities (seeded), with noun-named relations (customer/contact/deal/owner — never *_id).\n- enums: crm_deals.stage = lead/qualified/proposal/negotiation/won/lost ; crm_customers.status = prospect/active/churned ; crm_activities.type = call/email/meeting/task ; crm_activities has a `done` checkbox + `due` date.\n- 5 pages under the \"CRM\" menu group: Dashboard, Pipeline, Customers, Contacts, Activities.\n- AI is ALREADY fully wired: an LLM service \"qwen-zengo\" (model qwen3.7-plus) is configured and all 8 built-in AI employees (atlas, dara, dex, ellis, lexi, nathan, vera, viz) are bound to it and ANSWER. You do NOT touch any LLM / aiEmployees model config — just surface the avatars (Part B).\n\nRead these skills FIRST (opencode does not auto-load them):\n- ~/.claude/skills/nocobase-workflow-manage/SKILL.md   (Part A)\n- ~/.claude/skills/nocobase-ui-builder/SKILL.md        (Part B — editing deployed page blocks)\n\nDo TWO things, in this order.\n\n========================================================================\nPART A — Add 3 CRM workflows (nb api workflow ...). Configure all nodes, ENABLE each, and TRIGGER-TEST each.\n========================================================================\n1. \"Deal Won -> Activate & Onboard\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"won\".\n   - Actions: (a) update the deal's related crm_customers row -> status = \"active\";\n              (b) create a crm_activities row { type:\"task\", subject:\"Kickoff & onboarding\", deal:<the deal>, due: today+3 days, done:false }.\n2. \"New Deal -> First Follow-up\"\n   - Trigger: collection event on crm_deals, AFTER CREATE.\n   - Action: create crm_activities { type:\"call\", subject:\"Initial follow-up call\", deal:<the deal>, contact:<the deal's contact>, due: today+1 day }.\n3. \"Deal Lost -> Post-mortem\"\n   - Trigger: collection event on crm_deals, AFTER UPDATE.  Condition: stage == \"lost\".\n   - Action: create crm_activities { type:\"task\", subject:\"Post-mortem: why deal was lost\", deal:<the deal>, due: today+2 days }.\n\nTEST (use `nb api resource update/create --resource crm_deals ...` then read back `nb api resource list --resource crm_activities --filter ...`):\n- Set one existing deal stage=\"won\" -> confirm its customer.status flipped to \"active\" AND a \"Kickoff & onboarding\" activity now exists for it.\n- Create one new deal -> confirm an \"Initial follow-up call\" activity appeared.\nReport exactly what you observed.\n\n========================================================================\nPART B — Surface AI employee avatars inside the CRM page blocks\n========================================================================\nThe 8 employees already answer (LLM pre-wired). Put their avatars into the pages so users can chat in-context. Get LIVE page/block uids from `nb api flow-surfaces get ...` (+ desktopRoutes via `nb api resource list --resource desktopRoutes`). Edit deployed flowModels with `nb api flow-surfaces ...`; if a needed AI-employee model is not expressible through flow-surfaces, fall back to raw `flowModels:save` via curl (flat full-field upsert that PRESERVES parentId) — NEVER flowModels:update (it wipes parentId, the node vanishes). After each add, sync the containing block/page layout so it renders.\n\nAI-employee FlowModel facts:\n- Page-level avatar bar: `AIEmployeeShortcutListModel` is the page container (subKey \"ai-shortcuts\", subType \"object\"); each avatar inside is an `AIEmployeeShortcutModel` (subKey \"shortcuts\", subType \"array\") carrying the employee username.\n- Block action-bar button: `AIEmployeeButtonModel` in a data block's actions (subKey \"actions\", subType \"array\"), carrying the employee username + a label.\n\nAdd:\n1. Dashboard page: a page-level AI shortcut bar showing @atlas and @vera (top of page).\n2. Customers page, the customers Table block: an AI button for @dara in the block action bar, label \"Ask AI about this account\".\n3. Pipeline page, the deals block: an AI button for @dex, label \"Draft follow-up\".\n\n========================================================================\nFINAL REPORT (required)\n========================================================================\n- Part A: the 3 workflow keys + node count each + the exact trigger-test results (did the customer flip? which activity rows got created?).\n- Part B: for each of the 3 placements, the flowModel uid you created + which page/block it sits in; confirm via `flow-surfaces get` that it is present in the schema.\n- Call out any step where flow-surfaces could not express the AI-employee model and you had to use raw flowModels:save (this is the main thing we are testing — be specific about what failed and the workaround).\n",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-iterate-expagents.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions. Pass -e expagents -y on every nb api call."
   },
   "tags": [
    "bailian-payg",
@@ -157,13 +157,13 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-workflow-manage/SKILL.md",
+     "cmd": "~/.claude/skills/nocobase-workflow-manage/SKILL.md",
      "msg": "error",
      "ts": "2026-06-26T15:50:38"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-ui-builder/SKILL.md",
+     "cmd": "~/.claude/skills/nocobase-ui-builder/SKILL.md",
      "msg": "error",
      "ts": "2026-06-26T15:50:39"
     },
@@ -187,7 +187,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "rg -i \"date\\|NOW\\|TODAY\\|DATEADD\\|DATE_ADD\" /home/albert/.claude/skills/nocobase-utils/references/evaluators/formulajs.md 2>&1 | head -30",
+     "cmd": "rg -i \"date\\|NOW\\|TODAY\\|DATEADD\\|DATE_ADD\" ~/.claude/skills/nocobase-utils/references/evaluators/formulajs.md 2>&1 | head -30",
      "msg": "command not found",
      "ts": "2026-06-26T15:53:09"
     }
@@ -218,10 +218,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-3.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-3.prompt.txt",
    "sha256": "85cf458ba0e9846dc6b5172f8d90b3c6f5d2157796f3461d60e2fb6c75e81ed2",
    "text": "Build a lightweight CRM in NocoBase, FULL AUTONOMY — no questions, do it end to end. Build into env **flash14231** — every nb api call uses `-e flash14231 -y`. The instance is a CLEAN empty NocoBase.\n\nDATA MODEL — snake_case collections; belongsTo/relation fields named as NOUNS (e.g. `customer`, `contact`, `owner`), NEVER ending in `_id` (beta rejects `*_id` association names):\n- crm_customers: name, industry (single-select enum), size (enum: SMB / Mid-Market / Enterprise), website, status (enum: prospect / active / churned), owner (belongsTo users)\n- crm_contacts: name, email, phone, title, customer (belongsTo crm_customers), owner (belongsTo users)\n- crm_deals: title, customer (belongsTo crm_customers), contact (belongsTo crm_contacts), stage (enum: lead / qualified / proposal / negotiation / won / lost), amount (number, ¥ prefix, 2 decimals), expected_close (date), owner (belongsTo users)\n- crm_activities: subject, type (enum: call / email / meeting / task), due (date), done (checkbox), deal (belongsTo crm_deals), contact (belongsTo crm_contacts)\n\nSEED all-English data: ≥8 customers, ≥12 contacts, ≥16 deals covering EVERY stage (incl. won & lost), ≥24 activities covering every type, with realistic owners/amounts/dates.\n\nPAGES — use native NocoBase blocks only (Table / Kanban / Calendar / Details / Form / Chart). Put everything under a top-level \"CRM\" menu group. Plan per page:\n\n1. Dashboard — a sales overview built from NATIVE Chart blocks (use the Chart builder block):\n   - Deals count by stage (bar or funnel)\n   - Pipeline amount by stage, or amount by expected_close month (bar/line)\n   - Deals by owner (pie)\n   - plus a Table block \"Closing soon\" (crm_deals sorted by expected_close ascending, stage not won/lost) and/or \"Recent activities\".\n2. Pipeline — a Kanban of crm_deals grouped by `stage` (cards show title + customer + amount), AND a Table view of all deals with Filter + Add. Row/card click → drawer: deal Details + an Activities sub-table (that deal) + the linked contact.\n3. Customers — Table + Filter + Add new. Row click → a WIDE drawer: customer Details + a Contacts sub-table + a Deals sub-table (both scoped to that customer).\n4. Contacts — Table (with a Customer column) + Filter + Add. Row click → drawer: Details + an Activities sub-table.\n5. Activities — a Calendar view (by `due`) AND a Table; Filter by type and by done; row click → drawer with Details.\n\nBuild it like a real product CRM a NocoBase consultant would ship — clean, populated, navigable. Sub-tables in drawers must auto-filter to the parent record. When done, report the page schemaUid(s) and a one-line summary of what each page contains.\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-3.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-3.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -267,25 +267,25 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:09"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:10"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:18"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/error-codes.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/error-codes.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:20"
     },
@@ -303,7 +303,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm-customers-bp.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | head -100",
+     "cmd": "cat /tmp/crm-customers-bp.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | head -100",
      "msg": "[display-association-field-popup-required] Display relation field \\\"owner\\\" must use object form with explicit popup in table/details/list/gridCard blocks. Use { \\\"field\\\": \\\"owner\\\", \\\"popup\\\": { ... } } instead of the shorthand or popup-l",
      "ts": "2026-06-26T14:37:39"
     },
@@ -327,13 +327,13 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm-customers-bp.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq -r '.cliBody' > /tmp/crm-customers-cli.json",
+     "cmd": "cat /tmp/crm-customers-bp.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq -r '.cliBody' > /tmp/crm-customers-cli.json",
      "msg": "error",
      "ts": "2026-06-26T14:40:59"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm-customers-bp.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq -r '.cliBody' > /tmp/crm-customers-cli.json",
+     "cmd": "cat /tmp/crm-customers-bp.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq -r '.cliBody' > /tmp/crm-customers-cli.json",
      "msg": "[default-field-group-unknown-field] flowSurfaces authoring validation failed with 8 error(s); fix all errors before retrying the same write",
      "ts": "2026-06-26T14:41:05"
     },
@@ -454,10 +454,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-2.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-2.prompt.txt",
    "sha256": "dae76823bff1681fe040162a273517fafa1ab222c026a14623d16f19f1b09ae0",
    "text": "Build a lightweight CRM in NocoBase, FULL AUTONOMY — no questions, do it end to end. Build into env **fable14232** — every nb api call uses `-e fable14232 -y`. The instance is a CLEAN empty NocoBase.\n\nDATA MODEL — snake_case collections; belongsTo/relation fields named as NOUNS (e.g. `customer`, `contact`, `owner`), NEVER ending in `_id` (beta rejects `*_id` association names):\n- crm_customers: name, industry (single-select enum), size (enum: SMB / Mid-Market / Enterprise), website, status (enum: prospect / active / churned), owner (belongsTo users)\n- crm_contacts: name, email, phone, title, customer (belongsTo crm_customers), owner (belongsTo users)\n- crm_deals: title, customer (belongsTo crm_customers), contact (belongsTo crm_contacts), stage (enum: lead / qualified / proposal / negotiation / won / lost), amount (number, ¥ prefix, 2 decimals), expected_close (date), owner (belongsTo users)\n- crm_activities: subject, type (enum: call / email / meeting / task), due (date), done (checkbox), deal (belongsTo crm_deals), contact (belongsTo crm_contacts)\n\nSEED all-English data: ≥8 customers, ≥12 contacts, ≥16 deals covering EVERY stage (incl. won & lost), ≥24 activities covering every type, with realistic owners/amounts/dates.\n\nPAGES — use native NocoBase blocks only (Table / Kanban / Calendar / Details / Form / Chart). Put everything under a top-level \"CRM\" menu group. Plan per page:\n\n1. Dashboard — a sales overview built from NATIVE Chart blocks (use the Chart builder block):\n   - Deals count by stage (bar or funnel)\n   - Pipeline amount by stage, or amount by expected_close month (bar/line)\n   - Deals by owner (pie)\n   - plus a Table block \"Closing soon\" (crm_deals sorted by expected_close ascending, stage not won/lost) and/or \"Recent activities\".\n2. Pipeline — a Kanban of crm_deals grouped by `stage` (cards show title + customer + amount), AND a Table view of all deals with Filter + Add. Row/card click → drawer: deal Details + an Activities sub-table (that deal) + the linked contact.\n3. Customers — Table + Filter + Add new. Row click → a WIDE drawer: customer Details + a Contacts sub-table + a Deals sub-table (both scoped to that customer).\n4. Contacts — Table (with a Customer column) + Filter + Add. Row click → drawer: Details + an Activities sub-table.\n5. Activities — a Calendar view (by `due`) AND a Table; Filter by type and by done; row click → drawer with Details.\n\nBuild it like a real product CRM a NocoBase consultant would ship — clean, populated, navigable. Sub-tables in drawers must auto-filter to the parent record. When done, report the page schemaUid(s) and a one-line summary of what each page contains.\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-2.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-2.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -497,19 +497,19 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:08"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:15"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:16"
     },
@@ -545,19 +545,19 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm-customers-bp.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | head -100",
+     "cmd": "cat /tmp/crm-customers-bp.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | head -100",
      "msg": "[missing-default-field-groups] defaults.collections.crm_customers.fieldGroups must be present when generated popups for crm_customers still have more than 10 effective fields.",
      "ts": "2026-06-26T14:37:27"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm-customers-bp.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | jq '{ok, er",
+     "cmd": "cat /tmp/crm-customers-bp.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | jq '{ok, er",
      "msg": "[default-field-groups-only-for-large-generated-popups] defaults.collections.*.fieldGroups should be omitted when they cover 10 or fewer effective fields; reserve collection-level fieldGroups for generated popups with more than 10 effective ",
      "ts": "2026-06-26T14:38:27"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm-customers-bp.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | jq '{ok, er",
+     "cmd": "cat /tmp/crm-customers-bp.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | jq '{ok, er",
      "msg": "[missing-default-field-groups] defaults.collections.crm_customers.fieldGroups must be present when generated popups for crm_customers still have more than 10 effective fields.",
      "ts": "2026-06-26T14:39:18"
     },
@@ -599,7 +599,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm-customers-bp.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | jq '{ok, er",
+     "cmd": "cat /tmp/crm-customers-bp.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-auto-resolve 2>&1 | jq '{ok, er",
      "msg": "[default-field-group-unknown-field] defaults.collections.users.fieldGroups contains unsupported field path \\\"owned_customers\\\". Collection-level fieldGroups accept only top-level fields from users.",
      "ts": "2026-06-26T14:42:51"
     },
@@ -690,10 +690,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-1.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-1.prompt.txt",
    "sha256": "315c5c1ed30e629aac80d30f38415b7a7145c7481126edade6c5b4b4d154f2cb",
    "text": "Build a lightweight CRM in NocoBase, FULL AUTONOMY — no questions, do it end to end. Build into env **expagents** — every nb api call uses `-e expagents -y`. The instance is a CLEAN empty NocoBase.\n\nDATA MODEL — snake_case collections; belongsTo/relation fields named as NOUNS (e.g. `customer`, `contact`, `owner`), NEVER ending in `_id` (beta rejects `*_id` association names):\n- crm_customers: name, industry (single-select enum), size (enum: SMB / Mid-Market / Enterprise), website, status (enum: prospect / active / churned), owner (belongsTo users)\n- crm_contacts: name, email, phone, title, customer (belongsTo crm_customers), owner (belongsTo users)\n- crm_deals: title, customer (belongsTo crm_customers), contact (belongsTo crm_contacts), stage (enum: lead / qualified / proposal / negotiation / won / lost), amount (number, ¥ prefix, 2 decimals), expected_close (date), owner (belongsTo users)\n- crm_activities: subject, type (enum: call / email / meeting / task), due (date), done (checkbox), deal (belongsTo crm_deals), contact (belongsTo crm_contacts)\n\nSEED all-English data: ≥8 customers, ≥12 contacts, ≥16 deals covering EVERY stage (incl. won & lost), ≥24 activities covering every type, with realistic owners/amounts/dates.\n\nPAGES — use native NocoBase blocks only (Table / Kanban / Calendar / Details / Form / Chart). Put everything under a top-level \"CRM\" menu group. Plan per page:\n\n1. Dashboard — a sales overview built from NATIVE Chart blocks (use the Chart builder block):\n   - Deals count by stage (bar or funnel)\n   - Pipeline amount by stage, or amount by expected_close month (bar/line)\n   - Deals by owner (pie)\n   - plus a Table block \"Closing soon\" (crm_deals sorted by expected_close ascending, stage not won/lost) and/or \"Recent activities\".\n2. Pipeline — a Kanban of crm_deals grouped by `stage` (cards show title + customer + amount), AND a Table view of all deals with Filter + Add. Row/card click → drawer: deal Details + an Activities sub-table (that deal) + the linked contact.\n3. Customers — Table + Filter + Add new. Row click → a WIDE drawer: customer Details + a Contacts sub-table + a Deals sub-table (both scoped to that customer).\n4. Contacts — Table (with a Customer column) + Filter + Add. Row click → drawer: Details + an Activities sub-table.\n5. Activities — a Calendar view (by `due`) AND a Table; Filter by type and by done; row click → drawer with Details.\n\nBuild it like a real product CRM a NocoBase consultant would ship — clean, populated, navigable. Sub-tables in drawers must auto-filter to the parent record. When done, report the page schemaUid(s) and a one-line summary of what each page contains.\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-1.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-1.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -733,19 +733,19 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:06"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:14"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T14:32:43"
     },
@@ -763,7 +763,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm_customers_page.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
+     "cmd": "cat /tmp/crm_customers_page.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
      "msg": "[display-association-field-popup-required] Display relation field \\\"owner\\\" must use object form with explicit popup in table/details/list/gridCard blocks. Use { \\\"field\\\": \\\"owner\\\", \\\"popup\\\": { ... } } instead of the shorthand or popup-l",
      "ts": "2026-06-26T14:36:43"
     },
@@ -775,19 +775,19 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm_customers_page.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
+     "cmd": "cat /tmp/crm_customers_page.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
      "msg": "[unsupported-default-field-group-key] defaults field group only accepts keys: key, title, fields; unsupported key \\\"name\\\".",
      "ts": "2026-06-26T14:37:36"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm_customers_page.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
+     "cmd": "cat /tmp/crm_customers_page.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
      "msg": "[missing-default-field-groups] defaults.collections.crm_customers.fieldGroups must be present when generated popups for crm_customers still have more than 10 effective fields.",
      "ts": "2026-06-26T14:38:06"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm_customers_page.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
+     "cmd": "cat /tmp/crm_customers_page.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
      "msg": "error",
      "ts": "2026-06-26T14:38:39"
     },
@@ -823,7 +823,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/crm_customers_page.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
+     "cmd": "cat /tmp/crm_customers_page.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write \\ --collection-metadata-files /tmp/meta_customers.j",
      "msg": "[default-field-groups-only-for-large-generated-popups] defaults.collections.*.fieldGroups should be omitted when they cover 10 or fewer effective fields; reserve collection-level fieldGroups for generated popups with more than 10 effective ",
      "ts": "2026-06-26T14:39:59"
     },
@@ -926,10 +926,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-max.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-max.prompt.txt",
    "sha256": "a1c366a73c0f074be4806e92012bd84e5a73457a341a30a336cef628ec4a1fab",
    "text": "Build a lightweight CRM in NocoBase, FULL AUTONOMY — no questions, do it end to end. Build into env **maxbench01** — every nb api call uses `-e maxbench01 -y`. The instance is a CLEAN empty NocoBase.\n\nDATA MODEL — snake_case collections; belongsTo/relation fields named as NOUNS (e.g. `customer`, `contact`, `owner`), NEVER ending in `_id` (beta rejects `*_id` association names):\n- crm_customers: name, industry (single-select enum), size (enum: SMB / Mid-Market / Enterprise), website, status (enum: prospect / active / churned), owner (belongsTo users)\n- crm_contacts: name, email, phone, title, customer (belongsTo crm_customers), owner (belongsTo users)\n- crm_deals: title, customer (belongsTo crm_customers), contact (belongsTo crm_contacts), stage (enum: lead / qualified / proposal / negotiation / won / lost), amount (number, ¥ prefix, 2 decimals), expected_close (date), owner (belongsTo users)\n- crm_activities: subject, type (enum: call / email / meeting / task), due (date), done (checkbox), deal (belongsTo crm_deals), contact (belongsTo crm_contacts)\n\nSEED all-English data: ≥8 customers, ≥12 contacts, ≥16 deals covering EVERY stage (incl. won & lost), ≥24 activities covering every type, with realistic owners/amounts/dates.\n\nPAGES — use native NocoBase blocks only (Table / Kanban / Calendar / Details / Form / Chart). Put everything under a top-level \"CRM\" menu group. Plan per page:\n\n1. Dashboard — a sales overview built from NATIVE Chart blocks (use the Chart builder block):\n   - Deals count by stage (bar or funnel)\n   - Pipeline amount by stage, or amount by expected_close month (bar/line)\n   - Deals by owner (pie)\n   - plus a Table block \"Closing soon\" (crm_deals sorted by expected_close ascending, stage not won/lost) and/or \"Recent activities\".\n2. Pipeline — a Kanban of crm_deals grouped by `stage` (cards show title + customer + amount), AND a Table view of all deals with Filter + Add. Row/card click → drawer: deal Details + an Activities sub-table (that deal) + the linked contact.\n3. Customers — Table + Filter + Add new. Row click → a WIDE drawer: customer Details + a Contacts sub-table + a Deals sub-table (both scoped to that customer).\n4. Contacts — Table (with a Customer column) + Filter + Add. Row click → drawer: Details + an Activities sub-table.\n5. Activities — a Calendar view (by `due`) AND a Table; Filter by type and by done; row click → drawer with Details.\n\nBuild it like a real product CRM a NocoBase consultant would ship — clean, populated, navigable. Sub-tables in drawers must auto-filter to the parent record. When done, report the page schemaUid(s) and a one-line summary of what each page contains.\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-max.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-max.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -969,25 +969,25 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T13:04:47"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T13:04:47"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/tool-shapes.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/tool-shapes.md",
      "msg": "error",
      "ts": "2026-06-26T13:04:54"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T13:06:41"
     },
@@ -1029,7 +1029,7 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/blocks/calendar.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/blocks/calendar.md",
      "msg": "error",
      "ts": "2026-06-26T13:13:14"
     },
@@ -1047,13 +1047,13 @@
     },
     {
      "tool": "bash",
-     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '.errors'",
+     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '.errors'",
      "msg": "[default-field-groups-only-for-large-generated-popups] defaults.collections.*.fieldGroups should be omitted when they cover 10 or fewer effective fields; reserve collection-level fieldGroups for generated popups with more than 10 effective ",
      "ts": "2026-06-26T13:16:13"
     },
     {
      "tool": "bash",
-     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>/dev/null | jq '.cl",
+     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>/dev/null | jq '.cl",
      "msg": "[defaultFilter-relation-field-unsupported] flowSurfaces authoring validation failed with 2 error(s); fix all errors before retrying the same write",
      "ts": "2026-06-26T13:17:27"
     },
@@ -1065,7 +1065,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>/dev/null | jq '.cl",
+     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>/dev/null | jq '.cl",
      "msg": "error",
      "ts": "2026-06-26T13:18:30"
     },
@@ -1077,7 +1077,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '{ok, error",
+     "cmd": "echo '{\"blueprint\": '\"$(cat /tmp/dashboard-blueprint.json)\"'}' | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '{ok, error",
      "msg": "[missing-default-field-groups] defaults.collections.crm_activities.fieldGroups must be present when generated popups for crm_activities still have more than 10 effective fields.",
      "ts": "2026-06-26T13:18:54"
     },
@@ -1162,10 +1162,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-plus.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-plus.prompt.txt",
    "sha256": "68bf592c4606bb436bc71e934f415c821ed3a5d6c57b8d4927c9d6042d4b7fa3",
    "text": "Build a lightweight CRM in NocoBase, FULL AUTONOMY — no questions, do it end to end. Build into env **crmnative** — every nb api call uses `-e crmnative -y`. The instance is a CLEAN empty NocoBase.\n\nDATA MODEL — snake_case collections; belongsTo/relation fields named as NOUNS (e.g. `customer`, `contact`, `owner`), NEVER ending in `_id` (beta rejects `*_id` association names):\n- crm_customers: name, industry (single-select enum), size (enum: SMB / Mid-Market / Enterprise), website, status (enum: prospect / active / churned), owner (belongsTo users)\n- crm_contacts: name, email, phone, title, customer (belongsTo crm_customers), owner (belongsTo users)\n- crm_deals: title, customer (belongsTo crm_customers), contact (belongsTo crm_contacts), stage (enum: lead / qualified / proposal / negotiation / won / lost), amount (number, ¥ prefix, 2 decimals), expected_close (date), owner (belongsTo users)\n- crm_activities: subject, type (enum: call / email / meeting / task), due (date), done (checkbox), deal (belongsTo crm_deals), contact (belongsTo crm_contacts)\n\nSEED all-English data: ≥8 customers, ≥12 contacts, ≥16 deals covering EVERY stage (incl. won & lost), ≥24 activities covering every type, with realistic owners/amounts/dates.\n\nPAGES — use native NocoBase blocks only (Table / Kanban / Calendar / Details / Form / Chart). Put everything under a top-level \"CRM\" menu group. Plan per page:\n\n1. Dashboard — a sales overview built from NATIVE Chart blocks (use the Chart builder block):\n   - Deals count by stage (bar or funnel)\n   - Pipeline amount by stage, or amount by expected_close month (bar/line)\n   - Deals by owner (pie)\n   - plus a Table block \"Closing soon\" (crm_deals sorted by expected_close ascending, stage not won/lost) and/or \"Recent activities\".\n2. Pipeline — a Kanban of crm_deals grouped by `stage` (cards show title + customer + amount), AND a Table view of all deals with Filter + Add. Row/card click → drawer: deal Details + an Activities sub-table (that deal) + the linked contact.\n3. Customers — Table + Filter + Add new. Row click → a WIDE drawer: customer Details + a Contacts sub-table + a Deals sub-table (both scoped to that customer).\n4. Contacts — Table (with a Customer column) + Filter + Add. Row click → drawer: Details + an Activities sub-table.\n5. Activities — a Calendar view (by `due`) AND a Table; Filter by type and by done; row click → drawer with Details.\n\nBuild it like a real product CRM a NocoBase consultant would ship — clean, populated, navigable. Sub-tables in drawers must auto-filter to the parent record. When done, report the page schemaUid(s) and a one-line summary of what each page contains.\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-plus.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-plus.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1205,31 +1205,31 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T13:03:31"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T13:03:41"
     },
     {
      "tool": "bash",
-     "cmd": "rg -n \"chart|kanban|calendar\" /home/albert/.agents/skills/nocobase-ui-builder/references/page-blueprint.md | head -30",
+     "cmd": "rg -n \"chart|kanban|calendar\" ~/.agents/skills/nocobase-ui-builder/references/page-blueprint.md | head -30",
      "msg": "command not found",
      "ts": "2026-06-26T13:09:46"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/dashboard-blueprint.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env crmnative 2>&1 | head -100",
+     "cmd": "cat /tmp/dashboard-blueprint.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env crmnative 2>&1 | head -100",
      "msg": "[data-surface-default-filter-common-fields-incomplete] defaultFilter.items must cover at least 2 common business fields when available for collection crm_deals: title, stage.",
      "ts": "2026-06-26T13:11:07"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/dashboard-blueprint.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env crmnative 2>&1 | python3 -c \" import sys, js",
+     "cmd": "cat /tmp/dashboard-blueprint.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env crmnative 2>&1 | python3 -c \" import sys, js",
      "msg": "defaults.collections.crm_deals.fieldGroups - defaults.collections.*.fieldGroups should be omitted when they cover 10 or fewer effective fields; reserve collection-level fieldGroups for generated popup",
      "ts": "2026-06-26T13:12:04"
     },
@@ -1392,10 +1392,10 @@
    "module": null
   },
   "prompt": {
-   "file": "/home/albert/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-plus.prompt.txt",
+   "file": "~/prj/vscodes/app-library-bench/tooling/bench/prompts/crm-native-plus.prompt.txt",
    "sha256": "68bf592c4606bb436bc71e934f415c821ed3a5d6c57b8d4927c9d6042d4b7fa3",
    "text": "Build a lightweight CRM in NocoBase, FULL AUTONOMY — no questions, do it end to end. Build into env **crmnative** — every nb api call uses `-e crmnative -y`. The instance is a CLEAN empty NocoBase.\n\nDATA MODEL — snake_case collections; belongsTo/relation fields named as NOUNS (e.g. `customer`, `contact`, `owner`), NEVER ending in `_id` (beta rejects `*_id` association names):\n- crm_customers: name, industry (single-select enum), size (enum: SMB / Mid-Market / Enterprise), website, status (enum: prospect / active / churned), owner (belongsTo users)\n- crm_contacts: name, email, phone, title, customer (belongsTo crm_customers), owner (belongsTo users)\n- crm_deals: title, customer (belongsTo crm_customers), contact (belongsTo crm_contacts), stage (enum: lead / qualified / proposal / negotiation / won / lost), amount (number, ¥ prefix, 2 decimals), expected_close (date), owner (belongsTo users)\n- crm_activities: subject, type (enum: call / email / meeting / task), due (date), done (checkbox), deal (belongsTo crm_deals), contact (belongsTo crm_contacts)\n\nSEED all-English data: ≥8 customers, ≥12 contacts, ≥16 deals covering EVERY stage (incl. won & lost), ≥24 activities covering every type, with realistic owners/amounts/dates.\n\nPAGES — use native NocoBase blocks only (Table / Kanban / Calendar / Details / Form / Chart). Put everything under a top-level \"CRM\" menu group. Plan per page:\n\n1. Dashboard — a sales overview built from NATIVE Chart blocks (use the Chart builder block):\n   - Deals count by stage (bar or funnel)\n   - Pipeline amount by stage, or amount by expected_close month (bar/line)\n   - Deals by owner (pie)\n   - plus a Table block \"Closing soon\" (crm_deals sorted by expected_close ascending, stage not won/lost) and/or \"Recent activities\".\n2. Pipeline — a Kanban of crm_deals grouped by `stage` (cards show title + customer + amount), AND a Table view of all deals with Filter + Add. Row/card click → drawer: deal Details + an Activities sub-table (that deal) + the linked contact.\n3. Customers — Table + Filter + Add new. Row click → a WIDE drawer: customer Details + a Contacts sub-table + a Deals sub-table (both scoped to that customer).\n4. Contacts — Table (with a Customer column) + Filter + Add. Row click → drawer: Details + an Activities sub-table.\n5. Activities — a Calendar view (by `due`) AND a Table; Filter by type and by done; row click → drawer with Details.\n\nBuild it like a real product CRM a NocoBase consultant would ship — clean, populated, navigable. Sub-tables in drawers must auto-filter to the parent record. When done, report the page schemaUid(s) and a one-line summary of what each page contains.\n",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-plus.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/crm-native-plus.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1448,8 +1448,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1502,8 +1502,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1556,8 +1556,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1610,8 +1610,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1664,8 +1664,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1718,8 +1718,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1772,8 +1772,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1801,19 +1801,19 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/prj/vscodes/agent-kb/public/prototypes/app-library/02-asset-management.html",
+     "cmd": "~/prj/vscodes/agent-kb/public/prototypes/app-library/02-asset-management.html",
      "msg": "error",
      "ts": "2026-06-26T11:20:43"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-prototype-repro/references/block-recipes.md",
+     "cmd": "~/.agents/skills/nocobase-prototype-repro/references/block-recipes.md",
      "msg": "error",
      "ts": "2026-06-26T11:20:50"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-prototype-repro/references/gotchas.md",
+     "cmd": "~/.agents/skills/nocobase-prototype-repro/references/gotchas.md",
      "msg": "error",
      "ts": "2026-06-26T11:20:51"
     },
@@ -1837,55 +1837,55 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T11:26:07"
     },
     {
      "tool": "bash",
-     "cmd": "cat /home/albert/blueprint-h-assets.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env maxbench02 2>&1",
+     "cmd": "cat ~/blueprint-h-assets.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env maxbench02 2>&1",
      "msg": "[missing-collection-metadata] collectionMetadata is required for prepare-write when the blueprint contains data-bound blocks: tabs[0].blocks[0].",
      "ts": "2026-06-26T11:26:58"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /home/albert/blueprint-h-assets.json 2>&1",
+     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file ~/blueprint-h-assets.json 2>&1",
      "msg": "[defaultFilter-field-ineligible] flowSurfaces authoring validation failed with 5 error(s); fix all errors before retrying the same write",
      "ts": "2026-06-26T11:27:21"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /home/albert/blueprint-h-cats.json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); print('OK:', d.get('data',{}).get('page",
+     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file ~/blueprint-h-cats.json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); print('OK:', d.get('data',{}).get('page",
      "msg": "error",
      "ts": "2026-06-26T11:28:50"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /home/albert/blueprint-h-cats.json -j 2>&1 | tail -20",
+     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file ~/blueprint-h-cats.json -j 2>&1 | tail -20",
      "msg": "[defaultFilter-minimum-fields] flowSurfaces authoring $.tabs[0].blocks[0].defaultFilter must include at least 3 filterable fields",
      "ts": "2026-06-26T11:29:07"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /home/albert/blueprint-h-depts.json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); [print(e.get('ruleId',''),':',e.get('m",
+     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file ~/blueprint-h-depts.json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); [print(e.get('ruleId',''),':',e.get('m",
      "msg": "error",
      "ts": "2026-06-26T11:29:49"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /home/albert/blueprint-h-logs.json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); [print(e.get('ruleId',''),':',e.get('me",
+     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file ~/blueprint-h-logs.json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); [print(e.get('ruleId',''),':',e.get('me",
      "msg": "error",
      "ts": "2026-06-26T11:29:51"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /home/albert/blueprint-h-depts.json -j 2>&1 > /tmp/depts_err.json nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /h",
+     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file ~/blueprint-h-depts.json -j 2>&1 > /tmp/depts_err.json nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /h",
      "msg": "[defaultFilter-field-ineligible] flowSurfaces authoring validation failed with 2 error(s); fix all errors before retrying the same write",
      "ts": "2026-06-26T11:29:59"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file /home/albert/blueprint-h-depts.json 2>&1 | tail -20",
+     "cmd": "nb api flow-surfaces apply-blueprint -e maxbench02 -y --body-file ~/blueprint-h-depts.json 2>&1 | tail -20",
      "msg": "[defaultFilter-field-ineligible] flowSurfaces authoring $.tabs[0].blocks[0].defaultFilter.items[2].path references field 'createdBy.nickname' that is not eligible for defaultFilter",
      "ts": "2026-06-26T11:30:51"
     },
@@ -1930,8 +1930,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -1959,13 +1959,13 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-prototype-repro/references/block-recipes.md",
+     "cmd": "~/.claude/skills/nocobase-prototype-repro/references/block-recipes.md",
      "msg": "error",
      "ts": "2026-06-26T11:20:46"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-prototype-repro/references/gotchas.md",
+     "cmd": "~/.claude/skills/nocobase-prototype-repro/references/gotchas.md",
      "msg": "error",
      "ts": "2026-06-26T11:20:47"
     },
@@ -2064,8 +2064,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -2093,13 +2093,13 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-prototype-repro/references/block-recipes.md",
+     "cmd": "~/.agents/skills/nocobase-prototype-repro/references/block-recipes.md",
      "msg": "error",
      "ts": "2026-06-26T11:20:41"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-prototype-repro/references/gotchas.md",
+     "cmd": "~/.agents/skills/nocobase-prototype-repro/references/gotchas.md",
      "msg": "error",
      "ts": "2026-06-26T11:20:42"
     },
@@ -2117,7 +2117,7 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T11:22:55"
     },
@@ -2246,8 +2246,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -2275,19 +2275,19 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/prj/vscodes/agent-kb/public/prototypes/app-library/02-asset-management.html",
+     "cmd": "~/prj/vscodes/agent-kb/public/prototypes/app-library/02-asset-management.html",
      "msg": "error",
      "ts": "2026-06-26T11:00:09"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-prototype-repro/references/block-recipes.md",
+     "cmd": "~/.agents/skills/nocobase-prototype-repro/references/block-recipes.md",
      "msg": "error",
      "ts": "2026-06-26T11:00:34"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-prototype-repro/references/gotchas.md",
+     "cmd": "~/.agents/skills/nocobase-prototype-repro/references/gotchas.md",
      "msg": "error",
      "ts": "2026-06-26T11:00:35"
     },
@@ -2311,13 +2311,13 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T11:05:01"
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces apply-blueprint -e fable14232 -y --body-file /home/albert/bp_assets.json 2>&1",
+     "cmd": "nb api flow-surfaces apply-blueprint -e fable14232 -y --body-file ~/bp_assets.json 2>&1",
      "msg": "[defaultFilter-field-ineligible] flowSurfaces authoring validation failed with 4 error(s); fix all errors before retrying the same write",
      "ts": "2026-06-26T11:05:42"
     },
@@ -2416,8 +2416,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -2445,13 +2445,13 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-prototype-repro/references/block-recipes.md",
+     "cmd": "~/.claude/skills/nocobase-prototype-repro/references/block-recipes.md",
      "msg": "error",
      "ts": "2026-06-26T11:00:21"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-prototype-repro/references/gotchas.md",
+     "cmd": "~/.claude/skills/nocobase-prototype-repro/references/gotchas.md",
      "msg": "error",
      "ts": "2026-06-26T11:00:22"
     },
@@ -2469,7 +2469,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md 2>&1",
+     "cmd": "cat ~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md 2>&1",
      "msg": "error",
      "ts": "2026-06-26T11:02:52"
     },
@@ -2481,7 +2481,7 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T11:06:56"
     },
@@ -2586,8 +2586,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-plus-html-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -2615,13 +2615,13 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-prototype-repro/references/block-recipes.md",
+     "cmd": "~/.claude/skills/nocobase-prototype-repro/references/block-recipes.md",
      "msg": "error",
      "ts": "2026-06-26T11:00:23"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.claude/skills/nocobase-prototype-repro/references/gotchas.md",
+     "cmd": "~/.claude/skills/nocobase-prototype-repro/references/gotchas.md",
      "msg": "error",
      "ts": "2026-06-26T11:00:23"
     },
@@ -2639,7 +2639,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "python3 /home/albert/seed-content-calendar.py 2>&1",
+     "cmd": "python3 ~/seed-content-calendar.py 2>&1",
      "msg": "nb api resource create --collection h_owners -e flash14231 -y -j --body {\"name\": \"Mara L.\", \"initials\": \"ML\"}",
      "ts": "2026-06-26T11:03:12"
     },
@@ -2762,8 +2762,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -2803,31 +2803,31 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T10:59:16"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T10:59:22"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/tool-shapes.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/tool-shapes.md",
      "msg": "error",
      "ts": "2026-06-26T10:59:36"
     },
     {
      "tool": "bash",
-     "cmd": "rg -i \"progress|bar|column.*render|jsColumn\" /home/albert/.agents/skills/nocobase-ui-builder/references/js-snippets/catalog.json -n | head -30",
+     "cmd": "rg -i \"progress|bar|column.*render|jsColumn\" ~/.agents/skills/nocobase-ui-builder/references/js-snippets/catalog.json -n | head -30",
      "msg": "command not found",
      "ts": "2026-06-26T11:02:32"
     },
     {
      "tool": "bash",
-     "cmd": "node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write < /tmp/catalog-blueprint.json 2>&1 | tee /tmp/catalog-prepare.json | head -100",
+     "cmd": "node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write < /tmp/catalog-blueprint.json 2>&1 | tee /tmp/catalog-prepare.json | head -100",
      "msg": "[missing-collection-metadata] When one tab or popup contains multiple non-filter blocks, every non-filter data block with a resource must include a title unless it is template-backed.",
      "ts": "2026-06-26T11:03:24"
     },
@@ -2884,8 +2884,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -2925,13 +2925,13 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T10:59:16"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T10:59:27"
     },
@@ -2991,13 +2991,13 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat <<'BLUEPRINT' | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write -e maxbench01 2>&1 { \"version\": \"1\", \"mode\": \"create\", \"defaults\":",
+     "cmd": "cat <<'BLUEPRINT' | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write -e maxbench01 2>&1 { \"version\": \"1\", \"mode\": \"create\", \"defaults\":",
      "msg": "[missing-collection-metadata] collectionMetadata is required for prepare-write when the blueprint contains data-bound blocks: tabs[0].blocks[0].",
      "ts": "2026-06-26T11:05:10"
     },
     {
      "tool": "bash",
-     "cmd": "cat <<'BLUEPRINT' | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env maxbench01 2>&1 | jq '{ok, errors: [.errors[]? | {path, rule",
+     "cmd": "cat <<'BLUEPRINT' | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --env maxbench01 2>&1 | jq '{ok, errors: [.errors[]? | {path, rule",
      "msg": "[missing-collection-metadata] collectionMetadata is required for prepare-write when the blueprint contains data-bound blocks: tabs[0].blocks[0].",
      "ts": "2026-06-26T11:05:34"
     },
@@ -3087,7 +3087,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "nb api flow-surfaces compose -e maxbench01 -y --body-file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/items_drawer.json -j 2>&1 | tail -25",
+     "cmd": "nb api flow-surfaces compose -e maxbench01 -y --body-file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/items_drawer.json -j 2>&1 | tail -25",
      "msg": "[defaultFilter-field-ineligible] flowSurfaces authoring $.blocks[2].defaultFilter.items[2].path references field 'amount' that is not eligible for defaultFilter",
      "ts": "2026-06-26T11:13:20"
     }
@@ -3120,8 +3120,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/round-max-pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -3161,37 +3161,37 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T10:59:23"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1",
+     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1",
      "msg": "[data-surface-default-filter-common-fields-incomplete] defaultFilter.items must cover at least 3 common business fields when available for collection content_items: title, status, description.",
      "ts": "2026-06-26T11:03:16"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1",
+     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1",
      "msg": "[invalid-default-field-groups] defaults.collections.*.fieldGroups must be a non-empty array when present.",
      "ts": "2026-06-26T11:04:07"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1",
+     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1",
      "msg": "[default-field-groups-only-for-large-generated-popups] defaults.collections.*.fieldGroups should be omitted when they cover 10 or fewer effective fields; reserve collection-level fieldGroups for generated popups with more than 10 effective ",
      "ts": "2026-06-26T11:04:54"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '.cliBody' > /tmp/opencode/cli_b",
+     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '.cliBody' > /tmp/opencode/cli_b",
      "msg": "[relation-titleField-unreadable] flowSurfaces authoring validation failed with 1 error(s); fix all errors before retrying the same write",
      "ts": "2026-06-26T11:05:24"
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '.cliBody' > /tmp/opencode/cli_b",
+     "cmd": "cat /tmp/opencode/blueprint_calendar.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write 2>&1 | jq '.cliBody' > /tmp/opencode/cli_b",
      "msg": "flowSurfaces applyBlueprint tabs[0].blocks[1].fields[4].popup.blocks[0] cannot mix resource with flowSurfaces applyBlueprint tabs[0].blocks[1].fields[4].popup.blocks[0].collection",
      "ts": "2026-06-26T11:05:33"
     },
@@ -3272,8 +3272,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -3301,7 +3301,7 @@
    "samples": [
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T10:39:44"
     },
@@ -3319,13 +3319,13 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T10:40:49"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T10:41:01"
     },
@@ -3355,7 +3355,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "cat /tmp/catalog_blueprint.json | node /home/albert/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-files /tmp/assets_full.json /t",
+     "cmd": "cat /tmp/catalog_blueprint.json | node ~/.agents/skills/nocobase-ui-builder/runtime/bin/nb-page-preview.mjs --stdin-json --prepare-write --collection-metadata-files /tmp/assets_full.json /t",
      "msg": "[missing-collection-metadata] When one tab or popup contains multiple non-filter blocks, every non-filter data block with a resource must include a title unless it is template-backed.",
      "ts": "2026-06-26T10:45:14"
     },
@@ -3427,7 +3427,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "jq -n --slurpfile bp /tmp/emp_table_bp.json --slurpfile emps /tmp/employees_full.json '{ blueprint: $bp[0], collectionMetadata: { collections: [($emps[0].data)] } }' | node /home/albert/.agents/skills",
+     "cmd": "jq -n --slurpfile bp /tmp/emp_table_bp.json --slurpfile emps /tmp/employees_full.json '{ blueprint: $bp[0], collectionMetadata: { collections: [($emps[0].data)] } }' | node ~/.agents/skills",
      "msg": "error",
      "ts": "2026-06-26T10:55:31"
     },
@@ -3439,7 +3439,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "jq -n --slurpfile bp /tmp/emp_table_bp.json --slurpfile emps /tmp/employees_full.json '{ blueprint: $bp[0], collectionMetadata: { collections: [($emps[0].data)] } }' | node /home/albert/.agents/skills",
+     "cmd": "jq -n --slurpfile bp /tmp/emp_table_bp.json --slurpfile emps /tmp/employees_full.json '{ blueprint: $bp[0], collectionMetadata: { collections: [($emps[0].data)] } }' | node ~/.agents/skills",
      "msg": "error",
      "ts": "2026-06-26T10:56:12"
     },
@@ -3451,7 +3451,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "jq -n --slurpfile bp /tmp/emp_table_bp.json --slurpfile emps /tmp/employees_full.json '{ blueprint: $bp[0], collectionMetadata: { collections: [($emps[0].data)] } }' | node /home/albert/.agents/skills",
+     "cmd": "jq -n --slurpfile bp /tmp/emp_table_bp.json --slurpfile emps /tmp/employees_full.json '{ blueprint: $bp[0], collectionMetadata: { collections: [($emps[0].data)] } }' | node ~/.agents/skills",
      "msg": "[data-surface-default-filter-common-fields-incomplete] defaultFilter.items must cover at least 3 common business fields when available for collection employees: name, email, phone.",
      "ts": "2026-06-26T10:56:29"
     }
@@ -3484,8 +3484,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-03.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -3525,13 +3525,13 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T10:14:15"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T10:16:42"
     },
@@ -3576,8 +3576,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-02.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -3617,25 +3617,25 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T10:13:34"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/o2m.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/o2m.md",
      "msg": "error",
      "ts": "2026-06-26T10:13:35"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T10:13:36"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T10:13:42"
     },
@@ -3719,7 +3719,7 @@
     },
     {
      "tool": "bash",
-     "cmd": "SKILL_DIR=\"/home/albert/.agents/skills/nocobase-ui-builder\" cat /tmp/bp_catalog.json | node \"$SKILL_DIR/runtime/bin/nb-page-preview.mjs\" --stdin-json --prepare-write 2>&1 | head -80",
+     "cmd": "SKILL_DIR=\"~/.agents/skills/nocobase-ui-builder\" cat /tmp/bp_catalog.json | node \"$SKILL_DIR/runtime/bin/nb-page-preview.mjs\" --stdin-json --prepare-write 2>&1 | head -80",
      "msg": "error",
      "ts": "2026-06-26T10:38:22"
     }
@@ -3752,8 +3752,8 @@
   "prompt": {
    "file": null,
    "sha256": null,
-   "text": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
-   "launchInstruction": "Read the file /home/albert/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
+   "text": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions.",
+   "launchInstruction": "Read the file ~/prj/vscodes/agent-kb/tooling/model-flow-bench/tui/pure-01.prompt.txt and execute the task in it completely, end to end, with full autonomy and no questions."
   },
   "tags": [
    "bailian-payg",
@@ -3793,13 +3793,13 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
+     "cmd": "~/.agents/skills/nocobase-app-discipline/references/seed-data-standards.md",
      "msg": "error",
      "ts": "2026-06-26T10:13:16"
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
+     "cmd": "~/.agents/skills/nocobase-data-modeling/references/relations/m2o.md",
      "msg": "error",
      "ts": "2026-06-26T10:14:01"
     },
@@ -3829,7 +3829,7 @@
     },
     {
      "tool": "read",
-     "cmd": "/home/albert/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
+     "cmd": "~/.agents/skills/nocobase-ui-builder/references/whole-page-quick.md",
      "msg": "error",
      "ts": "2026-06-26T10:16:34"
     },
