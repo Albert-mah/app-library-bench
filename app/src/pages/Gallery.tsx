@@ -90,12 +90,14 @@ function ProtoModal({ m, onClose, onDeleted }: { m: Mod; onClose: () => void; on
           <span className="tm-num">#{pad2(m.num)}</span>
           <div><h2>{m.cn || m.name || m.slug}</h2><div className="muted" style={{ fontSize: 12 }}>{m.en} · {(m.tags || []).join(' / ')}</div></div>
           <span className="spacer" />
-          <span className={'pill ' + (kind === 'html' ? 'pass' : 'fix')} style={{ marginRight: 8 }}>{kindLabel}</span>
-          <button className="btn" onClick={() => setFull(!full)}>{full ? '退出全屏 ⤢' : '全屏 ⛶'}</button>
-          <button className="btn" onClick={() => setHideSide(!hideSide)}>{hideSide ? '显示侧栏 ‹' : '隐藏侧栏 ›'}</button>
-          {kind === 'html' && <a className="btn" href={url} target="_blank" rel="noopener">新窗口 ↗</a>}
-          {m.test && m.test !== 'none' && <Link className="btn" to={`/tests?mod=${m.num ?? m.slug}`} onClick={onClose}>测试 →</Link>}
-          <span className="closex" onClick={onClose}>×</span>
+          <span className={'pill ' + (kind === 'html' ? 'pass' : 'fix')} style={{ marginRight: 6 }}>{kindLabel}</span>
+          <div className="win-ctrls">
+            <button className="win-btn" title={hideSide ? '显示侧栏' : '隐藏侧栏'} onClick={() => setHideSide(!hideSide)}>{hideSide ? '◧' : '◨'}</button>
+            {m.test && m.test !== 'none' && <Link className="win-btn" title="该原型的测试记录" to={`/tests?mod=${m.num ?? m.slug}`} onClick={onClose}>📊</Link>}
+            {kind === 'html' && <a className="win-btn" title="新窗口打开" href={url} target="_blank" rel="noopener">↗</a>}
+            <button className="win-btn" title={full ? '退出全屏' : '全屏'} onClick={() => setFull(!full)}>{full ? '⤡' : '⤢'}</button>
+            <button className="win-btn win-close" title="关闭" onClick={onClose}>✕</button>
+          </div>
         </div>
         <div className="tm-body">
           <div className="tm-left" style={hideSide ? { borderRight: 0 } : undefined}><ProtoMain m={m} kind={kind} url={url} /></div>
