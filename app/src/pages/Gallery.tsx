@@ -61,7 +61,7 @@ export default function Gallery() {
                 </div>
                 <div style={{ marginTop: 8, display: 'flex', gap: 12 }}>
                   <a href={`/${m.slug}.html`} target="_blank" rel="noopener">原型 ↗</a>
-                  {m.test && m.test !== 'none' && <Link to="/tests">测试 →</Link>}
+                  {m.test && m.test !== 'none' && <Link to={`/tests?mod=${m.num ?? m.slug}`}>测试 →</Link>}
                 </div>
               </div>
             </div>

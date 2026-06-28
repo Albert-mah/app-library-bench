@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getJSON, postJSON, fmtTime } from '../lib/api';
 
 const st = (r: any) => r?.outcome?.status || 'unknown';
+const scenarioOfRun = (id: string) => { const m = /(?:^|[-_])(0[1-9])(?:[-_]|$)/.exec(id || ''); return m ? m[1] : null; };
 const COLS: [string, string, (r: any) => any][] = [
   ['startedAt', '时间', (r) => fmtTime(r?.timing?.startedAt)],
   ['id', 'ID', (r) => r.id],
@@ -147,6 +148,7 @@ function Detail({ id, onClose, onSaved }: { id: string; onClose: () => void; onS
       <span className="closex" onClick={onClose}>×</span>
       <h2>{r.id}</h2>
       <div className="muted">{r.model} · {r.cli} · {r?.target?.env}{r?.lineage?.batch ? ' · 批次 ' + r.lineage.batch : ''}{r?.lineage?.parent ? ' · ↳迭代自 ' + r.lineage.parent : ''}</div>
+      {scenarioOfRun(r.id) && <div style={{ fontSize: 12, marginTop: 3 }}>↔ 关联原型:<Link to={`/tests?mod=${scenarioOfRun(r.id)}`}>测试中心 #{scenarioOfRun(r.id)}</Link> · <a href={`/${scenarioOfRun(r.id) === '01' ? '01-inventory-management' : scenarioOfRun(r.id) === '02' ? '02-asset-management' : '03-content-calendar'}.html`} target="_blank" rel="noopener">原型 ↗</a></div>}
       {arts.length > 0 && <div className="shots">{arts.map((a: any, i: number) => <Artifact a={a} key={i} />)}</div>}
       <div className="dgrid">
         <div>状态</div><div className={'s-' + st(r)}>{st(r)}</div>
