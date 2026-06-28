@@ -80,6 +80,7 @@ export default function Gallery() {
 function ProtoModal({ m, onClose, onDeleted }: { m: Mod; onClose: () => void; onDeleted: () => void }) {
   const [hideSide, setHideSide] = useState(false);
   const [full, setFull] = useState(true);
+  const [tab, setTab] = useState<'proto' | 'tree'>('proto');
   // only user-created prototypes carry an authoritative display kind; curated modules use a
   // semantic `kind` (build type) so we always probe the .html for those.
   const useKind = m.source === 'user' ? (m.kind || null) : null;
@@ -113,7 +114,15 @@ function ProtoModal({ m, onClose, onDeleted }: { m: Mod; onClose: () => void; on
           </div>
         </div>
         <div className="tm-body">
-          <div className="tm-left" style={hideSide ? { borderRight: 0 } : undefined}><ProtoMain m={m} kind={kind} url={url} /></div>
+          <div className="tm-left" style={hideSide ? { borderRight: 0 } : undefined}>
+            <div className="tm-tabs">
+              <button className={tab === 'proto' ? 'on' : ''} onClick={() => setTab('proto')}>{kind === 'html' ? '🌐 原型预览' : '📄 原型'}</button>
+              <button className={tab === 'tree' ? 'on' : ''} onClick={() => setTab('tree')}>🌳 实验树</button>
+            </div>
+            <div className="tm-tabbody">
+              {tab === 'proto' ? <ProtoMain m={m} kind={kind} url={url} /> : <ExperimentTree m={m} onNav={onClose} />}
+            </div>
+          </div>
           {!hideSide && <div className="tm-right">
             <div className="sect">原型信息</div>
             <div className="dgrid">
@@ -159,6 +168,82 @@ function ProtoMain({ m, kind, url }: { m: Mod; kind: string | null; url: string 
             : bk.type === 'prompt' ? <div className="pd-prompt">{bk.value}</div>
               : <p style={{ whiteSpace: 'pre-wrap' }}>{bk.value}</p>}
       </div>)}
+    </div>
+  );
+}
+
+// ── Experiment tree: prototype(root) → test lines(branches) → rounds(chain) + associated runs.
+// Rounds nest as a chain (r2 is an iteration under r1) — usually shallow (most lines have only r1).
+type TNode = { icon: string; label: string; meta?: string; status?: string; score?: any; image?: string; href?: string; dim?: boolean; children?: TNode[] };
+const VMAP: Record<string, string> = { pass: 'pass', fix: 'fix', redo: 'redo' };
+const lineLabel = (b: string) => (b === 'main' ? '主应用线' : b.startsWith('bench-') ? b.replace('bench-', '') : b);
+
+function TreeNode({ n, onNav }: { n: TNode; onNav: () => void }) {
+  return (
+    <div className="trn">
+      <div className="trn-row">
+        <span className="trn-ic">{n.icon}</span>
+        {n.href ? <Link className="trn-lbl" to={n.href} onClick={onNav}>{n.label}</Link> : <span className={'trn-lbl' + (n.dim ? ' muted' : '')}>{n.label}</span>}
+        {n.meta && <span className="trn-meta">{n.meta}</span>}
+        {n.status && <span className={'pill ' + (VMAP[n.status] || '')}>{n.status}</span>}
+        {n.score != null && <span className="trn-score">{n.score}</span>}
+        {n.image && <a href={n.image} target="_blank" rel="noopener"><img className="trn-thumb" src={n.image} /></a>}
+      </div>
+      {n.children && n.children.length > 0 && <div className="trn-kids">{n.children.map((c, i) => <TreeNode key={i} n={c} onNav={onNav} />)}</div>}
+    </div>
+  );
+}
+
+function ExperimentTree({ m, onNav }: { m: Mod; onNav: () => void }) {
+  const [server, setServer] = useState<any>({});
+  const [runs, setRuns] = useState<any[]>([]);
+  useEffect(() => {
+    getJSON('/api/app-library-scores').then(setServer).catch(() => {});
+    getJSON('/api/runs').then(setRuns).catch(() => {});
+  }, []);
+  const num = pad2(m.num);
+  const fixImg = (s?: string) => (s ? s.replace(/^\.\//, '/') : undefined);
+  const uv = (b: string, r: string) => { const e = server?.[b]?.[r]?.[m.id]; return e && VMAP[e.verdict] ? e.verdict : undefined; };
+  const usc = (b: string, r: string) => server?.[b]?.[r]?.[m.id]?.score;
+
+  const tree = useMemo<TNode>(() => {
+    const branches = m.branches || {};
+    const ridSet = new Set(Object.values(branches).flatMap((bv: any) => bv?.runIds || []));
+    const lineNodes: TNode[] = Object.keys(branches).map((b) => {
+      const rounds = Object.keys(branches[b]?.rounds || {}).sort();
+      const roundNodes: TNode[] = rounds.map((r) => {
+        const rd = branches[b].rounds[r] || {};
+        const v = uv(b, r); const us = usc(b, r);
+        return {
+          icon: v ? '●' : rd.image ? '◐' : '○', label: `轮次 ${r}`,
+          meta: [rd.model, rd.aiScore != null ? `AI ${rd.aiScore}` : null, us != null ? `人 ${us}` : null].filter(Boolean).join(' · '),
+          status: v, image: fixImg(rd.image), href: `/tests?mod=${m.num}`,
+        };
+      });
+      // chain: r1 → r2 → r3
+      for (let i = roundNodes.length - 1; i > 0; i--) roundNodes[i - 1].children = [roundNodes[i]];
+      return { icon: '🔬', label: lineLabel(b), meta: `${rounds.length} 轮`, children: roundNodes.length ? [roundNodes[0]] : [] };
+    });
+    // associated runs (explicit runIds, or lineage.module / scenario), nested by parent/depth
+    const mine = runs.filter((r) => ridSet.has(r.id) || (r.lineage?.module === num) || new RegExp(`(^|[-_])${num}([-_]|$)`).test(r.id || ''));
+    const byParent: Record<string, any[]> = {};
+    mine.forEach((r) => { const p = r.lineage?.parent || '__root'; (byParent[p] = byParent[p] || []).push(r); });
+    const buildRuns = (pid: string): TNode[] => (byParent[pid] || []).map((r) => ({
+      icon: '▶', label: r.id, dim: true,
+      meta: [r.cli, r.model, r.outcome?.selfScore != null ? `自评 ${r.outcome.selfScore}` : null].filter(Boolean).join(' · '),
+      href: '/runs', children: buildRuns(r.id),
+    }));
+    const runNodes = buildRuns('__root');
+    const kids = [...lineNodes];
+    if (runNodes.length) kids.push({ icon: '🧪', label: `关联跑测 (${mine.length})`, children: runNodes });
+    return { icon: '🧩', label: m.cn || m.name || m.slug, meta: `#${num}`, children: kids };
+  }, [m, server, runs]);
+
+  const empty = (tree.children || []).length === 0;
+  return (
+    <div className="exptree">
+      <div className="exptree-hint">原型 → 测试线 → 轮次(链式迭代)+ 关联跑测。点节点跳到对应记录。</div>
+      {empty ? <div className="muted" style={{ padding: 30 }}>该原型还没有测试线 / 跑测记录。</div> : <TreeNode n={tree} onNav={onNav} />}
     </div>
   );
 }
