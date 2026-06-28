@@ -66,15 +66,18 @@ export default function Gallery() {
 
 function ProtoModal({ m, onClose, onDeleted }: { m: Mod; onClose: () => void; onDeleted: () => void }) {
   const [hideSide, setHideSide] = useState(false);
-  const [htmlOk, setHtmlOk] = useState<boolean | null>(m.kind ? m.kind === 'html' : null);
+  // only user-created prototypes carry an authoritative display kind; curated modules use a
+  // semantic `kind` (build type) so we always probe the .html for those.
+  const useKind = m.source === 'user' ? (m.kind || null) : null;
+  const [htmlOk, setHtmlOk] = useState<boolean | null>(useKind ? useKind === 'html' : null);
   const url = `/${m.slug}.html`;
   useEffect(() => {
     const h = (e: any) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', h);
-    if (!m.kind) fetch(url).then((r) => r.text()).then((t) => setHtmlOk(!t.includes('id="root"') && t.length > 400)).catch(() => setHtmlOk(false));
+    if (!useKind) fetch(url).then((r) => r.text()).then((t) => setHtmlOk(!t.includes('id="root"') && t.length > 400)).catch(() => setHtmlOk(false));
     return () => document.removeEventListener('keydown', h);
   }, [m.slug]);
-  const kind = m.kind || (htmlOk === null ? null : htmlOk ? 'html' : 'prompt');
+  const kind = useKind || (htmlOk === null ? null : htmlOk ? 'html' : 'prompt');
   const kindLabel = (KINDS.find((k) => k[0] === kind)?.[1]) || '检测中';
   const stages = m.stages || {};
   const del = async () => { if (!confirm('删除该原型?')) return; await fetch('/api/prototypes/' + m.id, { method: 'DELETE' }); onDeleted(); };

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原生 CRM(自规划)— 原始提示词与背景</title>
+<style>
+:root{--p:#1677ff;--t:rgba(0,0,0,.88);--t2:rgba(0,0,0,.5);--line:#eceef1;--bg:#fff}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.7 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:var(--t);background:#f7f8fa}
+.doc{max-width:880px;margin:0 auto;padding:32px 28px 64px;background:var(--bg);min-height:100%}
+h1{font-size:26px;margin:0 0 4px}
+.lead{color:var(--t2);font-size:15px;margin:0 0 6px}
+.kind{display:inline-block;font-size:12px;color:#d46b08;background:#fff7e6;border:1px solid #ffe58f;border-radius:6px;padding:3px 10px;margin-bottom:18px}
+h2{font-size:18px;margin:30px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--p);display:inline-block}
+.bg{background:#f5faff;border:1px solid #bcd6ff;border-radius:10px;padding:14px 18px;color:#0b3a82}
+.bg b{color:#08306b}
+ol.plan{padding-left:20px} ol.plan li{margin:6px 0} ol.plan b{color:var(--p)}
+pre.prompt{background:#0f1320;color:#e6e9ef;border-radius:10px;padding:18px 20px;overflow:auto;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+table{border-collapse:collapse;width:100%;font-size:14px;margin-top:8px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#fafbfc;color:var(--t2);font-weight:600}
+td.sc{font-weight:700;color:var(--p);white-space:nowrap}
+a{color:var(--p);text-decoration:none} a:hover{text-decoration:underline}
+.muted{color:var(--t2);font-size:13px}
+</style></head>
+<body><div class="doc">
+<span class="kind">📝 Prompt 原型 · 从一段原始提示词开始迭代</span>
+<h1>原生 CRM(自规划)</h1>
+<p class="lead">Native CRM from a clear page plan · 原生块(不强推 JS)· qwen-plus vs qwen-max 对照</p>
+
+<h2>背景</h2>
+<div class="bg">
+这是一个<b>"自规划"原型</b>:不给画好的 UI,而是给 AI 一段<b>清晰的"每页用什么原生块"的页面规划</b>,让它<b>端到端</b>从空实例搭出一个完整、可用的<b>原生 NocoBase CRM</b>(原则上不写 JS、全用原生 Table/Kanban/Calendar/Chart/Details 块)。<br><br>
+它的用途是<b>对照实验</b>:同一份提示词,跑 <b>qwen-plus vs qwen-max</b>,再用 plus <b>连跑 3 次</b>看一致性。<br><br>
+<b>关键结论:提示词的页面规划质量 &gt; 模型档位。</b> plus 和 max 都搭出完整 5 页、结构等同;3 次一致性跑结构 100% 一致(唯一不稳的是饼图偶发纯色)。模型强弱主要体现在效率与抗卡,而非"能不能做出来"。
+</div>
+
+<h2>页面规划</h2>
+<ol class="plan">
+<li><b>Dashboard</b> — 原生 Chart 块:按阶段统计 deals、各阶段金额/按月、按 owner 饼图 + "即将成交" 表。</li>
+<li><b>Pipeline</b> — 按 stage 的 Kanban(卡片显示 title/customer/amount)+ 全量 Table;行/卡点击 → 抽屉(deal 详情 + 该 deal 的 Activities 子表 + 关联 contact)。</li>
+<li><b>Customers</b> — Table + 筛选 + 新建;行点击 → 宽抽屉(客户详情 + Contacts 子表 + Deals 子表,均按该客户过滤)。</li>
+<li><b>Contacts</b> — Table(含 Customer 列)+ 筛选 + 新建;行点击 → 抽屉(详情 + Activities 子表)。</li>
+<li><b>Activities</b> — 按 due 的 Calendar + Table;按 type/done 筛选;行点击 → 详情抽屉。</li>
+</ol>
+
+<h2>原始提示词(完整)</h2>
+<p class="muted">下面是驱动整个原型的原始 prompt(原文照录,搭建/迭代/对照都基于它):</p>
+<pre class="prompt">Build a lightweight CRM in NocoBase, FULL AUTONOMY — no questions, do it end to end. Build into env **crmnative** — every nb api call uses `-e crmnative -y`. The instance is a CLEAN empty NocoBase.
+
+DATA MODEL — snake_case collections; belongsTo/relation fields named as NOUNS (e.g. `customer`, `contact`, `owner`), NEVER ending in `_id` (beta rejects `*_id` association names):
+- crm_customers: name, industry (single-select enum), size (enum: SMB / Mid-Market / Enterprise), website, status (enum: prospect / active / churned), owner (belongsTo users)
+- crm_contacts: name, email, phone, title, customer (belongsTo crm_customers), owner (belongsTo users)
+- crm_deals: title, customer (belongsTo crm_customers), contact (belongsTo crm_contacts), stage (enum: lead / qualified / proposal / negotiation / won / lost), amount (number, ¥ prefix, 2 decimals), expected_close (date), owner (belongsTo users)
+- crm_activities: subject, type (enum: call / email / meeting / task), due (date), done (checkbox), deal (belongsTo crm_deals), contact (belongsTo crm_contacts)
+
+SEED all-English data: ≥8 customers, ≥12 contacts, ≥16 deals covering EVERY stage (incl. won &amp; lost), ≥24 activities covering every type, with realistic owners/amounts/dates.
+
+PAGES — use native NocoBase blocks only (Table / Kanban / Calendar / Details / Form / Chart). Put everything under a top-level &quot;CRM&quot; menu group. Plan per page:
+
+1. Dashboard — a sales overview built from NATIVE Chart blocks (use the Chart builder block):
+   - Deals count by stage (bar or funnel)
+   - Pipeline amount by stage, or amount by expected_close month (bar/line)
+   - Deals by owner (pie)
+   - plus a Table block &quot;Closing soon&quot; (crm_deals sorted by expected_close ascending, stage not won/lost) and/or &quot;Recent activities&quot;.
+2. Pipeline — a Kanban of crm_deals grouped by `stage` (cards show title + customer + amount), AND a Table view of all deals with Filter + Add. Row/card click → drawer: deal Details + an Activities sub-table (that deal) + the linked contact.
+3. Customers — Table + Filter + Add new. Row click → a WIDE drawer: customer Details + a Contacts sub-table + a Deals sub-table (both scoped to that customer).
+4. Contacts — Table (with a Customer column) + Filter + Add. Row click → drawer: Details + an Activities sub-table.
+5. Activities — a Calendar view (by `due`) AND a Table; Filter by type and by done; row click → drawer with Details.
+
+Build it like a real product CRM a NocoBase consultant would ship — clean, populated, navigable. Sub-tables in drawers must auto-filter to the parent record. When done, report the page schemaUid(s) and a one-line summary of what each page contains.</pre>
+
+<h2>对照结果</h2>
+<table><thead><tr><th>跑测线</th><th>AI 分</th><th>说明</th><th>会话</th></tr></thead>
+<tbody>
+<tr><td>qwen-plus · 单跑</td><td class="sc">8</td><td>qwen-plus:清晰页面规划+原生块指引(不提JS),22分钟一次过搭出完整5页原生CRM——Dashboard原生Chart(柱+柱+分色饼)+closing-soon/recent表,Pipeline看板+表,Customers/Contacts表,Activities日历+表,抽屉带子表联动。块选对、质量好、过程干净。</td><td><a target=_top href=/runs/crm-native-plus-PDn3tN>跑测详情 ↗</a></td></tr>
+<tr><td>qwen-max</td><td class="sc">7</td><td>qwen-max同任务:也搭出完整5页、结构等同(Dashboard原生Chart+Pipeline看板+Customers/Contacts表+Activities日历+抽屉子表)。但明显更慢更卡——反复撞flow-surfaces字段组校验、烧到188K context、被监控nudge才脱困、最后撞Zen 5小时用量上限;Dashboard饼图渲染成纯色圆(小数据问题)。结论:结构与plus打平,效率/稳健plus明显胜。</td><td><a target=_top href=/runs/crm-native-max-AvW7Hp>跑测详情 ↗</a></td></tr>
+<tr><td>plus 一致性 #1</td><td class="sc">7.5</td><td>一致性跑1:5页全(Dashboard原生Chart+Pipeline看板+Customers/Contacts+Activities日历+抽屉子表);饼图渲染成纯蓝圆(series未配对的小bug)。撞 Customers 子表+字段组校验、迭代绕过。</td><td><a target=_top href=/runs/crm-native-1-sgpgK6>跑测详情 ↗</a></td></tr>
+<tr><td>plus 一致性 #2</td><td class="sc">7.5</td><td>一致性跑2:5页全,结构同跑1;饼图同样纯蓝圆;dashboard图表布局略不同(2柱上+饼左下)。同样撞 Customers 子表校验后绕过。</td><td><a target=_top href=/runs/crm-native-2-2dHqYr>跑测详情 ↗</a></td></tr>
+<tr><td>plus 一致性 #3</td><td class="sc">8</td><td>一致性跑3:5页全,质量最好——饼图正常分色(三次里唯一对的);另多撞一个 Activities layout-key 错、自行改好。同样过 Customers 子表校验。</td><td><a target=_top href=/runs/crm-native-3-QyBBPj>跑测详情 ↗</a></td></tr>
+</tbody></table>
+<p class="muted" style="margin-top:14px">每行可点"跑测详情"看该次搭建的完整对话/产物/报错。</p>
+</div></body></html>
