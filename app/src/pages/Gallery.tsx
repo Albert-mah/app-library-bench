@@ -66,6 +66,7 @@ export default function Gallery() {
 
 function ProtoModal({ m, onClose, onDeleted }: { m: Mod; onClose: () => void; onDeleted: () => void }) {
   const [hideSide, setHideSide] = useState(false);
+  const [full, setFull] = useState(true);
   // only user-created prototypes carry an authoritative display kind; curated modules use a
   // semantic `kind` (build type) so we always probe the .html for those.
   const useKind = m.source === 'user' ? (m.kind || null) : null;
@@ -83,13 +84,14 @@ function ProtoModal({ m, onClose, onDeleted }: { m: Mod; onClose: () => void; on
   const del = async () => { if (!confirm('删除该原型?')) return; await fetch('/api/prototypes/' + m.id, { method: 'DELETE' }); onDeleted(); };
 
   return (
-    <div className="tm-overlay" onClick={onClose}>
-      <div className="tm tm-full" onClick={(e) => e.stopPropagation()}>
+    <div className={'tm-overlay' + (full ? ' tm-overlay-full' : '')} onClick={onClose}>
+      <div className={'tm ' + (full ? 'tm-screen' : 'tm-full')} onClick={(e) => e.stopPropagation()}>
         <div className="tm-head">
           <span className="tm-num">#{pad2(m.num)}</span>
           <div><h2>{m.cn || m.name || m.slug}</h2><div className="muted" style={{ fontSize: 12 }}>{m.en} · {(m.tags || []).join(' / ')}</div></div>
           <span className="spacer" />
           <span className={'pill ' + (kind === 'html' ? 'pass' : 'fix')} style={{ marginRight: 8 }}>{kindLabel}</span>
+          <button className="btn" onClick={() => setFull(!full)}>{full ? '退出全屏 ⤢' : '全屏 ⛶'}</button>
           <button className="btn" onClick={() => setHideSide(!hideSide)}>{hideSide ? '显示侧栏 ‹' : '隐藏侧栏 ›'}</button>
           {kind === 'html' && <a className="btn" href={url} target="_blank" rel="noopener">新窗口 ↗</a>}
           {m.test && m.test !== 'none' && <Link className="btn" to={`/tests?mod=${m.num ?? m.slug}`} onClick={onClose}>测试 →</Link>}
