@@ -44,6 +44,8 @@ export function registerPrototypes(app, { file, webDir }) {
       name: b.name, cn: b.cn || b.name, en: b.en || '', desc: b.desc || '',
       tags: Array.isArray(b.tags) ? b.tags : (b.tags ? String(b.tags).split(/[,，]/).map((s) => s.trim()).filter(Boolean) : []),
       kind: b.kind, content, source: 'user', test: 'none',
+      dataType: b.kind === 'html' ? 'html' : 'prompt',
+      category: ['build', 'experiment', 'other'].includes(b.category) ? b.category : 'other',
       stages: { proto: 'done', spec: 'none', built: 'no', tested: 'none', published: 'no' },
       createdAt: new Date().toISOString(),
     };

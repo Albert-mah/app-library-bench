@@ -5,6 +5,7 @@ import { getJSON, postJSON } from '../lib/api';
 type Mod = any;
 const pad2 = (n: any) => String(n).padStart(2, '0');
 const KINDS: [string, string][] = [['html', 'HTML 原型'], ['prompt', 'Prompt 原型'], ['info', '信息原型'], ['composite', '组合原型']];
+const CAT: Record<string, string> = { build: '搭建', experiment: '实验', other: '其他' };
 
 export default function Gallery() {
   const [mods, setMods] = useState<Mod[] | null>(null);
@@ -13,16 +14,23 @@ export default function Gallery() {
   const [err, setErr] = useState('');
   const [sel, setSel] = useState<Mod | null>(null);
   const [creating, setCreating] = useState(false);
+  const [dt, setDt] = useState(''); const [cat, setCat] = useState(''); const [tag, setTag] = useState('');
 
   const loadUser = () => getJSON<Mod[]>('/api/prototypes').then(setUser).catch(() => setUser([]));
   useEffect(() => { getJSON<{ modules: Mod[] }>('/library.json').then((d) => setMods(d.modules || [])).catch((e) => setErr(String(e))); loadUser(); }, []);
 
   const all = useMemo(() => [...(mods || []), ...user], [mods, user]);
+  const tags = useMemo(() => [...new Set(all.flatMap((m) => m.tags || []))].filter(Boolean).sort(), [all]);
   const rows = useMemo(() => {
     const k = q.toLowerCase().trim();
-    if (!k) return all;
-    return all.filter((m) => (`${m.num || ''} ${m.cn || ''} ${m.name || ''} ${m.en || ''} ${m.desc || ''} ${(m.tags || []).join(' ')}`).toLowerCase().includes(k));
-  }, [all, q]);
+    return all.filter((m) => {
+      if (dt && (m.dataType || 'html') !== dt) return false;
+      if (cat && (m.category || 'build') !== cat) return false;
+      if (tag && !(m.tags || []).includes(tag)) return false;
+      if (k && !(`${m.num || ''} ${m.cn || ''} ${m.name || ''} ${m.en || ''} ${m.desc || ''} ${(m.tags || []).join(' ')}`).toLowerCase().includes(k)) return false;
+      return true;
+    });
+  }, [all, q, dt, cat, tag]);
 
   if (err) return <div className="loading">加载失败:{err}</div>;
   if (!mods) return <div className="loading">加载中…</div>;
@@ -32,8 +40,11 @@ export default function Gallery() {
       <div className="pagehead"><h1>企业应用示例库</h1><span className="sub">{all.length} 个原型 · 点卡片看详情(嵌入原型 / Prompt / 信息 + 侧栏)</span></div>
       <div className="bar">
         <input type="search" placeholder="搜索 名称 / 英文 / 描述 / 标签…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select value={cat} onChange={(e) => setCat(e.target.value)}><option value="">全部场景</option><option value="build">搭建</option><option value="experiment">实验记录</option><option value="other">其他</option></select>
+        <select value={dt} onChange={(e) => setDt(e.target.value)}><option value="">全部类型</option><option value="html">HTML</option><option value="prompt">Prompt/资料</option></select>
+        <select value={tag} onChange={(e) => setTag(e.target.value)}><option value="">全部标签</option>{tags.map((t) => <option key={t}>{t}</option>)}</select>
         <button className="btn primary" onClick={() => setCreating(true)}>+ 新建原型</button>
-        <span className="muted">显示 {rows.length} / {all.length}</span>
+        <span className="muted" style={{ marginLeft: 'auto' }}>显示 {rows.length} / {all.length}</span>
       </div>
       <div className="wrap">
         <div className="grid">
@@ -41,6 +52,7 @@ export default function Gallery() {
             <div className="card" key={m.slug} onClick={() => setSel(m)} style={{ cursor: 'pointer' }}>
               <div className="thumb" style={{ backgroundImage: `url(/thumbs/${pad2(m.num)}.jpg)` }}>
                 {m.num != null && <span className="num">#{pad2(m.num)}</span>}
+                <span className={'catbadge cb-' + (m.category || 'build')}>{CAT[m.category || 'build']}</span>
                 {m.source === 'user' && <span className="b" style={{ background: '#1677ff', position: 'absolute', top: 6, right: 6 }}>{m.kind}</span>}
                 {m.series === 'v2' && <span className="b" style={{ background: '#7c3aed', position: 'absolute', top: 6, right: 6 }}>v2</span>}
               </div>
@@ -149,6 +161,7 @@ function ProtoMain({ m, kind, url }: { m: Mod; kind: string | null; url: string 
 
 function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m: Mod) => void }) {
   const [kind, setKind] = useState('prompt');
+  const [cat, setCat] = useState('experiment');
   const [name, setName] = useState(''); const [en, setEn] = useState(''); const [desc, setDesc] = useState(''); const [tags, setTags] = useState('');
   const [body, setBody] = useState('');
   const [msg, setMsg] = useState('');
@@ -161,7 +174,7 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m
     else if (kind === 'info') content = { text: body };
     else if (kind === 'composite') { try { content = { blocks: JSON.parse(body) }; } catch { setMsg('组合块 JSON 解析失败'); return; } }
     setMsg('提交中…');
-    const res = await postJSON('/api/prototypes', { kind, name, en, desc, tags, content });
+    const res = await postJSON('/api/prototypes', { kind, category: cat, name, en, desc, tags, content });
     if (res?.ok) onCreated(res.module); else setMsg('失败:' + (res?.error || ''));
   };
   return (
@@ -169,7 +182,8 @@ function CreateForm({ onClose, onCreated }: { onClose: () => void; onCreated: (m
       <div className="cf" onClick={(e) => e.stopPropagation()}>
         <div className="tm-head"><h2>新建原型</h2><span className="spacer" /><span className="closex" onClick={onClose}>×</span></div>
         <div className="cf-body">
-          <label>类型<div className="seg">{KINDS.map(([k, l]) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{l}</button>)}</div></label>
+          <label>资料类型<div className="seg">{KINDS.map(([k, l]) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{l}</button>)}</div></label>
+          <label>场景<div className="seg">{[['build', '搭建'], ['experiment', '实验记录'], ['other', '其他']].map(([k, l]) => <button key={k} className={cat === k ? 'on' : ''} onClick={() => setCat(k)}>{l}</button>)}</div></label>
           <label>名称<input value={name} onChange={(e) => setName(e.target.value)} placeholder="如:库存管理" /></label>
           <div className="cf-row"><label>英文名<input value={en} onChange={(e) => setEn(e.target.value)} /></label><label>标签(逗号分隔)<input value={tags} onChange={(e) => setTags(e.target.value)} /></label></div>
           <label>描述<input value={desc} onChange={(e) => setDesc(e.target.value)} /></label>
