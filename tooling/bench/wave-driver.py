@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Continuous pipeline driver for the #61-90 round: 8 lanes (one per instance), each pulls its
+next prototype the moment the current finishes. Pane-based + claude-aware (no LLM key needed):
+the build prompt ends with `Self-Score: X/10`, so that line in the pane = done. Nudges stalled
+lanes, collects finished ones, advances per lane until the queue drains or the deadline hits.
+    nohup python3 wave-driver.py > runs/wave-driver.log 2>&1 &"""
+import json, os, re, time, subprocess, hashlib
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+CFG = os.path.join(HERE, "bench.config.json")
+PREFIX = "bench"                               # session = bench-<id>
+LOG = lambda m: print(f"[{time.strftime('%H:%M:%S')}] {m}", flush=True)
+DEADLINE = time.time() + 2.0 * 3600            # stop launching new builds after 2h
+TICK = 75
+GIVE_UP_IDLE = 12 * 60                         # stalled+idle this long → collect & move on
+NUDGE_EVERY = 4 * 60
+MAX_NUDGES = 3
+
+DONE_RE = re.compile(r"Self-?Score|FINAL REPORT|对比观察|搭建完成|Build Complete", re.I)
+WORK_RE = re.compile(r"\(\d+s\s*·|esc to interrupt|↑\s*[\d.]+k?\s*tokens|thinking with|esc interrupt", re.I)
+
+def tmux(*a):
+    return subprocess.run(["tmux", *a], capture_output=True, text=True)
+
+def bench(*a, timeout=300):
+    return subprocess.run(["python3", os.path.join(HERE, "bench.py"), *a],
+                          cwd=HERE, capture_output=True, text=True, timeout=timeout)
+
+def pane(sess):
+    r = tmux("capture-pane", "-t", sess, "-p", "-S", "-50")
+    return r.stdout if r.returncode == 0 else None
+
+state = {}  # sess -> {hash, since, nudges, lastNudge}
+
+def classify(rid):
+    sess = f"{PREFIX}-{rid}"
+    text = pane(sess)
+    if text is None:
+        return "absent", 0
+    tail = "\n".join([l for l in text.strip().splitlines() if l.strip()][-25:])
+    h = hashlib.md5(tail.encode()).hexdigest(); now = time.time()
+    s = state.setdefault(sess, {"hash": None, "since": now, "nudges": 0, "lastNudge": 0})
+    if s["hash"] != h:
+        s["hash"] = h; s["since"] = now
+    idle = now - s["since"]
+    if DONE_RE.search(tail) and idle > 25:        # printed the Self-Score / report and settled
+        return "done", int(idle)
+    if WORK_RE.search(tail) and idle < 180:
+        return "working", int(idle)
+    return ("stalled" if idle >= 180 else "working"), int(idle)
+
+def nudge(rid):
+    sess = f"{PREFIX}-{rid}"; s = state.get(sess, {}); now = time.time()
+    if s.get("nudges", 0) >= MAX_NUDGES or now - s.get("lastNudge", 0) < NUDGE_EVERY:
+        return False
+    tmux("send-keys", "-t", sess,
+         "继续。若已完成请输出一行 Self-Score: X/10 收尾;若卡住,一句话说明阻塞点后自主继续,别停下问我。")
+    time.sleep(0.4); tmux("send-keys", "-t", sess, "Enter")
+    s["nudges"] = s.get("nudges", 0) + 1; s["lastNudge"] = now
+    # log to the intervention ledger so the run record shows it was assisted
+    p = os.path.join(HERE, "runs", "interventions.json")
+    try: d = json.load(open(p))
+    except Exception: d = {}
+    e = d.setdefault(rid, {"nudges": 0, "autoApprovals": 0, "events": []})
+    e["nudges"] += 1; e["events"].append({"kind": "nudge", "detail": "driver", "at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    json.dump(d, open(p, "w"), ensure_ascii=False, indent=1)
+    return True
+
+def main():
+    cfg = json.load(open(CFG))
+    lanes = {}
+    for r in cfg["runs"]:
+        lanes.setdefault(r["env"], []).append(r["id"])
+    running = {env: (q.pop(0) if q else None) for env, q in lanes.items()}
+    done = []
+    LOG(f"driver up: {len(lanes)} lanes, running={list(running.values())}, "
+        f"queued={sum(len(q) for q in lanes.values())}")
+    while True:
+        alive = 0
+        for env, cur in list(running.items()):
+            if not cur: continue
+            st, idle = classify(cur)
+            finished = st == "absent" or st == "done" or (st == "stalled" and idle >= GIVE_UP_IDLE)
+            if not finished:
+                alive += 1
+                if st == "stalled" and nudge(cur): LOG(f"{env}/{cur}: nudged (idle={idle}s)")
+                continue
+            LOG(f"{env}/{cur}: finished ({st}, idle={idle}s) → collect")
+            try: bench("collect", "--only", cur, timeout=300)
+            except Exception as e: LOG(f"  collect error: {e}")
+            tmux("kill-session", "-t", f"{PREFIX}-{cur}")
+            done.append(cur)
+            nxt = lanes[env].pop(0) if lanes[env] else None
+            if nxt and time.time() < DEADLINE:
+                LOG(f"{env}: launch next → {nxt}")
+                try: bench("run", "--only", nxt, timeout=240); running[env] = nxt; alive += 1
+                except Exception as e: LOG(f"  launch error: {e}"); running[env] = None
+            else:
+                running[env] = None
+                LOG(f"{env}: drained")
+        rem = sum(len(q) for q in lanes.values())
+        LOG(f"tick: alive={alive} done={len(done)}/{len(done)+rem+alive} queued={rem}")
+        if alive == 0 and rem == 0:
+            LOG(f"ALL DONE. collected {len(done)}: {done}"); break
+        if time.time() >= DEADLINE and alive == 0:
+            LOG(f"deadline; done={len(done)} queued={rem}"); break
+        time.sleep(TICK)
+
+if __name__ == "__main__":
+    main()

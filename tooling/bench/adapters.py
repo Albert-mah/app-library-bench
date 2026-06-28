@@ -243,7 +243,11 @@ class ClaudeAdapter(BaseAdapter):
 
     def start_cmd(self, run, cfg):
         m = run.get("model")
-        return f"claude --model {m}" if m else "claude"
+        base = f"claude --model {m}" if m else "claude"
+        # bench runs are autonomous into throwaway instances → skip per-tool permission prompts
+        if run.get("yolo", cfg.get("claudeYolo", True)):
+            base += " --dangerously-skip-permissions"
+        return base
 
     def _proj_dir(self, run, cfg):
         cwd = expand(run.get("cwd") or cfg.get("runCwd", "~"))
