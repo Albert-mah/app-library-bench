@@ -185,7 +185,8 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
   const bo = branchObj(m, b) || {};
   const uv = uVerdict(server, m.id, r, b);
   const e = srvE(server, m.id, r, b) || {};
-  const related = runsIdx.filter((x: any) => scenarioOfRun(x.id) === pad2(m.num));
+  const ridSet = new Set([...(rd.runIds || []), ...(bo.runIds || [])]);
+  const related = runsIdx.filter((x: any) => ridSet.has(x.id) || x.lineage?.module === pad2(m.num) || scenarioOfRun(x.id) === pad2(m.num));
   const page = bo.pageUid ? (bo.baseUrl || '') + '/admin/' + bo.pageUid : (b === MAIN && m.pageUid ? (bo.baseUrl || '') + '/admin/' + m.pageUid : '');
 
   return (

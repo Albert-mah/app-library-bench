@@ -120,9 +120,10 @@ class OpencodeAdapter(BaseAdapter):
             pf = os.path.join(promptdir, base)
             envm = re.search(r"-e\s+([a-z0-9_]+)\s+-y|env\s+\*\*([a-z0-9_]+)\*\*", blob)
             env = (envm.group(1) or envm.group(2)) if envm else None
+            sm = re.search(r"(?:^|[-_])(0[1-9])(?:[-_]|$)", stem)
             out.append({"id": f"{stem}-{sid[-6:]}", "sessionId": sid,
                         "promptFile": pf if os.path.exists(pf) else None, "env": env, "cli": "opencode",
-                        "batch": re.sub(r"[-_]?\d+$", "", stem)})
+                        "batch": re.sub(r"[-_]?\d+$", "", stem), "module": sm.group(1) if sm else None})
         return out
 
     def extract(self, run, cfg):
@@ -283,10 +284,16 @@ class ClaudeAdapter(BaseAdapter):
 # ---------------------------------------------------------------- helpers
 def _lineage(run, stem=None):
     """tree position: a prototype is dispatched as batches; a batch holds runs; a run can be
-    iterated into child runs (parent). depth 0 = first build, >0 = an iteration."""
+    iterated into child runs (parent). depth 0 = first build, >0 = an iteration.
+    `module` links a run back to a library prototype (2-digit scenario), for cross-navigation."""
     batch = run.get("batch") or (re.sub(r"[-_]?\d+$", "", stem) if stem else None)
+    mod = run.get("module")
+    if not mod and stem:
+        mm = re.search(r"(?:^|[-_])(0[1-9])(?:[-_]|$)", stem)
+        if mm:
+            mod = mm.group(1)
     return {"prototype": run.get("prototype"), "batch": batch,
-            "parent": run.get("parent"), "depth": run.get("depth", 0)}
+            "parent": run.get("parent"), "depth": run.get("depth", 0), "module": mod}
 
 def _tier(model):
     if not model: return None
