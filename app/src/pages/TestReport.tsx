@@ -82,12 +82,20 @@ export default function TestReport() {
   const curRound = (m: any, b: string) => { for (let i = rounds.length - 1; i >= 0; i--) if (hasData(modBR(m, b, rounds[i].id))) return rounds[i].id; return rounds.length ? rounds[rounds.length - 1].id : ''; };
   const modFor = (mId: string) => mods.find((m) => m.id === mId);
 
-  const cards = useMemo(() => mods
-    .filter((m) => (branchAll || branches.some((b) => branchObj(m, b))) && (!tag || m.tag === tag) && (!modFilter || pad2(m.num) === pad2(modFilter) || m.id === modFilter))
-    .map((m) => { const b = viewBranch; const r = round || curRound(m, b); return { m, b, r, rd: modBR(m, b, r) }; })
-    .filter((c) => c.rd)
-    .filter((c) => status.length === 0 || status.includes(statusOf(server, c.m, c.r, c.b, c.rd))),
-    [mods, branches, tag, round, ver, server, status, modFilter]);
+  const cards = useMemo(() => {
+    const inMod = (m: any) => !modFilter || pad2(m.num) === pad2(modFilter) || m.id === modFilter;
+    const sel = mods.filter((m) => (branchAll || branches.some((b) => branchObj(m, b))) && (!tag || m.tag === tag) && inMod(m));
+    let list: any[];
+    if (modFilter) {
+      // single prototype → one card per test line (all records visible at a glance)
+      list = sel.flatMap((m) => modBranchIds(m)
+        .filter((b) => branchAll || branches.includes(b))
+        .map((b) => { const r = round || curRound(m, b); return { m, b, r, rd: modBR(m, b, r) }; }));
+    } else {
+      list = sel.map((m) => { const b = viewBranch; const r = round || curRound(m, b); return { m, b, r, rd: modBR(m, b, r) }; });
+    }
+    return list.filter((c) => c.rd).filter((c) => status.length === 0 || status.includes(statusOf(server, c.m, c.r, c.b, c.rd)));
+  }, [mods, branches, tag, round, ver, server, status, modFilter]);
 
   const stats = useMemo(() => { const s: any = { total: cards.length, testing: 0, review: 0, reviewed: 0, ai: 0, aiN: 0 }; cards.forEach((c) => { s[statusOf(server, c.m, c.r, c.b, c.rd)]++; if (typeof c.rd.aiScore === 'number') { s.ai += c.rd.aiScore; s.aiN++; } }); return s; }, [cards, server]);
 
@@ -177,6 +185,8 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
   const m = modFor(sel.mId);
   const [b, setB] = useState(sel.b);
   const [r, setR] = useState(sel.r);
+  const [hideSide, setHideSide] = useState(false);
+  const [mainView, setMainView] = useState<'img' | 'proto'>('img');
   useEffect(() => { setB(sel.b); setR(sel.r); }, [sel.mId]);
   useEffect(() => { const h = (e: any) => { if (e.key === 'Escape') setSel(null); }; document.addEventListener('keydown', h); return () => document.removeEventListener('keydown', h); }, [setSel]);
   if (!m) return null;
@@ -196,6 +206,11 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
           <span className="tm-num">#{pad2(m.num)}</span>
           <div><h2>{m.cn || m.name}</h2><div className="muted" style={{ fontSize: 12 }}>{m.en} · {m.tag}</div></div>
           <span className="spacer" />
+          <div className="seg">
+            <button className={mainView === 'img' ? 'on' : ''} onClick={() => setMainView('img')}>对比图</button>
+            <button className={mainView === 'proto' ? 'on' : ''} onClick={() => setMainView('proto')}>原型预览</button>
+          </div>
+          <button className="btn" onClick={() => setHideSide(!hideSide)}>{hideSide ? '显示侧栏 ‹' : '隐藏侧栏 ›'}</button>
           <a className="btn" href={`/${m.slug}.html`} target="_blank" rel="noopener">原型 ↗</a>
           {page && <a className="btn" href={page} target="_blank" rel="noopener">页面 ↗</a>}
           <span className="closex" onClick={() => setSel(null)}>×</span>
@@ -208,10 +223,12 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
         </div>
 
         <div className="tm-body">
-          <div className="tm-left">
-            {rd.image ? <img className="tm-img" src={imgSrc(rd.image)} onClick={() => setLight(imgSrc(rd.image))} alt="" /> : <div className="muted" style={{ padding: 40 }}>无对比图</div>}
+          <div className="tm-left" style={hideSide ? { borderRight: 0 } : undefined}>
+            {mainView === 'proto'
+              ? <iframe className="tm-proto" src={`/${m.slug}.html`} title="原型预览" />
+              : rd.image ? <img className="tm-img" src={imgSrc(rd.image)} onClick={() => setLight(imgSrc(rd.image))} alt="" /> : <div className="muted" style={{ padding: 40 }}>无对比图</div>}
           </div>
-          <div className="tm-right">
+          {!hideSide && <div className="tm-right">
             <div className="sect">当前详情</div>
             <div className="dgrid">
               <div>线 / 轮</div><div>{gLabel(mods, b)} · {r.toUpperCase()}</div>
@@ -233,7 +250,7 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
 
             <div className="sect">人工核验 · 评分</div>
             <ReviewBox key={m.id + b + r} {...{ m, b, r, e, uv, reachable, patch, setSel }} />
-          </div>
+          </div>}
         </div>
       </div>
     </div>
