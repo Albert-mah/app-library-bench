@@ -20,11 +20,12 @@ MAX_NUDGES = 3
 # mention in the agent's plan. This was a false-done bug that killed builds early.
 DONE_RE = re.compile(r"Self-?Score\s*[:：]?\s*\d|FINAL REPORT\b", re.I)
 WORK_RE = re.compile(r"\(\d+[ms]\b|esc to interrupt|esc interrupt|[↑↓]\s*[\d.]+k?\s*tokens|thinking with|…\s*\(\d", re.I)
-# CRITICAL: strip the claude status bar before hashing — its 'resets in Xh Ym' countdown changes
-# every minute, which otherwise makes every idle pane look like it's still changing (→ never collected).
-CHROME_RE = re.compile(r"^[─━—]{3,}|bypass permissions|shift\+tab|^❯|^\[(Opus|Claude|Sonnet|Haiku|GPT)|^Context\b|^Usage\b|^Weekly\b|ctrl\+|for ag|resets in|⏵⏵|tokens/s", re.I)
+# CRITICAL: strip the claude status bar before hashing. The bar lines are INDENTED (leading
+# spaces), so anchors must allow leading ws — else '  [Opus 4.8 (1M context)]' leaks in and
+# '(1M' matches a work pattern → every pane reads as 'working' and nothing is ever collected.
+CHROME_RE = re.compile(r"^\s*([─━—]{3,}|❯|\[(Opus|Claude|Sonnet|Haiku|GPT)|Context\b|Usage\b|Weekly\b)|bypass permissions|shift\+tab|ctrl\+|for ag|resets in|⏵⏵|tokens/s", re.I)
 SETTLE = 45      # after a real done-marker, require this much stability
-STALL_DONE = 180 # content stable + no work spinner this long = finished (or stuck) → collect & advance
+STALL_DONE = 200 # content unchanged this long = finished or stuck → collect & advance (no live build is silent this long; it streams tool calls / a ticking spinner)
 
 def tmux(*a):
     return subprocess.run(["tmux", *a], capture_output=True, text=True)
@@ -52,11 +53,13 @@ def classify(rid):
     if s["hash"] != h:
         s["hash"] = h; s["since"] = now
     idle = int(now - s["since"])
+    # decide by whether CONTENT is changing, not by text patterns (a frozen pane can still
+    # show a static 'thinking with…' line). A live build streams output / a ticking timer.
     if DONE_RE.search(tail) and idle > SETTLE:   # printed a real score line and settled
         return "done", idle
-    if WORK_RE.search(tail):                      # active spinner / token counter / timer
-        return "working", idle
-    return "stalled", idle                        # no work marker = idle/finished/stuck
+    if idle >= STALL_DONE:                         # content unchanged too long → finished/stuck
+        return "stalled", idle
+    return "working", idle
 
 def nudge(rid):
     sess = f"{PREFIX}-{rid}"; s = state.get(sess, {}); now = time.time()

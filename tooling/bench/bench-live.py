@@ -128,7 +128,7 @@ PERM_RE = re.compile(r"Allow always|Allow this|Approve|grant permission|\(y/N\)|
 PANE_DONE_RE = re.compile(r"Self-?Score\s*[:：]?\s*\d|FINAL REPORT\b", re.I)   # real completion only (loose 'created/done' matched todo text)
 WORK_RE = re.compile(r"esc to interrupt|esc interrupt|Thinking|Building|Running|[↑↓]\s*[\d.]+k?\s*tokens|thinking with|…\s*\(\d|[✶✻✽✢✳★◐◓◑◒]\s*\w")
 # TUI chrome to skip when picking the "last real activity" line (claude/opencode/codex status bars)
-CHROME_RE = re.compile(r"^[─━—]{3,}|bypass permissions|shift\+tab|^❯|^\[(Opus|Claude|Sonnet|Haiku|GPT|gpt|qwen)|^Context\b|^Usage\b|^Weekly\b|ctrl\+|for ag|↵ |^esc to interrupt$|tokens/s|⏵⏵", re.I)
+CHROME_RE = re.compile(r"^\s*([─━—]{3,}|❯|\[(Opus|Claude|Sonnet|Haiku|GPT|gpt|qwen)|Context\b|Usage\b|Weekly\b|esc to interrupt\s*$)|bypass permissions|shift\+tab|ctrl\+|for ag|↵ |tokens/s|⏵⏵", re.I)
 
 def _pane(name, lines=60):
     r = _tmux("capture-pane", "-t", name, "-p", "-S", f"-{lines}")
