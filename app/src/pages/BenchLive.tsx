@@ -57,27 +57,29 @@ export default function BenchLive() {
         <div className="bl-grid">
           {err && <div className="empty-stream" style={{ color: 'var(--redo-fg)' }}>{err}</div>}
           {!err && sessions.length === 0 && <div className="empty-stream">当前没有运行中的 tmux 会话。<br /><span className="muted">用 <code>npm run bench</code> 启动后会出现在这里。</span></div>}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 12 }}>
-            {sessions.map((s) => {
-              const r = s.run;
-              return (
-                <button key={s.name} className={'cell' + (cur === s.name ? ' sel' : '')} onClick={() => open(s.name)}>
-                  <div className="crow">
-                    <span className={'dot ' + (DOT[s.status] || 'idle')} title={LABEL[s.status] || s.status} />
-                    <span className="ttl">{s.name}</span>
-                    <span className="meta">{LABEL[s.status] || s.status} · {fmtAge(s.ageSec)}{s.attached ? ' · 看护中' : ''}</span>
-                  </div>
-                  {r && (r.id || r.env || r.model) && (
-                    <div className="muted" style={{ fontSize: 11.5, marginBottom: 3 }}>
-                      {[r.id, r.recipe, r.env, r.model].filter(Boolean).join(' · ')}
-                    </div>
-                  )}
-                  {r?.goal && <div className="muted" style={{ fontSize: 11, marginBottom: 3, opacity: .85 }}>🎯 {r.goal}</div>}
-                  <div className="last">{s.last || '— 无输出 —'}</div>
-                </button>
-              );
-            })}
-          </div>
+          {(() => { const runs = sessions.filter((s) => s.isRun), others = sessions.filter((s) => !s.isRun); const card = (s: any) => {
+            const r = s.run;
+            return (
+              <button key={s.name} className={'cell' + (cur === s.name ? ' sel' : '')} style={s.isRun ? undefined : { opacity: .55 }} onClick={() => open(s.name)}>
+                <div className="crow">
+                  <span className={'dot ' + (DOT[s.status] || 'idle')} title={LABEL[s.status] || s.status} />
+                  <span className="ttl">{s.name}</span>
+                  <span className="meta">{LABEL[s.status] || s.status} · {fmtAge(s.ageSec)}{s.attached ? ' · 看护中' : ''}</span>
+                </div>
+                {r && (r.id || r.env || r.model) && (
+                  <div className="muted" style={{ fontSize: 11.5, marginBottom: 3 }}>{[r.id, r.recipe, r.env, r.model].filter(Boolean).join(' · ')}</div>
+                )}
+                {r?.goal && <div className="muted" style={{ fontSize: 11, marginBottom: 3, opacity: .85 }}>🎯 {r.goal}</div>}
+                <div className="last">{s.last || '— 无输出 —'}</div>
+              </button>
+            );
+          }; return (<>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 12 }}>{runs.map(card)}</div>
+            {others.length > 0 && <>
+              <div className="muted" style={{ margin: '16px 0 8px', fontSize: 12, borderTop: '1px solid var(--split)', paddingTop: 10 }}>其他 tmux 会话(非本轮跑测) · {others.length}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 12 }}>{others.map(card)}</div>
+            </>}
+          </>); })()}
         </div>
         <div className="stream">
           <div className="shead"><b>{cur ? cur + ' · 实时 pane' : '点左侧会话看实时终端'}</b>{cur && <span className="x" onClick={() => { setCur(null); setPane(null); }}>×</span>}</div>

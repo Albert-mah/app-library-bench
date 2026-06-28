@@ -125,8 +125,10 @@ def _tmux(*a):
     except Exception: return None
 
 PERM_RE = re.compile(r"Allow always|Allow this|Approve|grant permission|\(y/N\)|Yes, and|❯\s*Allow", re.I)
-PANE_DONE_RE = re.compile(r"FINAL REPORT|final report|task (is )?complete|all (pages|workflows|blocks).{0,20}(done|created|verified)", re.I)
-WORK_RE = re.compile(r"esc to interrupt|esc interrupt|Thinking|Building|Running|Esc to|Working|✶|✻|◐|◓|◑|◒|·\s*$")
+PANE_DONE_RE = re.compile(r"Self-?Score\s*[:：]?\s*\d|FINAL REPORT\b|task (is )?complete|all (pages|workflows|blocks).{0,20}(done|created|verified)", re.I)
+WORK_RE = re.compile(r"esc to interrupt|esc interrupt|Thinking|Building|Running|[↑↓]\s*[\d.]+k?\s*tokens|thinking with|…\s*\(\d|[✶✻✽✢✳★◐◓◑◒]\s*\w")
+# TUI chrome to skip when picking the "last real activity" line (claude/opencode/codex status bars)
+CHROME_RE = re.compile(r"^[─━—]{3,}|bypass permissions|shift\+tab|^❯|^\[(Opus|Claude|Sonnet|Haiku|GPT|gpt|qwen)|^Context\b|^Usage\b|^Weekly\b|ctrl\+|for ag|↵ |^esc to interrupt$|tokens/s|⏵⏵", re.I)
 
 def _pane(name, lines=60):
     r = _tmux("capture-pane", "-t", name, "-p", "-S", f"-{lines}")
@@ -147,8 +149,12 @@ def _classify_pane(text, dead=False):
     return "idle"
 
 def _last_line(text):
-    ls = [l.strip() for l in text.strip().splitlines() if l.strip()]
-    return ls[-1][:160] if ls else ""
+    """last REAL activity line — skip TUI chrome (status bar, input box, separators) so the
+    card shows what the agent is actually doing, not '⏵⏵ bypass permissions on'."""
+    for l in reversed([x.strip() for x in text.splitlines() if x.strip()]):
+        if not CHROME_RE.search(l):
+            return l[:160]
+    return ""
 
 def _briefs_by_session():
     out = {}
@@ -173,15 +179,17 @@ def do_live(prefix=None):
             if prefix and not name.startswith(prefix): continue
             dead = _pane_dead(name); text = _pane(name, 60)
             b = briefs.get(name, {})
+            is_run = bool(b) or name.startswith("bench-")
             sessions.append({
-                "name": name, "status": _classify_pane(text, dead),
+                "name": name, "status": _classify_pane(text, dead), "isRun": is_run,
                 "ageSec": round(now - int(created)) if created.isdigit() else None,
                 "attached": attached == "1", "last": _last_line(text),
                 "run": ({"id": b.get("id"), "env": b.get("env"), "model": b.get("model"),
                          "recipe": b.get("recipe"), "goal": b.get("goal")} if b else None),
             })
     order = {"permission": 0, "working": 1, "idle": 2, "done": 3, "ended": 4}
-    sessions.sort(key=lambda s: (order.get(s["status"], 9), s["name"]))
+    # bench runs first; within that by status (active first), then name
+    sessions.sort(key=lambda s: (0 if s["isRun"] else 1, order.get(s["status"], 9), s["name"]))
     print(json.dumps({"updated": int(time.time()), "sessions": sessions}, ensure_ascii=False))
 
 def do_pane(name, lines=200):
