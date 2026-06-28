@@ -1,92 +1,89 @@
 import { useEffect, useRef, useState } from 'react';
 import { getJSON } from '../lib/api';
 
-const COLS: [string, string, string][] = [
-  ['qwen-plus', 'pure', 'plus·纯'], ['qwen-plus', 'html', 'plus·html'],
-  ['qwen-max', 'pure', 'max·纯'], ['qwen-max', 'html', 'max·html'],
-];
-const SCN: [string, string][] = [['01', '库存 inventory'], ['02', '资产 asset'], ['03', '内容 content-cal']];
-const fmtAge = (s: number) => (s >= 1e8 ? '' : s < 90 ? Math.round(s) + 's' : s < 5400 ? Math.round(s / 60) + 'm' : Math.round(s / 3600) + 'h');
+// Live board = what is ACTUALLY running in tmux right now (not an opencode-DB history matrix).
+// Each card is a real tmux session; clicking one streams its live pane.
+const DOT: Record<string, string> = { working: 'working', done: 'done', permission: 'stalled', idle: 'idle', ended: 'idle' };
+const LABEL: Record<string, string> = { working: '运行中', done: '已完成', permission: '待确认', idle: '空闲', ended: '已结束' };
+const fmtAge = (s: number | null) => (s == null ? '' : s < 90 ? Math.round(s) + 's' : s < 5400 ? Math.round(s / 60) + 'm' : Math.round(s / 3600) + 'h');
 
 export default function BenchLive() {
-  const [cells, setCells] = useState<Record<string, any>>({});
+  const [sessions, setSessions] = useState<any[]>([]);
   const [updated, setUpdated] = useState('');
+  const [err, setErr] = useState('');
   const [cur, setCur] = useState<string | null>(null);
-  const [curKey, setCurKey] = useState('');
-  const [items, setItems] = useState<any[] | null>(null);
+  const [pane, setPane] = useState<string | null>(null);
   const curRef = useRef<string | null>(null);
   curRef.current = cur;
-  const logRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLPreElement>(null);
 
   async function loadList() {
     try {
       const d = await getJSON('/api/bench-live');
-      const map: Record<string, any> = {};
-      (d.cells || []).forEach((c: any) => { map[c.cell] = c; });
-      setCells(map);
+      setSessions(d.sessions || []);
+      setErr(d.error || '');
       setUpdated('刷新 ' + new Date((d.updated || 0) * 1000).toLocaleTimeString());
-    } catch { setUpdated('API 错误'); }
+    } catch { setErr('API 错误'); }
   }
-  async function pumpStream() {
-    const sid = curRef.current; if (!sid) return;
+  async function pump() {
+    const name = curRef.current; if (!name) return;
     try {
-      const d = await getJSON('/api/bench-live?session=' + sid + '&tail=1&size=400');
-      setItems(d.items || []);
+      const d = await getJSON('/api/bench-live?pane=' + encodeURIComponent(name));
+      setPane(d.pane || '(空)');
       setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, 0);
     } catch { /* keep last */ }
   }
   useEffect(() => { loadList(); const t = setInterval(loadList, 5000); return () => clearInterval(t); }, []);
-  useEffect(() => { const t = setInterval(() => { if (curRef.current) pumpStream(); }, 4000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => { if (curRef.current) pump(); }, 3000); return () => clearInterval(t); }, []);
 
-  function open(sid: string, key: string) { setCur(sid); setCurKey(key); setItems(null); curRef.current = sid; pumpStream(); }
-  function close() { setCur(null); setItems(null); }
+  function open(name: string) { setCur(name); setPane(null); curRef.current = name; pump(); }
+
+  const live = sessions.filter((s) => s.status === 'working' || s.status === 'permission').length;
 
   return (
     <>
       <nav className="bl-head">
         <b>Bench Live</b>
-        <span className="muted">model × flow × scenario · opencode 实时会话(自动关联)</span>
+        <span className="muted">实时 tmux 运行会话(非历史矩阵)· {sessions.length} 个会话 · {live} 个活跃</span>
         <span className="legend">
-          <span><i className="dot done" />done</span>
-          <span><i className="dot working" />working</span>
-          <span><i className="dot stalled" />stalled</span>
+          <span><i className="dot working" />运行中</span>
+          <span><i className="dot stalled" />待确认</span>
+          <span><i className="dot idle" />空闲/结束</span>
+          <span><i className="dot done" />完成</span>
           <span className="muted">{updated}</span>
         </span>
       </nav>
       <div className="bl-wrap">
         <div className="bl-grid">
-          <table className="mx">
-            <thead><tr><th /> {COLS.map((c) => <th key={c[2]}>{c[2]}</th>)}</tr></thead>
-            <tbody>
-              {SCN.map(([sc, scl]) => (
-                <tr key={sc}>
-                  <td className="scn">#{sc}<br />{scl}</td>
-                  {COLS.map(([m, f]) => {
-                    const key = `${m}-${f}-${sc}`, c = cells[key];
-                    if (!c) return <td key={key}><div className="cell empty"><div className="crow"><span className="dot idle" /><span className="ttl">{m.replace('qwen-', '')}·{f}</span></div><div className="last">— 未开始 —</div></div></td>;
-                    return (
-                      <td key={key}>
-                        <button className={'cell' + (cur === c.session ? ' sel' : '')} onClick={() => open(c.session, key)}>
-                          <div className="crow"><span className={'dot ' + c.status} /><span className="ttl">{c.model.replace('qwen-', '')}·{c.flow}</span>
-                            <span className="meta">{c.tokensOut || 0} tok · {c.parts}p · {fmtAge(c.ageSec)}</span></div>
-                          <div className="last">{c.last || ''}</div>
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {err && <div className="empty-stream" style={{ color: 'var(--redo-fg)' }}>{err}</div>}
+          {!err && sessions.length === 0 && <div className="empty-stream">当前没有运行中的 tmux 会话。<br /><span className="muted">用 <code>npm run bench</code> 启动后会出现在这里。</span></div>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 12 }}>
+            {sessions.map((s) => {
+              const r = s.run;
+              return (
+                <button key={s.name} className={'cell' + (cur === s.name ? ' sel' : '')} onClick={() => open(s.name)}>
+                  <div className="crow">
+                    <span className={'dot ' + (DOT[s.status] || 'idle')} title={LABEL[s.status] || s.status} />
+                    <span className="ttl">{s.name}</span>
+                    <span className="meta">{LABEL[s.status] || s.status} · {fmtAge(s.ageSec)}{s.attached ? ' · 看护中' : ''}</span>
+                  </div>
+                  {r && (r.id || r.env || r.model) && (
+                    <div className="muted" style={{ fontSize: 11.5, marginBottom: 3 }}>
+                      {[r.id, r.recipe, r.env, r.model].filter(Boolean).join(' · ')}
+                    </div>
+                  )}
+                  {r?.goal && <div className="muted" style={{ fontSize: 11, marginBottom: 3, opacity: .85 }}>🎯 {r.goal}</div>}
+                  <div className="last">{s.last || '— 无输出 —'}</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="stream">
-          <div className="shead"><b>{cur ? curKey + ' · ' + cur.slice(0, 18) : '点左侧任意格看实时活动'}</b>{cur && <span className="x" onClick={close}>×</span>}</div>
-          <div className="slog" ref={logRef}>
-            {!cur ? <div className="empty-stream">选一个 cell 查看它的 opencode 会话流(分页轮询)。</div>
-              : items == null ? <div className="empty-stream">加载…</div>
-                : items.length === 0 ? <div className="empty-stream">暂无活动</div>
-                  : items.map((it, i) => { const k = ['think', 'tool', 'say', 'step'].includes(it.kind) ? it.kind : 'think'; return <div className={'it ' + k} key={i}><span className="k">{it.kind}</span>{it.text}</div>; })}
-          </div>
+          <div className="shead"><b>{cur ? cur + ' · 实时 pane' : '点左侧会话看实时终端'}</b>{cur && <span className="x" onClick={() => { setCur(null); setPane(null); }}>×</span>}</div>
+          {!cur ? <div className="empty-stream">选一个会话,实时回显它的 tmux 终端(每 3s 轮询)。</div>
+            : pane == null ? <div className="empty-stream">加载…</div>
+              : <pre className="slog" ref={logRef} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{pane}</pre>}
         </div>
       </div>
     </>
