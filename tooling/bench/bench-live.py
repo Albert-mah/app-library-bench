@@ -125,7 +125,7 @@ def _tmux(*a):
     except Exception: return None
 
 PERM_RE = re.compile(r"Allow always|Allow this|Approve|grant permission|\(y/N\)|Yes, and|❯\s*Allow", re.I)
-PANE_DONE_RE = re.compile(r"Self-?Score\s*[:：]?\s*\d|FINAL REPORT\b|task (is )?complete|all (pages|workflows|blocks).{0,20}(done|created|verified)", re.I)
+PANE_DONE_RE = re.compile(r"Self-?Score\s*[:：]?\s*\d|FINAL REPORT\b", re.I)   # real completion only (loose 'created/done' matched todo text)
 WORK_RE = re.compile(r"esc to interrupt|esc interrupt|Thinking|Building|Running|[↑↓]\s*[\d.]+k?\s*tokens|thinking with|…\s*\(\d|[✶✻✽✢✳★◐◓◑◒]\s*\w")
 # TUI chrome to skip when picking the "last real activity" line (claude/opencode/codex status bars)
 CHROME_RE = re.compile(r"^[─━—]{3,}|bypass permissions|shift\+tab|^❯|^\[(Opus|Claude|Sonnet|Haiku|GPT|gpt|qwen)|^Context\b|^Usage\b|^Weekly\b|ctrl\+|for ag|↵ |^esc to interrupt$|tokens/s|⏵⏵", re.I)
