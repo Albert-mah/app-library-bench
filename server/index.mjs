@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { registerScores } from './scores.mjs';
 import { registerBenchLive } from './bench-live.mjs';
 import { registerRuns } from './runs.mjs';
+import { registerPrototypes } from './prototypes.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -28,6 +29,7 @@ app.use(express.json({ limit: '2mb' }));
 registerScores(app, { file: SCORES_FILE });
 registerBenchLive(app, { script: BENCH_LIVE_SCRIPT });
 registerRuns(app, { dir: RUNS_DIR });
+registerPrototypes(app, { file: path.join(WEB_DIR, 'prototypes.json'), webDir: WEB_DIR });
 // run result artifacts (any modality: image / html / text / code / file)
 app.use('/runs-artifacts', express.static(path.join(RUNS_DIR, 'artifacts'), { maxAge: '1h' }));
 app.use('/runs-shots', express.static(path.join(RUNS_DIR, 'shots'), { maxAge: '1h' })); // legacy
