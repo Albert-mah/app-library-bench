@@ -1,18 +1,25 @@
 {
   "//": "Copy to bench.config.json and edit. One 'run' = one opencode TUI building into one NocoBase env.",
-
   "runCwd": "~",
   "opencodeConfig": "~/.config/opencode/opencode.json",
   "opencodeDb": "~/.local/share/opencode/opencode.db",
   "sessionPrefix": "bench",
   "tuiReadyTimeout": 90,
-
+  "//recipes": "Named launch methods keyed by experiment type. A run REFERENCES one via its `recipe` field (or `type`: build -> nocobase-build). Built-ins live in bench.py DEFAULT_RECIPES (generic, nocobase-build); add/override here. Placeholders {promptFile} {env} {model} are filled per run. The per-CLI TUI creation stays in adapters.py; a recipe only picks cli/cwd/readyTimeout/instruction/watchFor/defaultNudge.",
+  "recipes": {
+    "nocobase-build": {
+      "cli": "opencode",
+      "cwd": "~",
+      "readyTimeout": 90,
+      "instruction": "First read the nocobase-prototype-repro skill (SKILL.md + references/). Then read {promptFile} as the user requirement and reproduce it END-TO-END in the NocoBase env '{env}' via the nb CLI (ALWAYS pass -e {env}): SPEC -> data modeling in ONE pass -> all-English seed (every enum) -> list pages (Filter+Add+Table+View drawer+sub-tables) -> refine signature regions -> screenshot self-check >=80%. Autonomous, no questions. End with a FINAL REPORT: collections, signature pageUid(s), Self-Score, comparison notes, gaps.",
+      "defaultNudge": "Continue the NocoBase build. If blocked, state the exact blocker in one line, then proceed autonomously; always pass -e <env>."
+    }
+  },
   "gateway": {
     "//": "OpenAI-compatible endpoint used ONLY by the LLM supervisor (monitor --judge llm).",
     "baseURL": "https://opencode.ai/zen/go/v1",
     "apiKeyEnv": "LLM_API_KEY"
   },
-
   "monitor": {
     "intervalSec": 60,
     "stallSec": 300,
@@ -22,14 +29,12 @@
     "nudgeCooldownSec": 200,
     "defaultNudge": "Continue. If blocked, state the exact blocker in one line, then proceed autonomously."
   },
-
   "//watchFor": "global hints (per-run watchFor overrides) — fed into each run's brief for the supervisor",
   "watchFor": [
     "long idle with no spinner + the same step repeating = stalled, nudge",
     "an Allow/Approve prompt = permission, needs a keypress",
     "context > ~180K while still not producing the page = likely looping"
   ],
-
   "runs": [
     {
       "id": "crm-r1",
@@ -37,8 +42,15 @@
       "cli": "opencode",
       "model": "bailian-payg/qwen3.7-plus",
       "promptFile": "prompts/crm-native-1.prompt.txt",
-      "reset": { "from": "~/bench-backups/pre-iterate-20260626/expagents.nbdata" },
-      "tags": ["qwen", "plus", "crm", "native"],
+      "reset": {
+        "from": "~/bench-backups/pre-iterate-20260626/expagents.nbdata"
+      },
+      "tags": [
+        "qwen",
+        "plus",
+        "crm",
+        "native"
+      ],
       "goal": "Reproduce a lightweight CRM (5 pages) natively in NocoBase from the prompt.",
       "successCriteria": [
         "crm_customers / crm_contacts / crm_deals / crm_activities collections + relations exist",
@@ -51,7 +63,8 @@
         "belongsTo named *_id → beta rejects it (use a noun)",
         "Customers sub-table fieldGroups validation loop",
         "pie chart rendering as a solid circle (series not paired)"
-      ]
+      ],
+      "recipe": "nocobase-build"
     },
     {
       "id": "crm-r2",
@@ -59,13 +72,21 @@
       "cli": "opencode",
       "model": "bailian-payg/qwen3.7-plus",
       "promptFile": "prompts/crm-native-2.prompt.txt",
-      "reset": { "from": "~/bench-backups/pre-iterate-20260626/fable14232.nbdata" },
-      "tags": ["qwen", "plus", "crm", "native"],
+      "reset": {
+        "from": "~/bench-backups/pre-iterate-20260626/fable14232.nbdata"
+      },
+      "tags": [
+        "qwen",
+        "plus",
+        "crm",
+        "native"
+      ],
       "goal": "Same CRM build as crm-r1 — consistency check across instances.",
       "successCriteria": [
         "all 5 pages present and populated",
         "same structure as crm-r1 (consistency test)"
-      ]
+      ],
+      "recipe": "nocobase-build"
     },
     {
       "id": "crm-r3",
@@ -73,13 +94,21 @@
       "cli": "opencode",
       "model": "bailian-payg/qwen3.7-plus",
       "promptFile": "prompts/crm-native-3.prompt.txt",
-      "reset": { "from": "~/bench-backups/pre-iterate-20260626/flash14231.nbdata" },
-      "tags": ["qwen", "plus", "crm", "native"],
+      "reset": {
+        "from": "~/bench-backups/pre-iterate-20260626/flash14231.nbdata"
+      },
+      "tags": [
+        "qwen",
+        "plus",
+        "crm",
+        "native"
+      ],
       "goal": "Same CRM build as crm-r1 — consistency check across instances.",
       "successCriteria": [
         "all 5 pages present and populated",
         "same structure as crm-r1 (consistency test)"
-      ]
+      ],
+      "recipe": "nocobase-build"
     }
   ]
 }

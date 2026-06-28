@@ -73,7 +73,7 @@ class BaseAdapter:
         tmux("set-option", "-t", session, "remain-on-exit", "on")
         wait_for(session, r"代理正常|@.*:.*[$#]|\$\s*$", timeout=30)
         send(session, self.start_cmd(run, cfg))
-        wait_for(session, self.ready_pattern, timeout=cfg.get("tuiReadyTimeout", 90))
+        wait_for(session, self.ready_pattern, timeout=run.get("readyTimeout") or cfg.get("tuiReadyTimeout", 90))
     def extract(self, run, cfg): raise NotImplementedError
 
 # ---------------------------------------------------------------- opencode

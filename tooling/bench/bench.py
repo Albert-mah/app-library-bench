@@ -81,6 +81,58 @@ def reset_env(run):
     if res.returncode != 0:
         print(f"  ! reset failed: {(res.stderr or res.stdout)[-200:]}")
 
+# ---------------------------------------------------------------- dispatch recipes
+# A *recipe* is a reusable launch method keyed by experiment type. It decides which CLI to use,
+# the cwd, the TUI-ready timeout, the instruction sent into the pane, and the supervisor's
+# watch-for / nudge defaults. The per-CLI TUI *creation* stays in the adapters (launch/start_cmd);
+# a recipe sits above them and is what runs of a given type all REFERENCE (run.recipe or run.type).
+DEFAULT_RECIPES = {
+    "generic": {
+        "instruction": "Read the file {promptFile} and execute the task in it completely, "
+                       "end to end, with full autonomy and no questions.",
+    },
+    # the NocoBase build/repro method — every build-type run references this one.
+    "nocobase-build": {
+        "cli": "opencode",
+        "cwd": "~",
+        "readyTimeout": 90,
+        "instruction": (
+            "First read the nocobase-prototype-repro skill (SKILL.md + references/). Then read "
+            "{promptFile} as the user requirement and reproduce it END-TO-END in the NocoBase env "
+            "'{env}' via the nb CLI (ALWAYS pass -e {env}): produce a SPEC (data model + each region "
+            "-> native block) -> data modeling in ONE pass -> all-English seed covering every enum "
+            "branch -> list pages (Filter + Add + Table + View drawer + sub-tables) -> refine the "
+            "signature regions to match -> screenshot-compare visual self-check to >=80%. Work "
+            "autonomously across turns; do NOT stop to ask. When done print a FINAL REPORT: "
+            "collections, signature pageUid(s), Self-Score (0-10), comparison notes, known gaps."
+        ),
+        "defaultNudge": "Continue the NocoBase build. If blocked, state the exact blocker in one "
+                        "line, then proceed autonomously; always pass -e <env>.",
+        "watchFor": [
+            "belongsTo named *_id -> beta rejects it (use a noun fk)",
+            "sub-table fieldGroups validation loop",
+            "pie/donut rendering as a solid circle (series not paired)",
+            "page collapsed into one giant JS block instead of native blocks",
+        ],
+    },
+}
+# map a run's coarse `type` to a recipe when `recipe` is not given explicitly
+TYPE_RECIPE = {"build": "nocobase-build", "nocobase": "nocobase-build"}
+
+def resolve_recipe(cfg, run):
+    recipes = {**DEFAULT_RECIPES, **(cfg.get("recipes") or {})}
+    name = run.get("recipe") or TYPE_RECIPE.get(run.get("type") or "") or "generic"
+    rec = dict(recipes.get(name) or recipes["generic"]); rec["_name"] = name
+    return rec
+
+def build_instruction(recipe, run, pf):
+    fields = {"promptFile": pf, "env": run.get("env") or "<env>", "model": run.get("model") or ""}
+    try: instr = (recipe.get("instruction") or DEFAULT_RECIPES["generic"]["instruction"]).format(**fields)
+    except Exception: instr = f"Read the file {pf} and execute the task in it completely, end to end."
+    extra = run.get("instruction")  # per-run extra (e.g. a retry note)
+    if extra: instr += " " + extra
+    return instr
+
 # ---------------------------------------------------------------- launch
 def resolve_prompt(cfg, run):
     pf = run["promptFile"]
@@ -91,17 +143,17 @@ def resolve_prompt(cfg, run):
 def launch_run(cfg, run):
     s = run_session_name(cfg, run)
     pf = resolve_prompt(cfg, run)
-    cwd = expand(cfg["runCwd"])
+    recipe = resolve_recipe(cfg, run)
+    cli = run.get("cli") or recipe.get("cli") or cfg.get("cli", "opencode")
+    run["cli"] = cli                                   # so collect/brief see the resolved CLI
+    if recipe.get("readyTimeout"): run.setdefault("readyTimeout", recipe["readyTimeout"])
+    cwd = expand(run.get("cwd") or recipe.get("cwd") or cfg["runCwd"])
     if run.get("reset"): reset_env(run)
-    ad = get_adapter(run.get("cli", cfg.get("cli", "opencode")))
+    ad = get_adapter(cli)
     ad.launch(s, run, cfg, cwd)
-    instr = (f"Read the file {pf} and execute the task in it completely, end to end, "
-             f"with full autonomy and no questions.")
-    extra = run.get("instruction")
-    if extra: instr += " " + extra
-    send(s, instr)
-    write_brief(cfg, run, s, pf)
-    print(f"  launched {s}  cli={run.get('cli','opencode')} env={run.get('env','?')} model={run.get('model','?')}")
+    send(s, build_instruction(recipe, run, pf))
+    write_brief(cfg, run, s, pf, recipe)
+    print(f"  launched {s}  recipe={recipe['_name']} cli={cli} env={run.get('env','?')} model={run.get('model','?')}")
     return s
 
 # ---------------------------------------------------------------- LLM judge
@@ -183,6 +235,7 @@ def act_on(cfg, run, verdict, st):
     rec = st.setdefault(s, {})
     now = time.time()
     state = verdict.get("state")
+    default_nudge = resolve_recipe(cfg, run).get("defaultNudge") or cfg["monitor"]["defaultNudge"]
     if state == "stalled":
         n = rec.get("nudges", 0)
         if n >= cfg["monitor"]["maxNudgesPerSession"]:
@@ -190,8 +243,8 @@ def act_on(cfg, run, verdict, st):
         if now - rec.get("lastNudge", 0) < cfg["monitor"]["nudgeCooldownSec"]:
             return "stalled (cooldown)"
         if cfg["monitor"]["judge"] == "agent":
-            return f"stalled — SUGGEST nudge: {verdict.get('nudge') or cfg['monitor']['defaultNudge']}"
-        send(s, verdict.get("nudge") or cfg["monitor"]["defaultNudge"])
+            return f"stalled — SUGGEST nudge: {verdict.get('nudge') or default_nudge}"
+        send(s, verdict.get("nudge") or default_nudge)
         rec["nudges"] = n + 1; rec["lastNudge"] = now
         return f"NUDGED (#{n+1})"
     if state == "permission":
@@ -208,18 +261,20 @@ RUNS_DIR = os.path.join(HERE, "runs")
 def _now():
     return time.strftime("%Y-%m-%dT%H:%M:%S")
 
-def write_brief(cfg, run, session, pf):
+def write_brief(cfg, run, session, pf, recipe=None):
     """One-click background packet so an inspector/supervisor agent can drive + watch a run with full context."""
     os.makedirs(os.path.join(RUNS_DIR, "briefs"), exist_ok=True)
     try: prompt_text = open(pf, encoding="utf-8").read()
     except Exception: prompt_text = ""
+    recipe = recipe or {}
     brief = {
         "id": run["id"], "cli": run.get("cli", cfg.get("cli", "opencode")), "tmuxSession": session,
+        "recipe": recipe.get("_name"),
         "model": run.get("model"), "env": run.get("env"), "tags": run.get("tags", []),
         "lineage": {"prototype": run.get("prototype"), "batch": run.get("batch"),
                     "parent": run.get("parent"), "depth": run.get("depth", 0)},
         "goal": run.get("goal"), "successCriteria": run.get("successCriteria", []),
-        "watchFor": run.get("watchFor", cfg.get("watchFor", [])),
+        "watchFor": run.get("watchFor") or recipe.get("watchFor") or cfg.get("watchFor", []),
         "promptFile": pf, "promptText": prompt_text,
         "howToInspect": f"tmux capture-pane -t {session} -p -S -80   (or: bench.py status --only {run['id']})",
         "howToNudge": f"tmux send-keys -t {session} '<one concrete next step>' Enter",

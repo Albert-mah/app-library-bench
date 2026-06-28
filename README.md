@@ -100,6 +100,17 @@ npm run bench:summary    # tokens / rounds / duration per cell (reads the openco
 npm run bench:stop       # kill the tmux sessions
 ```
 
+Each launch is a detached **tmux** session running a CLI's TUI, fed the task prompt. *How*
+that TUI is created is layered: the **per-CLI** mechanics (start command, ready pattern,
+model selection) live in each adapter's `launch()`; the **per-experiment-type** method is a
+named **recipe** a run references — `nocobase-build` (the built-in NocoBase reproduction
+method: read the repro skill → SPEC → model in one pass → English seed → list pages →
+signature regions → visual self-check) or `generic`. A run picks one via its `recipe` field
+(or `type: build` → `nocobase-build`); the recipe supplies the cli/cwd/ready-timeout, the
+instruction template (`{promptFile}`/`{env}`/`{model}` filled per run), and the supervisor's
+watch-for + nudge defaults. Built-ins are in `bench.py` `DEFAULT_RECIPES`; add or override
+them under `recipes` in the config — so every build of a given type reuses one launch method.
+
 **The supervisor** (`bench:monitor`) is how runs get driven to completion without a
 human babysitting — you pick who watches via `--judge`:
 
