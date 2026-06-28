@@ -1,9 +1,15 @@
-# app-library-bench
+# app-library-bench · AI 搭建流水线
 
-A self-contained **gallery + review center + benchmarking pipeline** for AI-reproduced
-business apps. It showcases ~60 prototype apps, tracks how faithfully different
-models/prompts reproduce them in [NocoBase](https://www.nocobase.com/), and lets a
-human score every run.
+A self-contained platform for **observing and recording AI-assisted build experiments** —
+a prototype **gallery**, a **review center**, and a **benchmarking pipeline**. It hosts
+~90 prototype subjects (HTML mockups, prompt specs, info docs), tracks how faithfully
+different models/prompts reproduce them in [NocoBase](https://www.nocobase.com/), and lets
+a human score every run.
+
+Each experiment subject is **HTML-backed** (a prompt/spec/info subject is rendered into a
+standalone doc and **auto-screenshotted into a cover image**), runs flow through a
+`测试中 → 待审核 → 已审核` status model, and every model run is archived with full
+prompt/tokens/transcript so the build pipeline is fully traceable.
 
 Extracted from a larger Astro site into a standalone Node app so it can be run, shared,
 and open-sourced on its own.
@@ -14,33 +20,47 @@ npm run build:ui          # build the React SPA (app/) → app/dist
 npm start                 # → http://localhost:8080
 ```
 
-The frontend is a **React + Vite SPA** in `app/` (one unified shell + top nav); the Express
-server serves its build (`app/dist`) plus the static assets (prototypes, `library.json`,
-images) and the JSON APIs. Routes (all native React): `/` gallery · `/runs` run history ·
-`/tests` test center · `/live` bench live · `/dashboard`. The original vanilla pages are
-kept under `web/legacy/` for reference only (no longer used by the app). Dev: `npm run dev:ui`.
+The frontend is a **React + Vite SPA** in `app/` (one unified shell + top nav, no iframes);
+the Express server serves its build (`app/dist`) plus the static assets (prototypes,
+`library.json`, images) and the JSON APIs, with a catch-all that falls back to the SPA for
+client-side routing. Routes (all native React): `/` gallery · `/experiments` overview ·
+`/tests` test center · `/runs` run history · `/live` bench live · `/dashboard`.
+Dev: `npm run dev:ui`.
 
-- **Gallery** — `/` — the prototype app library.
-- **Test center** — `/tests` — per-module reproduction reports: model/flow
-  branches, rounds, AI + human scores, side-by-side compare images.
-- **Live bench** — `/bench-live.html` — real-time view of an in-progress model run
-  (reads the local opencode session DB).
+- **Gallery** — `/` — the prototype library; create a subject (html / prompt / info /
+  composite) and it's HTML-backed + auto-covered. Click → full-screen prototype with an
+  embedded info sidebar.
+- **Experiments** — `/experiments` — unified overview: subject → test lines/rounds →
+  associated runs → review status, cross-filterable.
+- **Test center** — `/tests` — per-subject reproduction reports: model/flow branches,
+  rounds, AI + human scores, side-by-side compare images, result media, and a detail modal
+  that traces the whole line (rounds timeline, related runs + transcript, review box).
+- **Run history** — `/runs` — every model run as a sortable/tree table → detail drawer.
+- **Live bench** — `/live` — real-time view of an in-progress model run (reads the local
+  opencode session DB).
+- **Dashboard** — `/dashboard` — build-pipeline analytics with live filters.
 
 ## How it fits together
 
 ```
 app-library-bench/
+├── app/                    # the frontend — React + Vite + TS SPA
+│   ├── src/pages/          #   Gallery · Experiments · TestReport · Runs · BenchLive · Dashboard
+│   ├── src/{App,lib,styles}
+│   └── dist/               #   build output served by the server (gitignored)
 ├── server/                 # tiny Express server (the only "backend")
-│   ├── index.mjs           #   static web/ + two JSON endpoints
-│   ├── scores.mjs          #   GET/POST /api/app-library-scores  → web/user-scores.json
-│   └── bench-live.mjs      #   GET /api/bench-live  → shells to tooling/bench/bench-live.py
-├── web/                    # the frontend — plain HTML/JS, no build step
-│   ├── index.html · test-report.html · bench-live.html · dashboard.html
-│   ├── library.json        #   SINGLE SOURCE OF TRUTH: 94 modules × branches × rounds
-│   ├── user-scores.json    #   human scores (written by the scores endpoint)
-│   ├── build-audit.json
-│   ├── 01-*.html … 59-*.html, 201-*.html   # the prototype apps
-│   └── thumbs/ · bench/ · acceptance-*/     # compare/result screenshots
+│   ├── index.mjs           #   static web/ + app/dist SPA + JSON APIs + SPA fallback
+│   ├── scores.mjs          #   GET/POST /api/app-library-scores   → web/user-scores.json
+│   ├── prototypes.mjs      #   CRUD /api/prototypes (HTML-backed + auto cover) + /api/shot
+│   ├── test-results.mjs    #   GET/POST /api/test-results (result media → auto cover)
+│   ├── runs.mjs            #   GET /api/runs[/:id] + POST review  (reads runs/)
+│   └── bench-live.mjs      #   GET /api/bench-live → shells to tooling/bench/bench-live.py
+├── web/                    # static assets served as-is
+│   ├── library.json        #   SINGLE SOURCE OF TRUTH: ~90 modules × branches × rounds
+│   ├── prototypes.json     #   user-created subjects (gitignored)
+│   ├── user-scores.json    #   human scores · test-results.json · build-audit.json
+│   ├── 01-*.html … 2xx-*.html              # prototype subjects (HTML)
+│   └── thumbs/ · results/ · bench/ · acceptance-*/   # cover / result / compare images
 ├── tooling/
 │   ├── validate-library.py # `npm run validate` — checks library.json vs schema + assets
 │   ├── library.schema.json
@@ -48,17 +68,17 @@ app-library-bench/
 └── scripts/                # optional Feishu/Lark status push
 ```
 
-The frontend is intentionally still **vanilla HTML/JS** (the test center is a single
-self-contained page). Everything it needs is a static file or one of the two `/api`
-endpoints — no framework, no bundler.
-
 ## Data model — `web/library.json`
 
-The whole system is driven by one file. Each **module** has `branches` (e.g. `main`,
-`blind`, `bench-*`), each branch has `rounds` (`r1`, `r2`, …), and each round carries an
-image, AI reasoning/score, a human verdict/score, and (optionally) the exact prompt used.
-`npm run validate` enforces its shape against `tooling/library.schema.json` and checks
-every referenced asset exists.
+The whole system is driven by one file. Each **subject** (module) has `branches`
+(e.g. `main`, `blind`, `bench-*`) — each branch is one **test line** (model/flow); each
+branch has `rounds` (`r1`, `r2`, …), and each round carries an image, AI reasoning/score,
+a human verdict/score, and (optionally) the exact prompt used. A subject also carries its
+`kind` (`html` / `prompt` / `info` / `composite`), `category` (`build` / `experiment` /
+`other`), `goal` / `background` / `successCriteria`, and a status derived per round:
+**测试中** (no result) → **待审核** (a result image/HTML exists, awaiting a human) →
+**已审核** (human verdict). `npm run validate` enforces the shape against
+`tooling/library.schema.json` and checks every referenced asset exists.
 
 ## The bench pipeline — `tooling/bench/`
 
@@ -104,7 +124,7 @@ Each record carries **prompt (+ sha), model, provider, target env, tags, timing
 count + samples, outcome, and the full transcript** (`runs/transcripts/<id>.json`).
 Credentials are scrubbed at ingest. `runs/index.json` is the rollup.
 
-**Review — AI self-review + human verdict.** The run-history page (`/runs.html`) is the
+**Review — AI self-review + human verdict.** The run-history page (`/runs`) is the
 inspect → verify → score surface: a sortable/filterable table (or a **tree** grouped by
 batch, iterations nested under their parent) → click a run → drawer with its
 **screenshots** (build-result evidence — for a build test the image *is* the result),
