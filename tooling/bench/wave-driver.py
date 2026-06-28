@@ -16,8 +16,15 @@ GIVE_UP_IDLE = 12 * 60                         # stalled+idle this long → coll
 NUDGE_EVERY = 4 * 60
 MAX_NUDGES = 3
 
-DONE_RE = re.compile(r"Self-?Score|FINAL REPORT|对比观察|搭建完成|Build Complete", re.I)
-WORK_RE = re.compile(r"\(\d+s\s*·|esc to interrupt|↑\s*[\d.]+k?\s*tokens|thinking with|esc interrupt", re.I)
+# done = the FINAL score line actually printed (a digit follows), not a bare "Self-Score"
+# mention in the agent's plan. This was a false-done bug that killed builds early.
+DONE_RE = re.compile(r"Self-?Score\s*[:：]?\s*\d|FINAL REPORT\b", re.I)
+WORK_RE = re.compile(r"\(\d+[ms]\b|esc to interrupt|esc interrupt|[↑↓]\s*[\d.]+k?\s*tokens|thinking with|…\s*\(\d", re.I)
+# CRITICAL: strip the claude status bar before hashing — its 'resets in Xh Ym' countdown changes
+# every minute, which otherwise makes every idle pane look like it's still changing (→ never collected).
+CHROME_RE = re.compile(r"^[─━—]{3,}|bypass permissions|shift\+tab|^❯|^\[(Opus|Claude|Sonnet|Haiku|GPT)|^Context\b|^Usage\b|^Weekly\b|ctrl\+|for ag|resets in|⏵⏵|tokens/s", re.I)
+SETTLE = 45      # after a real done-marker, require this much stability
+STALL_DONE = 180 # content stable + no work spinner this long = finished (or stuck) → collect & advance
 
 def tmux(*a):
     return subprocess.run(["tmux", *a], capture_output=True, text=True)
@@ -37,17 +44,19 @@ def classify(rid):
     text = pane(sess)
     if text is None:
         return "absent", 0
-    tail = "\n".join([l for l in text.strip().splitlines() if l.strip()][-25:])
+    # hash CONTENT only (drop the volatile status bar) so an idle pane reads as idle
+    content = [l for l in text.splitlines() if l.strip() and not CHROME_RE.search(l)]
+    tail = "\n".join(content[-20:])
     h = hashlib.md5(tail.encode()).hexdigest(); now = time.time()
     s = state.setdefault(sess, {"hash": None, "since": now, "nudges": 0, "lastNudge": 0})
     if s["hash"] != h:
         s["hash"] = h; s["since"] = now
-    idle = now - s["since"]
-    if DONE_RE.search(tail) and idle > 25:        # printed the Self-Score / report and settled
-        return "done", int(idle)
-    if WORK_RE.search(tail) and idle < 180:
-        return "working", int(idle)
-    return ("stalled" if idle >= 180 else "working"), int(idle)
+    idle = int(now - s["since"])
+    if DONE_RE.search(tail) and idle > SETTLE:   # printed a real score line and settled
+        return "done", idle
+    if WORK_RE.search(tail):                      # active spinner / token counter / timer
+        return "working", idle
+    return "stalled", idle                        # no work marker = idle/finished/stuck
 
 def nudge(rid):
     sess = f"{PREFIX}-{rid}"; s = state.get(sess, {}); now = time.time()
@@ -68,11 +77,20 @@ def nudge(rid):
 
 def main():
     cfg = json.load(open(CFG))
-    lanes = {}
+    order = {}
     for r in cfg["runs"]:
-        lanes.setdefault(r["env"], []).append(r["id"])
-    running = {env: (q.pop(0) if q else None) for env, q in lanes.items()}
-    done = []
+        order.setdefault(r["env"], []).append(r["id"])
+    # RESUME-SAFE: a lane's current run = the latest of its ids with a LIVE tmux session;
+    # ids before it are already done (killed), ids after are the queue. This way a restart
+    # picks up in-flight builds instead of relaunching them or re-doing finished ones.
+    running, lanes, done = {}, {}, []
+    for env, ids in order.items():
+        live = [rid for rid in ids if tmux("has-session", "-t", f"{PREFIX}-{rid}").returncode == 0]
+        if live:
+            cur = live[-1]; i = ids.index(cur)
+            running[env] = cur; lanes[env] = ids[i + 1:]
+        else:
+            running[env] = ids[0] if ids else None; lanes[env] = ids[1:]
     LOG(f"driver up: {len(lanes)} lanes, running={list(running.values())}, "
         f"queued={sum(len(q) for q in lanes.values())}")
     while True:
@@ -80,10 +98,9 @@ def main():
         for env, cur in list(running.items()):
             if not cur: continue
             st, idle = classify(cur)
-            finished = st == "absent" or st == "done" or (st == "stalled" and idle >= GIVE_UP_IDLE)
+            finished = st == "absent" or st == "done" or (st == "stalled" and idle >= STALL_DONE)
             if not finished:
                 alive += 1
-                if st == "stalled" and nudge(cur): LOG(f"{env}/{cur}: nudged (idle={idle}s)")
                 continue
             LOG(f"{env}/{cur}: finished ({st}, idle={idle}s) → collect")
             try: bench("collect", "--only", cur, timeout=300)
