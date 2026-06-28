@@ -210,10 +210,12 @@ function TestModal({ sel, setSel, modFor, mods, rounds, backups, server, reachab
             <button className={mainView === 'img' ? 'on' : ''} onClick={() => setMainView('img')}>对比图</button>
             <button className={mainView === 'proto' ? 'on' : ''} onClick={() => setMainView('proto')}>原型预览</button>
           </div>
-          <button className="btn" onClick={() => setHideSide(!hideSide)}>{hideSide ? '显示侧栏 ‹' : '隐藏侧栏 ›'}</button>
-          <a className="btn" href={`/${m.slug}.html`} target="_blank" rel="noopener">原型 ↗</a>
-          {page && <a className="btn" href={page} target="_blank" rel="noopener">页面 ↗</a>}
-          <span className="closex" onClick={() => setSel(null)}>×</span>
+          <div className="win-ctrls">
+            <button className="win-btn" title={hideSide ? '显示侧栏' : '隐藏侧栏'} onClick={() => setHideSide(!hideSide)}>{hideSide ? '◧' : '◨'}</button>
+            <a className="win-btn" title="原型新窗口打开" href={`/${m.slug}.html`} target="_blank" rel="noopener">↗</a>
+            {page && <a className="win-btn" title="打开 NocoBase 页面" href={page} target="_blank" rel="noopener">🔗</a>}
+            <button className="win-btn win-close" title="关闭" onClick={() => setSel(null)}>✕</button>
+          </div>
         </div>
 
         {/* 链路回溯:线 tabs + 该线轮次 timeline */}
