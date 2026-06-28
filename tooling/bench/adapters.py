@@ -243,7 +243,10 @@ class ClaudeAdapter(BaseAdapter):
 
     def start_cmd(self, run, cfg):
         m = run.get("model")
-        base = f"claude --model {m}" if m else "claude"
+        if run.get("resume"):
+            base = "claude --continue"   # resume the prior conversation in this cwd (interrupt/recovery)
+        else:
+            base = f"claude --model {m}" if m else "claude"
         # bench runs are autonomous into throwaway instances → skip per-tool permission prompts
         if run.get("yolo", cfg.get("claudeYolo", True)):
             base += " --dangerously-skip-permissions"

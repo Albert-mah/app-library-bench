@@ -414,6 +414,55 @@ def cmd_retry(cfg, args):
     write_supervise(cfg, [json.load(open(bp))] if os.path.exists(bp) else [])
     print("done. collect it after it finishes:  bench.py collect --only " + child["id"])
 
+# ---------------------------------------------------------------- pause / resume (interrupt-recovery)
+# A claude run's full conversation persists in its cwd's project .jsonl, so a session can be killed
+# (pause) and later continued from the exact breakpoint with `claude --continue` (resume). Useful to
+# park slow builds before a usage-cap reset, then pick them back up. Registry: runs/paused.json.
+PAUSED_FILE = os.path.join(RUNS_DIR, "paused.json")
+def _load_paused():
+    try: return json.load(open(PAUSED_FILE))
+    except Exception: return {}
+def _save_paused(d):
+    os.makedirs(RUNS_DIR, exist_ok=True); json.dump(d, open(PAUSED_FILE, "w"), ensure_ascii=False, indent=1)
+
+def cmd_pause(cfg, args):
+    if not args.only: sys.exit("pause needs --only <ids>")
+    reg = _load_paused()
+    for rid in args.only.split(","):
+        run = next((r for r in cfg["runs"] if r["id"] == rid), None)
+        if not run: print(f"  ! {rid} not in config"); continue
+        s = run_session_name(cfg, run)
+        tmux("kill-session", "-t", s)
+        reg[rid] = {"id": rid, "env": run.get("env"), "cwd": run.get("cwd"),
+                    "promptFile": run.get("promptFile"), "module": run.get("module"),
+                    "batch": run.get("batch"), "recipe": run.get("recipe"), "pausedAt": _now()}
+        print(f"  paused {rid} (session {s} killed; .jsonl kept for --continue)")
+    _save_paused(reg)
+    print(f"paused {len(args.only.split(','))} -> {PAUSED_FILE}  (resume with: bench.py resume)")
+
+def cmd_resume(cfg, args):
+    """relaunch paused runs with `claude --continue` (picks up the prior conversation in the cwd)."""
+    reg = _load_paused()
+    ids = args.only.split(",") if args.only else list(reg)
+    if not ids: print("nothing paused"); return
+    for rid in ids:
+        e = reg.get(rid)
+        if not e: print(f"  ! {rid} not in paused registry"); continue
+        run = {"id": rid, "env": e["env"], "cwd": e["cwd"], "cli": "claude", "resume": True,
+               "recipe": e.get("recipe") or "nocobase-build", "promptFile": e.get("promptFile"),
+               "module": e.get("module"), "batch": e.get("batch")}
+        s = run_session_name(cfg, run)
+        cwd = expand(run["cwd"])
+        get_adapter("claude").launch(s, run, cfg, cwd)   # `claude --continue --dangerously-skip-permissions`
+        send(s, f"继续完成这个 NocoBase 搭建(从上次中断处续):补齐未完成的招牌区块/视觉自查,"
+                f"始终 -e {e['env']} -y;完成后务必输出一行 Self-Score: X/10 收尾。")
+        pf = e.get("promptFile"); pf = pf if (pf and os.path.isabs(pf)) else os.path.join(HERE, pf or "")
+        write_brief(cfg, run, s, pf if os.path.exists(pf) else __file__, resolve_recipe(cfg, run))
+        del reg[rid]
+        print(f"  resumed {rid} -> {s} (claude --continue, env {e['env']})")
+    _save_paused(reg)
+    print(f"resumed; remaining paused: {sorted(reg)}")
+
 def cmd_collect(cfg, args):
     os.makedirs(os.path.join(RUNS_DIR, "transcripts"), exist_ok=True)
     if args.all:
@@ -583,7 +632,7 @@ def cmd_summary(cfg, args):
 
 def main():
     ap = argparse.ArgumentParser(description="config-driven opencode bench pipeline")
-    ap.add_argument("command", choices=["run", "status", "monitor", "summary", "stop", "collect", "brief", "ai-review", "retry", "attach"])
+    ap.add_argument("command", choices=["run", "status", "monitor", "summary", "stop", "collect", "brief", "ai-review", "retry", "attach", "pause", "resume"])
     ap.add_argument("--config", default=os.path.join(HERE, "bench.config.json"))
     ap.add_argument("--only", help="comma-separated run ids")
     ap.add_argument("--once", action="store_true", help="monitor: single pass then exit")
@@ -597,7 +646,7 @@ def main():
     args = ap.parse_args()
     cfg = load_config(args.config)
     {"run": cmd_run, "status": cmd_status, "monitor": cmd_monitor, "summary": cmd_summary,
-     "stop": cmd_stop, "collect": cmd_collect, "brief": cmd_brief,
+     "stop": cmd_stop, "collect": cmd_collect, "brief": cmd_brief, "pause": cmd_pause, "resume": cmd_resume,
      "ai-review": cmd_ai_review, "retry": cmd_retry, "attach": cmd_attach}[args.command](cfg, args)
 
 if __name__ == "__main__":
