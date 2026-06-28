@@ -205,7 +205,8 @@ class OpencodeAdapter(BaseAdapter):
                        "cacheRead": s["tokens_cache_read"], "cacheWrite": s["tokens_cache_write"]},
             "cost": s["cost"], "rounds": rounds, "toolCalls": tools,
             "errors": {"count": len(errors), "samples": errors[:30]},
-            "outcome": {"status": _status_from(final_text, transcript), "finalText": final_text[:2000]},
+            "outcome": {"status": _status_from(final_text, transcript), "statusSource": "heuristic",
+                        "selfScore": _self_score(final_text), "finalText": final_text[:2000]},
             "cliVersion": s["version"],
         }
         return rec, transcript
@@ -356,7 +357,8 @@ class ClaudeAdapter(BaseAdapter):
                        "cacheRead": tcr or None, "cacheWrite": tcw or None},
             "cost": None, "rounds": rounds, "toolCalls": tools,
             "errors": {"count": len(errors), "samples": errors[:30]},
-            "outcome": {"status": _status_from(final_text, transcript), "finalText": final_text[:2000]},
+            "outcome": {"status": _status_from(final_text, transcript), "statusSource": "heuristic",
+                        "selfScore": _self_score(final_text), "finalText": final_text[:2000]},
             "cliVersion": None,
         }
         return rec, transcript
@@ -405,6 +407,20 @@ def _status_from(final_text, transcript):
     if final_text and DONE_RE.search(final_text): return "done"
     if transcript and transcript[-1].get("t") == "tool" and transcript[-1].get("status") == "error": return "error"
     return "unknown"
+
+# the agent's own self-score, if it reported one (the nocobase-build recipe asks for "Self-Score 0-10").
+# Captured structurally so the visual-self-check metric isn't buried in finalText — but it is the
+# BUILDER judging itself; treat as a claim, not verified truth (independent ai-review is the check).
+_SELFSCORE_RE = re.compile(r"(?:self[\s_*-]{0,3}score|自评分)\D{0,8}(\d{1,2}(?:\.\d)?)\s*(?:/\s*10)?", re.I)
+def _self_score(final_text):
+    if not final_text: return None
+    m = _SELFSCORE_RE.search(final_text)
+    if not m: return None
+    try:
+        v = float(m.group(1))
+        return v if 0 <= v <= 10 else None
+    except Exception:
+        return None
 
 ADAPTERS = {"opencode": OpencodeAdapter, "claude": ClaudeAdapter}
 def get_adapter(name):

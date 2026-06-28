@@ -230,6 +230,20 @@ def classify(cfg, run, st):
                 "reason": f"idle {round(idle)}s (heuristic)", "idle": round(idle)}
     return {"state": "working", "reason": "recent activity", "idle": round(idle)}
 
+# intervention ledger — every supervisor action (nudge / auto-approve) is logged per run id so a
+# run's record can show how much it was ASSISTED. An unassisted run and a heavily-nudged one are
+# not comparable; methodology requires this be visible. `collect` merges it into the record.
+def log_intervention(run, kind, detail=""):
+    p = os.path.join(RUNS_DIR, "interventions.json")
+    try: d = json.load(open(p))
+    except Exception: d = {}
+    e = d.setdefault(run["id"], {"nudges": 0, "autoApprovals": 0, "events": []})
+    if kind == "nudge": e["nudges"] += 1
+    elif kind == "approve": e["autoApprovals"] += 1
+    e["events"].append({"kind": kind, "detail": detail[:200], "at": _now()})
+    os.makedirs(RUNS_DIR, exist_ok=True)
+    json.dump(d, open(p, "w"), ensure_ascii=False, indent=1)
+
 def act_on(cfg, run, verdict, st):
     s = run_session_name(cfg, run)
     rec = st.setdefault(s, {})
@@ -244,14 +258,17 @@ def act_on(cfg, run, verdict, st):
             return "stalled (cooldown)"
         if cfg["monitor"]["judge"] == "agent":
             return f"stalled — SUGGEST nudge: {verdict.get('nudge') or default_nudge}"
-        send(s, verdict.get("nudge") or default_nudge)
+        nudge = verdict.get("nudge") or default_nudge
+        send(s, nudge)
         rec["nudges"] = n + 1; rec["lastNudge"] = now
+        log_intervention(run, "nudge", nudge)
         return f"NUDGED (#{n+1})"
     if state == "permission":
         if cfg["monitor"]["judge"] == "agent":
             return "permission — SUGGEST: approve in the TUI"
         # best-effort approve: arrow-right to 'Allow always' then enter
         tmux("send-keys", "-t", s, "Right"); time.sleep(0.2); tmux("send-keys", "-t", s, "Enter")
+        log_intervention(run, "approve")
         return "auto-approved permission"
     return ""
 
@@ -417,6 +434,8 @@ def cmd_collect(cfg, args):
     idxp = os.path.join(RUNS_DIR, "index.json")
     index = json.load(open(idxp)) if os.path.exists(idxp) else []
     by_id = {r.get("id"): i for i, r in enumerate(index)}
+    try: interventions = json.load(open(os.path.join(RUNS_DIR, "interventions.json")))
+    except Exception: interventions = {}
     n = 0
     for r in runs:
         ad = get_adapter(r.get("cli", cfg.get("cli", "opencode")))
@@ -427,6 +446,10 @@ def cmd_collect(cfg, args):
         # scrub any credentials that leaked into the captured text before persisting
         rec = json.loads(redact(json.dumps(rec, ensure_ascii=False)))
         transcript = json.loads(redact(json.dumps(transcript, ensure_ascii=False)))
+        # how much the supervisor ASSISTED this run (nudges / auto-approves) — for fair comparison
+        iv = interventions.get(rec["id"], {})
+        rec["interventions"] = {"nudges": iv.get("nudges", 0), "autoApprovals": iv.get("autoApprovals", 0),
+                                "assisted": bool(iv.get("nudges") or iv.get("autoApprovals"))}
         rec["collectedAt"] = _now()
         tf = os.path.join(RUNS_DIR, "transcripts", f"{rec['id']}.json")
         json.dump({"record": rec, "transcript": transcript}, open(tf, "w"), ensure_ascii=False, indent=1)

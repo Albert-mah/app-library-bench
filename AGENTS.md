@@ -128,6 +128,11 @@ genuinely-stuck ones moving, do nothing to the healthy ones.
 
 ## 6. Methodology & findings (baked in — these are *our* hard-won lessons)
 
+> The **experiment protocol** — validity rules (controlled start, prompt parity, intervention
+> accounting, independent review, status honesty…), metrics, threats to validity, and what's
+> enforced-in-code vs roadmap — lives in [METHODOLOGY.md](./METHODOLOGY.md). Read it before
+> comparing or publishing numbers. The lessons below are the practical findings.
+
 - **Prompt-planning quality > model tier.** Vague prompts ("a dashboard") make any model
   stack plain tables; a clear per-page "use this native block" plan makes mid models build
   complete apps. Spend effort on the prompt, not on chasing a bigger model.

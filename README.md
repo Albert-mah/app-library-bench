@@ -68,6 +68,13 @@ app-library-bench/
 └── scripts/                # optional Feishu/Lark status push
 ```
 
+## Methodology
+
+The **experiment protocol** — what makes a result comparable and reproducible (controlled start,
+prompt parity, intervention accounting, independent review, evidence requirements, the metrics,
+and the threats to validity) — is written up in **[METHODOLOGY.md](./METHODOLOGY.md)**. Read it
+before comparing or publishing any numbers.
+
 ## Data model — `web/library.json`
 
 The whole system is driven by one file. Each **subject** (module) has `branches`
