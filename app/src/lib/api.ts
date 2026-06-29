@@ -1,5 +1,6 @@
 export async function getJSON<T = any>(url: string): Promise<T> {
-  const r = await fetch(url);
+  // no-store → always hit the network, never a stale browser-cached copy (library.json etc.)
+  const r = await fetch(url, { cache: 'no-store' });
   if (!r.ok) throw new Error(`${url} → ${r.status}`);
   return r.json();
 }
