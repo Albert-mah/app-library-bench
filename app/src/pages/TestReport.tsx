@@ -59,6 +59,7 @@ export default function TestReport() {
   const [sort, setSort] = useState('num');
   const [sortOpen, setSortOpen] = useState(false);
   const [msOpen, setMsOpen] = useState(false);
+  const [limit, setLimit] = useState(60);
   const [sel, setSel] = useState<any>(null); // {mId,b,r}
   const [light, setLight] = useState<string | null>(null);
   const [sp, setSp] = useSearchParams();
@@ -183,7 +184,7 @@ export default function TestReport() {
 
       <div className="wrap">
         <div className="grid tr-grid">
-          {cards.map((c) => {
+          {cards.slice(0, limit).map((c) => {
             const stt = statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd));
             const uv = uVerdict(server, c.m.id, c.r, c.b);
             return (
@@ -208,6 +209,10 @@ export default function TestReport() {
           })}
           {!cards.length && <div style={{ gridColumn: '1/-1', padding: 48, textAlign: 'center', color: 'var(--text3)' }}>该筛选下没有用例</div>}
         </div>
+        {cards.length > limit && <div style={{ textAlign: 'center', padding: '18px 0' }}>
+          <button className="btn" onClick={() => setLimit((n) => n + 60)}>加载更多(已显示 {limit}/{cards.length})</button>
+          <button className="btn" style={{ marginLeft: 8 }} onClick={() => setLimit(cards.length)}>显示全部 {cards.length}</button>
+        </div>}
       </div>
 
       {sel && <TestModal {...{ sel, setSel, modFor, mods, rounds, backups, server, reachable, runsIdx, patch, setLight, curRound, results, onResult: loadResults }} />}
