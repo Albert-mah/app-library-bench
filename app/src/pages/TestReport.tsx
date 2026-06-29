@@ -92,8 +92,11 @@ export default function TestReport() {
   const modFor = (mId: string) => mods.find((m) => m.id === mId);
   const hasRes = (m: any, b: string, r: string, rd: any) => !!(rd && rd.image) || !!results[resKey(m.id, b, r)];
   const roundDate = useMemo(() => Object.fromEntries(rounds.map((r) => [r.id, r.date])), [rounds]);
-  // a record's date = human verdict ts ▸ result-media ts ▸ the round's batch date (YYYY-MM-DD)
+  const runById = useMemo(() => Object.fromEntries(runsIdx.map((r) => [r.id, r])), [runsIdx]);
+  // a record's date = its actual build run date (via branch.runIds) ▸ human verdict ts ▸
+  // result-media ts ▸ the round's batch date. (round = iteration layer, not a date bucket)
   const cardDate = (c: any) => {
+    for (const id of (branchObj(c.m, c.b)?.runIds || [])) { const t = runById[id]?.timing?.startedAt; if (t) return String(t).slice(0, 10); }
     const v = server?.[c.b]?.[c.r]?.[c.m.id]?.ts;
     const rs = results[resKey(c.m.id, c.b, c.r)]?.ts;
     return (v || rs || '').slice(0, 10) || roundDate[c.r] || '';
