@@ -52,6 +52,9 @@ export default function TestReport() {
   const [tag, setTag] = useState('');
   const [branches, setBranches] = useState<string[]>([]);
   const [status, setStatus] = useState<string[]>([]);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState('num');
   const [msOpen, setMsOpen] = useState(false);
   const [sel, setSel] = useState<any>(null); // {mId,b,r}
   const [light, setLight] = useState<string | null>(null);
@@ -88,6 +91,14 @@ export default function TestReport() {
   const curRound = (m: any, b: string) => { for (let i = rounds.length - 1; i >= 0; i--) if (hasData(modBR(m, b, rounds[i].id))) return rounds[i].id; return rounds.length ? rounds[rounds.length - 1].id : ''; };
   const modFor = (mId: string) => mods.find((m) => m.id === mId);
   const hasRes = (m: any, b: string, r: string, rd: any) => !!(rd && rd.image) || !!results[resKey(m.id, b, r)];
+  const roundDate = useMemo(() => Object.fromEntries(rounds.map((r) => [r.id, r.date])), [rounds]);
+  // a record's date = human verdict ts ▸ result-media ts ▸ the round's batch date (YYYY-MM-DD)
+  const cardDate = (c: any) => {
+    const v = server?.[c.b]?.[c.r]?.[c.m.id]?.ts;
+    const rs = results[resKey(c.m.id, c.b, c.r)]?.ts;
+    return (v || rs || '').slice(0, 10) || roundDate[c.r] || '';
+  };
+  const cardScore = (c: any) => { const us = server?.[c.b]?.[c.r]?.[c.m.id]?.score; return us != null ? us : (typeof c.rd?.aiScore === 'number' ? c.rd.aiScore : null); };
 
   const cards = useMemo(() => {
     const inMod = (m: any) => !modFilter || pad2(m.num) === pad2(modFilter) || m.id === modFilter;
@@ -101,8 +112,19 @@ export default function TestReport() {
     } else {
       list = sel.map((m) => { const b = viewBranch; const r = round || curRound(m, b); return { m, b, r, rd: modBR(m, b, r) }; });
     }
-    return list.filter((c) => c.rd).filter((c) => status.length === 0 || status.includes(statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd))));
-  }, [mods, branches, tag, round, ver, server, status, modFilter, results]);
+    let out = list.filter((c) => c.rd)
+      .filter((c) => status.length === 0 || status.includes(statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd))))
+      .filter((c) => { if (!from && !to) return true; const d = cardDate(c); if (!d) return false; return (!from || d >= from) && (!to || d <= to); });
+    const num = (c: any) => parseInt(pad2(c.m.num), 10) || 0;
+    const cmp: Record<string, (a: any, b: any) => number> = {
+      num: (a, b) => num(a) - num(b),
+      'date-desc': (a, b) => (cardDate(b) || '').localeCompare(cardDate(a) || '') || num(a) - num(b),
+      'date-asc': (a, b) => (cardDate(a) || '').localeCompare(cardDate(b) || '') || num(a) - num(b),
+      'score-desc': (a, b) => ((cardScore(b) ?? -1) - (cardScore(a) ?? -1)) || num(a) - num(b),
+      'score-asc': (a, b) => ((cardScore(a) ?? 999) - (cardScore(b) ?? 999)) || num(a) - num(b),
+    };
+    return [...out].sort(cmp[sort] || cmp.num);
+  }, [mods, branches, tag, round, ver, server, status, modFilter, results, from, to, sort]);
 
   const stats = useMemo(() => { const s: any = { total: cards.length, testing: 0, review: 0, reviewed: 0, ai: 0, aiN: 0 }; cards.forEach((c) => { s[statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd))]++; if (typeof c.rd.aiScore === 'number') { s.ai += c.rd.aiScore; s.aiN++; } }); return s; }, [cards, server, results]);
 
@@ -131,6 +153,21 @@ export default function TestReport() {
         <select value={ver} onChange={(e) => { setVer(e.target.value); setBranches([]); }}><option value={ALL_V}>全部版本</option>{versions.map((v) => <option key={v} value={v}>skill {v}</option>)}</select>
         <select value={tag} onChange={(e) => setTag(e.target.value)}><option value="">全部分类</option>{tags.map((t) => <option key={t}>{t}</option>)}</select>
         <LineSelect {...{ open: msOpen, setOpen: setMsOpen, modelGroups, branches, setBranches, mods, label: lineLabel }} />
+        <span className="sep" />
+        <span className="muted">日期</span>
+        <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} title="起始日期" />
+        <span className="muted">→</span>
+        <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} title="结束日期" />
+        {(from || to) && <button className="btn" onClick={() => { setFrom(''); setTo(''); }}>清除</button>}
+        <span className="sep" />
+        <span className="muted">排序</span>
+        <select value={sort} onChange={(e) => setSort(e.target.value)}>
+          <option value="num">编号 ↑</option>
+          <option value="date-desc">日期 新→旧</option>
+          <option value="date-asc">日期 旧→新</option>
+          <option value="score-desc">评分 高→低</option>
+          <option value="score-asc">评分 低→高</option>
+        </select>
         <span className="muted" style={{ marginLeft: 'auto' }}>显示 {cards.length}</span>
       </div>
       <div className="bar"><span className="stats">共 <b>{stats.total}</b> · <span className="pill" style={{ background: '#f0f1f4' }}>测试中 {stats.testing}</span> <span className="pill fix">待审核 {stats.review}</span> <span className="pill pass">已审核 {stats.reviewed}</span>{stats.aiN ? <> · 均 AI <b>{(stats.ai / stats.aiN).toFixed(1)}</b></> : null}</span></div>
@@ -153,6 +190,7 @@ export default function TestReport() {
                     {typeof c.rd.aiScore === 'number' && <span className="aiscore">AI {c.rd.aiScore}/10</span>}
                     {aiVerdict(c.rd) && <span className={'pill ' + aiVerdict(c.rd)}>AI {aiVerdict(c.rd)}</span>}
                     {uv && <span className={'pill ' + uv}>人工 {uv}</span>}
+                    {cardDate(c) && <span className="muted" style={{ fontSize: 11, marginLeft: 'auto' }}>📅 {cardDate(c)}</span>}
                   </div>
                   <div className="muted" style={{ fontSize: 12 }}>点击查看链路回溯 / 聊天记录 / 关联文件 →</div>
                 </div>
