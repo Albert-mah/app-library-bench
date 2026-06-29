@@ -47,14 +47,17 @@ export default function TestReport() {
   const [results, setResults] = useState<any>({});
   const [err, setErr] = useState('');
   const loadResults = () => getJSON('/api/test-results').then(setResults).catch(() => {});
-  const [round, setRound] = useState('');
+  const [roundSel, setRoundSel] = useState<string[]>([]); // [] = 全部轮次
+  const [roundOpen, setRoundOpen] = useState(false);
   const [ver, setVer] = useState(ALL_V);
   const [tag, setTag] = useState('');
   const [branches, setBranches] = useState<string[]>([]);
   const [status, setStatus] = useState<string[]>([]);
+  const [datePreset, setDatePreset] = useState('all'); // all | 7d | 30d | custom
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('num');
+  const [sortOpen, setSortOpen] = useState(false);
   const [msOpen, setMsOpen] = useState(false);
   const [sel, setSel] = useState<any>(null); // {mId,b,r}
   const [light, setLight] = useState<string | null>(null);
@@ -103,21 +106,26 @@ export default function TestReport() {
   };
   const cardScore = (c: any) => { const us = server?.[c.b]?.[c.r]?.[c.m.id]?.score; return us != null ? us : (typeof c.rd?.aiScore === 'number' ? c.rd.aiScore : null); };
 
+  const [df, dt] = useMemo(() => {
+    if (datePreset === 'custom') return [from, to];
+    if (datePreset !== '7d' && datePreset !== '30d') return ['', ''];
+    const now = new Date(); const iso = (x: Date) => x.toISOString().slice(0, 10);
+    const f = new Date(now); f.setDate(now.getDate() - (datePreset === '7d' ? 6 : 29));
+    return [iso(f), iso(now)];
+  }, [datePreset, from, to]);
+
   const cards = useMemo(() => {
     const inMod = (m: any) => !modFilter || pad2(m.num) === pad2(modFilter) || m.id === modFilter;
     const sel = mods.filter((m) => (branchAll || branches.some((b) => branchObj(m, b))) && (!tag || m.tag === tag) && inMod(m));
-    let list: any[];
-    if (modFilter) {
-      // single prototype → one card per test line (all records visible at a glance)
-      list = sel.flatMap((m) => modBranchIds(m)
-        .filter((b) => branchAll || branches.includes(b))
-        .map((b) => { const r = round || curRound(m, b); return { m, b, r, rd: modBR(m, b, r) }; }));
-    } else {
-      list = sel.map((m) => { const b = viewBranch; const r = round || curRound(m, b); return { m, b, r, rd: modBR(m, b, r) }; });
-    }
+    const scope = roundSel.length ? roundSel : rounds.map((r) => r.id);   // [] = 全部轮次
+    // one card per (module, line, round-in-scope) that has data — round = an iteration layer
+    const list = sel.flatMap((m) => {
+      const bs = modFilter ? modBranchIds(m).filter((b) => branchAll || branches.includes(b)) : [viewBranch];
+      return bs.flatMap((b) => scope.map((r) => ({ m, b, r, rd: modBR(m, b, r) })));
+    });
     let out = list.filter((c) => c.rd)
       .filter((c) => status.length === 0 || status.includes(statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd))))
-      .filter((c) => { if (!from && !to) return true; const d = cardDate(c); if (!d) return false; return (!from || d >= from) && (!to || d <= to); });
+      .filter((c) => { if (!df && !dt) return true; const d = cardDate(c); if (!d) return false; return (!df || d >= df) && (!dt || d <= dt); });
     const num = (c: any) => parseInt(pad2(c.m.num), 10) || 0;
     const cmp: Record<string, (a: any, b: any) => number> = {
       num: (a, b) => num(a) - num(b),
@@ -127,7 +135,7 @@ export default function TestReport() {
       'score-asc': (a, b) => ((cardScore(a) ?? 999) - (cardScore(b) ?? 999)) || num(a) - num(b),
     };
     return [...out].sort(cmp[sort] || cmp.num);
-  }, [mods, branches, tag, round, ver, server, status, modFilter, results, from, to, sort]);
+  }, [mods, branches, tag, roundSel, rounds, ver, server, status, modFilter, results, df, dt, sort, runById]);
 
   const stats = useMemo(() => { const s: any = { total: cards.length, testing: 0, review: 0, reviewed: 0, ai: 0, aiN: 0 }; cards.forEach((c) => { s[statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd))]++; if (typeof c.rd.aiScore === 'number') { s.ai += c.rd.aiScore; s.aiN++; } }); return s; }, [cards, server, results]);
 
@@ -148,8 +156,7 @@ export default function TestReport() {
 
       <div className="bar" style={{ gap: 10 }}>
         <span className="muted">轮次</span>
-        <button className={'btn' + (round === '' ? ' on' : '')} onClick={() => setRound('')}>最新</button>
-        {rounds.map((r) => <button key={r.id} className={'btn' + (round === r.id ? ' on' : '')} onClick={() => setRound(r.id)}>{r.id.toUpperCase()}</button>)}
+        <RoundSelect {...{ open: roundOpen, setOpen: setRoundOpen, rounds, roundSel, setRoundSel }} />
         <span className="sep" />
         {STATUS.map(([k, l]) => <button key={k} className={'btn' + (status.includes(k) ? ' on' : '')} onClick={() => setStatus((p) => p.includes(k) ? p.filter((x) => x !== k) : [...p, k])}>{l}</button>)}
         <span className="sep" />
@@ -158,19 +165,18 @@ export default function TestReport() {
         <LineSelect {...{ open: msOpen, setOpen: setMsOpen, modelGroups, branches, setBranches, mods, label: lineLabel }} />
         <span className="sep" />
         <span className="muted">日期</span>
-        <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} title="起始日期" />
-        <span className="muted">→</span>
-        <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} title="结束日期" />
-        {(from || to) && <button className="btn" onClick={() => { setFrom(''); setTo(''); }}>清除</button>}
-        <span className="sep" />
-        <span className="muted">排序</span>
-        <select value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="num">编号 ↑</option>
-          <option value="date-desc">日期 新→旧</option>
-          <option value="date-asc">日期 旧→新</option>
-          <option value="score-desc">评分 高→低</option>
-          <option value="score-asc">评分 低→高</option>
+        <select value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
+          <option value="all">全部时间</option>
+          <option value="7d">近 7 天</option>
+          <option value="30d">近 30 天</option>
+          <option value="custom">自定义…</option>
         </select>
+        {datePreset === 'custom' && <>
+          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} title="起始日期" />
+          <span className="muted">→</span>
+          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} title="结束日期" />
+        </>}
+        <SortMenu {...{ open: sortOpen, setOpen: setSortOpen, sort, setSort }} />
         <span className="muted" style={{ marginLeft: 'auto' }}>显示 {cards.length}</span>
       </div>
       <div className="bar"><span className="stats">共 <b>{stats.total}</b> · <span className="pill" style={{ background: '#f0f1f4' }}>测试中 {stats.testing}</span> <span className="pill fix">待审核 {stats.review}</span> <span className="pill pass">已审核 {stats.reviewed}</span>{stats.aiN ? <> · 均 AI <b>{(stats.ai / stats.aiN).toFixed(1)}</b></> : null}</span></div>
@@ -181,7 +187,7 @@ export default function TestReport() {
             const stt = statusOf(server, c.m, c.r, c.b, c.rd, hasRes(c.m, c.b, c.r, c.rd));
             const uv = uVerdict(server, c.m.id, c.r, c.b);
             return (
-              <div className="card tr-card" key={c.m.id + c.b} onClick={() => setSel({ mId: c.m.id, b: c.b, r: c.r })}>
+              <div className="card tr-card" key={c.m.id + c.b + c.r} onClick={() => setSel({ mId: c.m.id, b: c.b, r: c.r })}>
                 <div className="thumb tr-thumb" style={{ backgroundImage: c.rd.image ? `url(${imgSrc(c.rd.image)})` : '' }}>
                   <span className="num">#{pad2(c.m.num)}</span>
                   <span className="rbadge">{c.r.toUpperCase()} · {gLabel(mods, c.b)}</span>
@@ -224,6 +230,39 @@ function LineSelect({ open, setOpen, modelGroups, branches, setBranches, mods, l
           <div className="ms-gh" onClick={() => groupAll(g.branches)}><b>{g.group}</b> <span className="muted">全选</span></div>
           {g.branches.map((b: string) => <label className="ms-it" key={b}><input type="checkbox" checked={branches.includes(b)} onChange={() => toggle(b)} />{gLabel(mods, b)} <span className="muted">[{b}]</span></label>)}
         </div>)}
+      </div>}
+    </div>
+  );
+}
+
+// round = an ITERATION layer (r1 first build → r2/r3 after user-review feedback), NOT a date
+// bucket. Multi-select; [] = all rounds. (See AGENTS.md §8 "Round".)
+function RoundSelect({ open, setOpen, rounds, roundSel, setRoundSel }: any) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { const h = (e: any) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }; document.addEventListener('click', h); return () => document.removeEventListener('click', h); }, [setOpen]);
+  const allIds = rounds.map((r: any) => r.id);
+  const toggle = (id: string) => setRoundSel((p: string[]) => { const cur = p.length ? p : allIds; const next = cur.includes(id) ? cur.filter((x: string) => x !== id) : [...cur, id]; return next.length === allIds.length ? [] : next; });
+  return (
+    <div className="ms" ref={ref}>
+      <button className="btn" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>轮次:{roundSel.length === 0 ? '全部' : roundSel.length + ' 选'} ▾</button>
+      {open && <div className="ms-pop" onClick={(e) => e.stopPropagation()}>
+        <div className="ms-top"><button className="btn" onClick={() => setRoundSel([])}>全部轮次</button><button className="btn primary" onClick={() => setOpen(false)}>完成</button></div>
+        {rounds.map((r: any) => <label className="ms-it" key={r.id}><input type="checkbox" checked={roundSel.length === 0 || roundSel.includes(r.id)} onChange={() => toggle(r.id)} />{r.id.toUpperCase()} <span className="muted">{r.label || ''} {r.date || ''}</span></label>)}
+      </div>}
+    </div>
+  );
+}
+
+const SORTS: [string, string][] = [['num', '编号 ↑'], ['date-desc', '日期 新→旧'], ['date-asc', '日期 旧→新'], ['score-desc', '评分 高→低'], ['score-asc', '评分 低→高']];
+function SortMenu({ open, setOpen, sort, setSort }: any) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { const h = (e: any) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }; document.addEventListener('click', h); return () => document.removeEventListener('click', h); }, [setOpen]);
+  const cur = SORTS.find((s) => s[0] === sort);
+  return (
+    <div className="ms" ref={ref}>
+      <button className="btn sort-ic" title={'排序:' + (cur ? cur[1] : '')} onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>⇅</button>
+      {open && <div className="ms-pop" style={{ minWidth: 150, left: 'auto', right: 0 }} onClick={(e) => e.stopPropagation()}>
+        {SORTS.map(([k, l]) => <label className="ms-it" key={k}><input type="radio" name="sortby" checked={sort === k} onChange={() => { setSort(k); setOpen(false); }} />{l}</label>)}
       </div>}
     </div>
   );

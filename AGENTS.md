@@ -178,10 +178,19 @@ concept is an **experiment**, converged across what used to be "test center" (bu
 
 ```
 subject (prototype: kind+content, dataType, category, tags)
-   └─ batch / test line          (a dispatch — model × flow, or a review branch)
-        └─ run                    (one CLI build/exec → record: prompt/time/rounds/errors/chat/artifacts)
-             └─ review            (AI self-review + human verdict/score/note)
+   └─ test line (branch: model × flow, e.g. main / blind / bench-*)
+        └─ round  r1 → r2 → r3   ← an ITERATION layer (see below)
+             └─ run + review      (the build attempt + AI self-review / human verdict)
 ```
+
+> **Round (轮次) — read this, it is mis-read often.** A round is an **iteration layer driven by
+> user feedback**, NOT a date batch. `r1` = the first build of a test line. The human reviews r1
+> → leaves feedback → the AI iterates → that produces `r2`; another review → `r3`. Most lines stop
+> at `r1` (no iteration). So in the experiment tree, rounds are nested child layers, usually shallow.
+> A record's `test` field encodes round+status: `r1review` (built, awaiting human), `r1pass`,
+> `r2review`, … A round is **not** tied to a calendar date — each record's real date comes from its
+> linked run's `startedAt` (via `branch.runIds`); the global `rounds[].date` is only a legacy hint.
+> When ingesting a fresh first build, wire it as **r1** (`test=r1review`), never as a new date-batch round.
 
 - **Subject (prototype)** is multimodal: `kind ∈ html | prompt | info | composite` + `content`;
   classified by `dataType` (html / prompt+材料) and `category` (build 搭建 / experiment 实验 / other).

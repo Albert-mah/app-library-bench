@@ -38,13 +38,21 @@ app.use('/runs-shots', express.static(path.join(RUNS_DIR, 'shots'), { maxAge: '1
 
 // static assets: prototypes (NN-*.html), data (library.json…), images (thumbs/bench/…),
 // and the legacy pages under /legacy/*. extensions:['html'] lets /30-foo resolve to .html.
-app.use(express.static(WEB_DIR, { extensions: ['html'], maxAge: '1h' }));
+// JSON data (library.json, *-scores, test-results…) must revalidate so edits show on refresh
+// — they were being cached for 1h, which hid freshly-wired test records. Images stay cached.
+app.use(express.static(WEB_DIR, {
+  extensions: ['html'],
+  maxAge: '1h',
+  setHeaders: (res, p) => { if (p.endsWith('.json')) res.setHeader('Cache-Control', 'no-cache'); },
+}));
 
-// the React SPA + client-side-routing fallback (built to app/dist)
+// the React SPA + client-side-routing fallback (built to app/dist). Hashed assets cache
+// fine; index.html must NOT cache (else a new build's hashed bundle never loads).
 if (HAS_SPA) {
-  app.use(express.static(SPA_DIR, { maxAge: '1h' }));
+  app.use(express.static(SPA_DIR, { maxAge: '1h', setHeaders: (res, p) => { if (p.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache'); } }));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(SPA_INDEX);
   });
 }
