@@ -494,9 +494,16 @@ def cmd_collect(cfg, args):
         if not res:
             print(f"  - {r['id']}: no session found"); continue
         rec, transcript = res
-        # scrub any credentials that leaked into the captured text before persisting
-        rec = json.loads(redact(json.dumps(rec, ensure_ascii=False)))
-        transcript = json.loads(redact(json.dumps(transcript, ensure_ascii=False)))
+        # scrub any credentials that leaked into the captured text before persisting.
+        # redact each STRING FIELD individually — running redact() over serialized JSON can
+        # break the JSON itself (the password-value regex eats escaped quotes/braces).
+        def _redact_walk(o):
+            if isinstance(o, str): return redact(o)
+            if isinstance(o, list): return [_redact_walk(x) for x in o]
+            if isinstance(o, dict): return {k: _redact_walk(v) for k, v in o.items()}
+            return o
+        rec = _redact_walk(rec)
+        transcript = _redact_walk(transcript)
         # how much the supervisor ASSISTED this run (nudges / auto-approves) — for fair comparison
         iv = interventions.get(rec["id"], {})
         rec["interventions"] = {"nudges": iv.get("nudges", 0), "autoApprovals": iv.get("autoApprovals", 0),

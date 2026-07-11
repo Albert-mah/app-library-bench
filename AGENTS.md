@@ -153,7 +153,17 @@ genuinely-stuck ones moving, do nothing to the healthy ones.
   non-client User-Agents** — send `User-Agent: opencode/...`. `zen/v1` (non-go) → CreditsError;
   `zen/go/v1` → a 5-hour usage cap.
 - **Ingest is normalization, not driving.** Adapters read a CLI's own store and emit the
-  common record; that's why opencode and claude (and the next CLI) all land in one schema.
+  common record; that's why opencode, claude and codex (and the next CLI) all land in one schema.
+- **Codex CLI launch traps** (adapters.py `CodexAdapter`): (a) on a new version it shows an
+  **update menu whose default is "1. Update now"** — it eats the just-sent instruction and a blind
+  Enter would run a global npm update; send `3` (skip until next version) + Enter, then re-send the
+  instruction. (b) model is passed per-invocation (`codex -m <model>`), never rewrite the user's
+  `~/.codex/config.toml`. (c) sessions persist at `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`.
+  (d) the cpa.nocobase.ai gateway's 5.6 family is `gpt-5.6-sol` / `gpt-5.6-terra` / `gpt-5.6-luna`;
+  a "Model metadata not found, defaulting to fallback" warning at first reply is benign.
+- **TUI-not-ready eats the instruction** (any CLI): if right after launch the pane shows an empty
+  input box at ~0% context, the instruction landed before the TUI was ready — rebuild it
+  (`bench.build_instruction(recipe, run, pf)`) and re-send; don't assume it went through.
 - **Everything is first-class evidence.** Results are multimodal — image, html snippet, text,
   file. The run drawer renders each by `kind`. "Screenshot is primary" is only true for the
   build-test prototype; don't hard-code it.

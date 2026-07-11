@@ -370,6 +370,150 @@ class ClaudeAdapter(BaseAdapter):
         }
         return rec, transcript
 
+# ---------------------------------------------------------------- codex (OpenAI Codex CLI)
+class CodexAdapter(BaseAdapter):
+    """OpenAI Codex CLI (TUI). Model is passed per-invocation via `-m` (never rewrites the
+    user's ~/.codex/config.toml). Sessions persist as rollout-*.jsonl under ~/.codex/sessions/
+    YYYY/MM/DD/ — extract() parses that: session_meta (ids/cwd/cli_version), turn_context
+    (model), response_item message/function_call (transcript), event_msg token_count (usage)."""
+    name = "codex"
+    ready_pattern = r"[Cc]odex|OpenAI|context left|Ask.*anything|▌"
+
+    def start_cmd(self, run, cfg):
+        m = run.get("model")
+        if run.get("resume"):
+            base = "codex resume --last"
+        else:
+            base = f"codex -m {m}" if m else "codex"
+        # bench runs are autonomous into throwaway instances → bypass approvals+sandbox
+        # (nb CLI needs network + arbitrary shell; the workspace sandbox would break it)
+        if run.get("yolo", cfg.get("codexYolo", True)):
+            base += " --dangerously-bypass-approvals-and-sandbox"
+        return base
+
+    def _sessions_dir(self, cfg):
+        return expand(cfg.get("codexSessions", "~/.codex/sessions"))
+
+    def _files(self, cfg, limit=200):
+        return sorted(glob.glob(os.path.join(self._sessions_dir(cfg), "*", "*", "*", "rollout-*.jsonl")),
+                      key=os.path.getmtime, reverse=True)[:limit]
+
+    def _find_file(self, run, cfg):
+        """match by explicit sessionId in the filename, else newest file whose early user
+        message mentions the run's prompt-file basename."""
+        files = self._files(cfg)
+        if run.get("sessionId"):
+            cand = [f for f in files if run["sessionId"] in f]
+            if cand: return cand[0]
+        base = os.path.basename(run.get("promptFile") or "") or None
+        for path in files:
+            try:
+                blob = ""
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    for i, line in enumerate(fh):
+                        if i >= 30: break
+                        blob += line
+                if base and base in blob: return path
+            except Exception:
+                continue
+        return None
+
+    def discover(self, cfg, limit=200):
+        """historical codex bench sessions (those whose early turns reference a *.prompt file)."""
+        promptdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompts")
+        out = []
+        for path in self._files(cfg, limit):
+            sid, blob = os.path.basename(path)[:-6], ""
+            try:
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    for i, line in enumerate(fh):
+                        if i >= 30: break
+                        blob += line
+            except Exception:
+                continue
+            m = re.search(r"([\w./-]+\.prompt(?:\.txt)?)", blob)
+            if not m: continue
+            base = os.path.basename(m.group(1)); stem = re.sub(r"\.prompt(\.txt)?$", "", base)
+            pf = os.path.join(promptdir, base)
+            envm = re.search(r"-e\s+([a-z0-9_]+)\s+-y|env\s+\*\*([a-z0-9_]+)\*\*", blob)
+            out.append({"id": f"{stem}-cx-{sid[-6:]}", "sessionId": sid,
+                        "promptFile": pf if os.path.exists(pf) else None,
+                        "env": (envm.group(1) or envm.group(2)) if envm else None,
+                        "cli": "codex", "batch": re.sub(r"[-_]?\d+$", "", stem), "module": None})
+        return out
+
+    def extract(self, run, cfg):
+        path = self._find_file(run, cfg)
+        if not path: return None
+        transcript, rounds, tools, final_text, prompt_text, errors = [], 0, 0, "", None, []
+        model = cli_version = sid = None; t0 = t1 = None
+        tokens = {"input": 0, "output": 0, "reasoning": 0, "cacheRead": 0}
+        for line in open(path, encoding="utf-8", errors="replace"):
+            line = line.strip()
+            if not line: continue
+            try: r = json.loads(line)
+            except Exception: continue
+            ts = r.get("timestamp"); t0 = t0 or ts; t1 = ts or t1
+            t = r.get("type"); p = r.get("payload") or {}
+            if t == "session_meta":
+                sid = p.get("session_id") or p.get("id"); cli_version = p.get("cli_version")
+            elif t == "turn_context":
+                model = p.get("model") or model
+            elif t == "response_item":
+                pt = p.get("type")
+                if pt == "message":
+                    role = p.get("role"); c = p.get("content")
+                    txt = c if isinstance(c, str) else (
+                        " ".join(b.get("text", "") for b in c if isinstance(b, dict)) if isinstance(c, list) else "")
+                    if role == "user" and prompt_text is None and "<environment_context>" not in txt:
+                        prompt_text = txt
+                    if role == "assistant" and txt.strip():
+                        final_text = txt; rounds += 1
+                    if role in ("user", "assistant"):
+                        transcript.append({"t": "text", "role": role, "text": txt[:4000], "ts": ts})
+                elif pt in ("function_call", "custom_tool_call"):
+                    tools += 1
+                    transcript.append({"t": "tool", "tool": p.get("name"),
+                                       "cmd": str(p.get("arguments") or "")[:600], "ts": ts})
+                elif pt in ("function_call_output", "custom_tool_call_output"):
+                    out = p.get("output"); out_s = out if isinstance(out, str) else json.dumps(out or "")
+                    if ERR_SIG.search(out_s or ""):
+                        errors.append({"tool": "function_call_output", "cmd": "",
+                                       "msg": _first_err(out_s or ""), "ts": ts})
+                elif pt == "reasoning":
+                    summ = p.get("summary")
+                    txt = " ".join(s.get("text", "") for s in summ if isinstance(s, dict)) if isinstance(summ, list) else ""
+                    if txt: transcript.append({"t": "reasoning", "text": txt[:1500], "ts": ts})
+            elif t == "event_msg" and p.get("type") == "token_count":
+                u = ((p.get("info") or {}).get("total_token_usage") or {})
+                if u:  # keep the latest cumulative snapshot
+                    tokens = {"input": u.get("input_tokens"), "output": u.get("output_tokens"),
+                              "reasoning": u.get("reasoning_output_tokens"),
+                              "cacheRead": u.get("cached_input_tokens")}
+        prompt_file = run.get("promptFile")
+        pf_text = pf_sha = None
+        if prompt_file:
+            pf = prompt_file if os.path.isabs(prompt_file) else os.path.join(os.path.dirname(os.path.abspath(__file__)), prompt_file)
+            if os.path.exists(pf): pf_text = open(pf, encoding="utf-8").read(); pf_sha = _sha(pf_text)
+        model = run.get("model") or model
+        rec = {
+            "id": run["id"], "cli": "codex", "sessionId": sid or os.path.basename(path)[:-6],
+            "model": model, "provider": "openai",
+            "target": {"env": run.get("env")},
+            "lineage": _lineage(run, os.path.splitext(os.path.basename(run.get("promptFile") or ""))[0].replace(".prompt", "")),
+            "prompt": {"file": prompt_file, "sha256": pf_sha, "text": pf_text or prompt_text, "launchInstruction": prompt_text},
+            "tags": sorted(set((run.get("tags") or []) + [x for x in ["openai", _tier(model), "codex", run.get("env")] if x])),
+            "timing": {"startedAt": t0, "endedAt": t1, "durationSec": _dur_iso(t0, t1)},
+            "tokens": {"input": tokens.get("input"), "output": tokens.get("output"),
+                       "reasoning": tokens.get("reasoning"), "cacheRead": tokens.get("cacheRead"), "cacheWrite": None},
+            "cost": None, "rounds": rounds, "toolCalls": tools,
+            "errors": {"count": len(errors), "samples": errors[:30]},
+            "outcome": {"status": _status_from(final_text, transcript), "statusSource": "heuristic",
+                        "selfScore": _self_score(final_text), "finalText": final_text[:2000]},
+            "cliVersion": cli_version,
+        }
+        return rec, transcript
+
 # ---------------------------------------------------------------- helpers
 def _lineage(run, stem=None):
     """tree position: a prototype is dispatched as batches; a batch holds runs; a run can be
@@ -429,7 +573,7 @@ def _self_score(final_text):
     except Exception:
         return None
 
-ADAPTERS = {"opencode": OpencodeAdapter, "claude": ClaudeAdapter}
+ADAPTERS = {"opencode": OpencodeAdapter, "claude": ClaudeAdapter, "codex": CodexAdapter}
 def get_adapter(name):
     cls = ADAPTERS.get((name or "opencode").lower())
     if not cls: raise SystemExit(f"unknown cli adapter: {name} (have: {', '.join(ADAPTERS)})")

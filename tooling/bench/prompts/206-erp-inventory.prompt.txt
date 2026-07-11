@@ -1,0 +1,50 @@
+Build a lightweight but COMPLETE Trading ERP (purchasing + sales + inventory) in NocoBase — FULL AUTONOMY, no questions, end to end. Build into env **{ENV}** — every `nb api` call passes `-e {ENV} -y`. The instance is a CLEAN empty NocoBase (beta-full, commercial plugins available).
+
+First read the `nocobase-prototype-repro` skill (SKILL.md + references/) and `nocobase-app-discipline`.
+
+REFERENCE PROTOTYPE (match its layout + signature pages): http://localhost:8080/206-erp-inventory.html
+It embeds an authoritative `<script type="application/nb-spec+json">` spec (collections, pages, workflows, roles, users, aiEmployee, notes). HONOR that spec — it is the target.
+
+Deliver ALL FIVE layers, not just pages:
+
+1) DATA MODEL — snake_case collections; relation fields named as NOUNS, never `*_id`:
+- products: sku, name, category (enum: Electronics/Tools/Packaging/Office/Raw), unit, cost_price (number), sell_price (number), reorder_point (number), stock_on_hand (number — maintained by workflow), supplier (belongsTo suppliers)
+- suppliers: name, contact, email, phone, lead_time_days (number), rating (number 1-5)
+- customers: name, contact, email, phone, tier (enum: A/B/C)
+- purchase_orders: po_no, status (enum: draft/approved/received/closed), order_date (date), expected_date (date), total (number), supplier (belongsTo suppliers), owner (belongsTo users)
+- purchase_order_items: qty (number), unit_cost (number), subtotal (number), purchase_order (belongsTo purchase_orders), product (belongsTo products)
+- sales_orders: so_no, status (enum: draft/confirmed/fulfilled/closed), order_date (date), total (number), customer (belongsTo customers), owner (belongsTo users)
+- sales_order_items: qty (number), unit_price (number), subtotal (number), sales_order (belongsTo sales_orders), product (belongsTo products)
+- stock_movements: type (enum: in/out/adjust), qty (number), ref_type, ref_no, note (text), product (belongsTo products)
+SEED all-English data: >=14 products (several BELOW reorder_point so the alert list is non-empty), >=6 suppliers, >=6 customers, >=6 purchase_orders and >=6 sales_orders covering every status, >=12 stock_movements; make >=2 POs total >= 20000 to exercise the approval gate.
+
+2) PAGES (native-first; honor the prototype's region->block map) under a top-level "ERP" menu group:
+- Dashboard: KPI strip (inventory value, low-stock count, open POs, open SOs) + a low-stock ALERT list (products below reorder_point, with suggested reorder qty) + PO/SO status Chart blocks + a recent stock-movements list.
+- Products: Table (sku/name/category/unit/cost/price/stock_on_hand/reorder_point) with a low-stock pill filter (toolbar JS item) + Add; row -> drawer: product Details + supplier + a Stock Movements sub-table.
+- Purchase Orders: Table + Filter + Add; drawer: PO Details + a line-items sub-table + a "Receive" record action + an approval-status badge.
+- Sales Orders: Table + Filter + Add; drawer: SO Details + a line-items sub-table + a "Fulfill" record action.
+- Inventory: stock-levels Table (status pill) + the stock movements log (in/out/adjust).
+- Suppliers: Table + Filter.
+All drawer sub-tables auto-filter to the parent via `associationName` + `sourceId={{ctx.view.inputArgs.filterByTk}}`.
+
+3) WORKFLOWS (create AND enable):
+- "PO received": collection trigger on purchase_orders status->received -> for each line item, INCREMENT product.stock_on_hand by qty AND create a stock_movement (type=in, ref_type=PO, ref_no=po_no). Use the realtime increment/upsert pattern (read current stock, write current+qty).
+- "SO fulfilled": collection trigger on sales_orders status->fulfilled -> for each item, condition-check sufficient stock; if OK DECREMENT product.stock_on_hand + create stock_movement (type=out, ref_type=SO); if insufficient, block/flag.
+- "Low-stock alert": when product.stock_on_hand drops below reorder_point -> notify the purchaser + create a DRAFT purchase_order suggestion.
+- "PO approval": when a purchase_orders total >= 20000 -> a manager must approve before status can move to approved.
+
+4) ROLES / ACL (nb roles + data-permission scopes):
+- warehouse: manage receiving/fulfillment + stock_movements, read products/orders.
+- purchaser: CRUD purchase_orders + suppliers, read products; submit POs for approval; default view scoped to own POs.
+- sales: CRUD sales_orders + customers, read products.
+- manager: all records + approve POs.
+- admin: full access.
+Seed USERS and assign as owners: Admin User (admin/root), Dana Cole (manager), Sam Ortiz (purchaser), Jess Kim (sales), Rob Tan (warehouse). NOTE: a sub-table "+ Add" button obeys the CHILD collection's create permission — so when you grant a role create on purchase_orders, also grant create on purchase_order_items (same for sales_orders / sales_order_items), or the role can create the header but cannot add line items.
+
+5) AI EMPLOYEE "Ops Assistant" — configure it on the PRE-PROVISIONED LLM service. An OpenCode Zen gateway key is ALREADY configured on this instance as an `llmService` with `enabledModels`; USE it (do NOT create keys). Skills (string arrays): (a) "Reorder suggestion" — reads low-stock products + supplier lead times, suggests qty and formFills a DRAFT purchase_order grouped by supplier; (b) "Supplier performance summary"; (c) "Order summary" — summarize a PO/SO. Surface it as an AIEmployeeButtonModel on the Products page and the Purchase Order form.
+
+HONOR these NocoBase gotchas: belongsTo relations are NOUNS not `*_id`; drawer sub-tables use `associationName` + `sourceId`; stock increment/decrement via workflow realtime-upsert (update(batch) also chains triggers — guard against loops); every select->Tag mapping falls back to the raw value; seed every enum branch + some products below reorder_point; never `flowModels:update`.
+
+VERIFY before done: open each page in a fresh no-cache browser (inject `localStorage.NOCOBASE_TOKEN`), confirm every block renders with no console/page errors, and a visual pass vs the prototype. Exercise one PO Receive (stock goes up + movement logged) and one SO Fulfill (stock goes down).
+
+END with a FINAL REPORT: collections built; the signature page schemaUids (Dashboard + Products + Purchase Orders); workflows created + enabled (with the stock-linkage confirmed); roles + a one-line permission matrix; the AI employee id; `Self-Score: N` (0-10); and a short list of gaps/tradeoffs.

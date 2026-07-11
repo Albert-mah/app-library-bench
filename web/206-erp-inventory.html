@@ -1,0 +1,1232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trade ERP — Inventory</title>
+<style>
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --surface-2:#fafbfc;
+  --txt:#1f2430; --txt-mut:#6b7280; --txt-soft:#9aa1ad;
+  --border:#e7e9ee; --border-soft:#eef0f3;
+  --accent:#4f46e5; --accent-soft:#eef0ff;
+  --green:#10b981; --green-soft:#e7f8f1;
+  --amber:#f59e0b; --amber-soft:#fef3e2;
+  --blue:#0ea5e9; --blue-soft:#e2f4fd; --violet:#8b5cf6; --violet-soft:#f1ebff;
+  --slate:#64748b; --slate-soft:#eef0f3; --red:#ef4444; --red-soft:#fdecec;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 14px rgba(16,24,40,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.55 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt)}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+.app{display:grid;grid-template-columns:212px 1fr;min-height:100vh}
+/* ---- sidebar ---- */
+.side{background:var(--surface);border-right:1px solid var(--border);padding:16px 12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:9px;padding:6px 8px 14px;font-weight:700;font-size:15px}
+.brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#6366f1,#4f46e5);display:grid;place-items:center;color:#fff;font-weight:800;font-size:15px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;color:var(--txt-mut);font-weight:500;text-align:left;width:100%}
+.nav button svg{width:18px;height:18px;flex:0 0 auto}
+.nav button:hover{background:var(--surface-2);color:var(--txt)}
+.nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .ct{margin-left:auto;font-size:11px;background:#eef0f3;color:var(--txt-mut);border-radius:20px;padding:0 7px;font-weight:600}
+.nav button.on .ct{background:#fff;color:var(--accent)}
+.nav .sec{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--txt-soft);padding:12px 10px 4px}
+.side .me{margin-top:auto;display:flex;align-items:center;gap:9px;padding:8px;border-top:1px solid var(--border-soft)}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;flex:0 0 auto}
+/* ---- main ---- */
+.main{min-width:0;display:flex;flex-direction:column}
+.top{height:60px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 22px;position:sticky;top:0;z-index:5}
+.top h1{font-size:17px;font-weight:700}
+.top .sub{color:var(--txt-soft);font-size:12.5px}
+.search{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:7px 11px;width:260px;color:var(--txt-mut)}
+.search svg{width:15px;height:15px;flex:0 0 auto}
+.search input{border:0;background:none;outline:none;width:100%;font:inherit;color:var(--txt)}
+.btn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#fff;border-radius:9px;padding:8px 14px;font-weight:600;font-size:13px;box-shadow:var(--shadow)}
+.btn:hover{filter:brightness(1.07)}
+.btn svg{width:16px;height:16px}
+.btn.ghost{background:var(--surface);color:var(--txt);border:1px solid var(--border);box-shadow:none}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.ai{background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff}
+.btn.sm{padding:6px 11px;font-size:12.5px}
+.btn:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.body{padding:22px;flex:1}
+.view{display:none}.view.on{display:block;animation:fade .2s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* ---- KPI ---- */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:15px 16px;box-shadow:var(--shadow)}
+.kpi .kl{color:var(--txt-mut);font-size:12px;font-weight:500;display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.kpi .kl .dot{width:8px;height:8px;border-radius:50%}
+.kpi .kv{font-size:25px;font-weight:750;letter-spacing:-.4px}
+.kpi .kd{font-size:11.5px;color:var(--txt-soft);margin-top:3px}
+.kpi .kd b{color:var(--green)}
+.kpi .kd b.warn{color:var(--amber)}
+.grid2{display:grid;grid-template-columns:1.5fr 1fr;gap:16px}
+.grid2.even{grid-template-columns:1fr 1fr}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow)}
+.card .hd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border-soft)}
+.card .hd h3{font-size:14px;font-weight:700}
+.card .hd .lk{font-size:12.5px;color:var(--accent);font-weight:600;cursor:pointer}
+.card .bd{padding:8px 16px 14px}
+/* chart bars */
+.fn{display:flex;flex-direction:column;gap:11px;padding:14px 16px}
+.fn .row{display:grid;grid-template-columns:104px 1fr 84px;align-items:center;gap:10px;font-size:12.5px}
+.fn .nm{color:var(--txt-mut);display:flex;align-items:center;gap:7px}.fn .nm .dot{width:8px;height:8px;border-radius:3px}
+.fn .bar{height:22px;background:var(--surface-2);border-radius:6px;overflow:hidden;position:relative}
+.fn .bar i{display:block;height:100%;border-radius:6px;transition:width .5s}
+.fn .vl{text-align:right;font-weight:700}
+.fn .vl small{color:var(--txt-soft);font-weight:600;font-size:11px}
+/* feed / alert list */
+.feed{display:flex;flex-direction:column}
+.feed .it{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--border-soft)}
+.feed .it:last-child{border-bottom:0}
+.tic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:0 0 auto;font-weight:800;font-size:11px}
+.tic svg{width:15px;height:15px}
+.feed .it .tx{min-width:0;flex:1}
+.feed .it .tx .s{font-weight:600;font-size:13px}
+.feed .it .tx .m{color:var(--txt-soft);font-size:11.5px;margin-top:1px}
+.alert{display:flex;gap:11px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border-soft)}
+.alert:last-child{border-bottom:0}
+.alert .sq{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;font-weight:800;font-size:11px;color:#fff}
+.alert .ax{flex:1;min-width:0}
+.alert .ax .s{font-weight:600;font-size:13px}
+.alert .ax .m{color:var(--txt-soft);font-size:11.5px;margin-top:1px}
+.alert .sug{text-align:right;flex:0 0 auto}
+.alert .sug .q{font-weight:750;font-size:14px}
+.alert .sug .l{font-size:10.5px;color:var(--txt-soft)}
+.tag{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:2px 9px;white-space:nowrap}
+.pill{font-size:10.5px;font-weight:600;border-radius:20px;padding:1px 8px}
+/* ---- table ---- */
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
+.tbl th{text-align:left;color:var(--txt-mut);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap}
+.tbl td{padding:11px 14px;border-bottom:1px solid var(--border-soft);white-space:nowrap}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr.clk{cursor:pointer}
+.tbl tbody tr.clk:hover{background:var(--surface-2)}
+.tbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl th.num{text-align:right}
+.lead{display:flex;align-items:center;gap:10px}
+.lead .sq{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:10px;flex:0 0 auto}
+.lead .nm{font-weight:600}.lead .su{color:var(--txt-soft);font-size:11.5px}
+.toolbar{display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap}
+.seg{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{padding:7px 13px;font-size:12.5px;color:var(--txt-mut);font-weight:600;border-right:1px solid var(--border)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--accent);color:#fff}
+.tcount{font-weight:600;color:var(--txt-mut);font-size:13px}
+.stars{color:#f59e0b;letter-spacing:1px;font-size:12px}
+.stars .off{color:#d7dbe2}
+/* ---- drawer & modal ---- */
+.scrim{position:fixed;inset:0;background:rgba(20,24,33,.42);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100vh;width:460px;max-width:94vw;background:var(--surface);box-shadow:-8px 0 30px rgba(16,24,40,.14);transform:translateX(100%);transition:.26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.drawer.wide{width:660px}
+.dh{display:flex;align-items:flex-start;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border-soft)}
+.dh .sq{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:0 0 auto}
+.dh .co{font-size:17px;font-weight:750}
+.dh .nm{color:var(--txt-mut);font-size:12.5px;margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dh .x{margin-left:auto;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--txt-mut)}
+.dh .x:hover{background:var(--surface-2)}
+.dbd{padding:18px 20px;overflow:auto;flex:1}
+.cstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.cstrip .cs{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.cstrip .cv{font-size:18px;font-weight:750;letter-spacing:-.3px}
+.cstrip .cl{font-size:11px;color:var(--txt-mut);margin-top:2px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:13px}
+.kv .k{color:var(--txt-mut)}.kv .v{font-weight:600;text-align:right}
+.sec-t{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--txt-soft);margin:18px 0 10px;display:flex;align-items:center;justify-content:space-between}
+.subtbl{width:100%;border-collapse:collapse;font-size:12.5px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.subtbl th{text-align:left;background:var(--surface-2);color:var(--txt-mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;border-bottom:1px solid var(--border)}
+.subtbl td{padding:8px 10px;border-bottom:1px solid var(--border-soft)}
+.subtbl tr:last-child td{border-bottom:0}
+.subtbl td.num,.subtbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+.subtbl tfoot td{font-weight:750;background:var(--surface-2)}
+.dactions{display:flex;gap:9px;padding:14px 20px;border-top:1px solid var(--border-soft);flex-wrap:wrap}
+.banner{border-radius:10px;padding:10px 12px;font-size:12.5px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-46%) scale(.97);opacity:0;pointer-events:none;transition:.2s;z-index:50;background:var(--surface);border-radius:15px;width:540px;max-width:94vw;box-shadow:0 24px 60px rgba(16,24,40,.24);display:flex;flex-direction:column;max-height:90vh}
+.modal.on{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
+.modal.big{width:640px}
+.mh{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border-soft)}
+.mh h3{font-size:16px;font-weight:750}
+.mh .x{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--txt-mut)}
+.mh.ai{background:linear-gradient(135deg,#6d5cf0,#8b5cf6);color:#fff;border-bottom:0}
+.mh.ai .sub{font-size:11.5px;opacity:.85;font-weight:500}
+.mh.ai .x{color:#fff}
+.mb{padding:18px 20px;overflow:auto}
+.mf{display:flex;justify-content:flex-end;gap:9px;padding:14px 20px;border-top:1px solid var(--border-soft)}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:11.5px;font-weight:600;color:var(--txt-mut);margin-bottom:6px}
+.fld input,.fld select{width:100%;border:1px solid var(--border);border-radius:9px;padding:9px 11px;font:inherit;background:var(--surface);outline:none}
+.fld input:focus,.fld select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.empty{text-align:center;color:var(--txt-soft);font-size:13px;padding:22px 0}
+/* AI panel */
+.ai-note{background:var(--violet-soft);border:1px solid #e2d8fb;border-radius:11px;padding:12px 14px;font-size:12.5px;color:#5b4a9e;margin-bottom:14px}
+.ai-sec{font-size:12px;font-weight:700;color:var(--violet);text-transform:uppercase;letter-spacing:.4px;margin:16px 0 8px}
+/* blueprint */
+.bp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bp-full{grid-column:1/-1}
+.bp{background:var(--surface);border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow);padding:16px 18px}
+.bp h3{font-size:14px;font-weight:750;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.bp .lead-txt{color:var(--txt-mut);font-size:12.5px;margin-bottom:12px}
+.bp .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:0 0 auto}
+.bp table{width:100%;border-collapse:collapse;font-size:12px}
+.bp th{text-align:left;color:var(--txt-mut);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;padding:7px 8px;border-bottom:1px solid var(--border)}
+.bp td{padding:7px 8px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+.bp td code{background:var(--surface-2);border-radius:4px;padding:1px 5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px}
+.wf{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--border-soft)}
+.wf:last-child{border-bottom:0}
+.wf .n{width:24px;height:24px;border-radius:7px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:12px;flex:0 0 auto}
+.wf .t{font-weight:700;font-size:13px}
+.wf .d{color:var(--txt-mut);font-size:12px;margin-top:2px}
+.wf .trg{display:inline-block;background:var(--amber-soft);color:#b45309;border-radius:5px;padding:1px 6px;font-size:11px;font-weight:600;margin-top:5px}
+@media(max-width:1080px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2,.grid2.even,.bp-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.app{grid-template-columns:1fr}.side{display:none}.kpis{grid-template-columns:1fr 1fr}.search{display:none}}
+/* ===== spec viewer (reusable) ===== */
+.specbtn{position:fixed;right:18px;bottom:18px;z-index:60;background:#1f2430;color:#fff;border-radius:24px;padding:10px 16px;font-weight:600;font-size:13px;box-shadow:0 6px 20px rgba(16,24,40,.22);cursor:pointer;border:0}
+.specbtn:hover{background:#4f46e5}
+.spec-overlay{position:fixed;inset:0;background:rgba(20,24,33,.5);z-index:61;display:none;justify-content:flex-end}
+.spec-overlay.on{display:flex}
+.spec-panel{width:780px;max-width:96vw;background:#fff;height:100vh;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(16,24,40,.2)}
+.spec-h{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid #eef0f3}
+.spec-h b{font-size:15px}.spec-h .spec-sub{color:#9aa1ad;font-size:12px}
+.spec-h .spec-x{margin-left:8px;width:30px;height:30px;border-radius:8px;border:0;background:none;cursor:pointer;color:#6b7280;font-size:16px}
+.spec-lang{margin-left:auto;display:inline-flex;border:1px solid #e7e9ee;border-radius:7px;overflow:hidden}
+.spec-lang button{border:0;background:#fff;padding:4px 11px;font-size:12px;cursor:pointer;color:#6b7280}
+.spec-lang button.on{background:#1f2430;color:#fff}
+.spec-h .spec-x:hover{background:#f0f1f4}
+.spec-doc{padding:18px 24px 60px;overflow:auto;font-size:13.5px;line-height:1.62;color:#1f2430}
+.spec-doc h1{font-size:20px;margin:18px 0 8px}
+.spec-doc h2{font-size:17px;margin:20px 0 8px;padding-top:10px;border-top:1px solid #eef0f3}
+.spec-doc h3{font-size:15px;margin:14px 0 6px}
+.spec-doc h4{font-size:13.5px;margin:12px 0 4px;color:#4b5563}
+.spec-doc p{margin:6px 0}.spec-doc ul{margin:6px 0 6px 20px}.spec-doc li{margin:2px 0}
+.spec-doc code{background:#f0f1f4;border-radius:4px;padding:1px 5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.spec-doc strong{font-weight:700}
+.spec-doc hr{border:0;border-top:1px solid #e7e9ee;margin:16px 0}
+.spec-doc blockquote{border-left:3px solid #c7cbd4;margin:8px 0;padding:4px 12px;color:#4b5563;background:#fafbfc}
+.spec-doc table{border-collapse:collapse;width:100%;margin:10px 0;font-size:12.5px}
+.spec-doc th,.spec-doc td{border:1px solid #e7e9ee;padding:6px 9px;text-align:left;vertical-align:top}
+.spec-doc th{background:#f6f7f9;font-weight:700}
+.spec-doc a{color:#4f46e5}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="logo">T</span> Trade ERP</div>
+    <nav class="nav" id="nav">
+      <button data-v="dashboard" class="on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard</button>
+      <button data-v="products">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></svg>
+        Products <span class="ct" id="ct-products">0</span></button>
+      <button data-v="purchase">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H3"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
+        Purchase Orders <span class="ct" id="ct-po">0</span></button>
+      <button data-v="sales">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v4H4zM5 9v10h14V9M9 13h6"/></svg>
+        Sales Orders <span class="ct" id="ct-so">0</span></button>
+      <button data-v="inventory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4zM4 7l2-3h12l2 3M9 12h6"/></svg>
+        Inventory</button>
+      <button data-v="suppliers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21V8l6-4 6 4v13M15 21V11l6 0v10M6 12h3M6 16h3"/></svg>
+        Suppliers <span class="ct" id="ct-sup">0</span></button>
+      <div class="sec">Reference</div>
+      <button data-v="blueprint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M3.5 9h17M9 9v11.5"/></svg>
+        Blueprint</button>
+    </nav>
+    <div class="me"><span class="av" style="background:#4f46e5">DC</span><div><div style="font-weight:600;font-size:12.5px">Dana Cole</div><div style="color:var(--txt-soft);font-size:11px">Operations Manager</div></div></div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <div><h1 id="title">Dashboard</h1><div class="sub" id="subtitle">Purchasing, sales and stock at a glance</div></div>
+      <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg><input id="q" placeholder="Search this page…"></div>
+      <button class="btn" id="newBtn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg> <span id="newLbl">New</span></button>
+    </header>
+    <div class="body">
+      <section class="view on" id="v-dashboard"></section>
+      <section class="view" id="v-products"></section>
+      <section class="view" id="v-purchase"></section>
+      <section class="view" id="v-sales"></section>
+      <section class="view" id="v-inventory"></section>
+      <section class="view" id="v-suppliers"></section>
+      <section class="view" id="v-blueprint"></section>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="modal" id="modal"></div>
+
+<script>
+/* ============ seed data ============ */
+const TODAY='2026-07-10';
+const CATS=['Electronics','Tools','Packaging','Office','Raw'];
+const CAT_COLOR={Electronics:'#0ea5e9',Tools:'#f59e0b',Packaging:'#10b981',Office:'#8b5cf6',Raw:'#64748b'};
+const USERS=['Admin User','Dana Cole','Sam Ortiz','Jess Kim','Rob Tan'];
+
+let suppliers=[
+  {id:1,name:'Shenzhen Bright Electronics',contact:'Lena Zhou',email:'lena@szbright.com',phone:'+86 755 8123 4567',lead:14,rating:4.6},
+  {id:2,name:'Ironclad Tools Ltd',contact:'Mark Reeves',email:'m.reeves@ironcladtools.com',phone:'+1 216 555 0198',lead:21,rating:4.1},
+  {id:3,name:'GreenPack Materials',contact:'Sofia Marin',email:'sofia@greenpack.io',phone:'+34 91 555 0132',lead:7,rating:4.8},
+  {id:4,name:'Office Depot Supply Co',contact:'Trevor Hall',email:'t.hall@officedepotsupply.com',phone:'+1 800 555 0144',lead:5,rating:3.6},
+  {id:5,name:'Nordic Raw Metals',contact:'Erik Larsen',email:'erik@nordicraw.se',phone:'+46 8 555 0177',lead:30,rating:4.2},
+  {id:6,name:'Peak Components Inc',contact:'Grace Underwood',email:'grace@peakcomponents.com',phone:'+1 408 555 0161',lead:10,rating:3.9},
+];
+const supById=id=>suppliers.find(s=>s.id===id);
+
+let products=[
+  {id:1,sku:'EL-1001',name:'USB-C Charger 65W',cat:'Electronics',unit:'pc',cost:8.50,price:19.99,reorder:40,stock:120,supId:1},
+  {id:2,sku:'EL-1002',name:'Bluetooth Speaker Mini',cat:'Electronics',unit:'pc',cost:14.00,price:34.99,reorder:30,stock:18,supId:6},
+  {id:3,sku:'EL-1003',name:'Wireless Mouse',cat:'Electronics',unit:'pc',cost:5.20,price:14.99,reorder:50,stock:210,supId:6},
+  {id:4,sku:'EL-1004',name:'HDMI Cable 2m',cat:'Electronics',unit:'pc',cost:2.10,price:8.99,reorder:60,stock:45,supId:1},
+  {id:5,sku:'TL-2001',name:'Cordless Drill 18V',cat:'Tools',unit:'pc',cost:42.00,price:89.99,reorder:15,stock:22,supId:2},
+  {id:6,sku:'TL-2002',name:'Screwdriver Set 32pc',cat:'Tools',unit:'set',cost:9.50,price:24.99,reorder:25,stock:8,supId:2},
+  {id:7,sku:'TL-2003',name:'Measuring Tape 5m',cat:'Tools',unit:'pc',cost:1.80,price:6.99,reorder:40,stock:130,supId:2},
+  {id:8,sku:'PK-3001',name:'Corrugated Box M',cat:'Packaging',unit:'pc',cost:0.45,price:1.20,reorder:500,stock:320,supId:3},
+  {id:9,sku:'PK-3002',name:'Bubble Wrap Roll',cat:'Packaging',unit:'roll',cost:6.00,price:15.50,reorder:40,stock:95,supId:3},
+  {id:10,sku:'PK-3003',name:'Packing Tape Clear',cat:'Packaging',unit:'roll',cost:0.90,price:2.99,reorder:100,stock:60,supId:3},
+  {id:11,sku:'OF-4001',name:'A4 Paper Ream',cat:'Office',unit:'ream',cost:3.20,price:6.99,reorder:80,stock:240,supId:4},
+  {id:12,sku:'OF-4002',name:'Gel Pen Black 12pk',cat:'Office',unit:'pack',cost:2.40,price:5.99,reorder:60,stock:33,supId:4},
+  {id:13,sku:'RW-5001',name:'Aluminium Sheet 1m²',cat:'Raw',unit:'sheet',cost:12.00,price:22.00,reorder:30,stock:40,supId:5},
+  {id:14,sku:'RW-5002',name:'Steel Rod 6mm',cat:'Raw',unit:'m',cost:4.50,price:9.50,reorder:50,stock:20,supId:5},
+];
+const prodById=id=>products.find(p=>p.id===id);
+
+let customers=[
+  {id:1,name:'Metro Hardware Stores',contact:'Alan Pierce',email:'alan@metrohardware.com',phone:'+1 312 555 0110',tier:'A'},
+  {id:2,name:'Cedar Valley Retail',contact:'Nina Brooks',email:'nina@cedarvalley.com',phone:'+1 503 555 0122',tier:'B'},
+  {id:3,name:'Blue Ocean Traders',contact:'Kofi Mensah',email:'kofi@blueoceantr.com',phone:'+1 646 555 0134',tier:'A'},
+  {id:4,name:'Sunrise Convenience',contact:'Rosa Nunez',email:'rosa@sunrisecvs.com',phone:'+1 915 555 0146',tier:'C'},
+  {id:5,name:'Apex Builders Supply',contact:'Dylan Wright',email:'dylan@apexbuilders.com',phone:'+1 704 555 0158',tier:'B'},
+  {id:6,name:'Harbor Electronics Mart',contact:'Priya Anand',email:'priya@harbormart.com',phone:'+1 206 555 0170',tier:'A'},
+];
+const custById=id=>customers.find(c=>c.id===id);
+
+let pos=[
+  {id:101,no:'PO-2026-0012',supId:2,status:'draft',order:'2026-07-08',expected:'2026-07-29',owner:'Sam Ortiz'},
+  {id:102,no:'PO-2026-0011',supId:1,status:'approved',order:'2026-07-05',expected:'2026-07-19',owner:'Sam Ortiz'},
+  {id:103,no:'PO-2026-0010',supId:3,status:'received',order:'2026-06-28',expected:'2026-07-05',owner:'Sam Ortiz'},
+  {id:104,no:'PO-2026-0009',supId:6,status:'closed',order:'2026-06-15',expected:'2026-06-25',owner:'Sam Ortiz'},
+  {id:105,no:'PO-2026-0008',supId:4,status:'draft',order:'2026-07-09',expected:'2026-07-14',owner:'Sam Ortiz'},
+  {id:106,no:'PO-2026-0007',supId:5,status:'approved',order:'2026-07-02',expected:'2026-08-01',owner:'Sam Ortiz'},
+];
+const poById=id=>pos.find(p=>p.id===id);
+let poItems=[
+  {id:1,poId:101,prodId:5,qty:30,cost:42.00},{id:2,poId:101,prodId:6,qty:60,cost:9.50},{id:3,poId:101,prodId:7,qty:150,cost:1.80},
+  {id:4,poId:102,prodId:1,qty:2000,cost:8.50},{id:5,poId:102,prodId:4,qty:4000,cost:2.10},
+  {id:6,poId:103,prodId:8,qty:6000,cost:0.45},{id:7,poId:103,prodId:10,qty:500,cost:0.90},{id:8,poId:103,prodId:9,qty:50,cost:6.00},
+  {id:9,poId:104,prodId:2,qty:400,cost:14.00},{id:10,poId:104,prodId:3,qty:600,cost:5.20},
+  {id:11,poId:105,prodId:11,qty:100,cost:3.20},{id:12,poId:105,prodId:12,qty:100,cost:2.40},
+  {id:13,poId:106,prodId:13,qty:1200,cost:12.00},{id:14,poId:106,prodId:14,qty:1600,cost:4.50},
+];
+const poItemsOf=id=>poItems.filter(i=>i.poId===id);
+const poTotal=id=>poItemsOf(id).reduce((a,i)=>a+i.qty*i.cost,0);
+
+let sos=[
+  {id:201,no:'SO-2026-0031',custId:1,status:'draft',order:'2026-07-09',owner:'Jess Kim'},
+  {id:202,no:'SO-2026-0030',custId:3,status:'confirmed',order:'2026-07-07',owner:'Jess Kim'},
+  {id:203,no:'SO-2026-0029',custId:2,status:'fulfilled',order:'2026-07-02',owner:'Jess Kim'},
+  {id:204,no:'SO-2026-0028',custId:6,status:'closed',order:'2026-06-20',owner:'Jess Kim'},
+  {id:205,no:'SO-2026-0027',custId:5,status:'confirmed',order:'2026-07-06',owner:'Jess Kim'},
+  {id:206,no:'SO-2026-0026',custId:4,status:'fulfilled',order:'2026-06-30',owner:'Jess Kim'},
+];
+const soById=id=>sos.find(s=>s.id===id);
+let soItems=[
+  {id:1,soId:201,prodId:5,qty:10,price:89.99},{id:2,soId:201,prodId:7,qty:50,price:6.99},
+  {id:3,soId:202,prodId:1,qty:100,price:19.99},{id:4,soId:202,prodId:3,qty:80,price:14.99},
+  {id:5,soId:203,prodId:9,qty:40,price:15.50},{id:6,soId:203,prodId:8,qty:1000,price:1.20},{id:7,soId:203,prodId:10,qty:200,price:2.99},
+  {id:8,soId:204,prodId:2,qty:100,price:34.99},{id:9,soId:204,prodId:1,qty:90,price:19.99},
+  {id:10,soId:205,prodId:6,qty:40,price:24.99},{id:11,soId:205,prodId:7,qty:80,price:6.99},
+  {id:12,soId:206,prodId:12,qty:100,price:5.99},{id:13,soId:206,prodId:11,qty:50,price:6.99},
+];
+const soItemsOf=id=>soItems.filter(i=>i.soId===id);
+const soTotal=id=>soItemsOf(id).reduce((a,i)=>a+i.qty*i.price,0);
+
+let movements=[
+  {id:1,prodId:8,type:'in',qty:6000,ref:'PO',refNo:'PO-2026-0010',note:'Goods receipt — GreenPack delivery',date:'2026-07-05'},
+  {id:2,prodId:10,type:'in',qty:500,ref:'PO',refNo:'PO-2026-0010',note:'Goods receipt — GreenPack delivery',date:'2026-07-05'},
+  {id:3,prodId:9,type:'in',qty:50,ref:'PO',refNo:'PO-2026-0010',note:'Goods receipt — GreenPack delivery',date:'2026-07-05'},
+  {id:4,prodId:9,type:'out',qty:40,ref:'SO',refNo:'SO-2026-0029',note:'Shipment to Cedar Valley Retail',date:'2026-07-03'},
+  {id:5,prodId:8,type:'out',qty:1000,ref:'SO',refNo:'SO-2026-0029',note:'Shipment to Cedar Valley Retail',date:'2026-07-03'},
+  {id:6,prodId:10,type:'out',qty:200,ref:'SO',refNo:'SO-2026-0029',note:'Shipment to Cedar Valley Retail',date:'2026-07-03'},
+  {id:7,prodId:12,type:'out',qty:100,ref:'SO',refNo:'SO-2026-0026',note:'Shipment to Sunrise Convenience',date:'2026-07-01'},
+  {id:8,prodId:11,type:'out',qty:50,ref:'SO',refNo:'SO-2026-0026',note:'Shipment to Sunrise Convenience',date:'2026-07-01'},
+  {id:9,prodId:3,type:'adjust',qty:5,ref:'Adjust',refNo:'ADJ-0044',note:'Cycle count correction (+5)',date:'2026-07-06'},
+  {id:10,prodId:6,type:'adjust',qty:-2,ref:'Adjust',refNo:'ADJ-0045',note:'Damaged in storage (-2)',date:'2026-07-04'},
+  {id:11,prodId:1,type:'in',qty:200,ref:'PO',refNo:'PO-2026-0006',note:'Goods receipt — Shenzhen Bright',date:'2026-06-22'},
+  {id:12,prodId:7,type:'in',qty:150,ref:'PO',refNo:'PO-2026-0006',note:'Goods receipt — Ironclad Tools',date:'2026-06-20'},
+];
+const movementsOf=id=>movements.filter(m=>m.prodId===id);
+let _mid=100;const nmid=()=>++_mid;
+let _pid=500;const npid=()=>++_pid;
+
+/* ============ helpers ============ */
+const $=s=>document.querySelector(s);
+const esc=s=>(''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2});
+const money2=n=>'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const num=n=>Number(n).toLocaleString('en-US');
+const colorFor=s=>['#4f46e5','#0ea5e9','#8b5cf6','#f59e0b','#10b981','#ec4899','#14b8a6','#64748b'][[...String(s)].reduce((a,c)=>a+c.charCodeAt(0),0)%8];
+const initials=n=>String(n).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const stockStatus=p=>p.stock<=0?'out':(p.stock<p.reorder?'low':'ok');
+const lowStock=()=>products.filter(p=>p.stock<p.reorder);
+const suggestQty=p=>Math.max(Math.ceil((p.reorder*2-p.stock)/5)*5,p.reorder-p.stock);
+const invValue=()=>products.reduce((a,p)=>a+p.stock*p.cost,0);
+const APPROVE_LIMIT=20000;
+
+const PO_ST={draft:['Draft','#eef0f3','#64748b'],approved:['Approved','#eef0ff','#4f46e5'],received:['Received','#e7f8f1','#10b981'],closed:['Closed','#edf0f2','#94a3b8']};
+const SO_ST={draft:['Draft','#eef0f3','#64748b'],confirmed:['Confirmed','#e2f4fd','#0ea5e9'],fulfilled:['Fulfilled','#e7f8f1','#10b981'],closed:['Closed','#edf0f2','#94a3b8']};
+const STK_ST={ok:['In stock','#e7f8f1','#10b981'],low:['Low stock','#fef3e2','#b45309'],out:['Out of stock','#fdecec','#ef4444']};
+const MV_ST={in:['In','#e7f8f1','#10b981'],out:['Out','#fdecec','#ef4444'],adjust:['Adjust','#f1ebff','#8b5cf6']};
+const pill=(m,k)=>{const s=m[k]||[k,'#eef0f3','#64748b'];return `<span class="tag" style="background:${s[1]};color:${s[2]}">${s[0]}</span>`;};
+const catTag=c=>`<span class="pill" style="background:${CAT_COLOR[c]}1a;color:${CAT_COLOR[c]}">${c}</span>`;
+function stars(r){let h='';for(let i=1;i<=5;i++)h+=`<span class="${i<=Math.round(r)?'':'off'}">★</span>`;return `<span class="stars">${h}</span> <span style="color:var(--txt-mut);font-size:11.5px">${r.toFixed(1)}</span>`;}
+function sq(cls,txt,bg){return `<span class="sq" style="background:${bg}">${txt}</span>`;}
+
+/* ============ filter state ============ */
+let F={prod:'all',po:'all',so:'all',inv:'all',sup:'all'};
+
+/* ============ render ============ */
+function renderAll(){renderDashboard();renderProducts();renderPurchase();renderSales();renderInventory();renderSuppliers();renderBlueprint();counts();applySearch();}
+function counts(){
+  $('#ct-products').textContent=products.length;
+  $('#ct-po').textContent=pos.filter(p=>p.status==='draft'||p.status==='approved').length;
+  $('#ct-so').textContent=sos.filter(s=>s.status==='draft'||s.status==='confirmed').length;
+  $('#ct-sup').textContent=suppliers.length;
+}
+
+/* ---- dashboard ---- */
+function renderDashboard(){
+  const low=lowStock();
+  const openPO=pos.filter(p=>p.status==='draft'||p.status==='approved');
+  const openSO=sos.filter(s=>s.status==='draft'||s.status==='confirmed');
+  const kpi=(label,dot,val,desc)=>`<div class="kpi"><div class="kl"><span class="dot" style="background:${dot}"></span>${label}</div><div class="kv">${val}</div><div class="kd">${desc}</div></div>`;
+  // low-stock alerts
+  const alertHtml=low.length?low.sort((a,b)=>(a.stock/a.reorder)-(b.stock/b.reorder)).map(p=>{const sup=supById(p.supId);
+    return `<div class="alert">
+      <span class="sq" style="background:${CAT_COLOR[p.cat]}">${p.sku.slice(0,2)}</span>
+      <div class="ax"><div class="s">${esc(p.name)} ${pill(STK_ST,stockStatus(p))}</div>
+        <div class="m">${num(p.stock)} on hand · reorder at ${num(p.reorder)} · ${esc(sup?sup.name:'—')} (${sup?sup.lead:'?'}d lead)</div></div>
+      <div class="sug"><div class="q">+${num(suggestQty(p))}</div><div class="l">suggested</div></div>
+    </div>`;}).join(''):'<div class="empty">All products above reorder point 🎉</div>';
+  // PO / SO status charts
+  const poChart=Object.keys(PO_ST).map(k=>{const arr=pos.filter(p=>p.status===k);const v=arr.reduce((a,p)=>a+poTotal(p.id),0);const mx=Math.max(...pos.map(p=>poTotal(p.id)),1)*pos.length/6+1;
+    const mxc=Math.max(...Object.keys(PO_ST).map(kk=>pos.filter(p=>p.status===kk).length),1);
+    return `<div class="row"><div class="nm"><span class="dot" style="background:${PO_ST[k][2]}"></span>${PO_ST[k][0]}</div>
+      <div class="bar"><i style="width:${Math.max(arr.length/mxc*100,4)}%;background:${PO_ST[k][2]}"></i></div>
+      <div class="vl">${arr.length} <small>${money(v)}</small></div></div>`;}).join('');
+  const soChart=Object.keys(SO_ST).map(k=>{const arr=sos.filter(s=>s.status===k);const v=arr.reduce((a,s)=>a+soTotal(s.id),0);
+    const mxc=Math.max(...Object.keys(SO_ST).map(kk=>sos.filter(s=>s.status===kk).length),1);
+    return `<div class="row"><div class="nm"><span class="dot" style="background:${SO_ST[k][2]}"></span>${SO_ST[k][0]}</div>
+      <div class="bar"><i style="width:${Math.max(arr.length/mxc*100,4)}%;background:${SO_ST[k][2]}"></i></div>
+      <div class="vl">${arr.length} <small>${money(v)}</small></div></div>`;}).join('');
+  // movements feed
+  const feed=movements.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,7).map(m=>{const p=prodById(m.prodId);const s=MV_ST[m.type];
+    const sign=m.type==='out'?'−':(m.type==='adjust'&&m.qty<0?'−':'+');
+    return `<div class="it"><span class="tic" style="background:${s[1]};color:${s[2]}">${m.type==='in'?'▼':m.type==='out'?'▲':'±'}</span>
+      <div class="tx"><div class="s">${esc(p?p.name:'—')} <span style="color:${s[2]};font-weight:700">${sign}${num(Math.abs(m.qty))}</span></div>
+        <div class="m">${esc(m.refNo)} · ${esc(m.note)}</div></div>
+      <span class="tag" style="background:${s[1]};color:${s[2]}">${m.date.slice(5)}</span></div>`;}).join('');
+
+  $('#v-dashboard').innerHTML=`
+    <div class="kpis">
+      ${kpi('Inventory value','#4f46e5',money(invValue()),products.length+' SKUs at cost')}
+      ${kpi('Low-stock items','#f59e0b',low.length,'<b class="warn">below reorder point</b>')}
+      ${kpi('Open POs','#0ea5e9',openPO.length,money(openPO.reduce((a,p)=>a+poTotal(p.id),0))+' on order')}
+      ${kpi('Open SOs','#10b981',openSO.length,money(openSO.reduce((a,s)=>a+soTotal(s.id),0))+' to fulfil')}
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="hd"><h3>Low-stock alerts</h3><span class="lk" onclick="openAI()">✨ AI reorder plan</span></div><div class="bd">${alertHtml}</div></div>
+      <div class="card"><div class="hd"><h3>Recent stock movements</h3><span class="lk" onclick="go('inventory')">Full log →</span></div><div class="bd"><div class="feed">${feed}</div></div></div>
+    </div>
+    <div class="grid2 even" style="margin-top:16px">
+      <div class="card"><div class="hd"><h3>Purchase orders by status</h3><span class="lk" onclick="go('purchase')">Open →</span></div><div class="fn">${poChart}</div></div>
+      <div class="card"><div class="hd"><h3>Sales orders by status</h3><span class="lk" onclick="go('sales')">Open →</span></div><div class="fn">${soChart}</div></div>
+    </div>`;
+}
+
+/* ---- products ---- */
+function renderProducts(){
+  const pillOpts=['all','low',...CATS];
+  const label=k=>k==='all'?'All':k==='low'?'Low stock':k;
+  const list=products.filter(p=>F.prod==='all'?true:F.prod==='low'?p.stock<p.reorder:p.cat===F.prod);
+  const rows=list.map(p=>{const sup=supById(p.supId);
+    return `<tr class="clk" onclick="openProduct(${p.id})">
+      <td><div class="lead"><span class="sq" style="background:${CAT_COLOR[p.cat]}">${p.sku.slice(0,2)}</span><div><div class="nm">${esc(p.name)}</div><div class="su">${esc(p.sku)} · ${esc(sup?sup.name:'—')}</div></div></div></td>
+      <td>${catTag(p.cat)}</td>
+      <td style="color:var(--txt-mut)">${esc(p.unit)}</td>
+      <td class="num">${money2(p.cost)}</td>
+      <td class="num">${money2(p.price)}</td>
+      <td class="num" style="font-weight:700">${num(p.stock)}</td>
+      <td class="num" style="color:var(--txt-mut)">${num(p.reorder)}</td>
+      <td>${pill(STK_ST,stockStatus(p))}</td>
+    </tr>`;}).join('');
+  const segs=pillOpts.map(k=>`<button class="${F.prod===k?'on':''}" onclick="setF('prod','${k}')">${label(k)}${k==='low'?' ('+lowStock().length+')':''}</button>`).join('');
+  $('#v-products').innerHTML=`
+    <div class="toolbar">
+      <div class="seg">${segs}</div>
+      <span class="tcount">${list.length} of ${products.length}</span>
+      <button class="btn ai sm" style="margin-left:auto" onclick="openAI()">✨ AI Assistant</button>
+      <button class="btn sm" onclick="openNewProduct()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg> Add product</button>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Product</th><th>Category</th><th>Unit</th><th class="num">Cost</th><th class="num">Price</th><th class="num">On hand</th><th class="num">Reorder</th><th>Status</th></tr></thead><tbody>${rows||'<tr><td colspan="8" class="empty">No products</td></tr>'}</tbody></table></div></div>`;
+}
+
+/* ---- purchase orders ---- */
+function renderPurchase(){
+  const opts=['all',...Object.keys(PO_ST)];
+  const list=pos.filter(p=>F.po==='all'||p.status===F.po).sort((a,b)=>new Date(b.order)-new Date(a.order));
+  const rows=list.map(p=>{const sup=supById(p.supId);const t=poTotal(p.id);const big=t>=APPROVE_LIMIT;
+    return `<tr class="clk" onclick="openPO(${p.id})">
+      <td style="font-weight:700">${esc(p.no)}</td>
+      <td>${esc(sup?sup.name:'—')}</td>
+      <td>${pill(PO_ST,p.status)}${big?' <span class="pill" style="background:#fef3e2;color:#b45309" title="≥ $20,000 needs manager approval">approval</span>':''}</td>
+      <td style="color:var(--txt-mut)">${p.order}</td>
+      <td style="color:var(--txt-mut)">${p.expected}</td>
+      <td class="num" style="font-weight:700">${money(t)}</td>
+    </tr>`;}).join('');
+  const segs=opts.map(k=>`<button class="${F.po===k?'on':''}" onclick="setF('po','${k}')">${k==='all'?'All':PO_ST[k][0]}</button>`).join('');
+  $('#v-purchase').innerHTML=`
+    <div class="toolbar"><div class="seg">${segs}</div><span class="tcount">${list.length} orders · ${money(list.reduce((a,p)=>a+poTotal(p.id),0))}</span>
+      <button class="btn sm" style="margin-left:auto" onclick="openNewPO()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg> New PO</button></div>
+    <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>PO No.</th><th>Supplier</th><th>Status</th><th>Order date</th><th>Expected</th><th class="num">Total</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">No purchase orders</td></tr>'}</tbody></table></div></div>`;
+}
+
+/* ---- sales orders ---- */
+function renderSales(){
+  const opts=['all',...Object.keys(SO_ST)];
+  const list=sos.filter(s=>F.so==='all'||s.status===F.so).sort((a,b)=>new Date(b.order)-new Date(a.order));
+  const rows=list.map(s=>{const c=custById(s.custId);
+    return `<tr class="clk" onclick="openSO(${s.id})">
+      <td style="font-weight:700">${esc(s.no)}</td>
+      <td><div class="lead"><span class="sq" style="width:26px;height:26px;font-size:10px;background:${colorFor(c?c.name:'')}">${initials(c?c.name:'?')}</span><span>${esc(c?c.name:'—')} <span class="pill" style="background:var(--surface-2);color:var(--txt-mut)">Tier ${c?c.tier:'?'}</span></span></div></td>
+      <td>${pill(SO_ST,s.status)}</td>
+      <td style="color:var(--txt-mut)">${s.order}</td>
+      <td class="num" style="font-weight:700">${money(soTotal(s.id))}</td>
+    </tr>`;}).join('');
+  const segs=opts.map(k=>`<button class="${F.so===k?'on':''}" onclick="setF('so','${k}')">${k==='all'?'All':SO_ST[k][0]}</button>`).join('');
+  $('#v-sales').innerHTML=`
+    <div class="toolbar"><div class="seg">${segs}</div><span class="tcount">${list.length} orders · ${money(list.reduce((a,s)=>a+soTotal(s.id),0))}</span>
+      <button class="btn sm" style="margin-left:auto" onclick="openNewSO()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg> New SO</button></div>
+    <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>SO No.</th><th>Customer</th><th>Status</th><th>Order date</th><th class="num">Total</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">No sales orders</td></tr>'}</tbody></table></div></div>`;
+}
+
+/* ---- inventory ---- */
+function renderInventory(){
+  const opts=['all','ok','low','out'];
+  const label={all:'All',ok:'In stock',low:'Low',out:'Out'};
+  const list=products.filter(p=>F.inv==='all'||stockStatus(p)===F.inv);
+  const rows=list.map(p=>`<tr class="clk" onclick="openProduct(${p.id})">
+      <td><div class="lead"><span class="sq" style="width:26px;height:26px;font-size:10px;background:${CAT_COLOR[p.cat]}">${p.sku.slice(0,2)}</span><div><div class="nm">${esc(p.name)}</div><div class="su">${esc(p.sku)}</div></div></div></td>
+      <td class="num" style="font-weight:700">${num(p.stock)}</td>
+      <td class="num" style="color:var(--txt-mut)">${num(p.reorder)}</td>
+      <td>${pill(STK_ST,stockStatus(p))}</td>
+    </tr>`).join('');
+  const segs=opts.map(k=>`<button class="${F.inv===k?'on':''}" onclick="setF('inv','${k}')">${label[k]}</button>`).join('');
+  const mv=movements.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).map(m=>{const p=prodById(m.prodId);const s=MV_ST[m.type];const sign=(m.type==='out'||m.qty<0)?'−':'+';
+    return `<tr><td style="color:var(--txt-mut)">${m.date}</td><td>${esc(p?p.name:'—')}</td><td>${pill(MV_ST,m.type)}</td>
+      <td class="num" style="font-weight:700;color:${s[2]}">${sign}${num(Math.abs(m.qty))}</td>
+      <td><code style="background:var(--surface-2);border-radius:4px;padding:1px 5px;font-size:11px">${esc(m.refNo)}</code></td>
+      <td style="color:var(--txt-mut)">${esc(m.note)}</td></tr>`;}).join('');
+  $('#v-inventory').innerHTML=`
+    <div class="grid2">
+      <div>
+        <div class="toolbar"><div class="seg">${segs}</div><span class="tcount">${list.length} SKUs</span></div>
+        <div class="card"><div class="tbl-wrap"><table class="tbl" style="min-width:auto"><thead><tr><th>Product</th><th class="num">On hand</th><th class="num">Reorder</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+      </div>
+      <div>
+        <div class="toolbar"><span class="tcount">Stock movements log · ${movements.length} entries</span></div>
+        <div class="card"><div class="tbl-wrap"><table class="tbl" style="min-width:auto"><thead><tr><th>Date</th><th>Product</th><th>Type</th><th class="num">Qty</th><th>Ref</th><th>Note</th></tr></thead><tbody>${mv}</tbody></table></div></div>
+      </div>
+    </div>`;
+}
+
+/* ---- suppliers ---- */
+function renderSuppliers(){
+  const opts=[['all','All'],['4','4★ & up'],['3','3★ & up']];
+  const list=suppliers.filter(s=>F.sup==='all'||s.rating>=+F.sup);
+  const rows=list.map(s=>{const pc=products.filter(p=>p.supId===s.id).length;
+    return `<tr class="clk" onclick="openSupplier(${s.id})">
+      <td><div class="lead"><span class="sq" style="background:${colorFor(s.name)}">${initials(s.name)}</span><div><div class="nm">${esc(s.name)}</div><div class="su">${pc} product${pc!==1?'s':''} supplied</div></div></div></td>
+      <td>${esc(s.contact)}</td>
+      <td style="color:var(--txt-mut)">${esc(s.email)}</td>
+      <td class="num">${s.lead} days</td>
+      <td>${stars(s.rating)}</td>
+    </tr>`;}).join('');
+  const segs=opts.map(o=>`<button class="${F.sup===o[0]?'on':''}" onclick="setF('sup','${o[0]}')">${o[1]}</button>`).join('');
+  $('#v-suppliers').innerHTML=`
+    <div class="toolbar"><div class="seg">${segs}</div><span class="tcount">${list.length} suppliers</span>
+      <button class="btn sm" style="margin-left:auto" onclick="openNewSupplier()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg> Add supplier</button></div>
+    <div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Supplier</th><th>Contact</th><th>Email</th><th class="num">Lead time</th><th>Rating</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function setF(g,v){F[g]=v;renderAll();}
+
+/* ============ drawers ============ */
+var _ctx=null;
+function refreshDrawer(){if(!_ctx)return;({product:openProduct,po:openPO,so:openSO,supplier:openSupplier})[_ctx.t](_ctx.id);}
+
+function openProduct(id){const p=prodById(id);if(!p)return;_ctx={t:'product',id};const sup=supById(p.supId);const mv=movementsOf(id).slice().sort((a,b)=>new Date(b.date)-new Date(a.date));
+  $('#drawer').classList.add('wide');
+  const mvRows=mv.length?mv.map(m=>{const s=MV_ST[m.type];const sign=(m.type==='out'||m.qty<0)?'−':'+';
+    return `<tr><td>${m.date}</td><td>${pill(MV_ST,m.type)}</td><td class="num" style="color:${s[2]};font-weight:700">${sign}${num(Math.abs(m.qty))}</td><td>${esc(m.refNo)}</td></tr>`;}).join(''):'<tr><td colspan="4" class="empty">No movements</td></tr>';
+  $('#drawer').innerHTML=`
+    <div class="dh"><span class="sq" style="background:${CAT_COLOR[p.cat]}">${p.sku.slice(0,3)}</span>
+      <div><div class="co">${esc(p.name)}</div><div class="nm">${esc(p.sku)} ${catTag(p.cat)} ${pill(STK_ST,stockStatus(p))}</div></div>
+      <button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="dbd">
+      <div class="cstrip">
+        <div class="cs"><div class="cv">${num(p.stock)}</div><div class="cl">On hand (${esc(p.unit)})</div></div>
+        <div class="cs"><div class="cv">${num(p.reorder)}</div><div class="cl">Reorder point</div></div>
+        <div class="cs"><div class="cv">${money(p.stock*p.cost)}</div><div class="cl">Stock value</div></div>
+      </div>
+      ${p.stock<p.reorder?`<div class="banner" style="background:var(--amber-soft);color:#b45309">⚠ Below reorder point — suggested reorder <b style="margin-left:4px">+${num(suggestQty(p))} ${esc(p.unit)}</b></div>`:''}
+      <div class="sec-t">Product</div>
+      <div class="kv"><span class="k">Unit cost</span><span class="v">${money2(p.cost)}</span></div>
+      <div class="kv"><span class="k">Sell price</span><span class="v">${money2(p.price)}</span></div>
+      <div class="kv"><span class="k">Margin</span><span class="v">${Math.round((p.price-p.cost)/p.price*100)}%</span></div>
+      <div class="sec-t">Supplier</div>
+      ${sup?`<div class="kv"><span class="k">Name</span><span class="v">${esc(sup.name)}</span></div>
+      <div class="kv"><span class="k">Lead time</span><span class="v">${sup.lead} days</span></div>
+      <div class="kv"><span class="k">Contact</span><span class="v">${esc(sup.contact)} · ${esc(sup.email)}</span></div>`:'<div class="empty">No supplier</div>'}
+      <div class="sec-t">Stock movements <span style="font-weight:600;color:var(--txt-soft);text-transform:none;letter-spacing:0">${mv.length} entries</span></div>
+      <table class="subtbl"><thead><tr><th>Date</th><th>Type</th><th class="num">Qty</th><th>Ref</th></tr></thead><tbody>${mvRows}</tbody></table>
+    </div>
+    <div class="dactions"><button class="btn ai" style="flex:1" onclick="openAI()">✨ Ask Ops Assistant to reorder</button></div>`;
+  openOverlay('drawer');
+}
+
+function openPO(id){const p=poById(id);if(!p)return;_ctx={t:'po',id};const sup=supById(p.supId);const items=poItemsOf(id);const t=poTotal(id);const big=t>=APPROVE_LIMIT;
+  $('#drawer').classList.add('wide');
+  const itemRows=items.map(i=>{const pr=prodById(i.prodId);
+    return `<tr><td>${esc(pr?pr.name:'—')}<div style="color:var(--txt-soft);font-size:11px">${esc(pr?pr.sku:'')}</div></td><td class="num">${num(i.qty)}</td><td class="num">${money2(i.cost)}</td><td class="num" style="font-weight:700">${money(i.qty*i.cost)}</td></tr>`;}).join('');
+  let actions='';
+  if(p.status==='draft'){actions=big
+    ?`<div class="banner" style="background:#fef3e2;color:#b45309;width:100%">⚠ Total ${money(t)} ≥ ${money(APPROVE_LIMIT)} — requires manager approval (workflow 4)</div><button class="btn" style="flex:1" onclick="approvePO(${id})">Manager approve →</button>`
+    :`<button class="btn" style="flex:1" onclick="approvePO(${id})">Approve →</button>`;}
+  else if(p.status==='approved'){actions=`<button class="btn" style="flex:1" onclick="receivePO(${id})">📦 Receive goods →</button>`;}
+  else if(p.status==='received'){actions=`<button class="btn ghost" style="flex:1" onclick="closePO(${id})">Close PO</button>`;}
+  else{actions=`<div style="color:var(--txt-soft);font-size:12.5px;padding:4px">PO is closed — no further action.</div>`;}
+  $('#drawer').innerHTML=`
+    <div class="dh"><span class="sq" style="background:${colorFor(sup?sup.name:'')}">PO</span>
+      <div><div class="co">${esc(p.no)}</div><div class="nm">${esc(sup?sup.name:'—')} ${pill(PO_ST,p.status)}${big?' <span class="pill" style="background:#fef3e2;color:#b45309">approval</span>':''}</div></div>
+      <button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="dbd">
+      <div class="sec-t">Purchase order</div>
+      <div class="kv"><span class="k">Supplier</span><span class="v">${esc(sup?sup.name:'—')}</span></div>
+      <div class="kv"><span class="k">Order date</span><span class="v">${p.order}</span></div>
+      <div class="kv"><span class="k">Expected</span><span class="v">${p.expected}</span></div>
+      <div class="kv"><span class="k">Owner</span><span class="v">${esc(p.owner)}</span></div>
+      <div class="kv"><span class="k">Approval</span><span class="v">${big?'Manager gate ('+money(APPROVE_LIMIT)+'+)':'Auto — below threshold'}</span></div>
+      <div class="sec-t">Line items <span style="font-weight:600;color:var(--txt-soft);text-transform:none;letter-spacing:0">${items.length}</span></div>
+      <table class="subtbl"><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>${itemRows}</tbody>
+        <tfoot><tr><td colspan="3">Total</td><td class="num">${money(t)}</td></tr></tfoot></table>
+    </div>
+    <div class="dactions">${actions}</div>`;
+  openOverlay('drawer');
+}
+
+function openSO(id){const s=soById(id);if(!s)return;_ctx={t:'so',id};const c=custById(s.custId);const items=soItemsOf(id);const t=soTotal(id);
+  $('#drawer').classList.add('wide');
+  const shortItems=items.map(i=>{const pr=prodById(i.prodId);const short=pr&&pr.stock<i.qty;
+    return `<tr><td>${esc(pr?pr.name:'—')}<div style="color:var(--txt-soft);font-size:11px">${esc(pr?pr.sku:'')} · ${pr?num(pr.stock):0} on hand ${short?'<span style="color:var(--red);font-weight:700">short</span>':''}</div></td><td class="num">${num(i.qty)}</td><td class="num">${money2(i.price)}</td><td class="num" style="font-weight:700">${money(i.qty*i.price)}</td></tr>`;}).join('');
+  const anyShort=items.some(i=>{const pr=prodById(i.prodId);return pr&&pr.stock<i.qty;});
+  let actions='';
+  if(s.status==='draft'){actions=`<button class="btn" style="flex:1" onclick="confirmSO(${id})">Confirm order →</button>`;}
+  else if(s.status==='confirmed'){actions=anyShort
+    ?`<div class="banner" style="background:var(--red-soft);color:var(--red);width:100%">✕ Insufficient stock on one or more lines — fulfilment blocked (workflow 2)</div><button class="btn" style="flex:1" disabled>Fulfil order</button>`
+    :`<button class="btn" style="flex:1" onclick="fulfilSO(${id})">🚚 Fulfil order →</button>`;}
+  else if(s.status==='fulfilled'){actions=`<button class="btn ghost" style="flex:1" onclick="closeSO(${id})">Close SO</button>`;}
+  else{actions=`<div style="color:var(--txt-soft);font-size:12.5px;padding:4px">SO is closed — no further action.</div>`;}
+  $('#drawer').innerHTML=`
+    <div class="dh"><span class="sq" style="background:${colorFor(c?c.name:'')}">${initials(c?c.name:'?')}</span>
+      <div><div class="co">${esc(s.no)}</div><div class="nm">${esc(c?c.name:'—')} · Tier ${c?c.tier:'?'} ${pill(SO_ST,s.status)}</div></div>
+      <button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="dbd">
+      <div class="sec-t">Sales order</div>
+      <div class="kv"><span class="k">Customer</span><span class="v">${esc(c?c.name:'—')}</span></div>
+      <div class="kv"><span class="k">Contact</span><span class="v">${esc(c?c.contact:'')} · ${esc(c?c.email:'')}</span></div>
+      <div class="kv"><span class="k">Order date</span><span class="v">${s.order}</span></div>
+      <div class="kv"><span class="k">Owner</span><span class="v">${esc(s.owner)}</span></div>
+      <div class="sec-t">Line items <span style="font-weight:600;color:var(--txt-soft);text-transform:none;letter-spacing:0">${items.length}</span></div>
+      <table class="subtbl"><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>${shortItems}</tbody>
+        <tfoot><tr><td colspan="3">Total</td><td class="num">${money(t)}</td></tr></tfoot></table>
+    </div>
+    <div class="dactions">${actions}</div>`;
+  openOverlay('drawer');
+}
+
+function openSupplier(id){const s=supById(id);if(!s)return;_ctx={t:'supplier',id};const prods=products.filter(p=>p.supId===id);const spos=pos.filter(p=>p.supId===id);
+  $('#drawer').classList.add('wide');
+  const prRows=prods.map(p=>`<tr class="clk" onclick="openProduct(${p.id})"><td>${esc(p.name)}</td><td>${catTag(p.cat)}</td><td class="num">${num(p.stock)}</td><td>${pill(STK_ST,stockStatus(p))}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">None</td></tr>';
+  const poRows=spos.map(p=>`<tr class="clk" onclick="openPO(${p.id})"><td>${esc(p.no)}</td><td>${pill(PO_ST,p.status)}</td><td class="num">${money(poTotal(p.id))}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">None</td></tr>';
+  $('#drawer').innerHTML=`
+    <div class="dh"><span class="sq" style="background:${colorFor(s.name)}">${initials(s.name)}</span>
+      <div><div class="co">${esc(s.name)}</div><div class="nm">${stars(s.rating)} · ${s.lead}d lead</div></div>
+      <button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="dbd">
+      <div class="sec-t">Supplier</div>
+      <div class="kv"><span class="k">Contact</span><span class="v">${esc(s.contact)}</span></div>
+      <div class="kv"><span class="k">Email</span><span class="v">${esc(s.email)}</span></div>
+      <div class="kv"><span class="k">Phone</span><span class="v">${esc(s.phone)}</span></div>
+      <div class="kv"><span class="k">Lead time</span><span class="v">${s.lead} days</span></div>
+      <div class="sec-t">Products supplied <span style="font-weight:600;color:var(--txt-soft);text-transform:none;letter-spacing:0">${prods.length}</span></div>
+      <table class="subtbl"><thead><tr><th>Product</th><th>Category</th><th class="num">On hand</th><th>Status</th></tr></thead><tbody>${prRows}</tbody></table>
+      <div class="sec-t">Purchase orders <span style="font-weight:600;color:var(--txt-soft);text-transform:none;letter-spacing:0">${spos.length}</span></div>
+      <table class="subtbl"><thead><tr><th>PO No.</th><th>Status</th><th class="num">Total</th></tr></thead><tbody>${poRows}</tbody></table>
+    </div>`;
+  openOverlay('drawer');
+}
+
+/* ============ actions (workflows) ============ */
+function approvePO(id){const p=poById(id);p.status='approved';renderAll();refreshDrawer();}
+function closePO(id){const p=poById(id);p.status='closed';renderAll();refreshDrawer();}
+function receivePO(id){const p=poById(id);
+  // workflow 1: PO received → increment stock + create stock_movement(in) per line
+  poItemsOf(id).forEach(i=>{const pr=prodById(i.prodId);if(pr){pr.stock+=i.qty;
+    movements.push({id:nmid(),prodId:i.prodId,type:'in',qty:i.qty,ref:'PO',refNo:p.no,note:'Goods receipt — '+(supById(p.supId)||{name:''}).name,date:TODAY});}});
+  p.status='received';renderAll();refreshDrawer();
+}
+function confirmSO(id){const s=soById(id);s.status='confirmed';renderAll();refreshDrawer();}
+function closeSO(id){const s=soById(id);s.status='closed';renderAll();refreshDrawer();}
+function fulfilSO(id){const s=soById(id);const items=soItemsOf(id);
+  // workflow 2: check sufficient stock, else block
+  const short=items.find(i=>{const pr=prodById(i.prodId);return pr&&pr.stock<i.qty;});
+  if(short){renderAll();refreshDrawer();return;}
+  items.forEach(i=>{const pr=prodById(i.prodId);if(pr){pr.stock-=i.qty;
+    movements.push({id:nmid(),prodId:i.prodId,type:'out',qty:i.qty,ref:'SO',refNo:s.no,note:'Shipment to '+(custById(s.custId)||{name:''}).name,date:TODAY});}});
+  s.status='fulfilled';renderAll();refreshDrawer();
+}
+
+/* ============ create modals ============ */
+function nextNo(arr,prefix){const n=Math.max(0,...arr.map(x=>+String(x.no).split('-').pop()))+1;return prefix+String(n).padStart(4,'0');}
+function openNewProduct(){
+  const supOpts=suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const catOpts=CATS.map(c=>`<option>${c}</option>`).join('');
+  $('#modal').className='modal';
+  $('#modal').innerHTML=`
+    <div class="mh"><h3>Add product</h3><button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="mb">
+      <div class="row2"><div class="fld"><label>SKU *</label><input id="p-sku" placeholder="EL-1005"></div><div class="fld"><label>Name *</label><input id="p-name" placeholder="Product name"></div></div>
+      <div class="row3"><div class="fld"><label>Category</label><select id="p-cat">${catOpts}</select></div><div class="fld"><label>Unit</label><input id="p-unit" value="pc"></div><div class="fld"><label>Supplier</label><select id="p-sup">${supOpts}</select></div></div>
+      <div class="row2"><div class="fld"><label>Cost price</label><input id="p-cost" type="number" value="0"></div><div class="fld"><label>Sell price</label><input id="p-price" type="number" value="0"></div></div>
+      <div class="row2"><div class="fld"><label>Reorder point</label><input id="p-reorder" type="number" value="40"></div><div class="fld"><label>Stock on hand</label><input id="p-stock" type="number" value="0"></div></div>
+      <div id="p-err" style="color:var(--red);font-size:12.5px;display:none">SKU and Name are required.</div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeOverlay()">Cancel</button><button class="btn" onclick="saveProduct()">Create product</button></div>`;
+  openOverlay('modal');setTimeout(()=>$('#p-sku').focus(),120);
+}
+function saveProduct(){const sku=$('#p-sku').value.trim(),name=$('#p-name').value.trim();if(!sku||!name){$('#p-err').style.display='block';return;}
+  products.push({id:npid(),sku,name,cat:$('#p-cat').value,unit:$('#p-unit').value.trim()||'pc',cost:+$('#p-cost').value||0,price:+$('#p-price').value||0,reorder:+$('#p-reorder').value||0,stock:+$('#p-stock').value||0,supId:+$('#p-sup').value});
+  closeOverlay();F.prod='all';renderAll();go('products');
+}
+
+let _poDraft=[];
+function openNewPO(){_poDraft=[];
+  const supOpts=suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  $('#modal').className='modal big';
+  $('#modal').innerHTML=`
+    <div class="mh"><h3>New purchase order</h3><button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="mb">
+      <div class="row2"><div class="fld"><label>Supplier</label><select id="po-sup" onchange="_poDraft=[];renderPoDraft()">${supOpts}</select></div><div class="fld"><label>Expected date</label><input id="po-exp" type="date" value="2026-07-24"></div></div>
+      <div class="ai-note">✨ <b>Ops Assistant</b> can pre-fill line items from this supplier's low-stock products with lead-time-aware quantities.
+        <div style="margin-top:8px"><button class="btn ai sm" onclick="aiDraftPO()">✨ Draft line items with AI</button></div></div>
+      <div class="sec-t" style="margin-top:6px">Line items</div>
+      <div id="po-draft"></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeOverlay()">Cancel</button><button class="btn" onclick="savePO()">Create draft PO</button></div>`;
+  openOverlay('modal');renderPoDraft();
+}
+function renderPoDraft(){const el=$('#po-draft');if(!el)return;
+  if(!_poDraft.length){el.innerHTML='<div class="empty">No line items yet — add with AI, or save an empty draft.</div>';return;}
+  const t=_poDraft.reduce((a,i)=>a+i.qty*i.cost,0);
+  el.innerHTML=`<table class="subtbl"><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Unit cost</th><th class="num">Subtotal</th></tr></thead>
+    <tbody>${_poDraft.map(i=>{const pr=prodById(i.prodId);return `<tr><td>${esc(pr?pr.name:'—')}</td><td class="num">${num(i.qty)}</td><td class="num">${money2(i.cost)}</td><td class="num" style="font-weight:700">${money(i.qty*i.cost)}</td></tr>`;}).join('')}</tbody>
+    <tfoot><tr><td colspan="3">Total</td><td class="num">${money(t)}</td></tr></tfoot></table>
+    ${t>=APPROVE_LIMIT?`<div class="banner" style="background:#fef3e2;color:#b45309;margin-top:10px">⚠ ${money(t)} ≥ ${money(APPROVE_LIMIT)} — this PO will require manager approval.</div>`:''}`;
+}
+function aiDraftPO(){const supId=+$('#po-sup').value;const cand=lowStock().filter(p=>p.supId===supId);
+  _poDraft=cand.map(p=>({prodId:p.id,qty:suggestQty(p),cost:p.cost}));
+  if(!_poDraft.length){const p=products.filter(x=>x.supId===supId)[0];if(p)_poDraft=[{prodId:p.id,qty:p.reorder,cost:p.cost}];}
+  renderPoDraft();
+}
+function savePO(){const supId=+$('#po-sup').value;const id=npid();
+  pos.unshift({id,no:nextNo(pos,'PO-2026-'),supId,status:'draft',order:TODAY,expected:$('#po-exp').value||TODAY,owner:'Sam Ortiz'});
+  _poDraft.forEach(i=>poItems.push({id:nmid(),poId:id,prodId:i.prodId,qty:i.qty,cost:i.cost}));
+  closeOverlay();F.po='all';renderAll();go('purchase');
+}
+
+function openNewSO(){
+  const custOpts=customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const prodOpts=products.map(p=>`<option value="${p.id}">${esc(p.name)} (${money2(p.price)})</option>`).join('');
+  $('#modal').className='modal';
+  $('#modal').innerHTML=`
+    <div class="mh"><h3>New sales order</h3><button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="mb">
+      <div class="fld"><label>Customer</label><select id="so-cust">${custOpts}</select></div>
+      <div class="sec-t" style="margin-top:4px">First line item</div>
+      <div class="row2"><div class="fld"><label>Product</label><select id="so-prod">${prodOpts}</select></div><div class="fld"><label>Quantity</label><input id="so-qty" type="number" value="10"></div></div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeOverlay()">Cancel</button><button class="btn" onclick="saveSO()">Create draft SO</button></div>`;
+  openOverlay('modal');
+}
+function saveSO(){const id=npid();const pr=prodById(+$('#so-prod').value);const qty=+$('#so-qty').value||1;
+  sos.unshift({id,no:nextNo(sos,'SO-2026-'),custId:+$('#so-cust').value,status:'draft',order:TODAY,owner:'Jess Kim'});
+  soItems.push({id:nmid(),soId:id,prodId:pr.id,qty,price:pr.price});
+  closeOverlay();F.so='all';renderAll();go('sales');
+}
+
+function openNewSupplier(){
+  $('#modal').className='modal';
+  $('#modal').innerHTML=`
+    <div class="mh"><h3>Add supplier</h3><button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="mb">
+      <div class="fld"><label>Name *</label><input id="s-name" placeholder="Supplier name"></div>
+      <div class="row2"><div class="fld"><label>Contact</label><input id="s-contact"></div><div class="fld"><label>Email</label><input id="s-email"></div></div>
+      <div class="row3"><div class="fld"><label>Phone</label><input id="s-phone"></div><div class="fld"><label>Lead time (days)</label><input id="s-lead" type="number" value="10"></div><div class="fld"><label>Rating</label><input id="s-rating" type="number" step="0.1" min="1" max="5" value="4"></div></div>
+      <div id="s-err" style="color:var(--red);font-size:12.5px;display:none">Name is required.</div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeOverlay()">Cancel</button><button class="btn" onclick="saveSupplier()">Create supplier</button></div>`;
+  openOverlay('modal');setTimeout(()=>$('#s-name').focus(),120);
+}
+function saveSupplier(){const name=$('#s-name').value.trim();if(!name){$('#s-err').style.display='block';return;}
+  suppliers.push({id:Math.max(0,...suppliers.map(s=>s.id))+1,name,contact:$('#s-contact').value.trim()||'—',email:$('#s-email').value.trim()||'—',phone:$('#s-phone').value.trim()||'—',lead:+$('#s-lead').value||10,rating:Math.min(5,Math.max(1,+$('#s-rating').value||4))});
+  closeOverlay();renderAll();go('suppliers');
+}
+
+/* ============ AI assistant ============ */
+function openAI(){const low=lowStock();
+  const bySup={};low.forEach(p=>{(bySup[p.supId]=bySup[p.supId]||[]).push(p);});
+  const rows=low.sort((a,b)=>(a.stock/a.reorder)-(b.stock/b.reorder)).map(p=>{const s=supById(p.supId);
+    return `<tr><td>${esc(p.name)}<div style="color:var(--txt-soft);font-size:11px">${esc(p.sku)}</div></td><td class="num">${num(p.stock)}</td><td class="num" style="color:var(--txt-mut)">${num(p.reorder)}</td><td class="num" style="font-weight:750;color:var(--violet)">+${num(suggestQty(p))}</td><td>${esc(s?s.name:'—')}<div style="color:var(--txt-soft);font-size:11px">${s?s.lead:'?'}d lead</div></td></tr>`;}).join('');
+  const best=suppliers.slice().sort((a,b)=>b.rating-a.rating)[0];
+  const slow=suppliers.slice().sort((a,b)=>b.lead-a.lead)[0];
+  const nPO=Object.keys(bySup).length;
+  $('#modal').className='modal big';
+  $('#modal').innerHTML=`
+    <div class="mh ai"><div><h3>✨ Ops Assistant</h3><div class="sub">AI employee · OpenCode Zen gateway</div></div><button class="x" onclick="closeOverlay()">✕</button></div>
+    <div class="mb">
+      <div class="ai-note">I scanned <b>${products.length} products</b> against reorder points and supplier lead times. <b>${low.length}</b> items are below their reorder point across <b>${nPO}</b> supplier${nPO!==1?'s':''}. Suggested quantities target 2× the reorder point, rounded to the pack.</div>
+      <div class="ai-sec">Reorder suggestion</div>
+      <table class="subtbl"><thead><tr><th>Product</th><th class="num">On hand</th><th class="num">Reorder</th><th class="num">Suggested</th><th>Supplier</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Nothing to reorder</td></tr>'}</tbody></table>
+      <div class="ai-sec">Supplier performance summary</div>
+      <ul style="margin:0 0 4px 18px;color:var(--txt);font-size:13px;line-height:1.7">
+        <li>Top-rated: <b>${esc(best.name)}</b> (${best.rating.toFixed(1)}★, ${best.lead}d lead).</li>
+        <li>Longest lead time: <b>${esc(slow.name)}</b> at ${slow.lead} days — order early to avoid stockouts.</li>
+        <li>Avg lead time across ${suppliers.length} suppliers: <b>${Math.round(suppliers.reduce((a,s)=>a+s.lead,0)/suppliers.length)} days</b>.</li>
+      </ul>
+      <div class="ai-sec">Order summary</div>
+      <div style="font-size:12.5px;color:var(--txt-mut)">Open any PO or SO drawer and ask me to summarize its line items, totals and fulfilment risk.</div>
+    </div>
+    <div class="mf"><button class="btn ghost" onclick="closeOverlay()">Dismiss</button><button class="btn ai" onclick="aiCreatePOs()" ${low.length?'':'disabled'}>Create ${nPO} draft PO${nPO!==1?'s':''}</button></div>`;
+  openOverlay('modal');
+}
+function aiCreatePOs(){const low=lowStock();const bySup={};low.forEach(p=>{(bySup[p.supId]=bySup[p.supId]||[]).push(p);});
+  Object.keys(bySup).forEach(supId=>{const id=npid();
+    pos.unshift({id,no:nextNo(pos,'PO-2026-'),supId:+supId,status:'draft',order:TODAY,expected:'2026-07-24',owner:'Sam Ortiz'});
+    bySup[supId].forEach(p=>poItems.push({id:nmid(),poId:id,prodId:p.id,qty:suggestQty(p),cost:p.cost}));});
+  closeOverlay();F.po='draft';renderAll();go('purchase');
+}
+
+/* ============ blueprint ============ */
+function renderBlueprint(){
+  const dm=[
+    ['products','name','sku, category (enum), unit, cost_price, sell_price, reorder_point, stock_on_hand','→ supplier (m2o)'],
+    ['suppliers','name','contact, email, phone, lead_time_days, rating','← products, purchase_orders'],
+    ['customers','name','contact, email, phone, tier (A/B/C)','← sales_orders'],
+    ['purchase_orders','po_no','status (enum), order_date, expected_date, total','→ supplier, owner · ← items'],
+    ['purchase_order_items','—','qty, unit_cost, subtotal','→ purchase_order, product'],
+    ['sales_orders','so_no','status (enum), order_date, total','→ customer, owner · ← items'],
+    ['sales_order_items','—','qty, unit_price, subtotal','→ sales_order, product'],
+    ['stock_movements','ref_no','type (in/out/adjust), qty, ref_type, note','→ product'],
+  ];
+  const wfs=[
+    ['PO received','purchase_order.status → received','For each line item: increment product.stock_on_hand by qty and create a stock_movement (type=in, ref=PO). Realtime upsert.'],
+    ['SO fulfilled','sales_order.status → fulfilled','Per item: check sufficient stock. If OK, decrement product.stock_on_hand + create stock_movement (type=out). If short, block/flag.'],
+    ['Low-stock alert','product.stock_on_hand < reorder_point','Notify purchaser and create a DRAFT purchase_order suggestion (this is what the AI reorder plan mirrors).'],
+    ['PO approval','purchase_order.total ≥ $20,000','Require manager approval before status can move to approved.'],
+  ];
+  const roles=[
+    ['warehouse','Rob Tan','Manage receiving & fulfilment + stock_movements; read products/orders.'],
+    ['purchaser','Sam Ortiz','CRUD purchase_orders + suppliers; read products; submit for approval. Sees own POs by default view.'],
+    ['sales','Jess Kim','CRUD sales_orders + customers; read products.'],
+    ['manager','Dana Cole','All records + approve POs (sees all POs).'],
+    ['admin','Admin User','Full access to every collection and setting.'],
+  ];
+  const dmRows=dm.map(r=>`<tr><td><code>${r[0]}</code></td><td>${r[1]==='—'?'—':'<code>'+r[1]+'</code>'}</td><td>${r[2]}</td><td style="color:var(--txt-mut)">${r[3]}</td></tr>`).join('');
+  const wfRows=wfs.map((w,i)=>`<div class="wf"><div class="n">${i+1}</div><div><div class="t">${w[0]}</div><div class="d">${w[2]}</div><span class="trg">trigger: ${w[1]}</span></div></div>`).join('');
+  const roleRows=roles.map(r=>`<tr><td><span class="pill" style="background:var(--accent-soft);color:var(--accent)">${r[0]}</span></td><td style="font-weight:600">${r[1]}</td><td style="color:var(--txt-mut)">${r[2]}</td></tr>`).join('');
+  const userRows=USERS.map((u,i)=>{const rn=['admin','manager','purchaser','sales','warehouse'][i];const un=['admin','manager','purchaser','sales','warehouse'][i];
+    return `<tr><td style="font-weight:600">${esc(u)}</td><td><code>${un}</code></td><td>${rn}</td></tr>`;}).join('');
+  $('#v-blueprint').innerHTML=`
+    <div class="bp-grid">
+      <div class="bp bp-full">
+        <h3><span class="ic" style="background:#4f46e5">◱</span> Data model — 8 collections</h3>
+        <div class="lead-txt">Relations named as nouns (never <code>*_id</code>). Items belongTo their order + product; orders belongTo supplier/customer + owner (users). <code>stock_on_hand</code> is maintained by workflows, not typed by hand.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Collection</th><th>Title field</th><th>Key fields</th><th>Relations</th></tr></thead><tbody>${dmRows}</tbody></table></div>
+      </div>
+      <div class="bp">
+        <h3><span class="ic" style="background:#f59e0b">⚡</span> Workflows — 4</h3>
+        <div class="lead-txt">The automation that keeps stock correct and money-safe.</div>
+        ${wfRows}
+      </div>
+      <div class="bp">
+        <h3><span class="ic" style="background:#10b981">🛡</span> Roles — 5</h3>
+        <div class="lead-txt">Data-scope note: purchaser sees own POs by default view; manager sees all.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Role</th><th>Seed user</th><th>Can do</th></tr></thead><tbody>${roleRows}</tbody></table></div>
+      </div>
+      <div class="bp">
+        <h3><span class="ic" style="background:#64748b">◎</span> Seed users — 5</h3>
+        <div class="lead-txt">Used as owners across the seeded POs and SOs.</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th></tr></thead><tbody>${userRows}</tbody></table></div>
+      </div>
+      <div class="bp">
+        <h3><span class="ic" style="background:linear-gradient(135deg,#8b5cf6,#6366f1)">✨</span> AI employee — Ops Assistant</h3>
+        <div class="lead-txt">Provider: OpenCode Zen gateway (LLM key pre-provisioned by the operator). Surfaced as an <code>AIEmployeeButtonModel</code> on the Products page and the Purchase Order form.</div>
+        <table><tbody>
+          <tr><td style="font-weight:600;width:44%">Reorder suggestion</td><td>Reads low-stock products + supplier lead times, suggests qty and form-fills a DRAFT purchase_order.</td></tr>
+          <tr><td style="font-weight:600">Supplier performance summary</td><td>Ranks suppliers by rating and lead time.</td></tr>
+          <tr><td style="font-weight:600">Order summary</td><td>Summarizes a PO/SO — line items, totals, fulfilment risk.</td></tr>
+        </tbody></table>
+      </div>
+    </div>`;
+}
+
+/* ============ overlay + nav + search ============ */
+function openOverlay(which){$('#scrim').classList.add('on');$('#'+which).classList.add('on');}
+function closeOverlay(){_ctx=null;$('#scrim').classList.remove('on');$('#drawer').classList.remove('on');$('#drawer').classList.remove('wide');$('#modal').classList.remove('on');}
+$('#scrim').onclick=closeOverlay;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeOverlay();});
+
+const TITLES={
+  dashboard:['Dashboard','Purchasing, sales and stock at a glance',null],
+  products:['Products','Catalog, stock levels and reorder points','Add product'],
+  purchase:['Purchase Orders','Buying stock in — draft to received','New PO'],
+  sales:['Sales Orders','Selling stock out — draft to fulfilled','New SO'],
+  inventory:['Inventory','Stock levels and the movements log',null],
+  suppliers:['Suppliers','Vendors, lead times and ratings','Add supplier'],
+  blueprint:['Blueprint','The full intended system for reviewers',null],
+};
+const NEWFN={products:openNewProduct,purchase:openNewPO,sales:openNewSO,suppliers:openNewSupplier};
+let curView='dashboard';
+function go(v){curView=v;
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));$('#v-'+v).classList.add('on');
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $('#title').textContent=TITLES[v][0];$('#subtitle').textContent=TITLES[v][1];
+  const nb=$('#newBtn');if(TITLES[v][2]){nb.style.display='';$('#newLbl').textContent=TITLES[v][2];}else nb.style.display='none';
+  $('#q').value='';applySearch();window.scrollTo(0,0);
+}
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&b.dataset.v)go(b.dataset.v);});
+$('#newBtn').onclick=()=>{const fn=NEWFN[curView];if(fn)fn();};
+
+function applySearch(){const q=($('#q').value||'').toLowerCase().trim();const view=$('#v-'+curView);if(!view)return;
+  view.querySelectorAll('tbody tr').forEach(tr=>{if(!tr.querySelector('td'))return;const hit=!q||tr.textContent.toLowerCase().includes(q);tr.style.display=hit?'':'none';});
+}
+$('#q').addEventListener('input',applySearch);
+
+renderAll();
+</script>
+
+<!-- ============================================================
+     PIECE 1 — machine-readable contract (authoritative build spec).
+     ============================================================ -->
+<script type="application/nb-spec+json">
+{
+  "name": "Lightweight Trading ERP",
+  "prefix": "erp_",
+  "archetype": "small distribution/inventory ERP — purchasing + sales + stock: dashboard (KPI JS strip + native charts + low-stock alert List + movements List) and native Tables with View drawers carrying association sub-tables + record actions (Receive/Fulfill) + an AI reorder assistant",
+  "collections": {
+    "products": {
+      "titleField": "name",
+      "fields": {
+        "sku": "string",
+        "name": "string",
+        "category": "select:Electronics|Tools|Packaging|Office|Raw",
+        "unit": "string",
+        "cost_price": "number",
+        "sell_price": "number",
+        "reorder_point": "number",
+        "stock_on_hand": "number (maintained by workflow, not typed by hand)"
+      },
+      "relations": { "supplier": "m2o suppliers" }
+    },
+    "suppliers": {
+      "titleField": "name",
+      "fields": { "name": "string", "contact": "string", "email": "string", "phone": "string", "lead_time_days": "number", "rating": "number 1-5" }
+    },
+    "customers": {
+      "titleField": "name",
+      "fields": { "name": "string", "contact": "string", "email": "string", "phone": "string", "tier": "select:A|B|C" }
+    },
+    "purchase_orders": {
+      "titleField": "po_no",
+      "fields": { "po_no": "string", "status": "select:draft|approved|received|closed", "order_date": "date", "expected_date": "date", "total": "number" },
+      "relations": { "supplier": "m2o suppliers", "owner": "m2o users" }
+    },
+    "purchase_order_items": {
+      "titleField": "",
+      "fields": { "qty": "number", "unit_cost": "number", "subtotal": "number" },
+      "relations": { "purchase_order": "m2o purchase_orders", "product": "m2o products" }
+    },
+    "sales_orders": {
+      "titleField": "so_no",
+      "fields": { "so_no": "string", "status": "select:draft|confirmed|fulfilled|closed", "order_date": "date", "total": "number" },
+      "relations": { "customer": "m2o customers", "owner": "m2o users" }
+    },
+    "sales_order_items": {
+      "titleField": "",
+      "fields": { "qty": "number", "unit_price": "number", "subtotal": "number" },
+      "relations": { "sales_order": "m2o sales_orders", "product": "m2o products" }
+    },
+    "stock_movements": {
+      "titleField": "ref_no",
+      "fields": { "type": "select:in|out|adjust", "qty": "number", "ref_type": "string", "ref_no": "string", "note": "text" },
+      "relations": { "product": "m2o products" }
+    }
+  },
+  "pages": [
+    { "name": "dashboard", "layout": "KPI JS strip (4) → grid2 [low-stock alert List + JS card | recent movements List] → grid2 [PO-by-status Chart | SO-by-status Chart]",
+      "regions": [
+        { "id": "kpis", "block": "JS block (freestanding row)", "content": ["Inventory value = Σ stock_on_hand·cost_price", "Low-stock items = count(stock<reorder)", "Open POs (draft+approved)", "Open SOs (draft+confirmed)"] },
+        { "id": "alerts", "block": "List + JS card (products, dataScope stock_on_hand<reorder_point)", "content": ["product", "on hand vs reorder", "suggested reorder qty", "supplier + lead time"] },
+        { "id": "movements", "block": "List + JS item (stock_movements, sort occurred_at desc)", "content": ["type icon", "product", "signed qty", "ref_no + note"] },
+        { "id": "po_chart", "block": "native Chart (purchase_orders group by status)", "content": ["count + total per status"] },
+        { "id": "so_chart", "block": "native Chart (sales_orders group by status)", "content": ["count + total per status"] }
+      ] },
+    { "name": "products", "layout": "Filter (low-stock pill + category) + Add + native Table + View drawer",
+      "regions": [ { "id": "table", "block": "native Table (products)", "behaviors": ["low-stock pill = toolbar JSItemActionModel → addFilterGroup('pill-low') + refresh", "row click → ctx.openView(View drawer)", "drawer holds product fields + supplier + stock_movements association sub-table (associationName=movements, sourceId={{ctx.view.inputArgs.filterByTk}})", "✨ AI Assistant button = AIEmployeeButtonModel"] } ] },
+    { "name": "purchase_orders", "layout": "Filter (status pills) + Add + native Table + View drawer",
+      "regions": [ { "id": "table", "block": "native Table (purchase_orders)", "behaviors": ["row click → View drawer", "drawer: PO header + purchase_order_items association sub-table + Receive record action + approval badge (total ≥ 20000)", "✨ AI draft-items on the create form"] } ] },
+    { "name": "sales_orders", "layout": "Filter (status pills) + Add + native Table + View drawer",
+      "regions": [ { "id": "table", "block": "native Table (sales_orders)", "behaviors": ["row click → View drawer", "drawer: SO header + sales_order_items association sub-table + Fulfill record action (stock-check gated)"] } ] },
+    { "name": "inventory", "layout": "grid2 [stock levels Table (status pill filter) | stock_movements log Table]",
+      "regions": [ { "id": "levels", "block": "native Table (products): on hand, reorder, status pill" }, { "id": "log", "block": "native Table (stock_movements): date, product, type, qty, ref, note" } ] },
+    { "name": "suppliers", "layout": "Filter (rating) + Add + native Table + View drawer",
+      "regions": [ { "id": "table", "block": "native Table (suppliers): name, contact, email, lead_time_days, rating; drawer shows products supplied + POs" } ] },
+    { "name": "blueprint", "layout": "documentation cards/tables — data model, workflows, roles, users, AI employee (reference tab, not a NocoBase page)" }
+  ],
+  "workflows": [
+    { "name": "PO received", "trigger": "purchase_orders.status → received", "action": "For each purchase_order_item: increment product.stock_on_hand by qty AND create stock_movement(type=in, ref_type=PO, ref_no=po_no). Increment via realtime upsert pattern." },
+    { "name": "SO fulfilled", "trigger": "sales_orders.status → fulfilled", "action": "For each sales_order_item: condition-check sufficient stock. If OK, decrement product.stock_on_hand + create stock_movement(type=out, ref_type=SO). If insufficient, block/flag." },
+    { "name": "Low-stock alert", "trigger": "product.stock_on_hand drops below reorder_point", "action": "Notify purchaser + create a DRAFT purchase_order suggestion (mirrored by the AI reorder plan in the UI)." },
+    { "name": "PO approval", "trigger": "purchase_orders.total ≥ 20000", "action": "Manager approval required before status can move to approved." }
+  ],
+  "roles": [
+    { "name": "warehouse", "can": "Manage receiving/fulfilment + stock_movements; read products/orders." },
+    { "name": "purchaser", "can": "CRUD purchase_orders + suppliers; read products; submit for approval. Data-scope: own POs by default view." },
+    { "name": "sales", "can": "CRUD sales_orders + customers; read products." },
+    { "name": "manager", "can": "All records + approve POs; sees all POs." },
+    { "name": "admin", "can": "Full access." }
+  ],
+  "users": [
+    { "username": "admin", "name": "Admin User", "role": "admin" },
+    { "username": "manager", "name": "Dana Cole", "role": "manager" },
+    { "username": "purchaser", "name": "Sam Ortiz", "role": "purchaser" },
+    { "username": "sales", "name": "Jess Kim", "role": "sales" },
+    { "username": "warehouse", "name": "Rob Tan", "role": "warehouse" }
+  ],
+  "aiEmployee": {
+    "name": "Ops Assistant",
+    "provider": "OpenCode Zen gateway (LLM key pre-provisioned by operator; spec just declares it uses the configured LLM service)",
+    "skills": [
+      "Reorder suggestion — reads low-stock products + supplier lead times, suggests qty and formFills a DRAFT purchase_order",
+      "Supplier performance summary — ranks suppliers by rating and lead time",
+      "Order summary — summarize a PO/SO (line items, totals, fulfilment risk)"
+    ],
+    "surfacedAs": "AIEmployeeButtonModel on the Products page and the Purchase Order form"
+  },
+  "notes": [
+    "Dashboard KPIs = JS items (freestanding JS block; validator rejects ctx.api.request at JSBlock top level → use ctx.initResource('MultiRecordResource')).",
+    "Low-stock alert list = List + JS card (dataScope stock_on_hand<reorder_point); movements feed = List + JS item sorted by a real column (occurred_at/updatedAt) desc.",
+    "PO/SO status = native Chart (data-visualization, builder mode, dimension=status, measure=count + total). No statistic/number chart in alpha → KPIs stay JS.",
+    "Products = native Table + one whole-record JS lead column; low-stock pill via a toolbar JSItemActionModel (addFilterGroup('pill-low') + refresh), NOT a full-page JS block.",
+    "PO/SO drawers = native View drawer whose sub-table is an association block: associationName + sourceId={{ctx.view.inputArgs.filterByTk}} (one hop — items belongTo the order).",
+    "Receive/Fulfill = JSRecordActionModel (record actions), never inline fake persistence. Receive flips status→received (fires workflow 1); Fulfill checks stock then status→fulfilled (fires workflow 2).",
+    "Stock increment/decrement happens inside the workflow via realtime upsert — the form never writes stock_on_hand directly.",
+    "Name relations as nouns, never *_id (supplier, product, purchase_order, owner).",
+    "Seed every enum branch (PO draft/approved/received/closed; SO draft/confirmed/fulfilled/closed; movement in/out/adjust) and keep several products below reorder_point so the alert list + AI plan are non-empty.",
+    "AI employee = AIEmployeeButtonModel on Products + PO form; the reorder skill formFills a draft PO grouped by supplier."
+  ]
+}
+</script>
+
+<!-- ============================================================
+     PIECE 2 — human-readable decomposition (Phase-1 SPEC).
+     ============================================================ -->
+<script type="text/markdown" id="nb-decomp">
+# SPEC — Lightweight Trading ERP → NocoBase
+
+> Phase-1 decomposition. Data modeling + native CRUD are standard → sketched. The focus is **which native block per region** and **the four workflows that keep stock correct**.
+
+## 1. Data model
+Eight collections. Relations are **nouns, never `*_id`**.
+- `products` (titleField `name`) — `sku`, `category` `Electronics|Tools|Packaging|Office|Raw`, `unit`, `cost_price`, `sell_price`, `reorder_point`, `stock_on_hand` *(workflow-maintained)*; m2o `supplier`.
+- `suppliers` (titleField `name`) — `contact`, `email`, `phone`, `lead_time_days`, `rating`.
+- `customers` (titleField `name`) — `contact`, `email`, `phone`, `tier` `A|B|C`.
+- `purchase_orders` (titleField `po_no`) — `status` `draft|approved|received|closed`, `order_date`, `expected_date`, `total`; m2o `supplier`, m2o `owner`.
+- `purchase_order_items` — `qty`, `unit_cost`, `subtotal`; m2o `purchase_order`, m2o `product`.
+- `sales_orders` (titleField `so_no`) — `status` `draft|confirmed|fulfilled|closed`, `order_date`, `total`; m2o `customer`, m2o `owner`.
+- `sales_order_items` — `qty`, `unit_price`, `subtotal`; m2o `sales_order`, m2o `product`.
+- `stock_movements` (titleField `ref_no`) — `type` `in|out|adjust`, `qty`, `ref_type`, `note`; m2o `product`.
+
+## 2. Pages (native CRUD, direction only)
+`products` / `purchase_orders` / `sales_orders` / `suppliers` each get **Filter + Add + native Table + View drawer**. `inventory` is two Tables (levels + movements log). `blueprint` is a documentation tab (not a NocoBase page) so the reviewer can see the non-visual dimensions.
+
+## 3. Region → native block
+| Region | Native container | native vs JS | JS kernel? |
+|---|---|---|---|
+| Dashboard KPI strip | freestanding JS block | aggregates | **K-KPI** (4 numbers) |
+| Low-stock alerts | List (dataScope stock<reorder) | JS card | **K-alert** (on-hand vs reorder + suggested qty) |
+| Recent movements | List (sort date desc) | JS item | **K-move** (type icon + signed qty) |
+| PO by status | native Chart | builder: dim=status, measure=count/total | no |
+| SO by status | native Chart | builder: dim=status, measure=count/total | no |
+| Products | native Table | one whole-record JS lead column | **K-lead** |
+| Low-stock pill | toolbar JSItemActionModel | addFilterGroup + refresh | **K-pill** |
+| PO/SO/Product/Supplier drawers | native ViewAction + association sub-table | qty/cost native | — |
+| Inventory | native Table ×2 | native fields | no |
+| Suppliers | native Table | rating stars = JS field | **K-stars** |
+
+## 4. Interaction checklist
+- Row click → `ctx.openView(<Table ViewActionModel uid>, {filterByTk})` (the only reliable JS→native popup).
+- Drawer sub-tables (movements / line items) = **association block**, `associationName` + `sourceId={{ctx.view.inputArgs.filterByTk}}` — one hop (items belongTo the order; movements belongTo the product).
+- **Receive** (PO drawer) = `JSRecordActionModel`: status→received, fires *workflow 1* → stock += qty + `in` movements.
+- **Fulfil** (SO drawer) = `JSRecordActionModel`: stock-check gate; if OK status→fulfilled, fires *workflow 2* → stock -= qty + `out` movements; if short, blocked.
+- **Approve** (PO drawer) gated when `total ≥ 20000` (*workflow 4*, manager role).
+- **✨ Ops Assistant** = `AIEmployeeButtonModel` on Products + the PO form → reorder suggestion formFills a draft PO (mirrors *workflow 3*).
+
+## 5. Workflows
+1. **PO received** — status→received ⇒ per item: `stock_on_hand += qty` (realtime upsert) + create `in` stock_movement.
+2. **SO fulfilled** — status→fulfilled ⇒ per item: check stock; OK ⇒ decrement + `out` movement; short ⇒ block/flag.
+3. **Low-stock alert** — `stock_on_hand < reorder_point` ⇒ notify purchaser + draft PO suggestion.
+4. **PO approval** — `total ≥ 20000` ⇒ manager approval before `approved`.
+
+## 6. Open questions
+1. Suggested reorder qty formula: 2× reorder point (current) vs lead-time·avg-daily-demand?
+2. `total` stored vs computed from items (prototype computes; NB likely stores + workflow-sums).
+3. `owner` = `users` (assumed) vs a lightweight `staff` ref.
+4. Movements `ref_type`/`ref_no` as strings vs a polymorphic relation to PO/SO.
+</script>
+
+<script type="text/markdown" id="nb-decomp-zh">
+# 拆解设计稿 — 轻量贸易 ERP → NocoBase
+
+> Phase-1 精简版。数据建模 + 原生 CRUD 都标准 → 只点方向。重点是**每个区块用哪个原生块**和**保证库存正确的四条 workflow**。技术标识保留英文。
+
+## 1. 数据模型
+八个 collection,关系一律用**名词,禁止 `*_id`**。
+- `products`(titleField `name`)— `sku`、`category` `Electronics|Tools|Packaging|Office|Raw`、`unit`、`cost_price`、`sell_price`、`reorder_point`、`stock_on_hand`(**由 workflow 维护**);m2o `supplier`。
+- `suppliers`(titleField `name`)— `contact`、`email`、`phone`、`lead_time_days`、`rating`。
+- `customers`(titleField `name`)— `contact`、`email`、`phone`、`tier` `A|B|C`。
+- `purchase_orders`(titleField `po_no`)— `status` `draft|approved|received|closed`、`order_date`、`expected_date`、`total`;m2o `supplier`、m2o `owner`。
+- `purchase_order_items` — `qty`、`unit_cost`、`subtotal`;m2o `purchase_order`、m2o `product`。
+- `sales_orders`(titleField `so_no`)— `status` `draft|confirmed|fulfilled|closed`、`order_date`、`total`;m2o `customer`、m2o `owner`。
+- `sales_order_items` — `qty`、`unit_price`、`subtotal`;m2o `sales_order`、m2o `product`。
+- `stock_movements`(titleField `ref_no`)— `type` `in|out|adjust`、`qty`、`ref_type`、`note`;m2o `product`。
+
+## 2. 页面(原生 CRUD,只给方向)
+`products` / `purchase_orders` / `sales_orders` / `suppliers` 各自 **Filter + Add + 原生 Table + View 抽屉**。`inventory` = 两张 Table(库存 + 流水)。`blueprint` 是文档 tab(非 NocoBase 页面),给评审看非视觉维度。
+
+## 3. 区块 → 原生块
+| 区域 | 原生容器 | 原生 vs JS | JS kernel? |
+|---|---|---|---|
+| 仪表盘 KPI 条 | 独立 JS block | 聚合 | **K-KPI**(4 数字) |
+| 低库存告警 | List(dataScope stock<reorder) | JS 卡片 | **K-alert**(现存 vs 补货点 + 建议量) |
+| 最近流水 | List(按日期倒序) | JS item | **K-move**(类型图标 + 带符号数量) |
+| PO 按状态 | 原生 Chart | builder:维度=status,度量=count/total | 无 |
+| SO 按状态 | 原生 Chart | 同上 | 无 |
+| Products | 原生 Table | 一个整记录 JS 主列 | **K-lead** |
+| 低库存 pill | 工具栏 JSItemActionModel | addFilterGroup + refresh | **K-pill** |
+| PO/SO/Product/Supplier 抽屉 | 原生 ViewAction + association 子表 | qty/cost 原生 | — |
+| Inventory | 原生 Table ×2 | 原生字段 | 无 |
+| Suppliers | 原生 Table | 评分星星 = JS field | **K-stars** |
+
+## 4. 交互清单
+- 点行 → `ctx.openView(<Table ViewActionModel uid>, {filterByTk})`(JS→原生弹窗唯一可靠方式)。
+- 抽屉子表(流水 / 明细)= **association 块**,`associationName` + `sourceId={{ctx.view.inputArgs.filterByTk}}` — 一跳(明细 belongTo 订单;流水 belongTo 产品)。
+- **Receive**(PO 抽屉)= `JSRecordActionModel`:status→received,触发 *workflow 1* → stock += qty + 建 `in` 流水。
+- **Fulfil**(SO 抽屉)= `JSRecordActionModel`:库存校验;够 → status→fulfilled,触发 *workflow 2* → stock -= qty + `out` 流水;不够则拦截。
+- **Approve**(PO 抽屉)当 `total ≥ 20000` 时受 manager 门控(*workflow 4*)。
+- **✨ Ops Assistant** = `AIEmployeeButtonModel`,在 Products + PO 表单 → 补货建议 formFill 一张草稿 PO(对应 *workflow 3*)。
+
+## 5. Workflows
+1. **PO received** — status→received ⇒ 每明细:`stock_on_hand += qty`(realtime upsert)+ 建 `in` 流水。
+2. **SO fulfilled** — status→fulfilled ⇒ 每明细:查库存;够 ⇒ 扣减 + `out` 流水;不够 ⇒ 拦截/标记。
+3. **Low-stock alert** — `stock_on_hand < reorder_point` ⇒ 通知采购 + 草稿 PO 建议。
+4. **PO approval** — `total ≥ 20000` ⇒ 转 `approved` 前需 manager 审批。
+
+## 6. 待定问题
+1. 建议补货量公式:2× 补货点(当前)还是 交期·日均需求?
+2. `total` 落库 vs 由明细算(原型是算的;NB 多半落库 + workflow 汇总)。
+3. `owner` = `users`(默认假设)还是轻量 `staff` 引用表。
+4. 流水 `ref_type`/`ref_no` 用字符串 vs 指向 PO/SO 的多态关系。
+</script>
+
+<!-- ============================================================
+     PIECE 3 — spec viewer (REUSABLE — copy verbatim).
+     ============================================================ -->
+<button class="specbtn" id="specBtn" title="查看 NocoBase 拆解设计稿">🧩 拆解 Spec</button>
+<div class="spec-overlay" id="specOv">
+  <div class="spec-panel">
+    <div class="spec-h"><b>NocoBase 拆解设计稿</b><span class="spec-sub">Phase-1 SPEC · Esc 关闭</span><span class="spec-lang" id="specLang"></span><button class="spec-x" id="specX">✕</button></div>
+    <div class="spec-doc" id="specDoc"></div>
+  </div>
+</div>
+<script>
+(function(){
+  function mdToHtml(md){
+    var esc=function(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+    var inline=function(s){return esc(s)
+      .replace(/`([^`]+)`/g,'<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');};
+    var lines=md.replace(/\r/g,'').split('\n'),out=[],i=0;
+    while(i<lines.length){
+      var l=lines[i];
+      if(/^\s*\|.*\|\s*$/.test(l)){
+        var tb=[];while(i<lines.length&&/^\s*\|.*\|\s*$/.test(lines[i])){tb.push(lines[i]);i++;}
+        var rows=tb.filter(function(r){return !/^\s*\|[\s:|-]+\|\s*$/.test(r);});
+        out.push('<table>'+rows.map(function(r,ri){
+          var cells=r.trim().replace(/^\||\|$/g,'').split('|');
+          return '<tr>'+cells.map(function(c){var t=ri===0?'th':'td';return '<'+t+'>'+inline(c.trim())+'</'+t+'>';}).join('')+'</tr>';
+        }).join('')+'</table>');continue;
+      }
+      if(/^#{1,4}\s/.test(l)){var n=l.match(/^#+/)[0].length;out.push('<h'+n+'>'+inline(l.replace(/^#+\s/,''))+'</h'+n+'>');i++;continue;}
+      if(/^\s*---+\s*$/.test(l)){out.push('<hr>');i++;continue;}
+      if(/^\s*>\s?/.test(l)){var bq=[];while(i<lines.length&&/^\s*>\s?/.test(lines[i])){bq.push(lines[i].replace(/^\s*>\s?/,''));i++;}out.push('<blockquote>'+inline(bq.join(' '))+'</blockquote>');continue;}
+      if(/^\s*[-*]\s/.test(l)){var li=[];while(i<lines.length&&/^\s*[-*]\s/.test(lines[i])){li.push(lines[i].replace(/^\s*[-*]\s/,''));i++;}out.push('<ul>'+li.map(function(x){return '<li>'+inline(x)+'</li>';}).join('')+'</ul>');continue;}
+      if(/^\s*$/.test(l)){i++;continue;}
+      out.push('<p>'+inline(l)+'</p>');i++;
+    }
+    return out.join('\n');
+  }
+  var SPECS={zh:'nb-decomp-zh',en:'nb-decomp'},cache={};
+  var avail=['zh','en'].filter(function(k){var e=document.getElementById(SPECS[k]);return e&&e.textContent.replace(/[\s_]/g,'').length>20;});
+  var lang=avail.indexOf('zh')>=0?'zh':(avail[0]||'en');
+  function render(){var id=SPECS[lang];if(!document.getElementById(id))id=SPECS[avail[0]];if(cache[id]===undefined)cache[id]=mdToHtml(document.getElementById(id).textContent);document.getElementById('specDoc').innerHTML=cache[id];}
+  (function buildLang(){var box=document.getElementById('specLang');if(!box)return;if(avail.length<2){box.style.display='none';return;}var L={zh:'中文',en:'EN'};
+    box.innerHTML=avail.map(function(k){return '<button data-l="'+k+'"'+(k===lang?' class="on"':'')+'>'+L[k]+'</button>';}).join('');
+    [].forEach.call(box.children,function(btn){btn.onclick=function(){lang=btn.getAttribute('data-l');[].forEach.call(box.children,function(x){x.className='';});btn.className='on';render();};});})();
+  function show(){render();document.getElementById('specOv').classList.add('on');}
+  function hide(){document.getElementById('specOv').classList.remove('on');}
+  document.getElementById('specBtn').onclick=show;
+  document.getElementById('specX').onclick=hide;
+  document.getElementById('specOv').addEventListener('click',function(e){if(e.target.id==='specOv')hide();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')hide();});
+  if(location.hash==='#spec')show();
+})();
+</script>
+</body>
+</html>

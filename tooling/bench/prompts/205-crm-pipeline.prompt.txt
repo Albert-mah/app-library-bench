@@ -1,0 +1,41 @@
+Build a lightweight but COMPLETE Sales CRM in NocoBase — FULL AUTONOMY, no questions, end to end. Build into env **{ENV}** — every `nb api` call passes `-e {ENV} -y`. The instance is a CLEAN empty NocoBase (beta-full, commercial plugins available).
+
+First read the `nocobase-prototype-repro` skill (SKILL.md + references/) and `nocobase-app-discipline`.
+
+REFERENCE PROTOTYPE (match its layout + signature pages): http://localhost:8080/205-crm-pipeline.html
+It embeds an authoritative `<script type="application/nb-spec+json">` spec (collections, pages, workflows, roles, users, aiEmployee, notes). HONOR that spec — it is the target.
+
+Deliver ALL FIVE layers, not just pages:
+
+1) DATA MODEL — snake_case collections; relation fields named as NOUNS, never `*_id` (beta rejects `*_id` association names):
+- crm_customers: name, industry (enum: SaaS/Manufacturing/Retail/Finance/Healthcare), tier (enum: A/B/C), status (enum: prospect/active/churned), website, phone, address (text), owner (belongsTo users)
+- crm_contacts: name, title, email, phone, is_primary (checkbox), customer (belongsTo crm_customers)
+- crm_deals: title, stage (enum: lead/qualified/proposal/negotiation/won/lost), amount (number, 2 decimals), close_date (date), probability (number 0-100), source (enum: inbound/outbound/referral/event), customer (belongsTo crm_customers), owner (belongsTo users)
+- crm_activities: subject, type (enum: call/email/meeting/task), due_date (date), status (enum: open/done), notes (text), deal (belongsTo crm_deals), customer (belongsTo crm_customers), owner (belongsTo users)
+SEED all-English data: >=12 customers (cover every industry/tier/status), >=14 contacts, >=16 deals across EVERY stage (incl. won & lost), >=16 activities across every type with a few due today.
+
+2) PAGES (native-first; honor the prototype's region->block map) under a top-level "CRM" menu group:
+- Dashboard: native Chart blocks (deals by stage funnel/bar, pipeline amount, deals by owner) + a KPI strip + a "Closing soon" table + a recent-activities list.
+- Pipeline: Kanban of crm_deals grouped by `stage` (card shows title + customer + amount — kanban cards allow <=2 native fields, so add a JS card field for the rich card) + a Table view with Filter + Add.
+- Customers: Table + Filter + Add; row click -> a WIDE drawer with customer Details + three sub-tables (Contacts / Deals / Activities), each auto-filtered to the parent via `associationName` + `sourceId={{ctx.view.inputArgs.filterByTk}}`.
+- Contacts: Table + Filter.
+- Activities: Calendar (by due_date) + Table; filter by type and status.
+
+3) WORKFLOWS (create AND enable via the workflow API):
+- "Lead intake": collection trigger on crm_deals create where stage=lead -> default probability=10 + create a crm_activities row (type=call, subject "First call", owner = the deal's owner, due_date = +2 days).
+- "Deal won": collection trigger on crm_deals update stage->won -> set the customer's status=active + create an onboarding activity.
+- "High-value approval": when a crm_deals amount >= 50000 -> an approval workflow; a sales_manager must approve before the deal advances to negotiation/won.
+
+4) ROLES / ACL (nb roles + data-permission scopes):
+- sales_rep: CRUD crm_* but scoped to records where owner = current user (data scope on owner.id = {{ctx.user.id}}); read others; CANNOT approve.
+- sales_manager: full crm_* + approve deals + full dashboard.
+- admin: full access.
+Seed USERS and assign as owners across the seed data: Admin User (admin/root), Morgan Lee (sales_manager), Alex Rivera + Priya Shah (sales_rep).
+
+5) AI EMPLOYEE "Sales Assistant" — configure it on the PRE-PROVISIONED LLM service. An OpenCode Zen gateway key is ALREADY configured on this instance as an `llmService` with `enabledModels`; USE it (do NOT create keys). Skills (pass as string arrays): (a) "Summarize customer" — reads a customer + its deals/activities and returns a briefing; (b) "Draft follow-up email" — formFiller drafts into an activity note; (c) "Score lead" — fills crm_deals.probability + a short rationale. Surface it as an AIEmployeeButtonModel on the Customer detail and the Deal form.
+
+HONOR these NocoBase gotchas: belongsTo relations are NOUNS not `*_id`; drawer sub-tables use `associationName` + `sourceId={{ctx.view.inputArgs.filterByTk}}`; kanban needs a JS card field; every select->Tag mapping falls back to the raw value for unknown enums; seed every enum branch; never `flowModels:update` (clears parentId).
+
+VERIFY before done: open each page in a fresh no-cache browser (inject `localStorage.NOCOBASE_TOKEN`), confirm every block renders with no console/page errors, and do a visual pass vs the prototype.
+
+END with a FINAL REPORT: collections built; the signature page schemaUids (Dashboard + Pipeline + Customers); workflows created + enabled; roles + a one-line permission matrix; the AI employee id; `Self-Score: N` (0-10); and a short list of gaps/tradeoffs.
